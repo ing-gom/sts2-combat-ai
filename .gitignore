@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+*.pdb
+
+# Godot project artifacts
+.godot/
+.import/
+.mono/
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+.DS_Store

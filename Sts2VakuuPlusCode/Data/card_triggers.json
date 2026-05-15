@@ -1,0 +1,7821 @@
+{
+  "version": "v0.103.2",
+  "generated_from": "scripts\\cards_catalog.json",
+  "card_count": 576,
+  "cards": {
+    "CARD.ABRASIVE": {
+      "axes": [
+        "CUNNING_PRODUCER",
+        "THORNS",
+        "SCALING",
+        "DEXTERITY",
+        "CUNNING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ACCELERANT": {
+      "axes": [
+        "POISON",
+        "POISON_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ACCURACY": {
+      "axes": [
+        "SHIV_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.ACROBATICS": {
+      "axes": [
+        "DRAW",
+        "CUNNING_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.ADAPTIVE_STRIKE": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ]
+    },
+    "CARD.ADRENALINE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "DRAW",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.AFTERIMAGE": {
+      "axes": [
+        "BLOCK",
+        "PLAY_TRIGGER",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.AFTERLIFE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "MINION",
+        "EXHAUST_SELF",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.AGGRESSION": {
+      "axes": [
+        "SCALING",
+        "RANDOM",
+        "CARD_RETURN",
+        "DAMAGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "upgrade_trigger": true
+    },
+    "CARD.ALCHEMIZE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.ALIGNMENT": {
+      "axes": [
+        "ENERGY"
+      ]
+    },
+    "CARD.ALL_FOR_ONE": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK_RECLAIMER"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.ANGER": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.ANOINTED": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "DRAW_PILE_SEARCH",
+        "CARD_RETURN"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.ANTICIPATE": {
+      "axes": [
+        "DURATION",
+        "SCALING",
+        "DEXTERITY"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.APOTHEOSIS": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SCALING",
+        "INNATE_SELF",
+        "EXHAUST_SELF",
+        "INNATE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "exhaust": true,
+      "innate": true
+    },
+    "CARD.APPARITION": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ETHEREAL_SELF",
+        "INTANGIBLE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true,
+      "ethereal": true
+    },
+    "CARD.ARMAMENTS": {
+      "axes": [
+        "BLOCK",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "upgrade_trigger": true
+    },
+    "CARD.ARSENAL": {
+      "axes": [
+        "SCALING",
+        "STRENGTH_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.ASCENDERS_BANE": {
+      "axes": [
+        "ETERNAL",
+        "UNPLAYABLE",
+        "ETHEREAL_SELF"
+      ],
+      "ethereal": true
+    },
+    "CARD.ASHEN_STRIKE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SCALING",
+        "EXHAUST_CONSUMER",
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.ASSASSINATE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "INNATE_SELF",
+        "DEBUFF",
+        "VULN",
+        "DAMAGE",
+        "INNATE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true,
+      "innate": true
+    },
+    "CARD.ASTRAL_PULSE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.AUTOMATION": {
+      "axes": [
+        "ENERGY",
+        "DRAW_ON_DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.BACKFLIP": {
+      "axes": [
+        "BLOCK",
+        "DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BACKSTAB": {
+      "axes": [
+        "EXHAUST_TAG",
+        "INNATE_SELF",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "INNATE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true,
+      "innate": true
+    },
+    "CARD.BAD_LUCK": {
+      "axes": [
+        "HP_LOSS",
+        "ETERNAL",
+        "UNPLAYABLE"
+      ],
+      "builds": [
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BALL_LIGHTNING": {
+      "axes": [
+        "ORB_PRODUCER",
+        "DAMAGE",
+        "LIGHTNING_ORB"
+      ]
+    },
+    "CARD.BANSHEES_CRY": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "VOLATILE_CONSUMER",
+        "DAMAGE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BARRAGE": {
+      "axes": [
+        "ORB_PRODUCER",
+        "ORB_CONSUMER",
+        "DAMAGE"
+      ]
+    },
+    "CARD.BARRICADE": {
+      "axes": [
+        "BLOCK",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BASH": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "DAMAGE"
+      ]
+    },
+    "CARD.BATTLE_TRANCE": {
+      "axes": [
+        "DRAW",
+        "DURATION",
+        "STACKABLE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BEACON_OF_HOPE": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BEAM_CELL": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.BEAT_DOWN": {
+      "axes": [
+        "RANDOM",
+        "ATTACK_REPLAY"
+      ]
+    },
+    "CARD.BEAT_INTO_SHAPE": {
+      "axes": [
+        "DAMAGE",
+        "FORGE_PRODUCER",
+        "FORGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.BECKON": {
+      "axes": [
+        "HP_LOSS"
+      ],
+      "builds": [
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BEGONE": {
+      "axes": [
+        "DAMAGE",
+        "DRAW",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BELIEVE_IN_YOU": {
+      "axes": [
+        "ENERGY"
+      ]
+    },
+    "CARD.BIASED_COGNITION": {
+      "axes": [
+        "SCALING",
+        "FOCUS",
+        "BURST_FINISHER",
+        "FOCUS_PENALTY"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BIG_BANG": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "STAR_PRODUCER",
+        "DRAW",
+        "STAR",
+        "FORGE",
+        "EXHAUST_SELF",
+        "FORGE_PRODUCER",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.BLACK_HOLE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "STAR_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "STAR"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BLADE_DANCE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "SHIV",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.BLADE_OF_INK": {
+      "axes": [
+        "SHIV",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.BLIGHT_STRIKE": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.BLOODLETTING": {
+      "axes": [
+        "ENERGY",
+        "HP_LOSS"
+      ],
+      "builds": [
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BLOOD_WALL": {
+      "axes": [
+        "BLOCK",
+        "HP_LOSS"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BLUDGEON": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.BLUR": {
+      "axes": [
+        "BLOCK",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BODYGUARD": {
+      "axes": [
+        "MINION",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.BODY_SLAM": {
+      "axes": [
+        "BLOCK",
+        "DAMAGE",
+        "BLOCK_PAYOFF"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BOLAS": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.BOMBARDMENT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.BONE_SHARDS": {
+      "axes": [
+        "BLOCK",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "SKELETON_CONSUMER",
+        "OSTY",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BOOST_AWAY": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BOOT_SEQUENCE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "INNATE_SELF",
+        "INNATE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true,
+      "innate": true
+    },
+    "CARD.BORROWED_TIME": {
+      "axes": [
+        "ENERGY",
+        "DURATION",
+        "ENERGY_PRODUCER"
+      ]
+    },
+    "CARD.BOUNCING_FLASK": {
+      "axes": [
+        "POISON",
+        "RANDOM",
+        "POISON_PRODUCER",
+        "REPEAT"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BRAND": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "HP_LOSS",
+        "SCALING",
+        "STRENGTH_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BREAK": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "DAMAGE"
+      ]
+    },
+    "CARD.BREAKTHROUGH": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "HP_LOSS",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BRIGHTEST_FLAME": {
+      "axes": [
+        "ENERGY",
+        "DRAW",
+        "HEAL",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BUBBLE_BUBBLE": {
+      "axes": [
+        "POISON",
+        "POISON_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BUFFER": {
+      "axes": [
+        "HP_LOSS_PREVENT"
+      ]
+    },
+    "CARD.BULK_UP": {
+      "axes": [
+        "ORB_PRODUCER",
+        "ORB",
+        "SCALING",
+        "STRENGTH_PRODUCER",
+        "DEXTERITY",
+        "SLOT_COST"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BULLET_TIME": {
+      "axes": [
+        "DURATION",
+        "POWER_COST_ENABLER"
+      ]
+    },
+    "CARD.BULLY": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "DAMAGE",
+        "VULN_AMPLIFIER",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.BULWARK": {
+      "axes": [
+        "BLOCK",
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BUNDLE_OF_JOY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.BURN": {
+      "axes": [
+        "DAMAGE",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.BURNING_PACT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.BURST": {
+      "axes": [
+        "SKILL_COUNT",
+        "SKILL_REPLAY"
+      ]
+    },
+    "CARD.BURY": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.BYRDONIS_EGG": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.BYRD_SWOOP": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.CALAMITY": {
+      "axes": [
+        "RANDOM",
+        "PLAY_TRIGGER",
+        "ATTACK_CONDITIONAL"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.CALCIFY": {
+      "axes": [
+        "SCALING",
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CALCULATED_GAMBLE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF",
+        "CUNNING_CONSUMER",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.CALL_OF_THE_VOID": {
+      "axes": [
+        "RANDOM",
+        "CARD_GEN",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.CALTROPS": {
+      "axes": [
+        "THORNS"
+      ]
+    },
+    "CARD.CAPACITOR": {
+      "axes": [
+        "ORB_PRODUCER",
+        "REPEAT",
+        "SLOT_EXPAND"
+      ]
+    },
+    "CARD.CAPTURE_SPIRIT": {
+      "axes": [
+        "SOUL_PRODUCER",
+        "DAMAGE"
+      ]
+    },
+    "CARD.CASCADE": {
+      "axes": [
+        "RANDOM",
+        "X_COST"
+      ]
+    },
+    "CARD.CATASTROPHE": {
+      "axes": [
+        "RANDOM",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CELESTIAL_MIGHT": {
+      "axes": [
+        "DAMAGE",
+        "REPEAT",
+        "HIT_4"
+      ]
+    },
+    "CARD.CHAOS": {
+      "axes": [
+        "ORB_PRODUCER",
+        "RANDOM",
+        "REPEAT"
+      ]
+    },
+    "CARD.CHARGE": {
+      "axes": [
+        "CARD_GEN",
+        "DRAW_PILE_SEARCH",
+        "MINION"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CHARGE_BATTERY": {
+      "axes": [
+        "BLOCK",
+        "ENERGY"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CHILD_OF_THE_STARS": {
+      "axes": [
+        "BLOCK",
+        "STAR_PRODUCER",
+        "STAR",
+        "STAR_PAYOFF"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CHILL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ORB_PRODUCER",
+        "EXHAUST_SELF",
+        "FROST_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.CINDER": {
+      "axes": [
+        "RANDOM",
+        "EXHAUST_PRODUCER",
+        "DAMAGE",
+        "EXHAUST_TARGET_RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CLASH": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.CLAW": {
+      "axes": [
+        "SCALING",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CLEANSE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "MINION",
+        "SKELETON_PRODUCER",
+        "EXHAUST_TARGET_FORCED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CLOAK_AND_DAGGER": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.CLOAK_OF_STARS": {
+      "axes": [
+        "BLOCK",
+        "STAR_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CLUMSY": {
+      "axes": [
+        "UNPLAYABLE",
+        "ETHEREAL_SELF"
+      ],
+      "ethereal": true
+    },
+    "CARD.COLD_SNAP": {
+      "axes": [
+        "ORB_PRODUCER",
+        "DAMAGE",
+        "FROST_ORB"
+      ]
+    },
+    "CARD.COLLISION_COURSE": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK",
+        "STATUS_TO_HAND"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.COLOSSUS": {
+      "axes": [
+        "BLOCK",
+        "DEBUFF",
+        "VULN",
+        "VULN_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.COMET": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.COMPACT": {
+      "axes": [
+        "BLOCK",
+        "STATUS_CONSUMER",
+        "CARD_GEN"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.COMPILE_DRIVER": {
+      "axes": [
+        "ORB_PRODUCER",
+        "DRAW_CONDITIONAL",
+        "DAMAGE",
+        "ORB_VARIETY_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CONFLAGRATION": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "COMBO",
+        "DAMAGE",
+        "AOE",
+        "DAMAGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CONQUEROR": {
+      "axes": [
+        "DURATION",
+        "FORGE",
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CONSUMING_SHADOW": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ORB_PRODUCER",
+        "REPEAT",
+        "DARK_ORB",
+        "ORB_EVOKE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CONVERGENCE": {
+      "axes": [
+        "ENERGY",
+        "STAR_PRODUCER",
+        "STAR"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.COOLANT": {
+      "axes": [
+        "BLOCK",
+        "ORB_PRODUCER",
+        "FROST_ORB",
+        "ORB_VARIETY_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.COOLHEADED": {
+      "axes": [
+        "DRAW",
+        "ORB_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.COORDINATE": {
+      "axes": [
+        "DURATION",
+        "SCALING",
+        "STRENGTH_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CORROSIVE_WAVE": {
+      "axes": [
+        "POISON",
+        "AOE_OTHER",
+        "DRAW_CONDITIONAL",
+        "AOE_POISON",
+        "POISON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CORRUPTION": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "SKILL_CONDITIONAL",
+        "SKILL_COST_ENABLER",
+        "EXHAUST_BURST"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.COSMIC_INDIFFERENCE": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.COUNTDOWN": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CRASH_LANDING": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE",
+        "STATUS_TO_HAND"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CREATIVE_AI": {
+      "axes": [
+        "RANDOM",
+        "CARD_GEN",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.CRESCENT_SPEAR": {
+      "axes": [
+        "SCALING",
+        "STAR_PRODUCER",
+        "DAMAGE",
+        "STAR_PAYOFF"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.CRIMSON_MANTLE": {
+      "axes": [
+        "BLOCK",
+        "SCALING",
+        "HP_LOSS"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CRUELTY": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "VULN_AMPLIFIER"
+      ]
+    },
+    "CARD.CRUSH_UNDER": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DURATION",
+        "DAMAGE",
+        "DEBUFF",
+        "STRENGTH_DOWN",
+        "AOE",
+        "AOE_DEBUFF"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.CURSE_OF_THE_BELL": {
+      "axes": [
+        "ETERNAL",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.DAGGER_SPRAY": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DAGGER_THROW": {
+      "axes": [
+        "DRAW",
+        "DAMAGE",
+        "CUNNING_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.DANSE_MACABRE": {
+      "axes": [
+        "BLOCK",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DARKNESS": {
+      "axes": [
+        "ORB_PRODUCER",
+        "DURATION",
+        "DARK_ORB_AMPLIFIER"
+      ]
+    },
+    "CARD.DARK_EMBRACE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DARK_SHACKLES": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "STRENGTH_DOWN",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DASH": {
+      "axes": [
+        "BLOCK",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DAZED": {
+      "axes": [
+        "ETHEREAL_SELF",
+        "UNPLAYABLE"
+      ],
+      "ethereal": true
+    },
+    "CARD.DEADLY_POISON": {
+      "axes": [
+        "POISON",
+        "POISON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEATHBRINGER": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DEBUFF",
+        "DEBUFF",
+        "WEAK",
+        "DOOM",
+        "AOE",
+        "AOE_DOOM"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.DEATHS_DOOR": {
+      "axes": [
+        "BLOCK",
+        "REPEAT",
+        "DOOM_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEATH_MARCH": {
+      "axes": [
+        "SCALING",
+        "DURATION",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEBILITATE": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "DURATION",
+        "DAMAGE",
+        "VULN_AMPLIFIER",
+        "WEAK_AMPLIFIER"
+      ]
+    },
+    "CARD.DEBRIS": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DEBT": {
+      "axes": [
+        "GOLD",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.DECAY": {
+      "axes": [
+        "DAMAGE",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.DECISIONS_DECISIONS": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "REPEAT",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DEFEND_DEFECT": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE",
+        "STARTER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFEND_IRONCLAD": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE",
+        "STARTER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFEND_NECROBINDER": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE",
+        "STARTER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFEND_REGENT": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE",
+        "STARTER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFEND_SILENT": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE",
+        "STARTER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFILE": {
+      "axes": [
+        "POISON",
+        "ETHEREAL_SELF",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.DEFLECT": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFRAGMENT": {
+      "axes": [
+        "SCALING",
+        "FOCUS"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEFY": {
+      "axes": [
+        "BLOCK",
+        "ETHEREAL_SELF",
+        "DEBUFF",
+        "WEAK",
+        "VOLATILE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.DELAY": {
+      "axes": [
+        "BLOCK",
+        "ENERGY"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEMESNE": {
+      "axes": [
+        "ENERGY",
+        "ETHEREAL_SELF",
+        "DRAW",
+        "ENERGY_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.DEMONIC_SHIELD": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "HP_LOSS",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DEMON_FORM": {
+      "axes": [
+        "SCALING",
+        "STRENGTH_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DEPRECATED_CARD": {
+      "axes": [
+        "EXHAUST_SELF",
+        "EXHAUST_TAG"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DEVASTATE": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.DEVOUR_LIFE": {
+      "axes": [
+        "SOUL_PRODUCER",
+        "SOUL_CONSUMER",
+        "HEAL",
+        "MINION",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.DIRGE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SOUL_PRODUCER",
+        "MINION",
+        "EXHAUST_SELF",
+        "X_COST",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DISCOVERY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "DURATION",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.DISINTEGRATION": {
+      "axes": [
+        "DEBUFF"
+      ]
+    },
+    "CARD.DISMANTLE": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "DAMAGE",
+        "VULN_AMPLIFIER"
+      ]
+    },
+    "CARD.DISTRACTION": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "DURATION",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.DODGE_AND_ROLL": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DOMINATE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "VULN",
+        "SCALING",
+        "EXHAUST_SELF",
+        "VULN_AMPLIFIER",
+        "STRENGTH_PRODUCER",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DOUBLE_ENERGY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.DOUBT": {
+      "axes": [
+        "DEBUFF",
+        "WEAK",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.DRAIN_POWER": {
+      "axes": [
+        "SCALING",
+        "RANDOM",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "upgrade_trigger": true
+    },
+    "CARD.DRAMATIC_ENTRANCE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "AOE_OTHER",
+        "INNATE_SELF",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "INNATE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true,
+      "innate": true
+    },
+    "CARD.DREDGE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "CARD_RETURN"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.DRUM_OF_BATTLE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_PRODUCER",
+        "SCALING",
+        "EXHAUST_DRAIN_PASSIVE",
+        "EXHAUST_TARGET_FORCED"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.DUALCAST": {
+      "axes": [
+        "ORB_PRODUCER",
+        "ORB_EVOKE"
+      ]
+    },
+    "CARD.DUAL_WIELD": {
+      "axes": [
+        "REPLAY",
+        "POWER_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.DYING_STAR": {
+      "axes": [
+        "STAR_PRODUCER",
+        "AOE_OTHER",
+        "ETHEREAL_SELF",
+        "AOE_DAMAGE",
+        "DURATION",
+        "DAMAGE",
+        "DEBUFF",
+        "STRENGTH_DOWN",
+        "AOE",
+        "AOE_DEBUFF"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.ECHOING_SLASH": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ECHO_FORM": {
+      "axes": [
+        "ETHEREAL_SELF",
+        "VOLATILE_PRODUCER",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.EIDOLON": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "EXHAUST_BURST",
+        "EXHAUST_TARGET_FORCED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.END_OF_DAYS": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DOOM",
+        "DOOM",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.ENERGY_SURGE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.ENFEEBLING_TOUCH": {
+      "axes": [
+        "ETHEREAL_SELF",
+        "DURATION",
+        "DEBUFF",
+        "STRENGTH_DOWN"
+      ],
+      "ethereal": true
+    },
+    "CARD.ENLIGHTENMENT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "COST_ENABLER_ANY"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.ENTHRALLED": {
+      "axes": [
+        "ETERNAL"
+      ]
+    },
+    "CARD.ENTRENCH": {
+      "axes": [
+        "BLOCK",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ENTROPY": {
+      "axes": [
+        "RANDOM"
+      ]
+    },
+    "CARD.ENVENOM": {
+      "axes": [
+        "POISON",
+        "POISON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.EQUILIBRIUM": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ERADICATE": {
+      "axes": [
+        "RETAIN_SELF",
+        "DAMAGE",
+        "RETAIN",
+        "X_COST",
+        "MULTI_HIT_SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.ESCAPE_PLAN": {
+      "axes": [
+        "DRAW",
+        "BLOCK",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ETERNAL_ARMOR": {
+      "axes": [
+        "SCALING",
+        "PLATING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.EVIL_EYE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "DURATION",
+        "EXHAUST_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.EXPECT_A_FIGHT": {
+      "axes": [
+        "ENERGY"
+      ]
+    },
+    "CARD.EXPERTISE": {
+      "axes": [
+        "DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.EXPOSE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "DEBUFF",
+        "VULN",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.EXTERMINATE": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "REPEAT",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FALLING_STAR": {
+      "axes": [
+        "STAR_PRODUCER",
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.FAN_OF_KNIVES": {
+      "axes": [
+        "AOE_OTHER",
+        "SHIV",
+        "SHIV_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.FASTEN": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FEAR": {
+      "axes": [
+        "ETHEREAL_SELF",
+        "DEBUFF",
+        "VULN",
+        "VOLATILE_PRODUCER",
+        "DAMAGE"
+      ],
+      "ethereal": true
+    },
+    "CARD.FEED": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "HEAL",
+        "EXHAUST_SELF",
+        "STACKABLE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.FEEDING_FRENZY": {
+      "axes": [
+        "DURATION",
+        "SCALING",
+        "STRENGTH_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FEEL_NO_PAIN": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FERAL": {
+      "axes": [
+        "FREE_ATTACK_RETURNER"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.FETCH": {
+      "axes": [
+        "DRAW_CONDITIONAL",
+        "OSTY",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.FIEND_FIRE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "EXHAUST_BURST",
+        "EXHAUST_TARGET_FORCED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.FIGHT_ME": {
+      "axes": [
+        "DAMAGE",
+        "REPEAT",
+        "SCALING",
+        "STRENGTH_PRODUCER",
+        "TAUNT"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FIGHT_THROUGH": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FINESSE": {
+      "axes": [
+        "BLOCK",
+        "DRAW",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FINISHER": {
+      "axes": [
+        "COMBO",
+        "DAMAGE"
+      ]
+    },
+    "CARD.FISTICUFFS": {
+      "axes": [
+        "BLOCK",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FLAK_CANNON": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "EXHAUST_PRODUCER",
+        "DAMAGE",
+        "STATUS_CONSUMER",
+        "EXHAUST_TARGET_FILTERED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.FLAME_BARRIER": {
+      "axes": [
+        "BLOCK",
+        "DAMAGE_BACK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FLANKING": {
+      "axes": [
+        "DEBUFF",
+        "DAMAGE_AMPLIFIER",
+        "DURATION"
+      ]
+    },
+    "CARD.FLASH_OF_STEEL": {
+      "axes": [
+        "DRAW",
+        "DAMAGE",
+        "FREE_ATTACK",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FLATTEN": {
+      "axes": [
+        "OSTY"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FLECHETTES": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.FLICK_FLACK": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "CUNNING",
+        "CUNNING_PRODUCER",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FOCUSED_STRIKE": {
+      "axes": [
+        "DAMAGE",
+        "SCALING",
+        "FOCUS",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FOLLOW_THROUGH": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.FOLLY": {
+      "axes": [
+        "UNPLAYABLE",
+        "ETERNAL",
+        "INNATE",
+        "INNATE_SELF",
+        "ETHEREAL_SELF"
+      ],
+      "ethereal": true,
+      "innate": true
+    },
+    "CARD.FOOTWORK": {
+      "axes": [
+        "SCALING",
+        "DEXTERITY"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FORBIDDEN_GRIMOIRE": {
+      "axes": [
+        "ETERNAL"
+      ]
+    },
+    "CARD.FOREGONE_CONCLUSION": {
+      "axes": [
+        "DRAW_PILE_SEARCH"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.FORGOTTEN_RITUAL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.FRIENDSHIP": {
+      "axes": [
+        "ENERGY",
+        "SCALING",
+        "ENERGY_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FTL": {
+      "axes": [
+        "DRAW_CONDITIONAL",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.FUEL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "DRAW",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.FURNACE": {
+      "axes": [
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.FUSION": {
+      "axes": [
+        "ORB_PRODUCER",
+        "PLASMA_ORB"
+      ]
+    },
+    "CARD.GAMMA_BLAST": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.GANG_UP": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.GATHER_LIGHT": {
+      "axes": [
+        "BLOCK",
+        "STAR_PRODUCER",
+        "STAR"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GENESIS": {
+      "axes": [
+        "STAR_PRODUCER",
+        "STAR",
+        "STAR_BURST"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GENETIC_ALGORITHM": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_SELF",
+        "BLOCK_SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.GIANT_ROCK": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.GLACIER": {
+      "axes": [
+        "BLOCK",
+        "ORB_PRODUCER",
+        "FROST_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GLASSWORK": {
+      "axes": [
+        "BLOCK",
+        "ORB_PRODUCER",
+        "GLASS_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GLIMMER": {
+      "axes": [
+        "DRAW",
+        "CARD_RETURN"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.GLIMPSE_BEYOND": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SOUL_PRODUCER",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.GLITTERSTREAM": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GLOW": {
+      "axes": [
+        "STAR_PRODUCER",
+        "DRAW",
+        "STAR"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GOLD_AXE": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.GO_FOR_THE_EYES": {
+      "axes": [
+        "DEBUFF",
+        "WEAK",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.GRAND_FINALE": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE",
+        "ABSENT_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GRAVEBLAST": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.GRAVE_WARDEN": {
+      "axes": [
+        "BLOCK",
+        "SOUL_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GREED": {
+      "axes": [
+        "ETERNAL",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.GUARDS": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "CARD_GEN",
+        "MINION",
+        "SKELETON_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.GUIDING_STAR": {
+      "axes": [
+        "STAR_PRODUCER",
+        "DRAW",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.GUILTY": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.GUNK_UP": {
+      "axes": [
+        "DAMAGE",
+        "REPEAT"
+      ]
+    },
+    "CARD.HAILSTORM": {
+      "axes": [
+        "DAMAGE",
+        "FROST_PAYOFF",
+        "AOE",
+        "AOE_DAMAGE",
+        "AOE_OTHER"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HAMMER_TIME": {
+      "axes": [
+        "FORGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.HAND_OF_GREED": {
+      "axes": [
+        "DAMAGE",
+        "GOLD"
+      ]
+    },
+    "CARD.HAND_TRICK": {
+      "axes": [
+        "BLOCK",
+        "DURATION",
+        "CUNNING_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.HANG": {
+      "axes": [
+        "SCALING",
+        "DAMAGE",
+        "DAMAGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HAUNT": {
+      "axes": [
+        "SOUL_PRODUCER",
+        "RANDOM",
+        "SOUL_CONSUMER",
+        "HP_LOSS"
+      ],
+      "builds": [
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HAVOC": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "EXHAUST_TARGET_FORCED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.HAZE": {
+      "axes": [
+        "POISON",
+        "AOE_OTHER",
+        "AOE_POISON",
+        "POISON_PRODUCER",
+        "CUNNING_PRODUCER",
+        "CUNNING",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HEADBUTT": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.HEAVENLY_DRILL": {
+      "axes": [
+        "DAMAGE",
+        "X_COST",
+        "MULTI_HIT_SCALING"
+      ]
+    },
+    "CARD.HEGEMONY": {
+      "axes": [
+        "ENERGY",
+        "DAMAGE"
+      ]
+    },
+    "CARD.HEIRLOOM_HAMMER": {
+      "axes": [
+        "DAMAGE",
+        "REPEAT"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.HELIX_DRILL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.HELLO_WORLD": {
+      "axes": [
+        "RANDOM",
+        "CARD_GEN",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.HELLRAISER": {
+      "axes": [
+        "RANDOM",
+        "DRAW_ON_DRAW",
+        "STRIKE_ON_DRAW",
+        "STRIKE_CONSUMER",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.HEMOKINESIS": {
+      "axes": [
+        "HP_LOSS",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HIDDEN_CACHE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "STAR"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HIDDEN_DAGGERS": {
+      "axes": [
+        "SHIV",
+        "CUNNING_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.HIDDEN_GEM": {
+      "axes": [
+        "RANDOM",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.HIGH_FIVE": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DEBUFF",
+        "VULN",
+        "OSTY",
+        "AOE",
+        "AOE_DEBUFF"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HOLOGRAM": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.HOTFIX": {
+      "axes": [
+        "EXHAUST_TAG",
+        "FOCUS",
+        "EXHAUST_SELF",
+        "STACKABLE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.HOWL_FROM_BEYOND": {
+      "axes": [
+        "EXHAUST_TAG",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.HUDDLE_UP": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.HYPERBEAM": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE",
+        "FOCUS_PENALTY"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ICE_LANCE": {
+      "axes": [
+        "ORB_PRODUCER",
+        "DAMAGE",
+        "REPEAT"
+      ]
+    },
+    "CARD.IGNITION": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ORB_PRODUCER",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.IMPATIENCE": {
+      "axes": [
+        "DRAW",
+        "ABSENT_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.IMPERVIOUS": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.INFECTION": {
+      "axes": [
+        "DAMAGE",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.INFERNAL_BLADE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "DURATION",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.INFERNO": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "SCALING",
+        "HP_LOSS",
+        "HP_LOSS_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.INFINITE_BLADES": {
+      "axes": [
+        "SHIV",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.INFLAME": {
+      "axes": [
+        "SCALING",
+        "STRENGTH_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.INJURY": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.INTERCEPT": {
+      "axes": [
+        "BLOCK",
+        "DURATION"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.INVOKE": {
+      "axes": [
+        "ENERGY",
+        "MINION",
+        "SKELETON_PRODUCER",
+        "ENERGY_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.IRON_WAVE": {
+      "axes": [
+        "BLOCK",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ITERATION": {
+      "axes": [
+        "DRAW",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.I_AM_INVINCIBLE": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.JACKPOT": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE",
+        "CARD_GEN"
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.JACK_OF_ALL_TRADES": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.JUGGERNAUT": {
+      "axes": [
+        "BLOCK",
+        "RANDOM",
+        "BLOCK_PAYOFF",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.JUGGLING": {
+      "axes": [
+        "CARD_GEN",
+        "ATTACK_COUNT",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.KINGLY_KICK": {
+      "axes": [
+        "DRAW_ON_DRAW",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.KINGLY_PUNCH": {
+      "axes": [
+        "SCALING",
+        "DRAW_ON_DRAW",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.KNIFE_TRAP": {
+      "axes": [
+        "SHIV_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "secondary"
+        }
+      ],
+      "upgrade_trigger": true
+    },
+    "CARD.KNOCKDOWN": {
+      "axes": [
+        "DAMAGE",
+        "DEBUFF",
+        "DAMAGE_AMPLIFIER"
+      ]
+    },
+    "CARD.KNOCKOUT_BLOW": {
+      "axes": [
+        "STAR_PRODUCER",
+        "DAMAGE",
+        "STAR"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.KNOW_THY_PLACE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.LANTERN_KEY": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.LARGESSE": {
+      "axes": [
+        "SCALING",
+        "RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.LEADING_STRIKE": {
+      "axes": [
+        "SHIV",
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.LEAP": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.LEGION_OF_BONE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "MINION",
+        "EXHAUST_SELF",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.LEG_SWEEP": {
+      "axes": [
+        "BLOCK",
+        "AOE_OTHER",
+        "DEBUFF",
+        "WEAK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.LETHALITY": {
+      "axes": [
+        "SCALING",
+        "ETHEREAL_SELF",
+        "DAMAGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.LIFT": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.LIGHTNING_ROD": {
+      "axes": [
+        "BLOCK",
+        "DURATION",
+        "ORB_PRODUCER",
+        "LIGHTNING_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.LOOP": {
+      "axes": [
+        "ORB_PRODUCER",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.LUMINESCE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "RETAIN_SELF",
+        "EXHAUST_SELF",
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "exhaust": true,
+      "retain": true
+    },
+    "CARD.LUNAR_BLAST": {
+      "axes": [
+        "COMBO",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.MACHINE_LEARNING": {
+      "axes": [
+        "DRAW",
+        "DRAW_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.MAD_SCIENCE": {
+      "axes": [
+        "BLOCK",
+        "SCALING",
+        "ENERGY",
+        "DRAW_CONDITIONAL",
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "RANDOM",
+        "DURATION",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.MAKE_IT_SO": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK",
+        "SKILL_CONDITIONAL"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.MALAISE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "WEAK",
+        "EXHAUST_SELF",
+        "X_COST"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MANGLE": {
+      "axes": [
+        "DURATION",
+        "DAMAGE",
+        "DEBUFF",
+        "STRENGTH_DOWN"
+      ]
+    },
+    "CARD.MANIFEST_AUTHORITY": {
+      "axes": [
+        "BLOCK",
+        "SCALING",
+        "RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.MASTER_OF_STRATEGY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MASTER_PLANNER": {
+      "axes": [
+        "CUNNING_PRODUCER",
+        "SKILL_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.MAUL": {
+      "axes": [
+        "SCALING",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.MAYHEM": {
+      "axes": [
+        "REPLAY",
+        "RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.MELANCHOLY": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.MEMENTO_MORI": {
+      "axes": [
+        "DAMAGE",
+        "DISCARD_TURN_PAYOFF"
+      ]
+    },
+    "CARD.METAMORPHOSIS": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.METEOR_SHOWER": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "DAMAGE",
+        "AOE",
+        "AOE_DEBUFF",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.METEOR_STRIKE": {
+      "axes": [
+        "ORB_PRODUCER",
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "PLASMA_ORB"
+      ]
+    },
+    "CARD.MIMIC": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MIND_BLAST": {
+      "axes": [
+        "INNATE_SELF",
+        "DAMAGE",
+        "INNATE"
+      ],
+      "innate": true
+    },
+    "CARD.MIND_ROT": {
+      "axes": [
+        "DEBUFF"
+      ]
+    },
+    "CARD.MINION_DIVE_BOMB": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MINION_SACRIFICE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MINION_STRIKE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MIRAGE": {
+      "axes": [
+        "POISON",
+        "EXHAUST_TAG",
+        "BLOCK",
+        "AOE_OTHER",
+        "POISON_PRODUCER",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MISERY": {
+      "axes": [
+        "AOE_OTHER",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.MODDED": {
+      "axes": [
+        "SCALING",
+        "ORB_PRODUCER",
+        "DRAW",
+        "REPEAT"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.MOLTEN_FIST": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "VULN",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "VULN_AMPLIFIER",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.MOMENTUM_STRIKE": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.MONARCHS_GAZE": {
+      "axes": [
+        "DEBUFF",
+        "STRENGTH_DOWN"
+      ]
+    },
+    "CARD.MONOLOGUE": {
+      "axes": [
+        "POISON",
+        "DURATION"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.MULTI_CAST": {
+      "axes": [
+        "ORB_PRODUCER",
+        "X_COST",
+        "ORB_AMPLIFIER",
+        "ORB_EVOKE"
+      ]
+    },
+    "CARD.MURDER": {
+      "axes": [
+        "SCALING",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.NECRO_MASTERY": {
+      "axes": [
+        "AOE_OTHER",
+        "SKELETON_PRODUCER",
+        "MINION",
+        "AOE_DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.NEGATIVE_PULSE": {
+      "axes": [
+        "BLOCK",
+        "DOOM_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DOOM",
+        "DOOM",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.NEOWS_FURY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.NEUROSURGE": {
+      "axes": [
+        "ENERGY",
+        "DRAW",
+        "BURST_FINISHER",
+        "DOOM_SELF_PRODUCER",
+        "ENERGY_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.NEUTRALIZE": {
+      "axes": [
+        "DEBUFF",
+        "WEAK",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.NEUTRON_AEGIS": {
+      "axes": [
+        "SCALING",
+        "PLATING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.NIGHTMARE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "CARD_GEN",
+        "REPLAY"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.NORMALITY": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.NOSTALGIA": {
+      "axes": [
+        "REPLAY",
+        "CARD_RETURN"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.NOT_YET": {
+      "axes": [
+        "EXHAUST_TAG",
+        "HEAL",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.NOXIOUS_FUMES": {
+      "axes": [
+        "POISON",
+        "AOE_OTHER",
+        "AOE_POISON",
+        "POISON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.NO_ESCAPE": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "DOOM",
+        "DOOM_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.NULL": {
+      "axes": [
+        "DEBUFF",
+        "WEAK",
+        "ORB_PRODUCER",
+        "DAMAGE",
+        "DARK_ORB"
+      ]
+    },
+    "CARD.OBLIVION": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "DOOM"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.OFFERING": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "DRAW",
+        "HP_LOSS",
+        "EXHAUST_SELF",
+        "STACKABLE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "primary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.OMNISLICE": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ONE_TWO_PUNCH": {
+      "axes": [
+        "ATTACK_COUNT",
+        "ATTACK_REPLAY"
+      ]
+    },
+    "CARD.ORBIT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.OUTBREAK": {
+      "axes": [
+        "POISON",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "POISON_CONSUMER",
+        "REPEAT"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.OUTMANEUVER": {
+      "axes": [
+        "ENERGY"
+      ]
+    },
+    "CARD.OVERCLOCK": {
+      "axes": [
+        "DRAW",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PACTS_END": {
+      "axes": [
+        "EXHAUST_TAG",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "EXHAUST_CONSUMER",
+        "DAMAGE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PAGESTORM": {
+      "axes": [
+        "DRAW",
+        "VOLATILE_CONSUMER",
+        "DRAW_ON_DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PALE_BLUE_DOT": {
+      "axes": [
+        "DRAW_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.PANACHE": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PANIC_BUTTON": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "DURATION",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.PARRY": {
+      "axes": [
+        "BLOCK",
+        "LORDS_BLADE_PAYOFF"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PARSE": {
+      "axes": [
+        "ETHEREAL_SELF",
+        "DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.PARTICLE_WALL": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.PATTER": {
+      "axes": [
+        "BLOCK",
+        "STAR_PRODUCER",
+        "SCALING",
+        "VIGOR"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PECK": {
+      "axes": [
+        "DAMAGE",
+        "REPEAT",
+        "HIT_3"
+      ]
+    },
+    "CARD.PERFECTED_STRIKE": {
+      "axes": [
+        "SCALING",
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "STRIKE_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PHANTOM_BLADES": {
+      "axes": [
+        "SCALING",
+        "SHIV"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PHOTON_CUT": {
+      "axes": [
+        "DRAW",
+        "DAMAGE",
+        "CARD_RETURN"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.PIERCING_WAIL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "AOE_OTHER",
+        "DURATION",
+        "DEBUFF",
+        "STRENGTH_DOWN",
+        "EXHAUST_SELF",
+        "AOE",
+        "AOE_DEBUFF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.PILLAGE": {
+      "axes": [
+        "DRAW",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PILLAR_OF_CREATION": {
+      "axes": [
+        "BLOCK",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.PINPOINT": {
+      "axes": [
+        "DAMAGE",
+        "SKILL_CONDITIONAL"
+      ]
+    },
+    "CARD.POISONED_STAB": {
+      "axes": [
+        "POISON",
+        "POISON_PRODUCER",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.POKE": {
+      "axes": [
+        "OSTY",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.POMMEL_STRIKE": {
+      "axes": [
+        "DRAW",
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.POOR_SLEEP": {
+      "axes": [
+        "UNPLAYABLE",
+        "RETAIN",
+        "RETAIN_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.POUNCE": {
+      "axes": [
+        "DAMAGE",
+        "SKILL_COST_ENABLER"
+      ]
+    },
+    "CARD.PRECISE_CUT": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.PREDATOR": {
+      "axes": [
+        "DRAW",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PREPARED": {
+      "axes": [
+        "DRAW",
+        "CUNNING_CONSUMER",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.PREP_TIME": {
+      "axes": [
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PRIMAL_FORCE": {
+      "axes": [
+        "CARD_GEN",
+        "DAMAGE"
+      ]
+    },
+    "CARD.PRODUCTION": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.PROLONG": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.PROPHESIZE": {
+      "axes": [
+        "DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PROTECTOR": {
+      "axes": [
+        "SCALING",
+        "SKELETON_CONSUMER",
+        "DAMAGE",
+        "OSTY"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PROWESS": {
+      "axes": [
+        "SCALING",
+        "STRENGTH_PRODUCER",
+        "DEXTERITY"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PULL_AGGRO": {
+      "axes": [
+        "BLOCK",
+        "MINION",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.PULL_FROM_BELOW": {
+      "axes": [
+        "VOLATILE_CONSUMER",
+        "DAMAGE"
+      ]
+    },
+    "CARD.PURITY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RETAIN_SELF",
+        "EXHAUST_PRODUCER",
+        "RETAIN",
+        "EXHAUST_SELF",
+        "EXHAUST_BURST"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "exhaust": true,
+      "retain": true
+    },
+    "CARD.PUTREFY": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.PYRE": {
+      "axes": [
+        "ENERGY"
+      ]
+    },
+    "CARD.QUADCAST": {
+      "axes": [
+        "ORB_PRODUCER",
+        "REPEAT",
+        "ORB_AMPLIFIER",
+        "ORB_EVOKE"
+      ]
+    },
+    "CARD.QUASAR": {
+      "axes": [
+        "SCALING",
+        "RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.RADIATE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "STAR",
+        "AOE",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.RAGE": {
+      "axes": [
+        "BLOCK",
+        "ATTACK_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.RAINBOW": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ORB_PRODUCER",
+        "EXHAUST_SELF",
+        "LIGHTNING_ORB",
+        "FROST_ORB",
+        "DARK_ORB",
+        "MULTI_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.RALLY": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.RAMPAGE": {
+      "axes": [
+        "SCALING",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.RATTLE": {
+      "axes": [
+        "DURATION",
+        "OSTY"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.REANIMATE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "MINION",
+        "EXHAUST_SELF",
+        "SKELETON_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.REAP": {
+      "axes": [
+        "RETAIN_SELF",
+        "DAMAGE",
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.REAPER_FORM": {
+      "axes": [
+        "DOOM_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.REAVE": {
+      "axes": [
+        "SOUL_PRODUCER",
+        "DAMAGE"
+      ]
+    },
+    "CARD.REBOOT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.REBOUND": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.REFINE_BLADE": {
+      "axes": [
+        "ENERGY",
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.REFLECT": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.REFLEX": {
+      "axes": [
+        "DRAW",
+        "CUNNING",
+        "CUNNING_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.REFRACT": {
+      "axes": [
+        "ORB_PRODUCER",
+        "REPEAT",
+        "DAMAGE",
+        "GLASS_ORB",
+        "LIGHTNING_ORB"
+      ]
+    },
+    "CARD.REGRET": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.RELAX": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.REND": {
+      "axes": [
+        "SCALING",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.RESONANCE": {
+      "axes": [
+        "AOE_OTHER",
+        "SCALING",
+        "STRENGTH_PRODUCER",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.RESTLESSNESS": {
+      "axes": [
+        "ENERGY",
+        "RETAIN_SELF",
+        "RETAIN",
+        "ABSENT_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.RICOCHET": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE",
+        "REPEAT",
+        "CUNNING",
+        "CUNNING_PRODUCER",
+        "HIT_4"
+      ],
+      "builds": [
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.RIGHT_HAND_HAND": {
+      "axes": [
+        "OSTY",
+        "FREE_ATTACK"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.RIP_AND_TEAR": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE"
+      ]
+    },
+    "CARD.ROCKET_PUNCH": {
+      "axes": [
+        "DRAW",
+        "DAMAGE",
+        "STATUS_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.ROLLING_BOULDER": {
+      "axes": [
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ROYALTIES": {
+      "axes": [
+        "GOLD"
+      ]
+    },
+    "CARD.ROYAL_GAMBLE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "STAR_PRODUCER",
+        "STAR",
+        "EXHAUST_SELF",
+        "STAR_BURST"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.RUPTURE": {
+      "axes": [
+        "SCALING",
+        "STRENGTH_PRODUCER",
+        "HP_LOSS_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "자해 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SACRIFICE": {
+      "axes": [
+        "BLOCK",
+        "RETAIN_SELF",
+        "SKELETON_CONSUMER",
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.SALVO": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.SCAVENGE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SCOURGE": {
+      "axes": [
+        "DOOM_PRODUCER",
+        "DRAW",
+        "DOOM"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SCRAPE": {
+      "axes": [
+        "DRAW",
+        "DAMAGE",
+        "CUNNING_CONSUMER",
+        "FREE_ATTACK_FILTER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SCRAWL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SCULPTING_STRIKE": {
+      "axes": [
+        "VOLATILE_PRODUCER",
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ]
+    },
+    "CARD.SEANCE": {
+      "axes": [
+        "SOUL_PRODUCER",
+        "ETHEREAL_SELF"
+      ],
+      "ethereal": true
+    },
+    "CARD.SECOND_WIND": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_PRODUCER",
+        "EXHAUST_BURST",
+        "EXHAUST_TARGET_FILTERED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SECRET_TECHNIQUE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.SECRET_WEAPON": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.SEEKER_STRIKE": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.SEEKING_EDGE": {
+      "axes": [
+        "AOE_OTHER",
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SENTRY_MODE": {
+      "axes": [
+        "BLOCK",
+        "CARD_GEN",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.SERPENT_FORM": {
+      "axes": [
+        "RANDOM",
+        "PLAY_TRIGGER",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SETUP_STRIKE": {
+      "axes": [
+        "DURATION",
+        "DAMAGE",
+        "SCALING",
+        "STRENGTH_PRODUCER",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SEVEN_STARS": {
+      "axes": [
+        "STAR_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "REPEAT",
+        "AOE",
+        "MULTI_HIT_SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SEVERANCE": {
+      "axes": [
+        "SOUL_PRODUCER",
+        "DAMAGE"
+      ]
+    },
+    "CARD.SHADOWMELD": {
+      "axes": [
+        "BLOCK",
+        "DURATION",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SHADOW_SHIELD": {
+      "axes": [
+        "BLOCK",
+        "ORB_PRODUCER",
+        "DARK_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SHADOW_STEP": {
+      "axes": [
+        "CUNNING_CONSUMER",
+        "DAMAGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SHAME": {
+      "axes": [
+        "DEBUFF",
+        "FRAIL",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.SHARED_FATE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "STRENGTH_DOWN",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SHATTER": {
+      "axes": [
+        "ORB_PRODUCER",
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE",
+        "ORB_EVOKE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SHINING_STRIKE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "DAMAGE",
+        "STAR",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SHIV": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "SHIV"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SHOCKWAVE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "AOE_OTHER",
+        "AOE_DEBUFF",
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "EXHAUST_SELF",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SHROUD": {
+      "axes": [
+        "BLOCK",
+        "DOOM_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SHRUG_IT_OFF": {
+      "axes": [
+        "BLOCK",
+        "DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SIC_EM": {
+      "axes": [
+        "SKELETON_PRODUCER",
+        "OSTY",
+        "MINION"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SIGNAL_BOOST": {
+      "axes": [
+        "EXHAUST_TAG",
+        "POWER_AMPLIFIER",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SKEWER": {
+      "axes": [
+        "DAMAGE",
+        "X_COST"
+      ]
+    },
+    "CARD.SKIM": {
+      "axes": [
+        "DRAW"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SLEIGHT_OF_FLESH": {
+      "axes": [
+        "DAMAGE",
+        "DEBUFF_APPLY_TRIGGER",
+        "DEBUFF",
+        "PLAY_TRIGGER"
+      ]
+    },
+    "CARD.SLICE": {
+      "axes": [
+        "DAMAGE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.SLIMED": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SLOTH": {
+      "axes": [
+        "DURATION",
+        "DEBUFF"
+      ]
+    },
+    "CARD.SMOKESTACK": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.SNAKEBITE": {
+      "axes": [
+        "POISON",
+        "RETAIN_SELF",
+        "POISON_PRODUCER",
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.SNAP": {
+      "axes": [
+        "OSTY"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SNEAKY": {
+      "axes": [
+        "BLOCK",
+        "CUNNING_PRODUCER",
+        "SCALING",
+        "CUNNING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SOLAR_STRIKE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "DAMAGE",
+        "STAR",
+        "STRIKE_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SOOT": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.SOUL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SOUL_PRODUCER",
+        "DRAW",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SOUL_STORM": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SCALING",
+        "SOUL_PRODUCER",
+        "SOUL_CONSUMER",
+        "EXHAUST_CONSUMER",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SOVEREIGN_BLADE": {
+      "axes": [
+        "RETAIN_SELF",
+        "DAMAGE",
+        "REPEAT",
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.SOW": {
+      "axes": [
+        "AOE_OTHER",
+        "RETAIN_SELF",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "RETAIN",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.SPECTRUM_SHIFT": {
+      "axes": [
+        "RANDOM",
+        "CARD_GEN",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.SPEEDSTER": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SPINNER": {
+      "axes": [
+        "ORB_PRODUCER",
+        "ORB",
+        "GLASS_ORB"
+      ]
+    },
+    "CARD.SPIRIT_OF_ASH": {
+      "axes": [
+        "BLOCK",
+        "VOLATILE_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SPITE": {
+      "axes": [
+        "DURATION",
+        "DAMAGE",
+        "REPEAT",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.SPLASH": {
+      "axes": [
+        "SCALING",
+        "RANDOM",
+        "DURATION"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.SPOILS_MAP": {
+      "axes": [
+        "GOLD",
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.SPOILS_OF_BATTLE": {
+      "axes": [
+        "DRAW",
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SPORE_MIND": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SPUR": {
+      "axes": [
+        "RETAIN_SELF",
+        "HEAL",
+        "SKELETON_PRODUCER",
+        "MINION",
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ],
+      "retain": true
+    },
+    "CARD.SQUASH": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "DAMAGE"
+      ]
+    },
+    "CARD.SQUEEZE": {
+      "axes": [
+        "DAMAGE",
+        "OSTY",
+        "SKELETON_ATTACK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.STACK": {
+      "axes": [
+        "BLOCK",
+        "DISCARD_PAYOFF"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.STAMPEDE": {
+      "axes": [
+        "RANDOM",
+        "ATTACK_REPLAY_RANDOM"
+      ]
+    },
+    "CARD.STARDUST": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE",
+        "FREE_ATTACK",
+        "STAR_X_COST",
+        "STAR_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.STOKE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SCALING",
+        "RANDOM",
+        "EXHAUST_PRODUCER",
+        "EXHAUST_BURST",
+        "EXHAUST_TARGET_FORCED"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ],
+      "upgrade_trigger": true,
+      "fetch_trigger": true
+    },
+    "CARD.STOMP": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DURATION",
+        "DAMAGE",
+        "AOE",
+        "ATTACK_CONDITIONAL"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.STONE_ARMOR": {
+      "axes": [
+        "SCALING",
+        "PLATING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.STORM": {
+      "axes": [
+        "ORB_PRODUCER",
+        "LIGHTNING_ORB"
+      ]
+    },
+    "CARD.STORM_OF_STEEL": {
+      "axes": [
+        "CUNNING_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.STRANGLE": {
+      "axes": [
+        "DAMAGE",
+        "DEBUFF"
+      ]
+    },
+    "CARD.STRATAGEM": {
+      "axes": [
+        "CARD_RETURN",
+        "DRAW_PILE_SEARCH"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.STRIKE_DEFECT": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "STARTER"
+      ]
+    },
+    "CARD.STRIKE_IRONCLAD": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "STARTER"
+      ]
+    },
+    "CARD.STRIKE_NECROBINDER": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "STARTER"
+      ]
+    },
+    "CARD.STRIKE_REGENT": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "STARTER"
+      ]
+    },
+    "CARD.STRIKE_SILENT": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE",
+        "STARTER"
+      ]
+    },
+    "CARD.SUBROUTINE": {
+      "axes": [
+        "ENERGY",
+        "POWER_AMPLIFIER"
+      ]
+    },
+    "CARD.SUCKER_PUNCH": {
+      "axes": [
+        "DEBUFF",
+        "WEAK",
+        "DAMAGE"
+      ]
+    },
+    "CARD.SUMMON_FORTH": {
+      "axes": [
+        "FORGE",
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_ACCESS"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.SUNDER": {
+      "axes": [
+        "ENERGY",
+        "DAMAGE"
+      ]
+    },
+    "CARD.SUPERCRITICAL": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SUPERMASSIVE": {
+      "axes": [
+        "SCALING",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.SUPPRESS": {
+      "axes": [
+        "INNATE_SELF",
+        "DEBUFF",
+        "WEAK",
+        "DAMAGE",
+        "INNATE",
+        "FREE_ATTACK"
+      ],
+      "innate": true
+    },
+    "CARD.SURVIVOR": {
+      "axes": [
+        "BLOCK",
+        "CUNNING_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.SWEEPING_BEAM": {
+      "axes": [
+        "AOE_OTHER",
+        "DRAW",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SWEEPING_GAZE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "AOE_OTHER",
+        "ETHEREAL_SELF",
+        "RANDOM",
+        "OSTY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "광역 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true,
+      "ethereal": true
+    },
+    "CARD.SWORD_BOOMERANG": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE",
+        "REPEAT",
+        "HIT_3"
+      ]
+    },
+    "CARD.SWORD_SAGE": {
+      "axes": [
+        "SCALING",
+        "LORDS_BLADE_PAYOFF",
+        "DAMAGE_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.SYNCHRONIZE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "FOCUS",
+        "ORB_VARIETY_AMPLIFIER",
+        "STACKABLE"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.SYNTHESIS": {
+      "axes": [
+        "DAMAGE",
+        "POWER_COST_ENABLER"
+      ]
+    },
+    "CARD.TACTICIAN": {
+      "axes": [
+        "ENERGY",
+        "CUNNING_PRODUCER",
+        "CUNNING"
+      ],
+      "builds": [
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.TAG_TEAM": {
+      "axes": [
+        "DAMAGE"
+      ]
+    },
+    "CARD.TANK": {
+      "axes": [
+        "TAUNT"
+      ]
+    },
+    "CARD.TAUNT": {
+      "axes": [
+        "BLOCK",
+        "DEBUFF",
+        "VULN"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.TEAR_ASUNDER": {
+      "axes": [
+        "DAMAGE",
+        "REPEAT",
+        "MULTI_HIT_SCALING",
+        "HP_LOSS_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "자해 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.TEMPEST": {
+      "axes": [
+        "ORB_PRODUCER",
+        "X_COST",
+        "LIGHTNING_ORB"
+      ]
+    },
+    "CARD.TERRAFORMING": {
+      "axes": [
+        "SCALING",
+        "VIGOR"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.TESLA_COIL": {
+      "axes": [
+        "DAMAGE",
+        "LIGHTNING_EVOKE",
+        "FREE_ATTACK"
+      ]
+    },
+    "CARD.THE_BOMB": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DURATION",
+        "DAMAGE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.THE_GAMBIT": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.THE_HUNT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.THE_SCYTHE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "SCALING",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.THE_SEALED_THRONE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "PLAY_TRIGGER",
+        "STAR_BURST"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.THE_SMITH": {
+      "axes": [
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.THINKING_AHEAD": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DRAW",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.THRASH": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "DAMAGE",
+        "EXHAUST_PRODUCER",
+        "HIT_2",
+        "EXHAUST_TARGET_RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.THRUMMING_HATCHET": {
+      "axes": [
+        "DAMAGE"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.THUNDER": {
+      "axes": [
+        "DAMAGE",
+        "LIGHTNING_EVOKE",
+        "ORB_EVOKE"
+      ]
+    },
+    "CARD.THUNDERCLAP": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DEBUFF",
+        "VULN",
+        "DAMAGE",
+        "AOE",
+        "AOE_DEBUFF"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.TIMES_UP": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF",
+        "DOOM_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "종말 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.TOOLS_OF_THE_TRADE": {
+      "axes": [
+        "CUNNING_CONSUMER"
+      ],
+      "builds": [
+        {
+          "tag": "교활 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.TORIC_TOUGHNESS": {
+      "axes": [
+        "BLOCK",
+        "DURATION"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.TOXIC": {
+      "axes": [
+        "POISON",
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.TRACKING": {
+      "axes": [
+        "DEBUFF",
+        "WEAK",
+        "WEAK_AMPLIFIER"
+      ]
+    },
+    "CARD.TRANSFIGURE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "STACKABLE"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.TRASH_TO_TREASURE": {
+      "axes": [
+        "ORB_PRODUCER",
+        "RANDOM"
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.TREMBLE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DEBUFF",
+        "VULN",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.TRUE_GRIT": {
+      "axes": [
+        "EXHAUST_TAG",
+        "BLOCK",
+        "EXHAUST_PRODUCER",
+        "EXHAUST_TARGET_RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        },
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.TURBO": {
+      "axes": [
+        "ENERGY"
+      ]
+    },
+    "CARD.TWIN_STRIKE": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ]
+    },
+    "CARD.TYRANNY": {
+      "axes": [
+        "POISON",
+        "EXHAUST_TAG",
+        "EXHAUST_PRODUCER",
+        "EXHAUST_TARGET_RANDOM"
+      ],
+      "builds": [
+        {
+          "tag": "독 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "소멸 빌드",
+          "role": "secondary"
+        }
+      ]
+    },
+    "CARD.ULTIMATE_DEFEND": {
+      "axes": [
+        "BLOCK",
+        "DEFEND_TYPE"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ULTIMATE_STRIKE": {
+      "axes": [
+        "DAMAGE",
+        "STRIKE_TYPE"
+      ]
+    },
+    "CARD.UNDEATH": {
+      "axes": [
+        "BLOCK"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.UNLEASH": {
+      "axes": [
+        "SCALING",
+        "SKELETON_CONSUMER",
+        "DAMAGE",
+        "OSTY"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "골골이 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.UNMOVABLE": {
+      "axes": [
+        "BLOCK",
+        "DURATION",
+        "BLOCK_AMPLIFIER"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.UNRELENTING": {
+      "axes": [
+        "DAMAGE",
+        "ATTACK_COST_ENABLER"
+      ]
+    },
+    "CARD.UNTOUCHABLE": {
+      "axes": [
+        "BLOCK",
+        "CUNNING_PRODUCER",
+        "CUNNING"
+      ],
+      "builds": [
+        {
+          "tag": "방어 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "교활 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.UPPERCUT": {
+      "axes": [
+        "DEBUFF",
+        "VULN",
+        "WEAK",
+        "DAMAGE"
+      ]
+    },
+    "CARD.UPROAR": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE"
+      ]
+    },
+    "CARD.UP_MY_SLEEVE": {
+      "axes": [
+        "SHIV",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
+      ],
+      "builds": [
+        {
+          "tag": "단도 빌드",
+          "role": "primary"
+        }
+      ],
+      "fetch_trigger": true
+    },
+    "CARD.VEILPIERCER": {
+      "axes": [
+        "VOLATILE_CONSUMER",
+        "DAMAGE"
+      ]
+    },
+    "CARD.VENERATE": {
+      "axes": [
+        "STAR_PRODUCER",
+        "STAR",
+        "STAR_BURST"
+      ],
+      "builds": [
+        {
+          "tag": "별 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.VICIOUS": {
+      "axes": [
+        "DRAW",
+        "DEBUFF",
+        "VULN",
+        "VULN_APPLY_TRIGGER"
+      ],
+      "builds": [
+        {
+          "tag": "드로우 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.VOID": {
+      "axes": [
+        "ENERGY",
+        "UNPLAYABLE",
+        "ETHEREAL_SELF"
+      ],
+      "ethereal": true
+    },
+    "CARD.VOID_FORM": {
+      "axes": [
+        "ETHEREAL_SELF",
+        "SCALING"
+      ],
+      "builds": [
+        {
+          "tag": "성장 빌드",
+          "role": "primary"
+        }
+      ],
+      "ethereal": true
+    },
+    "CARD.VOLLEY": {
+      "axes": [
+        "RANDOM",
+        "DAMAGE",
+        "X_COST"
+      ]
+    },
+    "CARD.VOLTAIC": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ORB_PRODUCER",
+        "EXHAUST_SELF",
+        "LIGHTNING_ORB"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.WASTE_AWAY": {
+      "axes": [
+        "DEBUFF"
+      ]
+    },
+    "CARD.WELL_LAID_PLANS": {
+      "axes": [
+        "RETAIN"
+      ],
+      "builds": [
+        {
+          "tag": "압축덱",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.WHIRLWIND": {
+      "axes": [
+        "AOE_OTHER",
+        "AOE_DAMAGE",
+        "DAMAGE",
+        "X_COST",
+        "AOE"
+      ],
+      "builds": [
+        {
+          "tag": "광역 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.WHISTLE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "DAMAGE",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.WHITE_NOISE": {
+      "axes": [
+        "EXHAUST_TAG",
+        "RANDOM",
+        "DURATION",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.WISH": {
+      "axes": [
+        "EXHAUST_TAG",
+        "EXHAUST_SELF",
+        "UNLIMITED"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "fetch_trigger": true,
+      "exhaust": true
+    },
+    "CARD.WISP": {
+      "axes": [
+        "EXHAUST_TAG",
+        "ENERGY",
+        "EXHAUST_SELF"
+      ],
+      "builds": [
+        {
+          "tag": "소멸 빌드",
+          "role": "primary"
+        },
+        {
+          "tag": "압축덱",
+          "role": "secondary"
+        }
+      ],
+      "exhaust": true
+    },
+    "CARD.WOUND": {
+      "axes": [
+        "UNPLAYABLE"
+      ]
+    },
+    "CARD.WRAITH_FORM": {
+      "axes": [
+        "INTANGIBLE",
+        "BURST_FINISHER"
+      ]
+    },
+    "CARD.WRITHE": {
+      "axes": [
+        "INNATE",
+        "INNATE_SELF",
+        "UNPLAYABLE"
+      ],
+      "innate": true
+    },
+    "CARD.WROUGHT_IN_WAR": {
+      "axes": [
+        "DAMAGE",
+        "FORGE",
+        "FORGE_PRODUCER"
+      ],
+      "builds": [
+        {
+          "tag": "제작 빌드",
+          "role": "primary"
+        }
+      ]
+    },
+    "CARD.ZAP": {
+      "axes": [
+        "ORB_PRODUCER",
+        "LIGHTNING_ORB"
+      ]
+    }
+  }
+}

@@ -1,0 +1,396 @@
+using System.Collections.Generic;
+using System.Linq;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Extensions;
+using MegaCrit.Sts2.Core.Rooms;
+using Sts2VakuuPlus.Reflection;
+
+namespace Sts2VakuuPlus.Sim;
+
+/// <summary>
+/// Builds a SimState from the live combat state. Called at every planner step so the
+/// planner always sees actual state (catching draw/energy-gain/exhaust side effects
+/// triggered by previously played cards). v0.1.1 adds full intent classification per enemy.
+/// </summary>
+internal static class StateSnapshotter
+{
+    public static SimState? Capture(Player player)
+    {
+        try
+        {
+            var creature = player.Creature;
+            if (creature == null) return null;
+            var cs = creature.CombatState;
+            if (cs == null) return null;
+            var pcs = player.PlayerCombatState;
+            if (pcs == null) return null;
+
+            int hp = (int)(CombatReflection.CreatureHpField?.GetValue(creature) ?? 0);
+            int block = (int)(CombatReflection.CreatureBlockField?.GetValue(creature) ?? 0);
+            int energy = (int)(CombatReflection.PcsEnergyField?.GetValue(pcs) ?? 0);
+
+            int playerStr = CombatReflection.GetPowerAmount(creature, "StrengthPower");
+            int playerDex = CombatReflection.GetPowerAmount(creature, "DexterityPower");
+            int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
+            int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
+            int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
+            int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
+
+            int orbCount = 0, orbCapacity = 0;
+            var orbQueue = new List<OrbKind>();
+            var orbEvokeValues = new List<int>();
+            try
+            {
+                var oq = pcs.OrbQueue;
+                if (oq != null)
+                {
+                    orbCount = oq.Orbs.Count;
+                    orbCapacity = oq.Capacity;
+                    foreach (var orb in oq.Orbs)
+                    {
+                        var kind = OrbKindExtensions.FromClassName(orb?.GetType().Name);
+                        orbQueue.Add(kind);
+                        // DarkOrb's evoke value accumulates via its passive — reflect the
+                        // live EvokeVal property so the planner values evoking it realistically.
+                        int evokeVal = 0;
+                        if (orb != null)
+                        {
+                            try
+                            {
+                                var evProp = orb.GetType().GetProperty("EvokeVal");
+                                var raw = evProp?.GetValue(orb);
+                                if (raw is decimal d) evokeVal = (int)d;
+                                else if (raw is int i) evokeVal = i;
+                                else if (raw != null) evokeVal = System.Convert.ToInt32(raw);
+                            }
+                            catch { }
+                        }
+                        orbEvokeValues.Add(evokeVal);
+                    }
+                }
+            }
+            catch { }
+
+            var enemies = new List<SimEnemy>();
+            var rawEnemies = cs.HittableEnemies.ToList();
+            int maxEnemyMaxHp = rawEnemies
+                .Select(e => (int)(CombatReflection.CreatureMaxHpField?.GetValue(e) ?? 0))
+                .DefaultIfEmpty(0)
+                .Max();
+            var roomType = cs.Encounter?.RoomType ?? RoomType.Unassigned;
+            bool isBossRoom = roomType == RoomType.Boss;
+            bool isEliteRoom = roomType == RoomType.Elite;
+
+            foreach (var e in rawEnemies)
+            {
+                int eMaxHp = (int)(CombatReflection.CreatureMaxHpField?.GetValue(e) ?? 0);
+                bool spawned = WasSpawnedThisTurn(e.Monster);
+                // Minion heuristic: spawned this turn OR significantly weaker than the strongest enemy in this fight
+                bool isMinion = spawned ||
+                    (maxEnemyMaxHp > 0 && eMaxHp > 0 && eMaxHp < maxEnemyMaxHp * 0.5);
+                // Boss = the dominant creature in a boss room (not a minion-class spawn)
+                bool isBoss = isBossRoom && eMaxHp == maxEnemyMaxHp && !isMinion;
+                enemies.Add(BuildSimEnemy(e, hp, isBoss, isEliteRoom, isMinion));
+            }
+
+            // v0.2.9 — pile counts (Draw card scoring uses these to gauge "is drawing fruitful?")
+            int drawPileSize = PileType.Draw.GetPile(player)?.Cards.Count ?? 0;
+            int discardPileSize = PileType.Discard.GetPile(player)?.Cards.Count ?? 0;
+
+            var hand = new List<SimCard>();
+            var handPile = PileType.Hand.GetPile(player);
+            if (handPile != null)
+            {
+                foreach (var card in handPile.Cards)
+                {
+                    bool playable = false;
+                    try { playable = card.CanPlay(); } catch { }
+                    var id = CardReflection.GetIdEntry(card);
+                    var catalogInfo = Data.CardCatalog.Lookup(id);
+                    var axes = catalogInfo?.Axes ?? System.Array.Empty<string>();
+                    var baseEffect = CardReflection.GetEffectSummary(card);
+
+                    // Layer orb metadata (evoke/channel counts + channelled orb kind) on the
+                    // effect summary. Axes are needed to infer channelled orb color, so the
+                    // composition has to happen here (CardReflection sees only CardModel).
+                    int costSpent = CardReflection.GetCost(card);
+                    var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes);
+                    var effect = baseEffect with {
+                        EvokeCount = orbMeta.EvokeCount,
+                        ChannelCount = orbMeta.ChannelCount,
+                        ChannelKind = orbMeta.ChannelKind,
+                    };
+
+                    hand.Add(new SimCard
+                    {
+                        Id = id,
+                        Cost = costSpent,
+                        Kind = card.Type,
+                        Target = card.TargetType,
+                        SourceRef = card,
+                        Effect = effect,
+                        IsPlayable = playable,
+                        Axes = axes,
+                        PrimaryBuildTags = catalogInfo?.PrimaryBuildTags ?? System.Array.Empty<string>(),
+                    });
+                }
+            }
+
+            return new SimState
+            {
+                PlayerHp = hp,
+                PlayerBlock = block,
+                PlayerEnergy = energy,
+                Enemies = enemies,
+                Hand = hand,
+                PlayerStrength = playerStr,
+                PlayerDexterity = playerDex,
+                PlayerVulnerable = playerVuln,
+                PlayerWeak = playerWeak,
+                PlayerFrail = playerFrail,
+                DrawPileSize = drawPileSize,
+                DiscardPileSize = discardPileSize,
+                PlayerStars = playerStars,
+                PlayerOrbCount = orbCount,
+                PlayerOrbCapacity = orbCapacity,
+                OrbQueue = orbQueue,
+                OrbEvokeValues = orbEvokeValues,
+            };
+        }
+        catch (System.Exception ex)
+        {
+            MainFile.Logger.Warn($"[VakuuPlus] snapshot failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static bool WasSpawnedThisTurn(object? monster)
+    {
+        if (monster == null) return false;
+        var f = CombatReflection.MonsterSpawnedThisTurnField;
+        if (f == null) return false;
+        try { return f.GetValue(monster) is bool b && b; }
+        catch { return false; }
+    }
+
+    private static SimEnemy BuildSimEnemy(Creature enemy, int playerHp, bool isBoss, bool isElite, bool isMinion)
+    {
+        int hp = (int)(CombatReflection.CreatureHpField?.GetValue(enemy) ?? 0);
+        int block = (int)(CombatReflection.CreatureBlockField?.GetValue(enemy) ?? 0);
+        int vuln = CombatReflection.GetPowerAmount(enemy, "VulnerablePower");
+        int weak = CombatReflection.GetPowerAmount(enemy, "WeakPower");
+        int eStr = CombatReflection.GetPowerAmount(enemy, "StrengthPower");
+        int eArtifact = CombatReflection.GetPowerAmount(enemy, "ArtifactPower");
+        int eFrail = CombatReflection.GetPowerAmount(enemy, "FrailPower");
+        int ePoison = CombatReflection.GetPowerAmount(enemy, "PoisonPower");
+        int eConstrict = CombatReflection.GetPowerAmount(enemy, "ConstrictPower");
+        int eBurn = CombatReflection.GetPowerAmount(enemy, "BurnPower");
+
+        // v0.4 — per-hit damage cap (Intangible = 1, HardToKill = Amount) and Thorns reflect.
+        var powerDict = CombatReflection.GetAllPowers(enemy);
+        int damageCap = 0;
+        if (powerDict.TryGetValue("IntangiblePower", out _)) damageCap = 1;
+        if (powerDict.TryGetValue("HardToKillPower", out var hard) && hard > 0)
+            damageCap = damageCap == 0 ? hard : System.Math.Min(damageCap, hard);
+        int thorns = powerDict.TryGetValue("ThornsPower", out var t) ? t : 0;
+
+        // HardenedShell — read live DisplayAmount (Amount − damageReceivedThisTurn).
+        // The dict above only has the static Amount, not the live remaining cap.
+        int hardenedShellRemaining = 0;
+        if (powerDict.TryGetValue("HardenedShellPower", out _))
+        {
+            try
+            {
+                foreach (var p in enemy.Powers)
+                {
+                    if (p == null) continue;
+                    if (p.GetType().Name == "HardenedShellPower")
+                    {
+                        var dispProp = p.GetType().GetProperty("DisplayAmount");
+                        var raw = dispProp?.GetValue(p);
+                        if (raw is int ri) hardenedShellRemaining = ri;
+                        else if (raw is decimal rd) hardenedShellRemaining = (int)rd;
+                        else if (raw != null) hardenedShellRemaining = System.Convert.ToInt32(raw);
+                        break;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // v0.2.9 — turn-start strength buffs make the enemy snowball (Ritual / Enrage / similar).
+        bool hasRitual = CombatReflection.GetPowerAmount(enemy, "RitualPower") > 0
+                      || CombatReflection.GetPowerAmount(enemy, "EnragePower") > 0
+                      || CombatReflection.GetPowerAmount(enemy, "FeralPower") > 0;
+
+        int totalDmg = 0;
+        bool hasAtk = false, hasDeathBlow = false, hasBuff = false, hasDebuff = false;
+        bool hasHeal = false, hasSummon = false, hasDefend = false, hasStatus = false;
+        bool isInert = false, isHidden = false, isUnknown = false;
+
+        var nextMove = enemy.Monster?.NextMove;
+        if (nextMove?.Intents != null)
+        {
+            foreach (var intent in nextMove.Intents)
+            {
+                if (intent == null) continue;
+                var kind = CombatReflection.Classify(intent);
+                switch (kind)
+                {
+                    case IntentKind.Attack:
+                        hasAtk = true;
+                        AccumulateAttackDmg(intent, ref totalDmg);
+                        break;
+                    case IntentKind.DeathBlow:
+                        hasDeathBlow = true;
+                        // DeathBlow inherits damage semantics — still extract.
+                        AccumulateAttackDmg(intent, ref totalDmg);
+                        break;
+                    case IntentKind.Buff: hasBuff = true; break;
+                    case IntentKind.Debuff: hasDebuff = true; break;
+                    case IntentKind.Heal: hasHeal = true; break;
+                    case IntentKind.Summon: hasSummon = true; break;
+                    case IntentKind.Defend: hasDefend = true; break;
+                    case IntentKind.Status: hasStatus = true; break;
+                    case IntentKind.Inert: isInert = true; break;
+                    case IntentKind.Hidden: isHidden = true; break;
+                    case IntentKind.Unknown: isUnknown = true; break;
+                    case IntentKind.Other: break;
+                }
+            }
+        }
+
+        var threat = ComputeThreat(hasAtk, totalDmg, hasBuff, hasDeathBlow,
+            hasHeal, hasSummon, hasDebuff, hasDefend, hasStatus,
+            isInert, isHidden, isUnknown, playerHp);
+
+        return new SimEnemy
+        {
+            Hp = hp,
+            Block = block,
+            IntentDamage = totalDmg,
+            IntentRepeats = 1, // already aggregated
+            SourceRef = enemy,
+            HasAttackIntent = hasAtk,
+            HasDeathBlowIntent = hasDeathBlow,
+            HasBuffIntent = hasBuff,
+            HasDebuffIntent = hasDebuff,
+            HasHealIntent = hasHeal,
+            HasSummonIntent = hasSummon,
+            HasDefendIntent = hasDefend,
+            HasStatusIntent = hasStatus,
+            IsInert = isInert,
+            IsHidden = isHidden,
+            IsUnknown = isUnknown,
+            Threat = threat,
+            IsBoss = isBoss,
+            IsElite = isElite,
+            IsMinion = isMinion,
+            VulnerableAmount = vuln,
+            WeakAmount = weak,
+            StrengthAmount = eStr,
+            ArtifactAmount = eArtifact,
+            FrailAmount = eFrail,
+            HasTurnStartStrengthBuff = hasRitual,
+            PoisonAmount = ePoison,
+            ConstrictAmount = eConstrict,
+            BurnAmount = eBurn,
+            DamageCapPerHit = damageCap,
+            ThornsAmount = thorns,
+            Powers = powerDict,
+            HardenedShellRemaining = hardenedShellRemaining,
+        };
+    }
+
+    private static void AccumulateAttackDmg(object intent, ref int totalDmg)
+    {
+        int d = CombatReflection.GetAttackIntentDamage(intent);
+        int r = CombatReflection.GetAttackIntentRepeats(intent);
+        if (r <= 0) r = 1;
+        totalDmg += d * r;
+    }
+
+    private static ThreatLevel ComputeThreat(
+        bool hasAtk, int dmg, bool hasBuff, bool hasDeathBlow,
+        bool hasHeal, bool hasSummon, bool hasDebuff, bool hasDefend, bool hasStatus,
+        bool isInert, bool isHidden, bool isUnknown, int playerHp)
+    {
+        if (isInert) return ThreatLevel.None;
+        if (hasBuff || hasDeathBlow) return ThreatLevel.Critical;
+        if (hasHeal || hasSummon) return ThreatLevel.High;
+        if (hasAtk && playerHp > 0 && dmg > playerHp * 0.3) return ThreatLevel.High;
+        if (hasAtk || hasDebuff) return ThreatLevel.Medium;
+        if (hasDefend || hasStatus || isHidden || isUnknown) return ThreatLevel.Low;
+        return ThreatLevel.None;
+    }
+
+    public static string FormatForLog(SimState s)
+    {
+        var hand = string.Join(",", s.Hand.Select(FormatCard));
+        var enemies = string.Join(",",
+            s.Enemies.Select(e => {
+                var powerTag = "";
+                if (e.Powers != null && e.Powers.Count > 0)
+                {
+                    var ps = e.Powers
+                        .Where(kv => kv.Value > 0)
+                        .Select(kv => $"{kv.Key.Replace("Power", "")}:{kv.Value}")
+                        .ToList();
+                    if (ps.Count > 0) powerTag = $" pow=[{string.Join(",", ps)}]";
+                }
+                return $"{e.SourceRef?.GetType().Name ?? "Enemy"}(hp={e.Hp}/b{e.Block} {e.IntentSummary} threat={e.Threat}){powerTag}";
+            }));
+        string orbTag = "";
+        if (s.OrbQueue.Count > 0)
+        {
+            var slots = new List<string>();
+            for (int i = 0; i < s.OrbQueue.Count; i++)
+            {
+                var k = s.OrbQueue[i];
+                var ev = i < s.OrbEvokeValues.Count ? s.OrbEvokeValues[i] : 0;
+                slots.Add(k == OrbKind.Dark && ev > 0 ? $"{k.ShortTag()}{ev}" : k.ShortTag());
+            }
+            orbTag = $" orbs=[{string.Join(",", slots)}/{s.PlayerOrbCapacity}]";
+        }
+        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag} hand=[{hand}] enemies=[{enemies}]";
+    }
+
+    private static string FormatCard(SimCard c)
+    {
+        var detail = c.IsAttack && c.TotalDamage > 0
+            ? $"d{c.TotalDamage}" + (c.Hits > 1 ? $"x{c.Hits}" : "")
+            : c.Block > 0 ? $"b{c.Block}"
+            : c.PowerApps.Count > 0
+                ? string.Join("+", c.PowerApps.Select(kv => $"{ShortPowerName(kv.Key)}:{kv.Value}"))
+                : "";
+        var prefix = c.Kind.ToString()[0];
+        // ★[encId] marker — shows which enchant is on the card so we can verify
+        // PlayCountMultiplier / numeric-bonus catalog wiring at a glance.
+        string ench = "";
+        if (c.SourceRef != null)
+        {
+            var enchId = Reflection.CardReflection.GetEnchantmentId(c.SourceRef);
+            if (!string.IsNullOrEmpty(enchId))
+            {
+                // Id is typically "MegaCrit.Sts2.Core.Models.Enchantments.Glam" — keep tail only.
+                var dot = enchId.LastIndexOf('.');
+                var shortId = dot >= 0 ? enchId.Substring(dot + 1) : enchId;
+                ench = $"★[{shortId}]";
+            }
+        }
+        return string.IsNullOrEmpty(detail)
+            ? $"{c.Id}{ench}({prefix}{c.Cost})"
+            : $"{c.Id}{ench}({prefix}{c.Cost}/{detail})";
+    }
+
+    private static string ShortPowerName(string fullName)
+    {
+        // "StrengthPower" → "Str", "VulnerablePower" → "Vuln" — keep log compact
+        var idx = fullName.LastIndexOf("Power", System.StringComparison.OrdinalIgnoreCase);
+        if (idx <= 0) return fullName;
+        var stem = fullName.Substring(0, idx);
+        return stem.Length <= 4 ? stem : stem.Substring(0, 4);
+    }
+}
