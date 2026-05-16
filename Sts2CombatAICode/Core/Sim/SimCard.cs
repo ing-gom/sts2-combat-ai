@@ -20,7 +20,6 @@ internal sealed record SimCard
     // Live mode executors require non-null at execution time.
     public CardModel? SourceRef { get; init; }
     public required CardEffectSummary Effect { get; init; }
-    public bool Played { get; set; }
 
     /// <summary>
     /// True when CardModel.CanPlay() is true at snapshot time. Unplayable cards
@@ -41,6 +40,39 @@ internal sealed record SimCard
     /// HandSynergy to detect hand-wide build commitments and combo plays.
     /// </summary>
     public IReadOnlyList<string> PrimaryBuildTags { get; init; } = System.Array.Empty<string>();
+
+    /// <summary>
+    /// True when this card survives past end-of-turn discard (Retain keyword in
+    /// catalog). Affects play-ORDER: when other useful cards exist, prefer
+    /// playing the non-retain cards first so the retained card can act again
+    /// next turn. When the retain card is the strongest available play, retain
+    /// status is irrelevant and we play it normally.
+    /// </summary>
+    public bool IsRetain { get; init; }
+
+    /// <summary>
+    /// True when this card is exhausted at end-of-turn if not played (Ethereal
+    /// keyword in catalog). Affects play-ORDER: even if its score is borderline,
+    /// playing now is better than losing it for free — bump priority a notch so
+    /// we don't waste it sitting in hand.
+    /// </summary>
+    public bool IsEthereal { get; init; }
+
+    /// <summary>
+    /// True when this card was guaranteed to start in our opening hand (Innate
+    /// keyword in catalog). Informational only — opening-turn ordering already
+    /// works via normal scoring; flag is here for future "first-turn setup
+    /// detection" rules without re-querying the catalog.
+    /// </summary>
+    public bool IsInnate { get; init; }
+
+    /// <summary>
+    /// True when this card is exhausted on play (Exhaust keyword in catalog).
+    /// Used by the simulator to decide whether the played card joins the
+    /// discard pile (non-exhaust) or leaves the deck entirely (exhaust) —
+    /// matters for Draw-card scoring in the depth-2 lookahead.
+    /// </summary>
+    public bool IsExhaust { get; init; }
 
     public bool IsAttack => Kind == CardType.Attack;
     public bool IsSkill => Kind == CardType.Skill;

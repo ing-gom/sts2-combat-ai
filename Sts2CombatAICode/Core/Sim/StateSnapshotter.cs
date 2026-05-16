@@ -36,6 +36,14 @@ internal static class StateSnapshotter
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
+            int playerFocus = CombatReflection.GetPowerAmount(creature, "FocusPower");
+            int playerIntangible = CombatReflection.GetPowerAmount(creature, "IntangiblePower");
+            int playerMetallicize = CombatReflection.GetPowerAmount(creature, "MetallicizePower");
+            int playerPlatedArmor = CombatReflection.GetPowerAmount(creature, "PlatedArmorPower");
+            int playerEotBlockBonus = playerMetallicize + playerPlatedArmor;
+            int playerFreeAttacks = CombatReflection.GetPowerAmount(creature, "FreeAttackPower");
+            int playerFreeSkills = CombatReflection.GetPowerAmount(creature, "FreeSkillPower");
+            int playerFreePowers = CombatReflection.GetPowerAmount(creature, "FreePowerPower");
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
 
             int orbCount = 0, orbCapacity = 0;
@@ -134,6 +142,10 @@ internal static class StateSnapshotter
                         IsPlayable = playable,
                         Axes = axes,
                         PrimaryBuildTags = catalogInfo?.PrimaryBuildTags ?? System.Array.Empty<string>(),
+                        IsRetain = catalogInfo?.Retain ?? false,
+                        IsEthereal = catalogInfo?.Ethereal ?? false,
+                        IsInnate = catalogInfo?.Innate ?? false,
+                        IsExhaust = catalogInfo?.Exhaust ?? false,
                     });
                 }
             }
@@ -157,6 +169,12 @@ internal static class StateSnapshotter
                 PlayerOrbCapacity = orbCapacity,
                 OrbQueue = orbQueue,
                 OrbEvokeValues = orbEvokeValues,
+                PlayerFocus = playerFocus,
+                PlayerIntangible = playerIntangible,
+                PlayerEndOfTurnBlockBonus = playerEotBlockBonus,
+                PlayerFreeAttacks = playerFreeAttacks,
+                PlayerFreeSkills = playerFreeSkills,
+                PlayerFreePowers = playerFreePowers,
             };
         }
         catch (System.Exception ex)
@@ -354,7 +372,21 @@ internal static class StateSnapshotter
             }
             orbTag = $" orbs=[{string.Join(",", slots)}/{s.PlayerOrbCapacity}]";
         }
-        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag} hand=[{hand}] enemies=[{enemies}]";
+        // v0.5 — surface player status powers when they're relevant. Common case
+        // (no debuffs / no Intangible / no free counters) prints nothing.
+        var statusBits = new List<string>();
+        if (s.PlayerStrength != 0)   statusBits.Add($"Str:{s.PlayerStrength}");
+        if (s.PlayerDexterity != 0)  statusBits.Add($"Dex:{s.PlayerDexterity}");
+        if (s.PlayerFocus != 0)      statusBits.Add($"Fcs:{s.PlayerFocus}");
+        if (s.PlayerVulnerable > 0)  statusBits.Add($"Vuln:{s.PlayerVulnerable}");
+        if (s.PlayerWeak > 0)        statusBits.Add($"Weak:{s.PlayerWeak}");
+        if (s.PlayerFrail > 0)       statusBits.Add($"Frail:{s.PlayerFrail}");
+        if (s.PlayerIntangible > 0)  statusBits.Add($"Intang:{s.PlayerIntangible}");
+        if (s.PlayerFreeAttacks > 0) statusBits.Add($"FreeA:{s.PlayerFreeAttacks}");
+        if (s.PlayerFreeSkills > 0)  statusBits.Add($"FreeS:{s.PlayerFreeSkills}");
+        if (s.PlayerFreePowers > 0)  statusBits.Add($"FreeP:{s.PlayerFreePowers}");
+        var statusTag = statusBits.Count > 0 ? $" status=[{string.Join(",", statusBits)}]" : "";
+        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag}{statusTag} hand=[{hand}] enemies=[{enemies}]";
     }
 
     private static string FormatCard(SimCard c)
@@ -380,9 +412,19 @@ internal static class StateSnapshotter
                 ench = $"★[{shortId}]";
             }
         }
+        // v0.5 — keyword flags relevant to play-order decisions. R=retain (defers
+        // until other plays exhausted), E=ethereal (must play this turn or exhaust),
+        // I=innate (opener marker), Xh=exhaust-on-play. X (no h) = currently unplayable.
+        // Suffix only when at least one is set.
+        var flags = (c.IsRetain ? "R" : "")
+                  + (c.IsEthereal ? "E" : "")
+                  + (c.IsInnate ? "I" : "")
+                  + (c.IsExhaust ? "Xh" : "")
+                  + (c.IsPlayable ? "" : "X");
+        var flagsTag = flags.Length > 0 ? $"|{flags}" : "";
         return string.IsNullOrEmpty(detail)
-            ? $"{c.Id}{ench}({prefix}{c.Cost})"
-            : $"{c.Id}{ench}({prefix}{c.Cost}/{detail})";
+            ? $"{c.Id}{ench}({prefix}{c.Cost}{flagsTag})"
+            : $"{c.Id}{ench}({prefix}{c.Cost}/{detail}{flagsTag})";
     }
 
     private static string ShortPowerName(string fullName)
