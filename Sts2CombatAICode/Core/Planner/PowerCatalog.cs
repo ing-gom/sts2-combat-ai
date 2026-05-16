@@ -200,6 +200,23 @@ internal static class PowerCatalog
         { "EnvenomPower",             500 },  // +1 Poison on unblocked attack
         { "FanOfKnivesPower",         400 },  // Shivs target all (permanent toggle)
         { "MasterPlannerPower",       300 },  // Skill cards gain Sly
+
+        // ─── D tier ─────────────────────────────────────────────────────────
+        // Defect
+        { "ConsumingShadowPower",     300 },  // Dark x2 channel +leftmost evoke /turn
+        { "LoopPower",                350 },  // rightmost orb passive 2x trigger /turn
+        // Ironclad
+        { "HellraiserPower",          300 },  // Strike-named auto-play on draw
+        { "JugglingPower",            300 },  // 3rd attack /turn copied to hand
+        // Regent
+        { "MonarchsGazePower",        350 },  // per-attack enemy Strength -1
+        // Shared
+        { "CalamityPower",            350 },  // attack-play chains random attack to hand
+        { "NostalgiaPower",           250 },  // first attack/skill /turn → top of draw
+        // Silent
+        { "OutbreakPower",            400 },  // AoE 11 every 3 Poison applied
+        { "SerpentFormPower",         350 },  // PLAY_TRIGGER: 4 dmg /card played
+        { "SpeedsterPower",           350 },  // AoE 2 /card drawn
     };
 
     public static readonly IReadOnlyDictionary<string, int> EnemyDebuff = new Dictionary<string, int>
