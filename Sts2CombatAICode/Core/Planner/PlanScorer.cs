@@ -628,8 +628,16 @@ internal static class PlanScorer
         }
 
         // v0.2.11 — heavy DoT overkill: target already dying to poison this/next turn.
+        // v0.5 — split into two tiers. Poison-lethal (already dead next turn-start)
+        // gets a much heavier penalty so the planner stops dumping attacks into a
+        // corpse-walking target when other live enemies need clearing.
         int dotDamage = target.PoisonAmount + target.ConstrictAmount + target.BurnAmount;
-        if (dotDamage > 0 && dotDamage >= target.Hp / 2)
+        if (target.PoisonAmount > 0 && target.PoisonAmount >= target.Hp)
+        {
+            s += w.PoisonLethalPenalty;
+            parts.Add($"poisonLethal{w.PoisonLethalPenalty}");
+        }
+        else if (dotDamage > 0 && dotDamage >= target.Hp / 2)
         {
             s += w.HeavyDotPenalty;
             parts.Add($"dotOverkill{w.HeavyDotPenalty}");

@@ -97,6 +97,10 @@ internal sealed class PlanScorerWeights
     // v0.2.11 — DoT-aware overkill avoidance.
     // Enemy already on heavy poison will die soon to DoT; extra direct damage is partly wasted.
     public int HeavyDotPenalty = -300;             // poison/constrict ≥ enemy_hp * 0.5 → overkill
+    // v0.5 — poison-lethal: PoisonAmount ≥ Hp → guaranteed dead before next attack. Most
+    // attacks on this target are wasted. Stronger penalty than HeavyDot so direct damage
+    // redirects to a live, threatening enemy instead.
+    public int PoisonLethalPenalty = -1200;
 
     // v0.2.13 — Defect orb-aware scoring.
     public int OrbProducerEmptySlotsBonus = 150;   // channeling when slots available
