@@ -16,8 +16,13 @@ internal static class ActionPlanner
 {
     public readonly record struct PlanStep(SimCard Card, int TargetIdx, int Score, string Reason);
 
-    /// <summary>Per-candidate trace from the most recent PlanNextStep call.</summary>
-    public static System.Collections.Generic.List<(string id, int targetIdx, int firstScore, int secondScore, int total)>
+    /// <summary>
+    /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
+    /// reveals which follow-up card the depth-2 lookahead picked as the "best second
+    /// play" after this candidate — invaluable for explaining why a setup card won
+    /// over a stronger-looking standalone play.
+    /// </summary>
+    public static System.Collections.Generic.List<(string id, int targetIdx, int firstScore, int secondScore, int total, string? bestNextId)>
         LastCandidates { get; } = new();
 
     public static PlanStep? PlanNextStep(SimState state)
@@ -33,30 +38,48 @@ internal static class ActionPlanner
         int bestFirstScore = int.MinValue;
         LastCandidates.Clear();
 
+        var planWeights = PlanScorerWeights.For(PlaystyleState.Current);
         foreach (var (card, targetIdx) in candidates)
         {
-            int firstScore = PlanScorer.Score(card, targetIdx, state);
+            // v0.5 — play-order biases (Retain defer / Ethereal play-now) live here, not
+            // in PlanScorer.Score, so that discard/exhaust selectors see unbiased values.
+            int firstScore = PlanScorer.Score(card, targetIdx, state)
+                           + PlanScorer.PlayOrderBias(card, state, planWeights);
 
             // Simulate playing this card; find best card to follow.
             int secondScore = 0;
+            string? bestNextId = null;
             try
             {
                 var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
-                secondScore = EnumerateCandidates(nextState)
-                    .Select(c => PlanScorer.Score(c.card, c.targetIdx, nextState))
-                    .DefaultIfEmpty(0)
-                    .Max();
+                foreach (var nextCand in EnumerateCandidates(nextState))
+                {
+                    int s = PlanScorer.Score(nextCand.card, nextCand.targetIdx, nextState)
+                          + PlanScorer.PlayOrderBias(nextCand.card, nextState, planWeights);
+                    if (s > secondScore || bestNextId == null)
+                    {
+                        secondScore = s;
+                        bestNextId = nextCand.card.Id;
+                    }
+                }
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
             }
             catch
             {
                 // Simulator error: fall back to single-step score
                 secondScore = 0;
+                bestNextId = null;
             }
 
             int total = firstScore + secondScore;
-            LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total));
-            if (total > bestTotal)
+            LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total, bestNextId));
+            // v0.5 — tie-break on first-card score so identical totals (e.g., A first=1000
+            // second=200 vs B first=600 second=600) prefer the candidate with higher
+            // immediate value. Resolves the case where iteration order alone determined
+            // the winner of equal-total candidates.
+            bool wins = total > bestTotal
+                     || (total == bestTotal && firstScore > bestFirstScore);
+            if (wins)
             {
                 bestTotal = total;
                 bestFirstScore = firstScore;
@@ -68,9 +91,30 @@ internal static class ActionPlanner
         // "Stop playing" floor: judge on the *first-card score* (the actual card we'd play),
         // not the lookahead total — a high-score follow-up shouldn't keep us spending energy
         // on a worthless first move.
-        var weights = PlanScorerWeights.For(PlaystyleState.Current);
-        if (bestPlan != null && bestFirstScore < weights.MinPlayScore)
+        if (bestPlan != null && bestFirstScore < planWeights.MinPlayScore)
+        {
+            // v0.5 — 0-cost exemption. The floor exists to stop us spending ENERGY on a
+            // weak play. A 0-cost card spends no energy, so any positive-score play is
+            // strictly net positive — leaving it in hand wastes it at end-of-turn.
+            //   • If best plan is itself a 0-cost positive play, take it.
+            //   • If best plan is a paid card below floor, search the candidates for the
+            //     best 0-cost positive alternative and play that instead.
+            if (bestPlan.Value.Card.Cost == 0 && bestFirstScore > 0)
+                return bestPlan;
+            SimCard? freeCard = null;
+            int freeIdx = -1;
+            int freeScore = 0;
+            foreach (var (c, t) in candidates)
+            {
+                if (c.Cost != 0) continue;
+                int s = PlanScorer.Score(c, t, state)
+                      + PlanScorer.PlayOrderBias(c, state, planWeights);
+                if (s > freeScore) { freeScore = s; freeCard = c; freeIdx = t; }
+            }
+            if (freeCard != null)
+                return new PlanStep(freeCard, freeIdx, freeScore, Reason(freeCard));
             return null;
+        }
 
         return bestPlan;
     }
@@ -87,22 +131,31 @@ internal static class ActionPlanner
     {
         foreach (var card in state.Hand)
         {
-            if (card.Played) continue;
             if (!card.IsPlayable) continue;        // Unplayable (curse/status/conditional)
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
-            if (card.Cost > state.PlayerEnergy) continue;
+            // v0.5 — Free*Power lets us play expensive cards over the energy budget.
+            bool freeCovers =
+                (card.IsAttack && state.PlayerFreeAttacks > 0) ||
+                (card.IsSkill && state.PlayerFreeSkills > 0) ||
+                (card.IsPower && state.PlayerFreePowers > 0);
+            if (!freeCovers && card.Cost > state.PlayerEnergy) continue;
             // Note: star-cost cards are filtered by CanPlay() already if no stars; we trust it.
 
             // Energy-gain card is pointless if there's nothing left to spend the gained energy on.
             // Excluding here (vs penalising in PlanScorer) guarantees we never play it as a
             // "least bad" fallback when the hand has no other useful card.
-            if (card.IsEnergyGainCard && !card.IsAttack && card.Damage == 0)
+            // v0.5 — only THIS-turn energy gain (Effect.EnergyGain > 0, Adrenaline-style)
+            // qualifies. NEXT-turn variants (EnergyNextTurnPower like Berserk) gain energy
+            // on subsequent turns and stay valuable even when this hand is empty.
+            // Also exempt cards that DRAW (Skim-style) — drawing produces new candidates,
+            // so an isolated Skim is still worth playing for the draw.
+            if (card.IsEnergyGainCard && card.EnergyGain > 0
+                && !card.IsAttack && card.Damage == 0 && card.DrawCount == 0)
             {
                 bool anyOtherUseful = false;
                 foreach (var c in state.Hand)
                 {
                     if (ReferenceEquals(c, card)) continue;
-                    if (c.Played) continue;
                     if (!c.IsPlayable) continue;
                     if (c.IsCurseOrStatus) continue;
                     if (c.Cost < 0) continue;

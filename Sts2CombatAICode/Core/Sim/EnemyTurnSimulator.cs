@@ -12,19 +12,61 @@ internal static class EnemyTurnSimulator
 {
     public static int PredictPlayerDmg(SimState s)
     {
+        // v0.5 — IntangiblePower on the player caps every incoming hit at 1.
+        // Short-circuit: total threat = sum of enemy hit counts − block. Skips the
+        // whole per-enemy Vulnerable/Weak chain because none of it matters when each
+        // hit lands as exactly 1 damage. Without this, the planner over-defends on
+        // Apparition / WraithForm turns where damage is effectively negligible.
+        if (s.PlayerIntangible > 0)
+        {
+            int hits = 0;
+            foreach (var e in s.Enemies)
+            {
+                if (!e.IsAlive) continue;
+                // DoT pre-kill: Poison + Constrict tick before any intent fires.
+                int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+                if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
+                if (e.HasAttackIntent || e.HasDeathBlowIntent)
+                    hits += Math.Max(1, e.IntentRepeats);
+            }
+            int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+            return Math.Max(0, hits - intangibleBlock);
+        }
+
         int total = 0;
+        // v0.5 — incoming damage is amplified ×1.5 if the player is Vulnerable.
+        // PredictPlayerDmg used to skip this multiplier entirely, so the threat
+        // estimate undercounted damage on turns where we'd been Vulnerabled by an
+        // enemy debuff intent (Cultist's Dark Strike with Vuln rider, etc.).
+        // Pre-compute once outside the loop so per-enemy cost stays cheap.
+        bool playerVulnerable = s.PlayerVulnerable > 0;
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
+            // v0.5 — DoT pre-kill: Poison + Constrict tick at start of enemy turn
+            // before any intent fires, so enemies whose DoT covers their HP die
+            // before attacking and contribute 0 threat. Burn left out because its
+            // tick timing varies between STS variants.
+            int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+            if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
+
             // Per-hit base = IntentDamage + Strength (Strength rides on every hit).
-            // Weak rounds DOWN per hit in STS, so multi-hit attacks lose proportionally
-            // more — apply ×0.75 before multiplying by IntentRepeats, not after.
+            // Weak rounds DOWN per hit in STS — multi-hit attacks lose proportionally
+            // more — so apply ×0.75 BEFORE multiplying by IntentRepeats.
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
             if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
             int dmg = perHit * Math.Max(1, e.IntentRepeats);
+
+            // v0.5 — Vulnerable on the player ×1.5 incoming. Applied after per-enemy
+            // Weak so the multiplier chain matches in-game order.
+            if (playerVulnerable) dmg = (int)(dmg * StatusMath.VulnerableMult);
             total += dmg;
         }
-        return Math.Max(0, total - s.PlayerBlock);
+        // v0.5 — fold the end-of-turn block bonus (Metallicize + PlatedArmor) into the
+        // effective block. Enemies attack AFTER our end-of-turn step adds these blocks,
+        // so they cushion the leak before HP loss.
+        int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+        return Math.Max(0, total - effectivePlayerBlock);
     }
 
     public static int CountIncomingAttackers(SimState s) =>

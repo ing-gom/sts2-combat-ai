@@ -66,7 +66,7 @@ internal static class EffectSynergy
     private static void ApplyDamageAmplifier(SimCard self, SimState state, ref int b, List<string> parts)
     {
         int remainingAttacks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable && c.IsAttack);
+            !ReferenceEquals(c, self) && c.IsPlayable && c.IsAttack);
         if (remainingAttacks > 0)
         {
             int v = remainingAttacks * 70;
@@ -84,7 +84,7 @@ internal static class EffectSynergy
     {
         int curBlock = state.PlayerBlock;
         int remainingBlocks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+            !ReferenceEquals(c, self) && c.IsPlayable
             && c.IsSkill && c.Block > 0);
         // Existing block doubles immediately; remaining block skills will compound later.
         int v = curBlock * 4 + remainingBlocks * 50;
@@ -107,7 +107,7 @@ internal static class EffectSynergy
                           && state.Enemies[targetIdx].VulnerableAmount > 0;
         bool anyVuln = state.Enemies.Any(e => e.IsAlive && e.VulnerableAmount > 0);
         bool vulnInHand = state.Hand.Any(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+            !ReferenceEquals(c, self) && c.IsPlayable
             && (c.Axes.Contains("VULN") || c.PowerApps.ContainsKey("VulnerablePower")));
 
         if (targetVuln)         { b += 450; parts.Add("vulnAmpTgt=+450"); }
@@ -120,7 +120,7 @@ internal static class EffectSynergy
     {
         bool anyWeak = state.Enemies.Any(e => e.IsAlive && e.WeakAmount > 0);
         bool weakInHand = state.Hand.Any(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+            !ReferenceEquals(c, self) && c.IsPlayable
             && (c.Axes.Contains("WEAK") || c.PowerApps.ContainsKey("WeakPower")));
 
         // Multi-hit enemies (Repeats ≥ 2) make Weak's per-hit rounding compound.
@@ -147,7 +147,7 @@ internal static class EffectSynergy
         // Block 0 — Body Slam currently does 0 dmg. If block skills still in hand,
         // mild penalty (play them first). If none, this card is dead — heavy.
         int remainingBlocks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+            !ReferenceEquals(c, self) && c.IsPlayable
             && c.IsSkill && c.Block > 0);
         if (remainingBlocks > 0)
         {
