@@ -1,6 +1,6 @@
 {
   "version": "v0.103.2",
-  "generated_from": "scripts\\cards_catalog.json",
+  "generated_from": "scripts/cards_catalog.json",
   "card_count": 576,
   "cards": {
     "CARD.ABRASIVE": {

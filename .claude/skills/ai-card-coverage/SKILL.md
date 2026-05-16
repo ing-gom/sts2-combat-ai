@@ -121,39 +121,45 @@ Synergy-rule reach 는 "이 카드가 그 룰을 *공급할 자격*이 있는 �
 
 dropped 카드 (4 신호 모두 부재) 는 PlanScorer 에서 type-based 평가 (Attack damage / Skill block) 로만 처리됨. axis 시너지 / build 페이오프 / override 보너스 모두 0. **release 전 dropped 0 이 목표**.
 
+## 부모 repo 연동
+
+`cards_catalog.json` 은 부모 repo (`sts2-card-advisor-dev`) 의 reflection 파이프라인이 생성하는 산출물. 이 mod repo 는 audit 입력을 위해 **사본** 을 `scripts/cards_catalog.json` 에 vendor 함. 두 군데가 source-of-truth 가 되는 것 아니냐는 우려는 `measure_ai_card_coverage.py` 의 drift-guard 와 `card_triggers.json` 의 `version` 필드로 명시적으로 감지 가능.
+
+**부모 repo 의 `version-bump` 스킬이 카탈로그 재생성 직후 호출해야 할 명령** (정확히 한 줄):
+
+```bash
+python scripts/refresh_catalog.py \
+    --from <parent-repo>/scripts/cards_catalog.json
+```
+
+이 한 번으로 카탈로그 sync + trigger 재추출 + audit 리포트 갱신까지 완료. 이후 변경 파일 (`scripts/cards_catalog.json`, `Sts2CombatAICode/Core/Data/card_triggers.json`, `docs/ai_card_coverage.md`) 을 commit + push.
+
 ## 작업 흐름
 
 ### Step 1 — 입력 파일 최신 상태 확인
 
-`card_triggers.json` 이 master `cards_catalog.json` 과 동기화되었는지:
+부모 repo (`sts2-card-advisor-dev`) 가 카탈로그를 새로 생성했다면 한 번에 동기화:
 
 ```bash
-python scripts/extract_card_triggers.py
+python scripts/refresh_catalog.py \
+    --from ../sts2-card-advisor-dev/scripts/cards_catalog.json
 ```
 
-마지막 `extract_*` 이후 `cards_catalog.json` 갱신이 있었으면 먼저 재추출.
+`refresh_catalog.py` 가 다음을 순서대로 수행: catalog 복사 → `extract_card_triggers.py` 재추출 → `measure_ai_card_coverage.py` audit. 부모 repo 의 `version-bump` 스킬은 카탈로그 재생성 직후 이 한 줄만 호출하면 됨 (이후 commit/push 는 호출 측 또는 사용자가 처리).
 
-### Step 2 — 측정 실행
-
-리포트 stdout + 파일 동시:
+카탈로그가 이미 최신이고 audit 만 다시 돌리려면:
 
 ```bash
 python scripts/measure_ai_card_coverage.py --out docs/ai_card_coverage.md
 ```
 
-부모 repo (`sts2-card-advisor-dev`) 의 master catalog 를 외부에서 참조:
+`measure_ai_card_coverage.py` 는 시작 시 `cards_catalog.json` 의 `game_version` 과 `card_triggers.json` 의 `version` 일치를 확인 (drift-guard, exit 3 on mismatch). 의도적 우회는 `--allow-version-mismatch`.
 
-```bash
-python scripts/measure_ai_card_coverage.py \
-    --catalog ../scripts/cards_catalog.json \
-    --out docs/ai_card_coverage.md
-```
+### Step 2 — Threshold 비교
 
-### Step 3 — Threshold 비교
+리포트 headline 4 줄을 위 Threshold 표와 대조. Poor 구간 metric 이 있으면 Step 3.
 
-리포트 headline 4 줄을 위 Threshold 표와 대조. Poor 구간 metric 이 있으면 Step 4.
-
-### Step 4 — 미커버 카드 분류 + 액션
+### Step 3 — 미커버 카드 분류 + 액션
 
 리포트 하단 3 섹션 (Dropped / PowerCatalog miss / no-axes) 을 보고:
 
@@ -161,7 +167,7 @@ python scripts/measure_ai_card_coverage.py \
 - **PowerCatalog miss 카드 중 같은 power 이름이 여러 카드에 등장**: `PowerCatalog.SelfBuff`/`EnemyDebuff` 에 해당 power 추가 (tier 표 참고해 적정 값)
 - **no-axes 카드**: 마찬가지로 axis-tagger 작업 대상
 
-### Step 5 — 회귀 비교
+### Step 4 — 회귀 비교
 
 이전 릴리즈 리포트 (`docs/ai_card_coverage.md` git 이력) 와 비교. 어떤 metric 도 5%p 이상 하락 시 alert.
 
