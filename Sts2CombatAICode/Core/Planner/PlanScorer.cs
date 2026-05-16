@@ -858,13 +858,16 @@ internal static class PlanScorer
     {
         if (!card.IsEnergyGainCard) return 0;
 
-        // v0.5 — only this-turn energy gain (EnergyVar / IsEnergyGainCard via EnergyGain > 0)
-        // is evaluated for "unlock waiting big cards" logic. Next-turn energy gain
-        // (EnergyNextTurnPower like Berserk's recurring +1, EnergizedPower) doesn't help
-        // this turn's playability, so the unlock / urgent / waste checks don't apply —
-        // the card's value is already in PowerCatalog (1500 per stack for EnergyNextTurnPower).
+        // v0.5 — only IMMEDIATE energy gain (EnergyVar via EnergyGain > 0, or
+        // EnergizedPower in PowerApps) is evaluated for "unlock waiting big cards"
+        // logic. Next-turn-only gain (EnergyNextTurnPower like Berserk's recurring +1)
+        // doesn't help this turn's playability — the unlock / urgent / waste checks
+        // don't apply, and PowerCatalog values it correctly at 1500/stack already.
         // Returning 0 here avoids double-penalising Berserk-style cards as "wasted gain".
-        if (card.EnergyGain <= 0) return 0;
+        int immediateGain = card.EnergyGain;
+        if (card.PowerApps.TryGetValue("EnergizedPower", out var energizedAmt))
+            immediateGain += energizedAmt;
+        if (immediateGain <= 0) return 0;
 
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);
 
@@ -878,7 +881,7 @@ internal static class PlanScorer
         // without it: cost > remainingEnergy (couldn't afford) AND cost ≤ remaining + gain
         // (now affordable). Cards cheap enough to already play, or still too expensive after
         // the gain, don't count toward valuation.
-        int afterGain = remainingEnergy + card.EnergyGain;
+        int afterGain = remainingEnergy + immediateGain;
         int unlocked = otherPlayable.Count(c => c.Cost > remainingEnergy && c.Cost <= afterGain);
         if (unlocked == 0) return w.EnergyGainWastedPenalty;
 
