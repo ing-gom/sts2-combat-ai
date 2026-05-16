@@ -7,8 +7,8 @@ HandSynergy) explicitly handles vs falls back to generic defaults.
 
 - Master catalog: `/home/user/sts2-combat-ai/scripts/cards_catalog.json` (game v0.103.2)
 - Embedded triggers: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
-- PowerCatalog: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (141 powers registered)
-- PowerSequencingTier: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (127 powers classified)
+- PowerCatalog: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (151 powers registered)
+- PowerSequencingTier: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (137 powers classified)
 - Override: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs` (13 cards)
 
 ## Headline metrics  (577 base cards)
@@ -35,10 +35,10 @@ key in its `vars`, or its id-derived `PascalCasePower` name, appears in
 | Metric | Count | % |
 |---|---:|---:|
 | Total Power cards | 112 | 100% |
-| Hit via `vars` *Power suffix | 49 | 43.8% |
-| Hit via id-derived PascalCasePower | 53 | 47.3% |
-| **Any hit (lower bound)** | **102** | **91.1%** |
-| Fallback only (HeuristicFallback / Default 200) | 10 | 8.9% |
+| Hit via `vars` *Power suffix | 53 | 47.3% |
+| Hit via id-derived PascalCasePower | 59 | 52.7% |
+| **Any hit (lower bound)** | **112** | **100.0%** |
+| Fallback only (HeuristicFallback / Default 200) | 0 | 0.0% |
 
 ## PowerCatalog hit — refined  (validation pass)
 
@@ -49,15 +49,9 @@ match one of the 8 name patterns receive a *specific* fallback value, not
 
 | Bucket | Cards | % of Power | Value source |
 |---|---:|---:|---|
-| **Explicit** (SelfBuff / EnemyDebuff dict) | 102 | 91.1% | hand-tuned per power |
-| **Pattern fallback** (HeuristicFallback name pattern) | 1 | 0.9% | category-default (still informative) |
-| **True DefaultValue=200** (no pattern match) | 9 | 8.0% | flat constant (real blind spot) |
-
-Pattern-fallback distribution:
-
-| Pattern | Cards |
-|---|---:|
-| `*FormPower` | 1 |
+| **Explicit** (SelfBuff / EnemyDebuff dict) | 112 | 100.0% | hand-tuned per power |
+| **Pattern fallback** (HeuristicFallback name pattern) | 0 | 0.0% | category-default (still informative) |
+| **True DefaultValue=200** (no pattern match) | 0 | 0.0% | flat constant (real blind spot) |
 
 ## PowerSequencingTier coverage  (Power cards only)
 
@@ -67,12 +61,12 @@ ordering bonus — those cards rely on raw PowerCatalog value only.
 | Tier | Cards | % |
 |---|---:|---:|
 | Setup | 16 | 14.3% |
-| Scaling | 51 | 45.5% |
-| Defensive | 17 | 15.2% |
-| Tempo | 17 | 15.2% |
+| Scaling | 59 | 52.7% |
+| Defensive | 18 | 16.1% |
+| Tempo | 18 | 16.1% |
 | SelfHarm | 1 | 0.9% |
-| Unknown | 10 | 8.9% |
-| **Classified (any non-Unknown)** | **102** | **91.1%** |
+| Unknown | 0 | 0.0% |
+| **Classified (any non-Unknown)** | **112** | **100.0%** |
 
 ## Conditional damage / vars patterns  (66 cards)
 
@@ -188,12 +182,12 @@ Per-card count of synergy rules the card *can* feed (out of 5):
 
 | Character | Cards | In triggers | Axes | Builds | Power hit | Dropped |
 |---|---:|---:|---:|---:|---:|---:|
-| DEFECT | 88 | 88 (100.0%) | 88 (100.0%) | 53 (60.2%) | 18/20 (90.0%) | 0 (0.0%) |
-| IRONCLAD | 87 | 87 (100.0%) | 87 (100.0%) | 65 (74.7%) | 19/21 (90.5%) | 0 (0.0%) |
+| DEFECT | 88 | 88 (100.0%) | 88 (100.0%) | 53 (60.2%) | 20/20 (100.0%) | 0 (0.0%) |
+| IRONCLAD | 87 | 87 (100.0%) | 87 (100.0%) | 65 (74.7%) | 21/21 (100.0%) | 0 (0.0%) |
 | NECROBINDER | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 18/18 (100.0%) | 0 (0.0%) |
-| REGENT | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 18/19 (94.7%) | 0 (0.0%) |
-| SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 83 (60.1%) | 13/15 (86.7%) | 1 (0.7%) |
-| SILENT | 88 | 88 (100.0%) | 88 (100.0%) | 69 (78.4%) | 16/19 (84.2%) | 0 (0.0%) |
+| REGENT | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 19/19 (100.0%) | 0 (0.0%) |
+| SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 83 (60.1%) | 15/15 (100.0%) | 1 (0.7%) |
+| SILENT | 88 | 88 (100.0%) | 88 (100.0%) | 69 (78.4%) | 19/19 (100.0%) | 0 (0.0%) |
 
 ## Tier × Coverage overlap  (impact-weighted)
 
@@ -208,7 +202,7 @@ status/curse — usually skip-able.
 | A | 145 | 0 | 0 | 0 | 0 |
 | B | 158 | 0 | 0 | 0 | 0 |
 | C | 104 | 0 | 0 | 0 | 0 |
-| D | 47 | 0 | 10 | 9 | 10 |
+| D | 47 | 0 | 0 | 0 | 0 |
 | ? | 30 | 1 | 0 | 0 | 0 |
 
 **Reading**: focus on S/A rows — high-tier cards in gap columns are the
@@ -274,22 +268,11 @@ real audit signal. D-tier gaps are usually safe to defer.
 |---|---|---|---|
 | CARD.FRANTIC_ESCAPE | SHARED |  | Status |
 
-## Power cards without explicit PowerCatalog hit  (10 total, top 20)
+## Power cards without explicit PowerCatalog hit  (0 total, top 20)
 
 These rely on `HeuristicFallback()` or `DefaultValue = 200`.
 
-| Id | Character | Tier | vars keys |
-|---|---|---|---|
-| CARD.CALAMITY | SHARED | D | — |
-| CARD.CONSUMING_SHADOW | DEFECT | D | ConsumingShadowPower, Repeat |
-| CARD.HELLRAISER | IRONCLAD | D | — |
-| CARD.JUGGLING | IRONCLAD | D | — |
-| CARD.LOOP | DEFECT | D | Loop |
-| CARD.MONARCHS_GAZE | REGENT | D | StrengthLoss |
-| CARD.NOSTALGIA | SHARED | D | — |
-| CARD.OUTBREAK | SILENT | D | OutbreakPower, Repeat |
-| CARD.SERPENT_FORM | SILENT | D | SerpentFormPower |
-| CARD.SPEEDSTER | SILENT | D | SpeedsterPower |
+_None._
 
 ## Cards with no axes  (1 total, top 20)
 

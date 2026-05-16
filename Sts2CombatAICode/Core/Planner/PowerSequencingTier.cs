@@ -220,6 +220,23 @@ internal static class PowerSequencingTier
             { "SpectrumShiftPower",       SequencingTier.Tempo },
             { "StratagemPower",           SequencingTier.Tempo },
             { "FanOfKnivesPower",         SequencingTier.Tempo },     // 4-Shiv burst
+
+            // ─── Coverage pass v0.103.2 — D tier ────────────────────────────────
+            // Scaling (long-fight passives)
+            { "ConsumingShadowPower",     SequencingTier.Scaling },
+            { "LoopPower",                SequencingTier.Scaling },
+            { "HellraiserPower",          SequencingTier.Scaling },
+            { "JugglingPower",            SequencingTier.Scaling },
+            { "CalamityPower",            SequencingTier.Scaling },
+            { "OutbreakPower",            SequencingTier.Scaling },
+            { "SerpentFormPower",         SequencingTier.Scaling },
+            { "SpeedsterPower",           SequencingTier.Scaling },
+
+            // Defensive (mitigation via debuff)
+            { "MonarchsGazePower",        SequencingTier.Defensive },
+
+            // Tempo (deck cycling)
+            { "NostalgiaPower",           SequencingTier.Tempo },
         };
 
     /// <summary>
