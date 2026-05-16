@@ -2,8 +2,114 @@
 
 ## v0.5.0 (2026-05-16)
 
-**카드 사용순서 정확도 향상 — 시뮬레이터/스코어러 정합성 정리.** 게임 로직은 동일하지만 plan
-이 실제 in-game 결과와 더 가까워지도록 다수의 sim/scoring 버그 수정 + 누락된 효과 보강.
+**카드 사용순서 정확도 향상 — 시뮬레이터/스코어러 정합성 정리 + 카드 우선순위 분류 신규.**
+
+게임 로직은 동일하지만 plan 이 실제 in-game 결과와 더 가까워지도록 다수의 sim/scoring
+버그 수정 + 누락된 효과 보강. 추가로 카드 타입 / 효과 / 상황 별 우선순위 분류 layer 신설.
+
+### `PowerSequencingTier.cs` 신규
+
+각 power 를 5 tier 중 하나로 분류 — Setup / Scaling / Defensive / Tempo / SelfHarm:
+
+- **Setup** (Strength, Dex, Focus, Accuracy, Vigor) — 같은 턴에 *뒤따라 plays 될 카드들의 가치를 곱해주는* 버프. 먼저 깔리지 않으면 multiplier 가 낭비됨.
+- **Scaling** (DemonForm, EchoForm, ReaperForm, MachineLearning, Juggernaut, Mayhem, Corruption, Poison/NoxiousFumes, Ritual, Hunger, BeaconOfHope 등) — 장기 fight 에서 turn 마다 누적되는 permanents.
+- **Defensive** (Barricade, Intangible, Buffer, Plated Armor, Thorns, FlameBarrier, Blur, FeelNoPain, Artifact, Regen 등) — block / 피해 mitigation. Threat 없으면 의미 없음.
+- **Tempo** (EnergyNextTurn, DrawCardsNextTurn, FreeAttack/Skill/Power) — 같은 턴 시너지 없음. defer 가능.
+- **SelfHarm** (NoDraw, NoBlock, Confused, MindRot 등) — 회피.
+
+### `OrderingBonus` — 같은 손 ≥2 power 카드일 때만
+
+50–200점 nudge — Setup +200, Scaling +150, Defensive +100, Tempo +50, SelfHarm -300. PowerCatalog 절대값 보존, 동률 깨는 정도.
+
+### `ConditionalBonus` — 상황 인식 보정
+
+- **Setup**: Focus + 손에 남은 orb 카드 수 (×80), Accuracy + 남은 attack 수 (×30), Vigor + 남은 attack 0 → -250. Setup 인데 수혜자 0 → -300. (Strength/Dex 기존 HandSynergy 와 중복 회피.)
+- **Defensive**: leak (predicted dmg − current block) > 0 → +leak×40 (max +800). 모든 적 inert / 위협 미만 → -200. 위협 있을 때 Setup 위로 점프.
+- **Scaling**: 적 1마리 + 남은 HP ≤ 25 → -300 (broad fightCtx 가 못 잡는 boundary).
+- **Tempo**: 총 적 HP ≤ 15 → -400 (이번 턴 끝날 fight 에 next-turn 자원은 무가치).
+
+### Integration
+
+`PlanScorer.BreakdownInternal` 의 power 분기에 통합. score breakdown details 에 `tier=Setup+200,focusOrbSyn=+240` 같은 형태로 노출. 기존 catalog / synergy / fight-context 로직은 그대로.
+
+### `AmplifierSynergy.cs` — power 카드에 영향 주는 skill/attack 우선순위
+
+`POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY` / `ATTACK_REPLAY_RANDOM` / `SKILL_REPLAY` axis 를 가진 카드 (Subroutine, Signal Boost, Dual Wield, Iteration, Loop, Juggling, Hidden Gem, Nostalgia, Catastrophe, Nightmare, Beat Down, One-Two Punch, Stampede) 의 점수를 *손에 남은 best 타겟의 PlanScorer.Score × 비율*로 계산.
+
+비율: PowerAmp 0.50 / AtkReplay 0.50 / AtkReplay-Random 0.35 / SkillReplay 0.45 / Generic 0.45. Cap 3000.
+
+손에 타겟 없으면 `-500` 페널티 (Subroutine + power 0장은 dead card).
+
+재귀 방지: 타겟 풀에서 amplifier axis / draw card 자체를 제외. Amp→Replay→Amp 루프, Replay→Draw→Replay 루프 차단.
+
+PlanScorer 의 Attack / Skill 분기 양쪽에 hook (Beat Down 등은 attack, Subroutine 등은 skill).
+
+### PLAY_TRIGGER power 인식
+
+Afterimage / Calamity / Serpent Form / Sleight of Flesh / The Sealed Throne — 카드 play 마다 trigger 되는 power. PowerSequencingTier.ConditionalBonus 의 Scaling 분기에서 `remaining playable cards × 60` 보너스. PowerCatalog 의 flat 값이 못 잡는 hand-size scaling 을 보완.
+
+### `EffectSynergy.cs` — attack/skill 효과 기반 순서
+
+Power 카드가 아닌 카드 (attack/skill) 에서 효과 axis 가 implicit 한 ordering 을 갖는 케이스 처리.
+
+- **DAMAGE_AMPLIFIER** (Aggression, Conflagration, Flanking, Knockdown, Lethality, Shadow Step, Sword Sage) — `remainingAttacks × 70`. 후속 공격이 없으면 -200.
+- **BLOCK_AMPLIFIER** (Entrench, Pillar of Creation, Unmovable — skill 만; Barricade/Blur/Danse/Shadowmeld 는 power 라 tier 처리) — `curBlock × 4 + remainingBlocks × 50`. 둘 다 0 이면 -250.
+- **VULN_AMPLIFIER** (Bully, Colossus, Cruelty, Debilitate, Dismantle, Dominate, Molten Fist) — 타겟 적 Vuln → +450, 다른 적 Vuln → +300, 손에 vuln applier → +250, 아무 source 없음 → -300.
+- **WEAK_AMPLIFIER** (Debilitate, Tracking) — 같은 패턴 작은 가중치.
+- **BLOCK_PAYOFF** (Body Slam) — `curBlock × 30`. Block 0 + 손에 block skill → -600. Block 0 + 없음 → -1500.
+- **HP_LOSS_CONSUMER** (Inferno, Tear Asunder) — PlayerHp ≤ 30 → +350, ≤ 50 → +200.
+
+Power 카드는 skip (PowerSequencingTier 가 처리).
+
+### `BuildSynergy.cs` — Producer↔Amplifier/Consumer 대칭
+
+기존 `Producer + Amplifier-in-hand → Producer 가 +250` 만 있었고 반대 방향 (Amplifier 가 Producer-in-hand 일 때 +200) 누락. Consumer 도 대칭으로 추가. Poison/Orb/Forge/Shiv/Skeleton/Doom 등 빌드에서 Amplifier/Consumer 쪽 우선순위가 제대로 반영.
+
+### Integration
+
+`PlanScorer.cs` Attack / Skill 분기에 `EffectSynergy.Compute` hook 추가. Score breakdown details 에 `vulnAmpTgt=+450,dmgAmp(atk*3)=+210` 같이 노출.
+
+### Survival urgency — cross-type 상황 인식
+
+기존엔 `BlockUnderThreatBonus +2000` 가 *block 카드*만 잡고 있어서 fatal/heavy threat 상황에서도 DemonForm / EchoForm 같은 강한 power 가 Defend 를 압도 → 사망. `EnemyTurnSimulator.GetSurvivalUrgency(state) → {None, Moderate, Heavy, Fatal}` 도입 + 모든 타입에 상황 페널티.
+
+- **Power 카드 (Setup/Scaling/Tempo tier)** — `PowerSequencingTier.ConditionalBonus`:
+  - Fatal (leak ≥ HP) → -2200
+  - Heavy (leak ≥ HP × 0.5) → -900
+  - Moderate (leak ≥ HP × 0.2) → -250
+  - Defensive tier 와 SelfHarm tier 는 면제 (Defensive 는 *survival 응답* 그 자체, SelfHarm 은 이미 음수).
+- **Skill 카드 (non-block, non-energy/draw)** — `PlanScorer.cs` Skill 분기:
+  - Fatal → -900, Heavy → -350. Inflame / Limit Break / Cleanse 같은 pure setup 만 영향. Block / energy-gain / draw skill 은 면제 (survival 의 일부).
+- **Attack 카드 (non-lethal)** — `PlanScorer.cs` Attack 분기:
+  - Fatal + non-lethal (single-target OR all-AOE-lethal 둘 다 아님) → -1200
+  - Heavy + non-lethal → -400
+  - Lethal kill 은 `RealLethalKillBonus +5000` 가 페널티를 압도 → 자연히 면제.
+
+**버그 시나리오 검증** (Player 5 HP, leak 8, hand [DemonForm 3코, Defend 1코, Strike 1코]):
+- Before: DemonForm ≈ 3000 vs Defend ≈ 2250 → DemonForm plays → 사망
+- After: DemonForm = 3000 − 2200 = 800, Defend = 2250 + neutralize 1200 = 3450, Strike = 900 − 1200 = -300 → Defend plays → 생존 ✓
+
+### Multi-hit 적에 대한 Weak 정확도
+
+기존 `PredictPlayerDmg` 가 Weak 를 *total* damage 에 곱했는데 (`15 × 0.75 = 11`) 실제 STS 는 *per-hit* 으로 floor 적용 (`5dmg×3hits → floor(3.75)×3 = 9`). Multi-hit 적에 대해 sim 이 2 dmg 과소평가 → Weak 의 가치가 깎여있던 상태.
+
+- `EnemyTurnSimulator.PredictPlayerDmg` — `(IntentDamage + Strength) × 0.75 → floor → × IntentRepeats` 로 수정.
+- `HandSynergy.WeakPower` — `remainingAttacks × 30` 의미없는 공식을 `ComputeWeakSavings(stacks, state)` 로 교체. 각 적의 `(perHit - floor(perHit × 0.75)) × IntentRepeats × min(stacks, 2) × 30` 합산. Multi-hit 적이 있으면 자연히 더 큰 점수.
+- `HandSynergy.VulnerablePower` — `remainingAttacks × 50` → `remainingHits × 40`. Twin Strike(2 hits) 같은 multi-hit 카드가 Vuln 으로 더 큰 이득 보는걸 점수에 반영.
+- `EffectSynergy.WEAK_AMPLIFIER` — multi-hit 적 (IntentRepeats ≥ 2) 마다 +120 추가 보너스.
+
+### Draw 카드 동작 분석
+
+1코스트 draw → 0 에너지 시나리오. 기존 `EvaluateDrawCard` 가 hand-best-score / pile size 만 봐서 "drew 후 사용 불가" 케이스 누락.
+
+- **Energy-after-draw 체크**: `energyAfter = energy - cost + energyGain`. 0 이고 손에 0-cost 카드도 energy-gain 카드도 없으면 drawn 카드는 next-turn-only. hand 가 strong (≥2000) 면 -800, weak (≥1000) 면 -400, useless 면 bonus / 3.
+- **Hand-cap overflow**: STS hand 10 장 한도. `(handAfterPlay + DrawCount) - 10` 만큼 wasted → wasted/DrawCount 비율로 bonus 차감.
+
+**시나리오 검증** (1 energy, hand = [Pommel Strike 1코 draw, Strike 1코]):
+- Before: Pommel Strike draw bonus = DrawNoCostBottleneckBonus(+500) → 그냥 plays
+- After: energyAfter = 0, zeroCost = 0, energyGain = 0 → canChain = false → bestOther(Strike) < HandWeakThreshold 라 bonus / 3 = +166. Strike 가 attack 점수로 이김 ✓
+
+**Pommel Strike 자체는 attack 점수가 있어 plays 될 수 있지만, 순수 draw 스킬 (Backflip 같은) 이 같은 상황에 있을 때 우선 deferred.**
 
 ### v0.5 추가 패스 (Iter 44-60)
 - **Negative Focus** 도 honor — clamp 위치를 input 대신 output (per-tick 0 floor) 로.

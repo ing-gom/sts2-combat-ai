@@ -160,13 +160,25 @@ internal static class PlanScorer
             var (powerOrbBonus, powerOrbDetail) = EvaluateOrbEffects(card, state);
             if (powerOrbBonus != 0) details.Add(powerOrbDetail);
 
+            // v0.5 — Tier-based ordering for multi-Power hands. Setup > Scaling >
+            // Defensive > Tempo > SelfHarm; Defensive jumps the queue under threat.
+            int powerCardsInHand = state.Hand.Count(c =>
+                c.IsPower && c.IsPlayable);
+            var tier = PowerSequencingTier.Classify(card);
+            int tierOrdering = PowerSequencingTier.OrderingBonus(tier, powerCardsInHand);
+            var (tierCond, tierDetail) = PowerSequencingTier.ConditionalBonus(card, tier, state, w);
+            if (tier != SequencingTier.Unknown)
+                details.Add(tierOrdering != 0 ? $"tier={tier}+{tierOrdering}" : $"tier={tier}");
+            if (!string.IsNullOrEmpty(tierDetail)) details.Add(tierDetail);
+
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
-            int total = baseBonus + effect + costTie + energyBonus + fightCtx + powerOrbBonus + buildBonus;
+            int total = baseBonus + effect + costTie + energyBonus + fightCtx
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + buildBonus,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -449,11 +461,47 @@ internal static class PlanScorer
             int atkDrawBonus = EvaluateDrawCard(card, state, w);
             if (atkDrawBonus != 0) details.Add($"drawCtx={atkDrawBonus}");
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus;
+            // v0.5 — ATTACK_REPLAY axis (Beat Down, One-Two Punch, Stampede). Scores
+            // off the best other attack in hand, so a replay attack rises in priority
+            // when another high-value attack is queued behind it.
+            var (atkAmpBonus, atkAmpDetail) = AmplifierSynergy.Compute(card, state, w);
+            if (atkAmpBonus != 0) details.Add(atkAmpDetail);
+
+            // v0.5 — Effect-axis synergies (DAMAGE_AMPLIFIER, VULN_AMPLIFIER,
+            // WEAK_AMPLIFIER, BLOCK_PAYOFF, HP_LOSS_CONSUMER, …).
+            var (atkEffBonus, atkEffDetail) = EffectSynergy.Compute(card, targetIdx, state);
+            if (atkEffBonus != 0) details.Add(atkEffDetail);
+
+            // v0.5 — Survival urgency: non-lethal attacks should defer to defense
+            // when the player is about to die. Lethal kills bypass naturally via
+            // RealLethalKillBonus (+5000) which dwarfs the penalty.
+            int survivalAtkPenalty = 0;
+            {
+                var urg = EnemyTurnSimulator.GetSurvivalUrgency(state);
+                if (urg == SurvivalUrgency.Fatal || urg == SurvivalUrgency.Heavy)
+                {
+                    bool isLethalSingle = !isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count
+                                         && state.Enemies[targetIdx].IsAlive
+                                         && effectiveTotal >= state.Enemies[targetIdx].EffectiveHp;
+                    bool isLethalAoe = isAoe && state.Enemies.Where(e => e.IsAlive).All(e =>
+                    {
+                        int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
+                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                        return perHit * System.Math.Max(1, card.Hits) >= e.EffectiveHp;
+                    });
+                    if (!isLethalSingle && !isLethalAoe)
+                    {
+                        survivalAtkPenalty = urg == SurvivalUrgency.Fatal ? -1200 : -400;
+                        details.Add($"survival{urg}_nonLethal={survivalAtkPenalty}");
+                    }
+                }
+            }
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
-                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus,
-                TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus,
+                TargetBonus: targetBonus + wastedPenalty + survivalAtkPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
 
@@ -587,10 +635,41 @@ internal static class PlanScorer
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus;
+
+            // v0.5 — POWER_AMPLIFIER / REPLAY / SKILL_REPLAY axes (Subroutine, Signal
+            // Boost, Dual Wield, Iteration, Loop, Juggling, Hidden Gem, Nostalgia,
+            // Catastrophe, Nightmare). Scores off the best replay target in hand.
+            var (skillAmpBonus, skillAmpDetail) = AmplifierSynergy.Compute(card, state, w);
+            if (skillAmpBonus != 0) details.Add(skillAmpDetail);
+
+            // v0.5 — Effect-axis synergies (BLOCK_AMPLIFIER, VULN_AMPLIFIER, etc.).
+            // Skill side: Entrench / Pillar / Unmovable rise when block accumulated;
+            // Bully / Cruelty / Dismantle rise when enemy is already Vuln.
+            var (skillEffBonus, skillEffDetail) = EffectSynergy.Compute(card, -1, state);
+            if (skillEffBonus != 0) details.Add(skillEffDetail);
+
+            // v0.5 — Survival urgency for pure-setup skills (no block, no energy gain,
+            // no draw). Inflame / Limit Break style cards should defer when the player
+            // is about to die. Block / energy / draw skills are exempt — they're the
+            // survival response or feed it.
+            int survivalSkillPenalty = 0;
+            if (card.Block == 0 && !card.IsEnergyGainCard && !card.IsDrawCard)
+            {
+                var urgency = EnemyTurnSimulator.GetSurvivalUrgency(state);
+                survivalSkillPenalty = urgency switch
+                {
+                    SurvivalUrgency.Fatal    => -900,
+                    SurvivalUrgency.Heavy    => -350,
+                    _ => 0,
+                };
+                if (survivalSkillPenalty != 0)
+                    details.Add($"survival{urgency}={survivalSkillPenalty}");
+            }
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty;
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
-                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty,
                 TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
@@ -797,18 +876,28 @@ internal static class PlanScorer
         return 0;
     }
 
+    private const int HandSizeCap = 10;
+
     /// <summary>
     /// v0.2.6 — Draw-card value. Drawing is valuable when the rest of the hand can't do
     /// much. We measure the BEST score among the other cards in the hand and the size of
     /// the draw pile (no point drawing from an empty pile).
     ///
     /// v0.2.9 — pile-aware: if DrawPileSize+DiscardPileSize == 0 → drawing is futile.
+    ///
     /// v0.5 — only THIS-turn immediate draws (DrawCount > 0 via CardsVar) use the
     /// hand-quality logic. DrawCardPower and DrawCardsNextTurnPower are per-turn /
     /// next-turn buffs whose value is already in PowerCatalog (900/stack), so the
     /// hand-quality bonus would double-credit. Conservative scope avoids the risk
     /// of mis-categorising DrawCardPower as immediate when it's actually a per-turn
     /// buff.
+    ///
+    /// v0.5 — energy-after-draw + hand-cap checks:
+    ///   • Playing a 1-cost draw with 1 energy leaves 0 energy. Unless a 0-cost or
+    ///     energy-gain card is queued in hand to bridge, the drawn cards are
+    ///     next-turn-only — score discounted or penalised by remaining-hand quality.
+    ///   • Drawing past the 10-card hand cap wastes the overflow — penalty scales
+    ///     with the wasted fraction.
     /// </summary>
     private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w)
     {
@@ -818,11 +907,17 @@ internal static class PlanScorer
         int totalPile = state.DrawPileSize + state.DiscardPileSize;
         if (totalPile == 0) return w.DrawEmptyPilePenalty;
 
-        // Find the max score among other cards in hand.
+        // Walk the rest of the hand once — capture best non-draw score AND any
+        // chain-enabler counts (0-cost cards / energy-gain cards). One pass.
         int bestOtherScore = int.MinValue;
+        int zeroCostOthers = 0;
+        int energyGainOthers = 0;
         foreach (var c in state.Hand)
         {
             if (ReferenceEquals(c, card)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            if (c.Cost == 0) zeroCostOthers++;
+            if (c.IsEnergyGainCard) energyGainOthers++;
             if (c.IsDrawCard) continue;
             int targetIdx = -1;
             if (c.Target == MegaCrit.Sts2.Core.Entities.Cards.TargetType.AnyEnemy)
@@ -845,6 +940,35 @@ internal static class PlanScorer
         // v0.2.9 — small pile thinning: very small pile (<=2) reduces draw value
         // because there's little new info to fetch.
         if (totalPile <= 2) handBonus = handBonus / 2;
+
+        // v0.5 — Energy-after-draw check. If the draw leaves 0 energy and nothing
+        // in hand bridges (0-cost or energy-gain), the drawn cards are next-turn
+        // only — heavily discount when a strong play is being skipped, fractional
+        // value when the hand is weak (next-turn setup still has some worth).
+        int energyAfter = state.PlayerEnergy - card.Cost + card.EnergyGain;
+        bool canChainThisTurn = energyAfter > 0 || zeroCostOthers > 0 || energyGainOthers > 0;
+        if (!canChainThisTurn)
+        {
+            if (bestOtherScore >= w.HandStrongThreshold)
+                handBonus -= 800;
+            else if (bestOtherScore >= w.HandWeakThreshold)
+                handBonus -= 400;
+            else
+                handBonus = handBonus / 3;
+        }
+
+        // v0.5 — Hand-cap overflow: drawn cards over 10 are silently discarded.
+        // Penalty proportional to the wasted fraction of the draw.
+        if (card.DrawCount > 0)
+        {
+            int handAfterPlay = state.Hand.Count - 1;  // self consumed
+            int wasted = (handAfterPlay + card.DrawCount) - HandSizeCap;
+            if (wasted > 0)
+            {
+                int wastedFrac = System.Math.Min(100, (wasted * 100) / card.DrawCount);
+                handBonus -= (System.Math.Abs(handBonus) * wastedFrac) / 100;
+            }
+        }
 
         return handBonus;
     }
