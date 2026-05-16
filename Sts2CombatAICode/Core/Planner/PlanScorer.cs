@@ -433,10 +433,18 @@ internal static class PlanScorer
             var (atkOrbBonus, atkOrbDetail) = EvaluateOrbEffects(card, state);
             if (atkOrbBonus != 0) details.Add(atkOrbDetail);
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus;
+            // v0.5 — attack cards can also carry EnergyGain (rare but exists, e.g.,
+            // Defect's Sweeping Beam variants). Previously only Power/Skill paths
+            // consulted EvaluateEnergyGain so attack+energy-gain combos missed the
+            // urgent / waste signals. EvaluateEnergyGain returns 0 for non-gain cards
+            // so this is a no-op for plain attacks.
+            int atkEnergyBonus = EvaluateEnergyGain(card, state, w);
+            if (atkEnergyBonus != 0) details.Add($"energyCtx={atkEnergyBonus}");
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
-                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus,
                 TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
