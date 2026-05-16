@@ -63,6 +63,7 @@ internal static class AnalyticalSimulator
         int newPlayerStr = next.PlayerStrength;
         int newPlayerDex = next.PlayerDexterity;
         int newPlayerFocus = next.PlayerFocus;
+        int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerBlock = next.PlayerBlock;
         bool isAoe = card.Target == TargetType.AllEnemies;
         bool playerWeak = next.PlayerWeak > 0;
@@ -95,6 +96,12 @@ internal static class AnalyticalSimulator
                     case "FreeAttackPower": newFreeAttacks += amount; break;
                     case "FreeSkillPower":  newFreeSkills  += amount; break;
                     case "FreePowerPower":  newFreePowers  += amount; break;
+                    // v0.5 — IntangiblePower propagation. Apparition / WraithForm
+                    // apply Intangible to the player; the next-card threat estimate
+                    // should drop accordingly. The "ticks at start of player turn"
+                    // detail is irrelevant to within-turn lookahead — we use the
+                    // stack to gate PredictPlayerDmg's per-hit cap.
+                    case "IntangiblePower": newPlayerIntangible += amount; break;
                     // Other powers (Inflame style) don't directly affect future card scoring
                     // in v0.2.5 — handled by per-power valuation in scorer.
                 }
@@ -223,6 +230,7 @@ internal static class AnalyticalSimulator
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
+                        case "IntangiblePower": newPlayerIntangible += amount; break;
                     }
                 }
             }
@@ -366,6 +374,7 @@ internal static class AnalyticalSimulator
             PlayerStrength = newPlayerStr,
             PlayerDexterity = newPlayerDex,
             PlayerFocus = newPlayerFocus,
+            PlayerIntangible = newPlayerIntangible,
             PlayerBlock = newPlayerBlock,
             PlayerFreeAttacks = newFreeAttacks,
             PlayerFreeSkills = newFreeSkills,
