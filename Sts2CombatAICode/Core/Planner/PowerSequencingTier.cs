@@ -264,6 +264,19 @@ internal static class PowerSequencingTier
             }
             case SequencingTier.Scaling:
             {
+                // PLAY_TRIGGER powers (Afterimage, Calamity, Serpent Form, Sleight of
+                // Flesh, The Sealed Throne) gain value per card we'll still play this
+                // turn. The flat PowerCatalog value doesn't capture this — boost by
+                // remaining playable count × 60.
+                if (self.Axes.Contains("PLAY_TRIGGER"))
+                {
+                    int remainingPlayable = state.Hand.Count(c =>
+                        !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+                        && !c.IsCurseOrStatus);
+                    int v = remainingPlayable * 60;
+                    if (v > 0) { b += v; parts.Add($"playTrigSyn=+{v}"); }
+                }
+
                 int aliveEnemies = state.Enemies.Count(e => e.IsAlive);
                 int totalHp = EnemyTurnSimulator.TotalAliveEnemyHp(state);
                 if (aliveEnemies <= 1 && totalHp <= 25)
