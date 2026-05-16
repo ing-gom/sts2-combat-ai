@@ -610,13 +610,15 @@ internal static class PlanScorer
         // bypasses the turn they'd otherwise spend hitting us. Earlier −1500 penalty was
         // over-applied and pushed Vakuu into defend-only loops vs sleeping bosses.
 
-        // v0.5 — poison-lethal short-circuit. Target dies to its own poison at start
-        // of its next turn, before any intent fires. Skip ALL intent / state bonuses
-        // (buff-stop / heal-deny / etc.) — none of those triggers can land if the
-        // enemy is dead by the time their turn starts. Heavy flat penalty so live
-        // enemies always win target priority when one exists.
-        if (target.PoisonAmount > 0 && target.PoisonAmount >= target.Hp)
-            return (w.PoisonLethalPenalty, $"tgt:poisonLethal{w.PoisonLethalPenalty}");
+        // v0.5 — DoT-lethal short-circuit. Target dies to its own Poison + Constrict
+        // tick at start of next turn, before any intent fires. Skip ALL intent /
+        // state bonuses (buff-stop / heal-deny / etc.) — none of those triggers can
+        // land if the enemy is dead by the time their turn starts. Heavy flat penalty
+        // so live enemies always win target priority when one exists. Burn is
+        // intentionally excluded since its tick timing isn't universal.
+        int preTurnDot = target.PoisonAmount + target.ConstrictAmount;
+        if (preTurnDot > 0 && preTurnDot >= target.Hp)
+            return (w.PoisonLethalPenalty, $"tgt:dotLethal{w.PoisonLethalPenalty}");
 
         int s = 0;
         var parts = new List<string>();
