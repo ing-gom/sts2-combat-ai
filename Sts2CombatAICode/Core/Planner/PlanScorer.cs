@@ -803,6 +803,14 @@ internal static class PlanScorer
     {
         if (!card.IsEnergyGainCard) return 0;
 
+        // v0.5 — only this-turn energy gain (EnergyVar / IsEnergyGainCard via EnergyGain > 0)
+        // is evaluated for "unlock waiting big cards" logic. Next-turn energy gain
+        // (EnergyNextTurnPower like Berserk's recurring +1, EnergizedPower) doesn't help
+        // this turn's playability, so the unlock / urgent / waste checks don't apply —
+        // the card's value is already in PowerCatalog (1500 per stack for EnergyNextTurnPower).
+        // Returning 0 here avoids double-penalising Berserk-style cards as "wasted gain".
+        if (card.EnergyGain <= 0) return 0;
+
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);
 
         var otherPlayable = state.Hand
