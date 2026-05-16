@@ -16,8 +16,13 @@ internal static class ActionPlanner
 {
     public readonly record struct PlanStep(SimCard Card, int TargetIdx, int Score, string Reason);
 
-    /// <summary>Per-candidate trace from the most recent PlanNextStep call.</summary>
-    public static System.Collections.Generic.List<(string id, int targetIdx, int firstScore, int secondScore, int total)>
+    /// <summary>
+    /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
+    /// reveals which follow-up card the depth-2 lookahead picked as the "best second
+    /// play" after this candidate — invaluable for explaining why a setup card won
+    /// over a stronger-looking standalone play.
+    /// </summary>
+    public static System.Collections.Generic.List<(string id, int targetIdx, int firstScore, int secondScore, int total, string? bestNextId)>
         LastCandidates { get; } = new();
 
     public static PlanStep? PlanNextStep(SimState state)
@@ -39,23 +44,30 @@ internal static class ActionPlanner
 
             // Simulate playing this card; find best card to follow.
             int secondScore = 0;
+            string? bestNextId = null;
             try
             {
                 var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
-                secondScore = EnumerateCandidates(nextState)
-                    .Select(c => PlanScorer.Score(c.card, c.targetIdx, nextState))
-                    .DefaultIfEmpty(0)
-                    .Max();
+                foreach (var nextCand in EnumerateCandidates(nextState))
+                {
+                    int s = PlanScorer.Score(nextCand.card, nextCand.targetIdx, nextState);
+                    if (s > secondScore || bestNextId == null)
+                    {
+                        secondScore = s;
+                        bestNextId = nextCand.card.Id;
+                    }
+                }
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
             }
             catch
             {
                 // Simulator error: fall back to single-step score
                 secondScore = 0;
+                bestNextId = null;
             }
 
             int total = firstScore + secondScore;
-            LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total));
+            LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total, bestNextId));
             if (total > bestTotal)
             {
                 bestTotal = total;
