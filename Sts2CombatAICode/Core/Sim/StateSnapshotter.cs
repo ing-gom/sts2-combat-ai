@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Extensions;
+using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Rooms;
 using Sts2CombatAI.Reflection;
 
@@ -104,51 +105,29 @@ internal static class StateSnapshotter
             }
 
             // v0.2.9 — pile counts (Draw card scoring uses these to gauge "is drawing fruitful?")
-            int drawPileSize = PileType.Draw.GetPile(player)?.Cards.Count ?? 0;
-            int discardPileSize = PileType.Discard.GetPile(player)?.Cards.Count ?? 0;
+            // v0.5.1 — also capture pile contents so the simulator can model expected draws.
+            var drawPileRaw = PileType.Draw.GetPile(player)?.Cards;
+            var discardPileRaw = PileType.Discard.GetPile(player)?.Cards;
+            int drawPileSize = drawPileRaw?.Count ?? 0;
+            int discardPileSize = discardPileRaw?.Count ?? 0;
 
             var hand = new List<SimCard>();
             var handPile = PileType.Hand.GetPile(player);
             if (handPile != null)
             {
                 foreach (var card in handPile.Cards)
-                {
-                    bool playable = false;
-                    try { playable = card.CanPlay(); } catch { }
-                    var id = CardReflection.GetIdEntry(card);
-                    var catalogInfo = Data.CardCatalog.Lookup(id);
-                    var axes = catalogInfo?.Axes ?? System.Array.Empty<string>();
-                    var baseEffect = CardReflection.GetEffectSummary(card);
-
-                    // Layer orb metadata (evoke/channel counts + channelled orb kind) on the
-                    // effect summary. Axes are needed to infer channelled orb color, so the
-                    // composition has to happen here (CardReflection sees only CardModel).
-                    int costSpent = CardReflection.GetCost(card);
-                    var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes);
-                    var effect = baseEffect with {
-                        EvokeCount = orbMeta.EvokeCount,
-                        ChannelCount = orbMeta.ChannelCount,
-                        ChannelKind = orbMeta.ChannelKind,
-                    };
-
-                    hand.Add(new SimCard
-                    {
-                        Id = id,
-                        Cost = costSpent,
-                        Kind = card.Type,
-                        Target = card.TargetType,
-                        SourceRef = card,
-                        Effect = effect,
-                        IsPlayable = playable,
-                        Axes = axes,
-                        PrimaryBuildTags = catalogInfo?.PrimaryBuildTags ?? System.Array.Empty<string>(),
-                        IsRetain = catalogInfo?.Retain ?? false,
-                        IsEthereal = catalogInfo?.Ethereal ?? false,
-                        IsInnate = catalogInfo?.Innate ?? false,
-                        IsExhaust = catalogInfo?.Exhaust ?? false,
-                    });
-                }
+                    hand.Add(BuildSimCard(card, requirePlayability: true));
             }
+
+            // v0.5.1 — Pile cards skip the CanPlay() check (irrelevant outside hand)
+            // but reuse the same builder so Effect / Cost / Kind are consistent with
+            // hand cards. The simulator averages over these for draw EV modeling.
+            var drawPile = new List<SimCard>();
+            if (drawPileRaw != null)
+                foreach (var card in drawPileRaw) drawPile.Add(BuildSimCard(card, requirePlayability: false));
+            var discardPile = new List<SimCard>();
+            if (discardPileRaw != null)
+                foreach (var card in discardPileRaw) discardPile.Add(BuildSimCard(card, requirePlayability: false));
 
             return new SimState
             {
@@ -164,6 +143,8 @@ internal static class StateSnapshotter
                 PlayerFrail = playerFrail,
                 DrawPileSize = drawPileSize,
                 DiscardPileSize = discardPileSize,
+                DrawPile = drawPile,
+                DiscardPile = discardPile,
                 PlayerStars = playerStars,
                 PlayerOrbCount = orbCount,
                 PlayerOrbCapacity = orbCapacity,
@@ -182,6 +163,49 @@ internal static class StateSnapshotter
             MainFile.Logger.Warn($"[CombatAI] snapshot failed: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// v0.5.1 — Shared SimCard builder used by both hand and pile snapshots. Hand
+    /// cards need the live CanPlay() result (filters curses / conditional plays);
+    /// pile cards are abstractions for EV averaging and skip the check. Orb meta
+    /// is layered for both so a drawn Cold Snap is modeled with its channel kind.
+    /// </summary>
+    private static SimCard BuildSimCard(CardModel card, bool requirePlayability)
+    {
+        bool playable = true;
+        if (requirePlayability)
+        {
+            playable = false;
+            try { playable = card.CanPlay(); } catch { }
+        }
+        var id = CardReflection.GetIdEntry(card);
+        var catalogInfo = Data.CardCatalog.Lookup(id);
+        var axes = catalogInfo?.Axes ?? System.Array.Empty<string>();
+        var baseEffect = CardReflection.GetEffectSummary(card);
+        int costSpent = CardReflection.GetCost(card);
+        var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes);
+        var effect = baseEffect with {
+            EvokeCount = orbMeta.EvokeCount,
+            ChannelCount = orbMeta.ChannelCount,
+            ChannelKind = orbMeta.ChannelKind,
+        };
+        return new SimCard
+        {
+            Id = id,
+            Cost = costSpent,
+            Kind = card.Type,
+            Target = card.TargetType,
+            SourceRef = card,
+            Effect = effect,
+            IsPlayable = playable,
+            Axes = axes,
+            PrimaryBuildTags = catalogInfo?.PrimaryBuildTags ?? System.Array.Empty<string>(),
+            IsRetain = catalogInfo?.Retain ?? false,
+            IsEthereal = catalogInfo?.Ethereal ?? false,
+            IsInnate = catalogInfo?.Innate ?? false,
+            IsExhaust = catalogInfo?.Exhaust ?? false,
+        };
     }
 
     private static bool WasSpawnedThisTurn(object? monster)

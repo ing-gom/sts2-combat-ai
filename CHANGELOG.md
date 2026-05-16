@@ -1,5 +1,64 @@
 # Changelog
 
+## v0.5.1 (2026-05-16)
+
+**Draw 카드 depth-2 lookahead 정확도 향상 — 덱 내용 기반 평균 카드로 placeholder 교체.**
+
+기존 `AnalyticalSimulator` 의 draw 처리는 뽑힌 카드를 *고정* placeholder (1코스트 5데미지 공격)
+로 대체했음. 그 결과 draw 카드의 깊이-2 lookahead 점수가 실제 덱과 무관 — 강한 덱 (high-damage
+attacker 다수) 이든 약한 덱 (status 다수) 이든 동일하게 "5뎀 공격 1장이 추가로 들어옴" 으로 평가.
+
+이번 변경: 실제 draw / discard pile 내용을 snapshot 해서 그 pile 의 *평균 효과* 카드를 합성.
+"이 덱에서 다음에 뽑힐 카드의 기대값" 에 가까운 representative card 가 simulator hand 에 들어가서
+depth-2 second-play 점수가 덱 상태를 정확히 반영.
+
+### `SimState.cs`
+
+- `DrawPile`, `DiscardPile` (둘 다 `IReadOnlyList<SimCard>`) 신규 — 카드 ID / 효과 / cost / kind
+  까지 들어있는 실제 카드 정보. `DrawPileSize` / `DiscardPileSize` (기존 raw count) 는 그대로 유지
+  — EvaluateDrawCard 등 size 만 보는 callsite 가 list 를 materialize 하지 않도록.
+
+### `StateSnapshotter.cs`
+
+- `PileType.Draw` / `PileType.Discard` 의 `Cards` 를 SimCard 로 변환 — hand snapshot 과 동일한
+  `BuildSimCard` 헬퍼 reuse, pile cards 는 `CanPlay()` 체크 skip (hand 밖이라 무관).
+- Hand build 로직도 동일 헬퍼로 통합 — `requirePlayability: true` 옵션으로 분기.
+
+### `AnalyticalSimulator.cs` — `MakeAverageDrawCard(state)`
+
+`MakePlaceholderCard()` (고정 5뎀/1코) → `MakeAverageDrawCard(state)` 로 교체:
+
+- **Damage**: pile 의 per-card `Damage × Hits` 합 ÷ 카드 수 = E[per-card TotalDamage]. 그 후
+  `avgHits` 로 split back 해서 per-hit damage 산출 (Vulnerable / Weak 의 per-hit 처리 정합).
+- **Block**: per-card Block 평균.
+- **Cost**: pile 평균 cost (음수는 0 으로 floor).
+- **Hits**: per-card hits 평균 (최소 1).
+- **Kind**: pile 의 attack 카드가 절반 이상 → Attack, 아니면 Skill. Target 은 그에 맞춰 결정.
+- **Combined pool**: draw + discard 둘 다 — 게임 중 reshuffle 로 두 pile 의 카드들이 같은 확률로
+  뽑히므로 합쳐서 평균하는 게 EV 모델로 정확.
+- **Fallback**: pile 이 비어있으면 기존 5뎀 placeholder (테스트 fixture / capture 실패 케이스).
+- **Per-`ApplyCardPlay` 한 번만 계산** — N장 draw 시 pool 평균이 1장 빠진다고 거의 안 움직이므로
+  같은 average card 를 N번 hand 에 추가. hot loop 비용 최소화.
+
+### 효과 시나리오
+
+- **강한 덱 (Strike+ / Twin Strike / Pommel Strike 다수)**: avg damage ↑ → draw 카드의 depth-2
+  점수 ↑ → 강한 덱에선 draw + follow-up 콤보가 정당하게 prioritize.
+- **Status 가득한 덱 (Wound / Slimed 다수)**: avg damage ↓, kind=Skill 로 평가 → draw 카드의
+  depth-2 점수 ↓ → 손에 좋은 카드 있으면 draw 안 하고 바로 play.
+- **Block 카드 위주 덱 (Defend 다수)**: avg block 반영 → draw → block skill 시퀀스가 자연히
+  방어 시나리오에서 valued.
+
+### Limitations / 의도된 미구현
+
+- **PowerApps 미반영**: pile 의 power 카드 (Inflame, Demon Form 등) 효과는 평균에 들어가지 않음
+  — power stack 은 비선형이라 단순 평균이 의미 없음. 대신 EvaluateDrawCard 의 hand-quality
+  heuristic 이 보강 역할.
+- **DrawCount / EnergyGain 미반영**: 합성 카드에서 빼서 recursive draw / energy chain 방지. depth-2
+  안에서 재귀 lookahead 가 일어나지 않도록.
+- **Single representative card (not Monte Carlo sampling)**: 결정적 score 유지 — depth-2 hot loop
+  에서 stochastic 결과 노이즈 제거가 우선.
+
 ## v0.5.0 (2026-05-16)
 
 **카드 사용순서 정확도 향상 — 시뮬레이터/스코어러 정합성 정리 + 카드 우선순위 분류 신규.**

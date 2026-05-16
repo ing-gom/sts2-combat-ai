@@ -364,15 +364,19 @@ internal static class AnalyticalSimulator
             };
         }
 
-        // 4. DrawCount: simulate fetching N cards from the pile as low-value placeholders.
-        // We can't know the exact card; add a generic SimCard with rough average effect so
-        // lookahead has something to work with (better than ignoring the draw entirely).
+        // 4. DrawCount: simulate fetching N cards from the pile.
         // v0.5 — draws fire BEFORE the played card moves to the discard pile (the card
         // is "in play" while its effects resolve), so use pre-discard-bump pile sizes.
+        // v0.5.1 — Use a deck-aware "average card" derived from the actual pile contents
+        // instead of a fixed 5-damage placeholder. A draw into a strong deck (lots of
+        // high-damage attacks) now scores higher in the depth-2 lookahead than a draw
+        // into a weak / status-heavy deck. Computed once per ApplyCardPlay since the
+        // mean of a pool barely shifts when one card is plucked out.
         int drawPileAfter = next.DrawPileSize;
         int discardAfter = next.DiscardPileSize;
         if (card.DrawCount > 0 && drawPileAfter + discardAfter > 0)
         {
+            var avgDraw = MakeAverageDrawCard(next);
             for (int i = 0; i < card.DrawCount; i++)
             {
                 if (drawPileAfter <= 0)
@@ -382,7 +386,7 @@ internal static class AnalyticalSimulator
                     drawPileAfter = discardAfter;
                     discardAfter = 0;
                 }
-                newHand.Add(MakePlaceholderCard());
+                newHand.Add(avgDraw);
                 drawPileAfter--;
             }
         }
@@ -518,11 +522,83 @@ internal static class AnalyticalSimulator
     }
 
     /// <summary>
-    /// Synthetic "average" card used to represent unknown draws in lookahead.
-    /// 5 dmg attack — close to average starter card value. Keeps lookahead optimistic
-    /// enough to value Draw cards properly without overcommitting to phantom plays.
+    /// v0.5.1 — Synthesize a deck-aware "average draw" card from the pile contents.
+    /// Damage / Block / Cost / Hits are means across the combined draw + discard
+    /// pool (both eligible to be drawn once reshuffle hits). Kind is decided by
+    /// majority — attack-heavy decks model draws as attacks (so depth-2 sees a
+    /// damage option), skill-heavy decks model draws as skills (self-block option).
+    ///
+    /// Why average over the *combined* pool: in-game pile order is randomized and
+    /// the discard pile feeds back via reshuffle, so over the rest of the fight
+    /// every card in the pool is equally likely to surface. Averaging matches that.
+    ///
+    /// Why a single synthetic card (not sampling): the simulator runs inside a
+    /// depth-2 hot loop and stochastic draws would make scoring noisy across runs.
+    /// One representative card keeps the lookahead deterministic.
+    ///
+    /// Falls back to the legacy 5-damage placeholder when the pile snapshot is
+    /// empty (tests, capture failure) so behaviour stays defined.
     /// </summary>
-    private static SimCard MakePlaceholderCard() => new()
+    private static SimCard MakeAverageDrawCard(SimState state)
+    {
+        int total = state.DrawPile.Count + state.DiscardPile.Count;
+        if (total == 0) return MakeLegacyPlaceholderCard();
+
+        // sumTotalDmg accumulates per-card TotalDamage (Damage × Hits) so the mean
+        // is E[per-card total damage] regardless of how multi-hit it was. We split
+        // back into Damage / Hits at the end so the scorer's per-hit logic
+        // (Vulnerable / Weak per-hit floors) still has a sensible value.
+        long sumTotalDmg = 0, sumBlock = 0, sumCost = 0, sumHits = 0;
+        int attackCount = 0;
+        for (int i = 0; i < state.DrawPile.Count; i++)
+            Accumulate(state.DrawPile[i], ref sumTotalDmg, ref sumBlock, ref sumCost, ref sumHits, ref attackCount);
+        for (int i = 0; i < state.DiscardPile.Count; i++)
+            Accumulate(state.DiscardPile[i], ref sumTotalDmg, ref sumBlock, ref sumCost, ref sumHits, ref attackCount);
+
+        // Majority kind wins. Tie → attack (the simulator's attack path is the
+        // damage-bearing one; ties usually mean the deck has roughly equal output
+        // options and modeling as attack is the less-pessimistic choice).
+        bool dominantlyAttack = attackCount * 2 >= total;
+        // Hits floor of 1 — a fractional avg under 1 would zero out TotalDamage.
+        int avgHits = (int)System.Math.Max(1, sumHits / total);
+        int avgTotalDmg = (int)(sumTotalDmg / total);
+        // Split TotalDamage back across Hits so Score()'s per-hit logic sees the
+        // right per-hit value (Damage × Hits == avgTotalDmg by construction).
+        int perHitDmg = avgTotalDmg / avgHits;
+        return new SimCard
+        {
+            Id = "<draw-avg>",
+            Cost = (int)System.Math.Max(0, sumCost / total),
+            Kind = dominantlyAttack ? CardType.Attack : CardType.Skill,
+            Target = dominantlyAttack ? TargetType.AnyEnemy : TargetType.None,
+            SourceRef = null,
+            Effect = new CardEffectSummary
+            {
+                Damage = perHitDmg,
+                Hits = avgHits,
+                Block = (int)(sumBlock / total),
+            },
+            IsPlayable = true,
+        };
+    }
+
+    private static void Accumulate(SimCard c, ref long sumTotalDmg, ref long sumBlock,
+        ref long sumCost, ref long sumHits, ref int attackCount)
+    {
+        sumTotalDmg += c.Effect.Damage * System.Math.Max(1, c.Effect.Hits);
+        sumBlock += c.Effect.Block;
+        sumCost += System.Math.Max(0, c.Cost);
+        sumHits += System.Math.Max(1, c.Effect.Hits);
+        if (c.IsAttack) attackCount++;
+    }
+
+    /// <summary>
+    /// Fallback when the pile snapshot is unavailable (capture failed, or in unit-
+    /// test fixtures that don't populate piles). 5 dmg / 1 cost — close to starter
+    /// average value, keeps lookahead optimistic enough that draw cards aren't
+    /// completely ignored.
+    /// </summary>
+    private static SimCard MakeLegacyPlaceholderCard() => new()
     {
         Id = "<draw-placeholder>",
         Cost = 1,

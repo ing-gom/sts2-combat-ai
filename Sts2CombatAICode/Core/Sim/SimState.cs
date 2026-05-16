@@ -44,10 +44,25 @@ internal sealed record SimState
     public int PlayerEndOfTurnBlockBonus { get; init; }
 
     // v0.2.9 — pile sizes for Draw card valuation.
-    // We don't need card identities (privacy + complexity); raw counts let the
-    // planner know whether "drawing more" is even possible / fruitful.
+    // Raw counts let EvaluateDrawCard gauge "is drawing fruitful?". Counts are
+    // kept distinct from DrawPile / DiscardPile below so existing call sites
+    // don't have to materialize the lists when only size matters.
     public int DrawPileSize { get; init; }
     public int DiscardPileSize { get; init; }
+
+    /// <summary>
+    /// v0.5.1 — Actual cards in the draw / discard piles. Used by the simulator's
+    /// depth-2 lookahead to synthesize a representative "average draw" card based
+    /// on real deck contents — replacing the fixed 5-damage placeholder so that
+    /// drawing into a strong deck is valued higher than drawing into a weak one.
+    /// In-game pile order is randomized; we don't predict which card surfaces next,
+    /// only the mean effect of the combined pool (drawn + discarded → after reshuffle
+    /// both are eligible to be drawn anyway). Empty when snapshotter couldn't read
+    /// the pile (test fixtures, capture failures) — simulator falls back to the
+    /// legacy placeholder in that case.
+    /// </summary>
+    public IReadOnlyList<SimCard> DrawPile { get; init; } = System.Array.Empty<SimCard>();
+    public IReadOnlyList<SimCard> DiscardPile { get; init; } = System.Array.Empty<SimCard>();
 
     // v0.2.11 — player resource pool (Regent's Stars, Watcher's Mantra-equivalent).
     // Star-cost cards (star_cost > 0 in catalog) require this resource separate
