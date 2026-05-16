@@ -475,14 +475,49 @@ internal static class PlanScorer
             }
 
             bool isSelfApply = IsSelfTargetedTarget(card.Target);
+            bool skillIsAoe = card.Target == TargetType.AllEnemies;
             int powerEffect = 0;
             foreach (var (powerName, amount) in card.PowerApps)
             {
-                int v = isSelfApply
-                    ? PowerCatalog.ValueSelfBuff(powerName, amount)
-                    : PowerCatalog.ValueEnemyDebuff(powerName, amount);
-                powerEffect += v;
-                details.Add($"{Short(powerName)}({amount}){(isSelfApply ? "→self" : "→enemy")}={v}");
+                int v;
+                if (isSelfApply)
+                {
+                    v = PowerCatalog.ValueSelfBuff(powerName, amount);
+                    powerEffect += v;
+                    details.Add($"{Short(powerName)}({amount})→self={v}");
+                }
+                else
+                {
+                    // v0.5 — skill enemy-debuff scoring now respects:
+                    //   • AOE scaling: AllEnemies skills (Footwork-style Weak-to-all)
+                    //     used to score a single-target value regardless of board.
+                    //   • Artifact gating: per-target Artifact absorbs the stack and
+                    //     should zero out that target's contribution. AOE reduces by
+                    //     count of enemies whose Artifact blocks the stack.
+                    int per = PowerCatalog.ValueEnemyDebuff(powerName, amount);
+                    if (skillIsAoe)
+                    {
+                        int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount < amount);
+                        int blocked = state.Enemies.Count(e => e.IsAlive) - reach;
+                        v = per * reach;
+                        powerEffect += v;
+                        details.Add(blocked > 0
+                            ? $"{Short(powerName)}({amount})→aoe×{reach}={v} (artif-blk={blocked})"
+                            : $"{Short(powerName)}({amount})→aoe×{reach}={v}");
+                    }
+                    else if (targetIdx >= 0 && targetIdx < state.Enemies.Count
+                             && state.Enemies[targetIdx].ArtifactAmount >= amount)
+                    {
+                        v = 0;
+                        details.Add($"{Short(powerName)}({amount})→enemy=BLOCKED");
+                    }
+                    else
+                    {
+                        v = per;
+                        powerEffect += v;
+                        details.Add($"{Short(powerName)}({amount})→enemy={v}");
+                    }
+                }
                 int syn = HandSynergy.Compute(powerName, amount, card, state);
                 if (syn != 0)
                 {
