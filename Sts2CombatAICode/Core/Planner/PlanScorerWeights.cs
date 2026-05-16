@@ -116,6 +116,16 @@ internal sealed class PlanScorerWeights
     public int HandStrongThreshold = 2000;         // above this → drawing wastes
     public int DrawEmptyPilePenalty = -1000;       // v0.2.9 — pile empty → drawing is futile
 
+    // v0.5 — Retain / Ethereal play-order biases.
+    // Retain: small per-alternative penalty so a retainable card defers until no
+    // non-retain play remains in hand. 60 × N alternatives gives a clear "play
+    // those first" signal without overriding lethal / threat-bonus situations.
+    public int RetainDeferPenaltyPerAlternative = 60;
+    // Ethereal: small flat bonus to ensure we don't lose a borderline-value
+    // ethereal to end-of-turn exhaust. Magnitude < BlockNeutralizeBonus so it
+    // doesn't pull the planner off a real defensive play.
+    public int EtherealPlayNowBonus = 120;
+
     public static readonly PlanScorerWeights Defensive = new()
     {
         // 극단 방어 — lethal 도 우선순위 낮음, 무조건 hp 보존
