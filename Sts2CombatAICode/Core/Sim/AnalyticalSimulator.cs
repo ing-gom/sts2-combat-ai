@@ -357,17 +357,18 @@ internal static class AnalyticalSimulator
         OrbKind kind, int darkAccumulated, int focus,
         ref SimState state, ref int playerBlock, ref int energy, int aliveCount)
     {
-        int f = System.Math.Max(0, focus);
+        // Each per-evoke damage/block clamped at 0 — Focus can be negative
+        // (rare debuff scenarios) and the game floors damage at 0.
         switch (kind)
         {
             case OrbKind.Frost:
-                playerBlock += 5 + f;
+                playerBlock += System.Math.Max(0, 5 + focus);
                 break;
             case OrbKind.Plasma:
                 energy += 2;
                 break;
             case OrbKind.Lightning:
-                state = DamageWeakest(state, 8 + f);
+                state = DamageWeakest(state, System.Math.Max(0, 8 + focus));
                 break;
             case OrbKind.Dark:
                 // Dark accumulator already absorbs Focus per tick from the game; the stored
@@ -375,7 +376,7 @@ internal static class AnalyticalSimulator
                 state = DamageWeakest(state, System.Math.Max(6, darkAccumulated));
                 break;
             case OrbKind.Glass:
-                state = DamageAll(state, 8 + f);
+                state = DamageAll(state, System.Math.Max(0, 8 + focus));
                 break;
         }
     }
