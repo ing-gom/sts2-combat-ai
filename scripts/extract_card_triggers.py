@@ -5,9 +5,9 @@ SelectorMode.cs — game patches that rename cards now only need the master
 catalog refreshed (via headless-sync), not source code changes.
 
 Run from repo root:
-    python Sts2VakuuPlus/scripts/extract_card_triggers.py
+    python scripts/extract_card_triggers.py
 
-Output: Sts2VakuuPlus/Sts2VakuuPlusCode/Data/card_triggers.json
+Output: Sts2CombatAICode/Core/Data/card_triggers.json
 
 Schema:
 {
@@ -41,9 +41,9 @@ DISCOVERY_KW = "생성"    # "create / generate"
 
 
 def main():
-    repo_root = Path(__file__).resolve().parent.parent.parent
+    repo_root = Path(__file__).resolve().parent.parent
     catalog_path = repo_root / "scripts" / "cards_catalog.json"
-    out_path = repo_root / "Sts2VakuuPlus" / "Sts2VakuuPlusCode" / "Data" / "card_triggers.json"
+    out_path = repo_root / "Sts2CombatAICode" / "Core" / "Data" / "card_triggers.json"
 
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     out_cards = {}
