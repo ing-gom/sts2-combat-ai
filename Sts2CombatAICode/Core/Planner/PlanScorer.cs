@@ -596,6 +596,14 @@ internal static class PlanScorer
         // bypasses the turn they'd otherwise spend hitting us. Earlier −1500 penalty was
         // over-applied and pushed Vakuu into defend-only loops vs sleeping bosses.
 
+        // v0.5 — poison-lethal short-circuit. Target dies to its own poison at start
+        // of its next turn, before any intent fires. Skip ALL intent / state bonuses
+        // (buff-stop / heal-deny / etc.) — none of those triggers can land if the
+        // enemy is dead by the time their turn starts. Heavy flat penalty so live
+        // enemies always win target priority when one exists.
+        if (target.PoisonAmount > 0 && target.PoisonAmount >= target.Hp)
+            return (w.PoisonLethalPenalty, $"tgt:poisonLethal{w.PoisonLethalPenalty}");
+
         int s = 0;
         var parts = new List<string>();
         if (target.HasBuffIntent) { s += w.BuffEnemyKillBonus; parts.Add($"buff+{w.BuffEnemyKillBonus}"); }
@@ -615,16 +623,10 @@ internal static class PlanScorer
         }
 
         // v0.2.11 — heavy DoT overkill: target already dying to poison this/next turn.
-        // v0.5 — split into two tiers. Poison-lethal (already dead next turn-start)
-        // gets a much heavier penalty so the planner stops dumping attacks into a
-        // corpse-walking target when other live enemies need clearing.
+        // Poison-lethal case (PoisonAmount ≥ Hp) is handled by the early-return at the
+        // top of this method, so here we only apply the milder warning for partial DoT.
         int dotDamage = target.PoisonAmount + target.ConstrictAmount + target.BurnAmount;
-        if (target.PoisonAmount > 0 && target.PoisonAmount >= target.Hp)
-        {
-            s += w.PoisonLethalPenalty;
-            parts.Add($"poisonLethal{w.PoisonLethalPenalty}");
-        }
-        else if (dotDamage > 0 && dotDamage >= target.Hp / 2)
+        if (dotDamage > 0 && dotDamage >= target.Hp / 2)
         {
             s += w.HeavyDotPenalty;
             parts.Add($"dotOverkill{w.HeavyDotPenalty}");
