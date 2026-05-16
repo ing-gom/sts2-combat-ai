@@ -134,6 +134,9 @@ internal static class StateSnapshotter
                         IsPlayable = playable,
                         Axes = axes,
                         PrimaryBuildTags = catalogInfo?.PrimaryBuildTags ?? System.Array.Empty<string>(),
+                        IsRetain = catalogInfo?.Retain ?? false,
+                        IsEthereal = catalogInfo?.Ethereal ?? false,
+                        IsInnate = catalogInfo?.Innate ?? false,
                     });
                 }
             }

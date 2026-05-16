@@ -42,6 +42,31 @@ internal sealed record SimCard
     /// </summary>
     public IReadOnlyList<string> PrimaryBuildTags { get; init; } = System.Array.Empty<string>();
 
+    /// <summary>
+    /// True when this card survives past end-of-turn discard (Retain keyword in
+    /// catalog). Affects play-ORDER: when other useful cards exist, prefer
+    /// playing the non-retain cards first so the retained card can act again
+    /// next turn. When the retain card is the strongest available play, retain
+    /// status is irrelevant and we play it normally.
+    /// </summary>
+    public bool IsRetain { get; init; }
+
+    /// <summary>
+    /// True when this card is exhausted at end-of-turn if not played (Ethereal
+    /// keyword in catalog). Affects play-ORDER: even if its score is borderline,
+    /// playing now is better than losing it for free — bump priority a notch so
+    /// we don't waste it sitting in hand.
+    /// </summary>
+    public bool IsEthereal { get; init; }
+
+    /// <summary>
+    /// True when this card was guaranteed to start in our opening hand (Innate
+    /// keyword in catalog). Informational only — opening-turn ordering already
+    /// works via normal scoring; flag is here for future "first-turn setup
+    /// detection" rules without re-querying the catalog.
+    /// </summary>
+    public bool IsInnate { get; init; }
+
     public bool IsAttack => Kind == CardType.Attack;
     public bool IsSkill => Kind == CardType.Skill;
     public bool IsPower => Kind == CardType.Power;
