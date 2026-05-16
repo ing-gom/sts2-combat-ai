@@ -64,7 +64,7 @@ internal static class PlanScorer
             int otherPlayable = 0;
             foreach (var c in state.Hand)
             {
-                if (ReferenceEquals(c, card) || c.Played) continue;
+                if (ReferenceEquals(c, card)) continue;
                 if (!c.IsPlayable || c.IsCurseOrStatus) continue;
                 if (c.IsRetain) continue;          // other retains share the same defer urge
                 if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;
@@ -648,7 +648,7 @@ internal static class PlanScorer
             // Greedy: sum effective damage of cheap-enough attack cards in hand.
             foreach (var c in state.Hand.OrderBy(x => x.Cost))
             {
-                if (c.Played || !c.IsPlayable || !c.IsAttack || c.Cost > energyForCalc) continue;
+                if (!c.IsPlayable || !c.IsAttack || c.Cost > energyForCalc) continue;
                 int per = StatusMath.EffectiveAttackDmg(c.Damage,
                     state.PlayerStrength, target.VulnerableAmount > 0, playerWeakForCalc);
                 handAttackDmg += per * System.Math.Max(1, c.Hits);
@@ -767,7 +767,7 @@ internal static class PlanScorer
         int bestOtherScore = int.MinValue;
         foreach (var c in state.Hand)
         {
-            if (ReferenceEquals(c, card) || c.Played) continue;
+            if (ReferenceEquals(c, card)) continue;
             if (c.IsDrawCard) continue;
             int targetIdx = -1;
             if (c.Target == MegaCrit.Sts2.Core.Entities.Cards.TargetType.AnyEnemy)
@@ -806,7 +806,7 @@ internal static class PlanScorer
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);
 
         var otherPlayable = state.Hand
-            .Where(c => !ReferenceEquals(c, card) && !c.Played && c.IsPlayable
+            .Where(c => !ReferenceEquals(c, card) && c.IsPlayable
                        && c.Cost >= 0 && !c.IsCurseOrStatus)
             .ToList();
         if (otherPlayable.Count == 0) return -1500;

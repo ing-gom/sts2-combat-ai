@@ -58,12 +58,12 @@ internal static class BuildSynergy
             var stem = ax.Substring(0, ax.Length - "_PRODUCER".Length); // "POISON"
 
             bool hasAmplifier = state.Hand.Any(c =>
-                !ReferenceEquals(c, self) && !c.Played
+                !ReferenceEquals(c, self)
                 && c.Axes.Contains(stem + "_AMPLIFIER"));
             if (hasAmplifier) bonus += ProducerWithAmplifierBonus;
 
             bool hasConsumer = state.Hand.Any(c =>
-                !ReferenceEquals(c, self) && !c.Played
+                !ReferenceEquals(c, self)
                 && c.Axes.Contains(stem + "_CONSUMER"));
             if (hasConsumer) bonus += ProducerWithConsumerBonus;
         }
@@ -72,7 +72,7 @@ internal static class BuildSynergy
         foreach (var buildTag in card.PrimaryBuildTags)
         {
             int sharing = state.Hand.Count(c =>
-                !ReferenceEquals(c, self) && !c.Played
+                !ReferenceEquals(c, self)
                 && c.PrimaryBuildTags.Contains(buildTag));
             if (sharing > 0)
                 bonus += sharing * PerBuildCommitmentCard;

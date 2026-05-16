@@ -33,7 +33,7 @@ internal static class OrbValueCatalog
         // Crude dps proxy: hand average damage. Min 5 so we don't divide by ~0.
         foreach (var c in state.Hand)
         {
-            if (!c.Played && c.IsAttack) dpsThisTurn += c.TotalDamage;
+            if (c.IsAttack) dpsThisTurn += c.TotalDamage;
         }
         if (dpsThisTurn < 5) dpsThisTurn = 5;
         if (totalHp <= 0) return 1;
