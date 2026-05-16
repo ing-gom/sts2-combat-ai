@@ -66,6 +66,7 @@ internal static class AnalyticalSimulator
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
         int newPlayerBlock = next.PlayerBlock;
+        int newPlayerHp = next.PlayerHp;
         bool isAoe = card.Target == TargetType.AllEnemies;
         bool playerWeak = next.PlayerWeak > 0;
         bool playerFrail = next.PlayerFrail > 0;
@@ -149,6 +150,16 @@ internal static class AnalyticalSimulator
                 int shellLeft = enemy.HardenedShellRemaining;
                 if (shellLeft > 0)
                     shellLeft = System.Math.Max(0, shellLeft - totalDmg);
+
+                // v0.5 — thorns reflect: each hit we deal to a thorny enemy costs
+                // us ThornsAmount HP. Multi-hit cards trigger per hit. Bypass our
+                // block (thorns is "lose HP" in STS). PlayerIntangible doesn't
+                // affect reflected damage in canonical STS, so don't cap here.
+                if (enemy.ThornsAmount > 0 && totalDmg > 0)
+                {
+                    int hits = System.Math.Max(1, card.Hits);
+                    newPlayerHp = System.Math.Max(0, newPlayerHp - enemy.ThornsAmount * hits);
+                }
 
                 // Attached debuff stacks. v0.5 — extend beyond Vulnerable/Weak so
                 // depth-2 sees the full debuff picture: Frail (enemy block gain ×0.75
@@ -380,6 +391,7 @@ internal static class AnalyticalSimulator
 
         return next with
         {
+            PlayerHp = newPlayerHp,
             PlayerEnergy = energy,
             PlayerStrength = newPlayerStr,
             PlayerDexterity = newPlayerDex,
