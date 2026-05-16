@@ -165,9 +165,10 @@ internal static class AnalyticalSimulator
                 // depth-2 sees the full debuff picture: Frail (enemy block gain ×0.75
                 // — informational), Poison / Constrict / Burn (DoT that triggers the
                 // HeavyDotPenalty so we don't overkill an enemy already dying to DoT).
-                // Artifact intercepts incoming debuffs stack-by-stack and is consumed
-                // in the order debuffs are applied — we approximate by deducting from
-                // a remaining-Artifact counter as each stack lands.
+                // Artifact intercepts each debuff APPLICATION (entire stack count
+                // blocked per Artifact charge — canonical STS behavior). Buffs aren't
+                // intercepted; here we're only propagating debuffs so the per-app
+                // consumption is safe.
                 int newVuln = enemy.VulnerableAmount;
                 int newWeak = enemy.WeakAmount;
                 int newFrail = enemy.FrailAmount;
@@ -177,22 +178,21 @@ internal static class AnalyticalSimulator
                 int artifactLeft = enemy.ArtifactAmount;
                 foreach (var (powerName, amount) in card.PowerApps)
                 {
-                    int delta = amount;
+                    if (!IsTrackedDebuff(powerName)) continue;
                     if (artifactLeft > 0)
                     {
-                        int absorb = System.Math.Min(artifactLeft, delta);
-                        delta -= absorb;
-                        artifactLeft -= absorb;
-                        if (delta == 0) continue;
+                        // One Artifact charge intercepts the entire application.
+                        artifactLeft--;
+                        continue;
                     }
                     switch (powerName)
                     {
-                        case "VulnerablePower": newVuln += delta; break;
-                        case "WeakPower":       newWeak += delta; break;
-                        case "FrailPower":      newFrail += delta; break;
-                        case "PoisonPower":     newPoison += delta; break;
-                        case "ConstrictPower":  newConstrict += delta; break;
-                        case "BurnPower":       newBurn += delta; break;
+                        case "VulnerablePower": newVuln += amount; break;
+                        case "WeakPower":       newWeak += amount; break;
+                        case "FrailPower":      newFrail += amount; break;
+                        case "PoisonPower":     newPoison += amount; break;
+                        case "ConstrictPower":  newConstrict += amount; break;
+                        case "BurnPower":       newBurn += amount; break;
                     }
                 }
 
@@ -266,8 +266,9 @@ internal static class AnalyticalSimulator
                     bool isTarget = isAoe ? enemy.IsAlive : (i == targetIdx && enemy.IsAlive);
                     if (!isTarget) { newEnemies.Add(enemy); continue; }
 
-                    // v0.5 — same full debuff propagation as the attack path. Artifact
-                    // absorbs stacks until depleted (per-stack, in PowerApps order).
+                    // v0.5 — same full debuff propagation as the attack path. Each
+                    // tracked debuff application consumes one Artifact charge (entire
+                    // amount blocked when intercepted — canonical STS behavior).
                     int newVuln = enemy.VulnerableAmount;
                     int newWeak = enemy.WeakAmount;
                     int newFrail = enemy.FrailAmount;
@@ -277,22 +278,20 @@ internal static class AnalyticalSimulator
                     int artifactLeft = enemy.ArtifactAmount;
                     foreach (var (powerName, amount) in card.PowerApps)
                     {
-                        int delta = amount;
+                        if (!IsTrackedDebuff(powerName)) continue;
                         if (artifactLeft > 0)
                         {
-                            int absorb = System.Math.Min(artifactLeft, delta);
-                            delta -= absorb;
-                            artifactLeft -= absorb;
-                            if (delta == 0) continue;
+                            artifactLeft--;
+                            continue;
                         }
                         switch (powerName)
                         {
-                            case "VulnerablePower": newVuln += delta; break;
-                            case "WeakPower":       newWeak += delta; break;
-                            case "FrailPower":      newFrail += delta; break;
-                            case "PoisonPower":     newPoison += delta; break;
-                            case "ConstrictPower":  newConstrict += delta; break;
-                            case "BurnPower":       newBurn += delta; break;
+                            case "VulnerablePower": newVuln += amount; break;
+                            case "WeakPower":       newWeak += amount; break;
+                            case "FrailPower":      newFrail += amount; break;
+                            case "PoisonPower":     newPoison += amount; break;
+                            case "ConstrictPower":  newConstrict += amount; break;
+                            case "BurnPower":       newBurn += amount; break;
                         }
                     }
                     newEnemies.Add(enemy with
@@ -468,6 +467,17 @@ internal static class AnalyticalSimulator
         }
         return state with { Enemies = enemies };
     }
+
+    /// <summary>
+    /// Set of debuff PowerApps the sim propagates on enemies — these are also the
+    /// ones Artifact intercepts (one charge per application).
+    /// </summary>
+    private static bool IsTrackedDebuff(string powerName) => powerName switch
+    {
+        "VulnerablePower" or "WeakPower" or "FrailPower"
+        or "PoisonPower" or "ConstrictPower" or "BurnPower" => true,
+        _ => false,
+    };
 
     /// <summary>
     /// Apply a single orb-hit's damage to an enemy with per-hit Intangible cap and
