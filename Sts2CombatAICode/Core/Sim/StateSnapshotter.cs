@@ -388,11 +388,13 @@ internal static class StateSnapshotter
         }
         // v0.5 — keyword flags relevant to play-order decisions. R=retain (defers
         // until other plays exhausted), E=ethereal (must play this turn or exhaust),
-        // I=innate (opener marker). Suffix only when at least one is set.
+        // I=innate (opener marker), Xh=exhaust-on-play. X (no h) = currently unplayable.
+        // Suffix only when at least one is set.
         var flags = (c.IsRetain ? "R" : "")
                   + (c.IsEthereal ? "E" : "")
                   + (c.IsInnate ? "I" : "")
-                  + (c.IsPlayable ? "" : "X"); // X = currently unplayable
+                  + (c.IsExhaust ? "Xh" : "")
+                  + (c.IsPlayable ? "" : "X");
         var flagsTag = flags.Length > 0 ? $"|{flags}" : "";
         return string.IsNullOrEmpty(detail)
             ? $"{c.Id}{ench}({prefix}{c.Cost}{flagsTag})"
