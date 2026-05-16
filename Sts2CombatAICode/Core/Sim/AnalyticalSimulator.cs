@@ -57,8 +57,14 @@ internal static class AnalyticalSimulator
             {
                 switch (powerName)
                 {
-                    case "StrengthPower": newPlayerStr += amount; break;
-                    case "DexterityPower": newPlayerDex += amount; break;
+                    // Temporary*Power lasts 1 turn but is fully active for this turn's
+                    // remaining card plays, so the second-card lookahead must see it.
+                    case "StrengthPower":
+                    case "TemporaryStrengthPower":
+                        newPlayerStr += amount; break;
+                    case "DexterityPower":
+                    case "TemporaryDexterityPower":
+                        newPlayerDex += amount; break;
                     // Other powers (Inflame style) don't directly affect future card scoring
                     // in v0.2.5 — handled by per-power valuation in scorer.
                 }
@@ -120,6 +126,27 @@ internal static class AnalyticalSimulator
             {
                 int eff = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
                 newPlayerBlock += eff;
+            }
+
+            // v0.5 — Self-targeted skills that apply self-buffs (Strength/Dex from
+            // Spot Weakness style cards) need to propagate too, otherwise the second
+            // card lookahead won't see the Strength bump and won't reward sequencing
+            // "Spot Weakness → big attack" combos. Previously only Power cards
+            // applied their PowerApps; self skills were silently dropped.
+            if (selfTarget && card.PowerApps.Count > 0)
+            {
+                foreach (var (powerName, amount) in card.PowerApps)
+                {
+                    switch (powerName)
+                    {
+                        case "StrengthPower":
+                        case "TemporaryStrengthPower":
+                            newPlayerStr += amount; break;
+                        case "DexterityPower":
+                        case "TemporaryDexterityPower":
+                            newPlayerDex += amount; break;
+                    }
+                }
             }
 
             // Skill that targets an enemy (or AOE) and applies debuffs
