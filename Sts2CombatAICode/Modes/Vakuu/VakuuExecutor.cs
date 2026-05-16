@@ -113,13 +113,16 @@ internal static class VakuuExecutor
 
                 Creature? target = ResolveTarget(plan.Value, snapshot, combatState, player);
 
+                var pickWeights = PlanScorerWeights.For(PlaystyleState.Current);
                 var breakdown = PlanScorer.Breakdown(plan.Value.Card, plan.Value.TargetIdx,
-                    snapshot, PlanScorerWeights.For(PlaystyleState.Current));
+                    snapshot, pickWeights);
+                int playOrderBias = PlanScorer.PlayOrderBias(plan.Value.Card, snapshot, pickWeights);
                 var targetName = target?.GetType().Name ?? "self";
                 MainFile.Logger.Info(
                     $"[CombatAI] step {step + 1} → {plan.Value.Card.Id}@{targetName} " +
                     $"(score={plan.Value.Score} reason={plan.Value.Reason})");
-                MainFile.Logger.Info($"[CombatAI]   breakdown: {breakdown.ToLogLine()}");
+                var biasTag = playOrderBias != 0 ? $" playOrder={playOrderBias:+0;-0}" : "";
+                MainFile.Logger.Info($"[CombatAI]   breakdown: {breakdown.ToLogLine()}{biasTag}");
 
                 DecisionLog.Record(new DecisionLog.Entry
                 {
