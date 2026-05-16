@@ -27,7 +27,8 @@ internal static class EnemyTurnSimulator
                 if (e.HasAttackIntent || e.HasDeathBlowIntent)
                     hits += Math.Max(1, e.IntentRepeats);
             }
-            return Math.Max(0, hits - s.PlayerBlock);
+            int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+            return Math.Max(0, hits - intangibleBlock);
         }
 
         int total = 0;
@@ -57,7 +58,11 @@ internal static class EnemyTurnSimulator
             if (playerVulnerable) dmg = (int)(dmg * StatusMath.VulnerableMult);
             total += dmg;
         }
-        return Math.Max(0, total - s.PlayerBlock);
+        // v0.5 — fold the end-of-turn block bonus (Metallicize + PlatedArmor) into the
+        // effective block. Enemies attack AFTER our end-of-turn step adds these blocks,
+        // so they cushion the leak before HP loss.
+        int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+        return Math.Max(0, total - effectivePlayerBlock);
     }
 
     public static int CountIncomingAttackers(SimState s) =>

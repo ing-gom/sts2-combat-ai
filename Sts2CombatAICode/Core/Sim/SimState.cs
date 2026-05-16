@@ -34,6 +34,15 @@ internal sealed record SimState
     /// </summary>
     public int PlayerIntangible { get; init; }
 
+    /// <summary>
+    /// v0.5 — End-of-turn block bonus from MetallicizePower + PlatedArmorPower.
+    /// Added to PlayerBlock in PredictPlayerDmg so threat estimation knows the
+    /// player will gain these blocks just before enemies attack. Avoids
+    /// double-blocking turns where Metallicize already covers a small incoming
+    /// hit (block-defends would otherwise score as needed when they're not).
+    /// </summary>
+    public int PlayerEndOfTurnBlockBonus { get; init; }
+
     // v0.2.9 — pile sizes for Draw card valuation.
     // We don't need card identities (privacy + complexity); raw counts let the
     // planner know whether "drawing more" is even possible / fruitful.
