@@ -86,15 +86,25 @@ internal static class AnalyticalSimulator
                     continue;
                 }
 
-                bool eVuln = enemy.VulnerableAmount > 0;
-                int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
-                    newPlayerStr, eVuln, playerWeak);
-                int totalDmg = perHit * System.Math.Max(1, card.Hits);
+                // v0.5 — full cap chain matches the scorer: Vulnerable → Intangible
+                // per-hit cap → HardenedShellRemaining total cap. Without this the
+                // sim was dealing uncapped damage to Intangible / shell enemies, so
+                // the second-card lookahead saw a corpse where the game would still
+                // have a full-HP target and planned overkill chains accordingly.
+                int totalDmg = StatusMath.EffectivePerEnemyTotal(
+                    card.Damage, card.Hits, newPlayerStr, enemy, playerWeak);
 
                 // Block-first absorption
                 int blockAfter = System.Math.Max(0, enemy.Block - totalDmg);
                 int dmgPastBlock = System.Math.Max(0, totalDmg - enemy.Block);
                 int hpAfter = System.Math.Max(0, enemy.Hp - dmgPastBlock);
+
+                // Decrement HardenedShell budget by the actual capped damage dealt.
+                // Successive attacks against the same shell enemy in depth-2 then see
+                // the reduced remaining instead of re-paying from the full budget.
+                int shellLeft = enemy.HardenedShellRemaining;
+                if (shellLeft > 0)
+                    shellLeft = System.Math.Max(0, shellLeft - totalDmg);
 
                 // Attached debuff stacks. v0.5 — extend beyond Vulnerable/Weak so
                 // depth-2 sees the full debuff picture: Frail (enemy block gain ×0.75
@@ -142,6 +152,7 @@ internal static class AnalyticalSimulator
                     ConstrictAmount = newConstrict,
                     BurnAmount = newBurn,
                     ArtifactAmount = artifactLeft,
+                    HardenedShellRemaining = shellLeft,
                 });
             }
             next = next with { Enemies = newEnemies };
