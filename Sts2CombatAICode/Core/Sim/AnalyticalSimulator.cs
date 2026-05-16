@@ -361,18 +361,13 @@ internal static class AnalyticalSimulator
             };
         }
 
-        // v0.5 — the card we just played joins the discard pile unless it exhausts
-        // on play (catalog Exhaust flag). The catalog marks Slimed, Apparition, etc.
-        // as Exhaust so the gate doesn't need a separate curse/status exclusion. Track
-        // this so subsequent Draw-card scoring in depth-2 sees the post-play pile size.
-        int drawPileAfter = next.DrawPileSize;
-        int discardAfter = next.DiscardPileSize;
-        if (!card.IsExhaust)
-            discardAfter += 1;
-
         // 4. DrawCount: simulate fetching N cards from the pile as low-value placeholders.
         // We can't know the exact card; add a generic SimCard with rough average effect so
         // lookahead has something to work with (better than ignoring the draw entirely).
+        // v0.5 — draws fire BEFORE the played card moves to the discard pile (the card
+        // is "in play" while its effects resolve), so use pre-discard-bump pile sizes.
+        int drawPileAfter = next.DrawPileSize;
+        int discardAfter = next.DiscardPileSize;
         if (card.DrawCount > 0 && drawPileAfter + discardAfter > 0)
         {
             for (int i = 0; i < card.DrawCount; i++)
@@ -388,6 +383,12 @@ internal static class AnalyticalSimulator
                 drawPileAfter--;
             }
         }
+
+        // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
+        // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
+        // a downstream card sees reflects the realistic pile sizes including this card.
+        if (!card.IsExhaust)
+            discardAfter += 1;
 
         return next with
         {
