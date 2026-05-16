@@ -348,15 +348,30 @@ internal static class PlanScorer
             {
                 var aoeParts = new List<string>();
                 int totalAliveBlock = 0, totalAliveDmg = 0, aliveTargets = 0;
+                int aoeHitMultiplier = System.Math.Max(1, card.Hits);
                 for (int i = 0; i < state.Enemies.Count; i++)
                 {
                     if (!state.Enemies[i].IsAlive) continue;
-                    bool eVuln = state.Enemies[i].VulnerableAmount > 0;
-                    int perEnemyDmg = StatusMath.EffectiveAttackDmg(card.Damage,
-                        state.PlayerStrength, eVuln, playerIsWeak) * System.Math.Max(1, card.Hits);
+                    var ei = state.Enemies[i];
+                    bool eVuln = ei.VulnerableAmount > 0;
+                    int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
+                        state.PlayerStrength, eVuln, playerIsWeak);
+                    // v0.5 — per-enemy IntangiblePower cap. Was missing here, so a
+                    // lethal range check or wasted-AOE check would over-credit AOE
+                    // damage against Intangible enemies (Cathedral, shielded phases).
+                    if (ei.DamageCapPerHit > 0 && perHit > ei.DamageCapPerHit)
+                        perHit = ei.DamageCapPerHit;
+                    int perEnemyDmg = perHit * aoeHitMultiplier;
+                    // v0.5 — per-enemy HardenedShell budget. If shell exists but is
+                    // already depleted this turn, every further hit lands 0.
+                    if (ei.HardenedShellRemaining > 0 && perEnemyDmg > ei.HardenedShellRemaining)
+                        perEnemyDmg = ei.HardenedShellRemaining;
+                    else if (perHit > 0 && ei.HardenedShellRemaining == 0
+                             && ei.Powers.ContainsKey("HardenedShellPower"))
+                        perEnemyDmg = 0;
                     var (b, d) = ScoreAttackTarget(card, i, state, w, perEnemyDmg);
                     targetBonus += b;
-                    totalAliveBlock += state.Enemies[i].Block;
+                    totalAliveBlock += ei.Block;
                     totalAliveDmg += perEnemyDmg;
                     aliveTargets++;
                     if (!string.IsNullOrEmpty(d)) aoeParts.Add($"e{i}:{d}");
@@ -367,6 +382,16 @@ internal static class PlanScorer
                 {
                     wastedPenalty = w.WastedAttackPenalty / 2;
                     details.Add($"WASTED_AOE{wastedPenalty}");
+                }
+                // v0.5 — AOE-zeroed check: every enemy capped to 0 damage (full shell
+                // or Intangible-with-no-piercing). Without this, an AOE swing that
+                // accomplishes literally nothing would only get the half-penalty above
+                // (and only if totalAliveBlock > 0); shell-spent boards have 0 block
+                // remaining so the check above would skip them.
+                else if (aliveTargets > 0 && totalAliveDmg == 0 && card.Damage > 0)
+                {
+                    wastedPenalty = w.WastedAttackPenalty;
+                    details.Add($"WASTED_AOE_ZERO{wastedPenalty}");
                 }
             }
             else
