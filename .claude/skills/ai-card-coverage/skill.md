@@ -1,11 +1,25 @@
 ---
 name: ai-card-coverage
-description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 평가하는지 (단독 평가 path + 카드 간 synergy 룰 + 부가 평가 경로) 정적 측정. 신규 카드 추가, PowerCatalog/PowerSequencingTier/CardOverrideCatalog/BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 14 metric (단독 6 + synergy 4 + 부가 4: PowerSequencingTier / Conditional damage / Self-modifier / SelectorMode) + 미커버 카드 / orphan stem 상세.
+description: Sts2CombatAI mod 의 카드 평가 룰 (PlanScorer + PowerCatalog + PowerSequencingTier + CardOverrideCatalog + BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy) 이 STS2 카드 풀을 명시적으로 얼마나 다루는지 정적 측정. 신규 카드 추가, 평가 룰 (PowerCatalog/PowerSequencingTier/CardOverrideCatalog/*Synergy.cs) 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 14 metric (단독 6 + synergy 4 + 부가 4) + 미커버 카드 / orphan stem 상세. 게임 본체 fallback AI 가 아닌 *mod 의 자체 룰* 의 커버리지 측정.
 ---
 
-# AI Card Coverage Audit
+# Mod 평가 룰 카드 커버리지 감사
 
-`PlanScorer` 가 카드를 평가할 때 거치는 4 경로 (PowerCatalog / CardOverrideCatalog / BuildSynergy / generic fallback) 가 카드 풀의 몇 %를 명시적으로 다루는지 측정. fallback 의존 카드를 식별해 다음 release 의 hand-tuning 우선순위 산출.
+Sts2CombatAI mod 의 카드 평가 룰 풀이 STS2 카드 풀을 명시적으로 얼마나 다루는지 정적 측정. fallback 의존 카드를 식별해 다음 release 의 hand-tuning / 룰 확장 우선순위 산출.
+
+## 측정 대상 명확화
+
+이 audit 가 측정하는 것:
+
+- **카드 풀** (input): `cards_catalog.json` 의 base 카드 — 게임 sts2.dll reflection 으로 추출
+- **평가 룰 풀** (input): 이 mod 의 C# 파일들 — `PowerCatalog.cs` (69 power), `PowerSequencingTier.cs` (64 tier), `CardOverrideCatalog.cs` (13 hand-tune), `*Synergy.cs` (axis whitelist)
+- **측정**: 두 풀의 매칭률 — 카드별로 어느 룰이 명시 적용되는지
+
+측정하지 *않는* 것:
+
+- 게임 본체 STS2 의 fallback AI (`pile.Cards.FirstOrDefault(CanPlay)`) — 이 mod 가 *교체한* 대상이라 비교 무의미
+- 런타임 hand state 의존 평가 (Intent / Playstyle / Role / Enemy state) — 정적 측정 영역 밖
+- 실제 게임 플레이에서 발동된 룰 빈도 (`DecisionLog` 파싱은 후속 작업 후보)
 
 ## 호출 트리거
 
