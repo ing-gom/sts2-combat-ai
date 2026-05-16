@@ -1,4 +1,9 @@
-# AI Card Coverage Report
+# Sts2CombatAI Rule Coverage Report
+
+Coverage of the STS2 card pool by this mod's evaluation rules. Measures
+how much of the card pool each rule (PowerCatalog, PowerSequencingTier,
+CardOverrideCatalog, BuildSynergy, AmplifierSynergy, EffectSynergy,
+HandSynergy) explicitly handles vs falls back to generic defaults.
 
 - Master catalog: `..\scripts\cards_catalog.json` (game v0.103.2)
 - Embedded triggers: `C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Data\card_triggers.json` (v0.103.2)
