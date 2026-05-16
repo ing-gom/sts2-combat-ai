@@ -89,6 +89,28 @@ Power 카드는 skip (PowerSequencingTier 가 처리).
 - Before: DemonForm ≈ 3000 vs Defend ≈ 2250 → DemonForm plays → 사망
 - After: DemonForm = 3000 − 2200 = 800, Defend = 2250 + neutralize 1200 = 3450, Strike = 900 − 1200 = -300 → Defend plays → 생존 ✓
 
+### Multi-hit 적에 대한 Weak 정확도
+
+기존 `PredictPlayerDmg` 가 Weak 를 *total* damage 에 곱했는데 (`15 × 0.75 = 11`) 실제 STS 는 *per-hit* 으로 floor 적용 (`5dmg×3hits → floor(3.75)×3 = 9`). Multi-hit 적에 대해 sim 이 2 dmg 과소평가 → Weak 의 가치가 깎여있던 상태.
+
+- `EnemyTurnSimulator.PredictPlayerDmg` — `(IntentDamage + Strength) × 0.75 → floor → × IntentRepeats` 로 수정.
+- `HandSynergy.WeakPower` — `remainingAttacks × 30` 의미없는 공식을 `ComputeWeakSavings(stacks, state)` 로 교체. 각 적의 `(perHit - floor(perHit × 0.75)) × IntentRepeats × min(stacks, 2) × 30` 합산. Multi-hit 적이 있으면 자연히 더 큰 점수.
+- `HandSynergy.VulnerablePower` — `remainingAttacks × 50` → `remainingHits × 40`. Twin Strike(2 hits) 같은 multi-hit 카드가 Vuln 으로 더 큰 이득 보는걸 점수에 반영.
+- `EffectSynergy.WEAK_AMPLIFIER` — multi-hit 적 (IntentRepeats ≥ 2) 마다 +120 추가 보너스.
+
+### Draw 카드 동작 분석
+
+1코스트 draw → 0 에너지 시나리오. 기존 `EvaluateDrawCard` 가 hand-best-score / pile size 만 봐서 "drew 후 사용 불가" 케이스 누락.
+
+- **Energy-after-draw 체크**: `energyAfter = energy - cost + energyGain`. 0 이고 손에 0-cost 카드도 energy-gain 카드도 없으면 drawn 카드는 next-turn-only. hand 가 strong (≥2000) 면 -800, weak (≥1000) 면 -400, useless 면 bonus / 3.
+- **Hand-cap overflow**: STS hand 10 장 한도. `(handAfterPlay + DrawCount) - 10` 만큼 wasted → wasted/DrawCount 비율로 bonus 차감.
+
+**시나리오 검증** (1 energy, hand = [Pommel Strike 1코 draw, Strike 1코]):
+- Before: Pommel Strike draw bonus = DrawNoCostBottleneckBonus(+500) → 그냥 plays
+- After: energyAfter = 0, zeroCost = 0, energyGain = 0 → canChain = false → bestOther(Strike) < HandWeakThreshold 라 bonus / 3 = +166. Strike 가 attack 점수로 이김 ✓
+
+**Pommel Strike 자체는 attack 점수가 있어 plays 될 수 있지만, 순수 draw 스킬 (Backflip 같은) 이 같은 상황에 있을 때 우선 deferred.**
+
 ## v0.4.0 (2026-05-16)
 
 **Project rename + architecture split — Vakuu 종속 컨셉을 범용 Combat AI 로 재정렬.**

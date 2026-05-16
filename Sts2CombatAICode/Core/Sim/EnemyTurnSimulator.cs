@@ -16,12 +16,12 @@ internal static class EnemyTurnSimulator
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
-            // Strength stacks ride on every hit — the raw IntentDamage we get from
-            // AttackIntent.DamageCalc isn't strength-adjusted in all cases, so add it
-            // explicitly. Multi-hit attacks get strength per hit.
-            int dmg = e.TotalIntentDamage + Math.Max(0, e.StrengthAmount) * Math.Max(1, e.IntentRepeats);
-            // WeakPower on the enemy → their attacks deal ×0.75. Round down (canonical STS).
-            if (e.WeakAmount > 0) dmg = (int)(dmg * 0.75);
+            // Per-hit base = IntentDamage + Strength (Strength rides on every hit).
+            // Weak rounds DOWN per hit in STS, so multi-hit attacks lose proportionally
+            // more — apply ×0.75 before multiplying by IntentRepeats, not after.
+            int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
+            if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
+            int dmg = perHit * Math.Max(1, e.IntentRepeats);
             total += dmg;
         }
         return Math.Max(0, total - s.PlayerBlock);
