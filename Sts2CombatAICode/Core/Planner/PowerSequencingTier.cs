@@ -121,6 +121,47 @@ internal static class PowerSequencingTier
             { "SkittishPower",            SequencingTier.SelfHarm },
             { "ShrinkPower",              SequencingTier.SelfHarm },
             { "EntropyPower",             SequencingTier.SelfHarm },
+
+            // ─── Coverage pass v0.103.2 — S/A tier cards previously Unknown ─────
+            // Setup (multiplies same-turn plays — play before consumers)
+            { "CrueltyPower",             SequencingTier.Setup },     // Vuln amp
+            { "LethalityPower",           SequencingTier.Setup },     // first attack/turn +50%
+            { "TrackingPower",            SequencingTier.Setup },     // Weak amp
+            { "FastenPower",              SequencingTier.Setup },     // +5 block to Skills
+
+            // Scaling (long-fight permanents — play early)
+            { "UnmovablePower",           SequencingTier.Scaling },
+            { "DarkEmbracePower",         SequencingTier.Scaling },
+            { "InfernoPower",             SequencingTier.Scaling },
+            { "ThunderPower",             SequencingTier.Scaling },
+            { "PagestormPower",           SequencingTier.Scaling },
+            { "SleightOfFleshPower",      SequencingTier.Scaling },
+            { "CountdownPower",           SequencingTier.Scaling },
+            { "DevourLifePower",          SequencingTier.Scaling },
+            { "HauntPower",               SequencingTier.Scaling },
+            { "ChildOfTheStarsPower",     SequencingTier.Scaling },
+            { "TheSealedThronePower",     SequencingTier.Scaling },
+            { "HammerTimePower",          SequencingTier.Scaling },
+            { "AutomationPower",          SequencingTier.Scaling },
+            { "NeurosurgePower",          SequencingTier.Scaling },
+
+            // Defensive (block / mitigation permanents — threat-aware priority)
+            { "CrimsonMantlePower",       SequencingTier.Defensive },
+            { "CoolantPower",             SequencingTier.Defensive },
+            { "SpinnerPower",             SequencingTier.Defensive },
+            { "ShroudPower",              SequencingTier.Defensive },
+            { "SpiritOfAshPower",         SequencingTier.Defensive },
+            { "TankPower",                SequencingTier.Defensive },
+            { "SneakyPower",              SequencingTier.Defensive },
+
+            // Tempo (energy / draw / free-cost — defer when no current-turn use)
+            { "VoidFormPower",            SequencingTier.Tempo },
+            { "CallOfTheVoidPower",       SequencingTier.Tempo },
+            { "DemesnePower",             SequencingTier.Tempo },
+            { "ToolsOfTheTradePower",     SequencingTier.Tempo },
+            { "WellLaidPlansPower",       SequencingTier.Tempo },
+            { "InfiniteBladesPower",      SequencingTier.Tempo },
+            { "ForbiddenGrimoirePower",   SequencingTier.Tempo },     // out-of-combat reward — defer
         };
 
     /// <summary>
