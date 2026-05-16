@@ -23,11 +23,9 @@ internal static class EnemyTurnSimulator
             foreach (var e in s.Enemies)
             {
                 if (!e.IsAlive) continue;
-                // v0.5 — DoT pre-kill includes Poison AND Constrict (both tick at
-            // start of enemy turn before any intent fires). Burn left out
-            // because its tick timing varies between STS variants.
-            int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
-            if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
+                // DoT pre-kill: Poison + Constrict tick before any intent fires.
+                int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+                if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
                 if (e.HasAttackIntent || e.HasDeathBlowIntent)
                     hits += Math.Max(1, e.IntentRepeats);
             }
@@ -45,24 +43,22 @@ internal static class EnemyTurnSimulator
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
-            // v0.5 — DoT pre-kill. Poison ticks at start of enemy turn BEFORE the
-            // enemy acts, so an enemy with PoisonAmount ≥ Hp dies before attacking
-            // and contributes 0 threat. Without this, a turn that lethal-poisoned
-            // the enemy still scored block cards as "tank the incoming hit", and
-            // the lookahead never saw the threat drop after our poison play.
-            // v0.5 — DoT pre-kill includes Poison AND Constrict (both tick at
-            // start of enemy turn before any intent fires). Burn left out
-            // because its tick timing varies between STS variants.
+            // v0.5 — DoT pre-kill: Poison + Constrict tick at start of enemy turn
+            // before any intent fires, so enemies whose DoT covers their HP die
+            // before attacking and contribute 0 threat. Burn left out because its
+            // tick timing varies between STS variants.
             int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
             if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
-            // Strength stacks ride on every hit — the raw IntentDamage we get from
-            // AttackIntent.DamageCalc isn't strength-adjusted in all cases, so add it
-            // explicitly. Multi-hit attacks get strength per hit.
-            int dmg = e.TotalIntentDamage + Math.Max(0, e.StrengthAmount) * Math.Max(1, e.IntentRepeats);
-            // WeakPower on the enemy → their attacks deal ×0.75. Round down (canonical STS).
-            if (e.WeakAmount > 0) dmg = (int)(dmg * 0.75);
-            // Vulnerable on the player → ×1.5 incoming. Apply per-enemy AFTER their
-            // own Weak so the multiplier chain matches in-game order.
+
+            // Per-hit base = IntentDamage + Strength (Strength rides on every hit).
+            // Weak rounds DOWN per hit in STS — multi-hit attacks lose proportionally
+            // more — so apply ×0.75 BEFORE multiplying by IntentRepeats.
+            int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
+            if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
+            int dmg = perHit * Math.Max(1, e.IntentRepeats);
+
+            // v0.5 — Vulnerable on the player ×1.5 incoming. Applied after per-enemy
+            // Weak so the multiplier chain matches in-game order.
             if (playerVulnerable) dmg = (int)(dmg * StatusMath.VulnerableMult);
             total += dmg;
         }
@@ -124,4 +120,39 @@ internal static class EnemyTurnSimulator
     /// </summary>
     public static int TotalAliveEnemyHp(SimState s) =>
         s.Enemies.Where(e => e.IsAlive).Sum(e => e.Hp + e.Block);
+
+    /// <summary>
+    /// Survival urgency = how badly the player needs to defend this turn. Driven by
+    /// predicted leak (PredictPlayerDmg already subtracts current block) over current
+    /// HP. Used by planner to suppress non-defensive plays when survival is at stake.
+    ///
+    ///   Fatal     leak ≥ HP            → die this turn without intervention
+    ///   Heavy     leak ≥ HP × 0.5      → lose half HP, set up future Fatal
+    ///   Moderate  leak ≥ HP × 0.2      → notable but recoverable
+    ///   None      everything else
+    /// </summary>
+    public static SurvivalUrgency GetSurvivalUrgency(SimState s)
+    {
+        if (s.PlayerHp <= 0) return SurvivalUrgency.None;
+        if (AllInert(s)) return SurvivalUrgency.None;
+        int leak = PredictPlayerDmg(s);
+        if (leak <= 0) return SurvivalUrgency.None;
+        if (leak >= s.PlayerHp) return SurvivalUrgency.Fatal;
+        double ratio = (double)leak / s.PlayerHp;
+        if (ratio >= 0.5) return SurvivalUrgency.Heavy;
+        if (ratio >= 0.2) return SurvivalUrgency.Moderate;
+        return SurvivalUrgency.None;
+    }
+}
+
+/// <summary>
+/// Threat severity expressed as an ordered enum so callers branch on tiers rather
+/// than re-implementing the threshold math. Higher = more urgent.
+/// </summary>
+internal enum SurvivalUrgency
+{
+    None     = 0,
+    Moderate = 1,
+    Heavy    = 2,
+    Fatal    = 3,
 }

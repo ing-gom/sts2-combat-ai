@@ -19,6 +19,8 @@ internal static class BuildSynergy
 {
     private const int ProducerWithAmplifierBonus = 250;
     private const int ProducerWithConsumerBonus = 200;
+    private const int AmplifierWithProducerBonus = 200;  // symmetric — amplifier rises when producer waits in hand
+    private const int ConsumerWithProducerBonus = 200;   // symmetric — consumer rises when producer waits
     private const int PerBuildCommitmentCard = 80; // each other card from same primary build
 
     /// <summary>
@@ -55,22 +57,43 @@ internal static class BuildSynergy
             }
         }
 
-        // Pair bonuses: this card is a *Producer* → look for matching Amplifier/Consumer in hand.
-        // Axes are like "POISON_PRODUCER" — split prefix.
+        // Pair bonuses — both directions:
+        //   Producer + Amplifier-in-hand → Producer rises (existing).
+        //   Producer + Consumer-in-hand  → Producer rises (existing).
+        //   Amplifier + Producer-in-hand → Amplifier rises (new, symmetric).
+        //   Consumer  + Producer-in-hand → Consumer rises (new, symmetric).
+        // Producer/Amplifier match by stem (POISON_PRODUCER ↔ POISON_AMPLIFIER).
         foreach (var ax in card.Axes)
         {
-            if (!ax.EndsWith("_PRODUCER")) continue;
-            var stem = ax.Substring(0, ax.Length - "_PRODUCER".Length); // "POISON"
+            if (ax.EndsWith("_PRODUCER"))
+            {
+                var stem = ax.Substring(0, ax.Length - "_PRODUCER".Length);
+                bool hasAmplifier = state.Hand.Any(c =>
+                    !ReferenceEquals(c, self)
+                    && c.Axes.Contains(stem + "_AMPLIFIER"));
+                if (hasAmplifier) bonus += ProducerWithAmplifierBonus;
 
-            bool hasAmplifier = state.Hand.Any(c =>
-                !ReferenceEquals(c, self)
-                && c.Axes.Contains(stem + "_AMPLIFIER"));
-            if (hasAmplifier) bonus += ProducerWithAmplifierBonus;
-
-            bool hasConsumer = state.Hand.Any(c =>
-                !ReferenceEquals(c, self)
-                && c.Axes.Contains(stem + "_CONSUMER"));
-            if (hasConsumer) bonus += ProducerWithConsumerBonus;
+                bool hasConsumer = state.Hand.Any(c =>
+                    !ReferenceEquals(c, self)
+                    && c.Axes.Contains(stem + "_CONSUMER"));
+                if (hasConsumer) bonus += ProducerWithConsumerBonus;
+            }
+            else if (ax.EndsWith("_AMPLIFIER"))
+            {
+                var stem = ax.Substring(0, ax.Length - "_AMPLIFIER".Length);
+                bool hasProducer = state.Hand.Any(c =>
+                    !ReferenceEquals(c, self)
+                    && c.Axes.Contains(stem + "_PRODUCER"));
+                if (hasProducer) bonus += AmplifierWithProducerBonus;
+            }
+            else if (ax.EndsWith("_CONSUMER"))
+            {
+                var stem = ax.Substring(0, ax.Length - "_CONSUMER".Length);
+                bool hasProducer = state.Hand.Any(c =>
+                    !ReferenceEquals(c, self)
+                    && c.Axes.Contains(stem + "_PRODUCER"));
+                if (hasProducer) bonus += ConsumerWithProducerBonus;
+            }
         }
 
         // Build commitment: count other cards in hand sharing one of this card's primary builds.
