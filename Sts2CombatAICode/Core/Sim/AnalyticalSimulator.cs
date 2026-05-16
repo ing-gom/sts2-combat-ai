@@ -306,11 +306,17 @@ internal static class AnalyticalSimulator
             };
         }
 
+        // v0.5 — the card we just played joins the discard pile (or exhaust pile if
+        // IsExhaust). Track this so subsequent Draw-card scoring in depth-2 sees the
+        // post-play pile sizes, not the pre-play snapshot.
+        int drawPileAfter = next.DrawPileSize;
+        int discardAfter = next.DiscardPileSize;
+        if (!card.IsExhaust && !card.IsCurseOrStatus)
+            discardAfter += 1;
+
         // 4. DrawCount: simulate fetching N cards from the pile as low-value placeholders.
         // We can't know the exact card; add a generic SimCard with rough average effect so
         // lookahead has something to work with (better than ignoring the draw entirely).
-        int drawPileAfter = next.DrawPileSize;
-        int discardAfter = next.DiscardPileSize;
         if (card.DrawCount > 0 && drawPileAfter + discardAfter > 0)
         {
             for (int i = 0; i < card.DrawCount; i++)

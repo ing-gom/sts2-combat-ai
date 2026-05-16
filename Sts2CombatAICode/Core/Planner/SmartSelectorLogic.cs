@@ -66,6 +66,7 @@ internal static class SmartSelectorLogic
             IsRetain = catalogInfo?.Retain ?? false,
             IsEthereal = catalogInfo?.Ethereal ?? false,
             IsInnate = catalogInfo?.Innate ?? false,
+            IsExhaust = catalogInfo?.Exhaust ?? false,
         };
         int targetIdx = -1;
         if (simCard.IsAttack && simCard.Target == TargetType.AnyEnemy)
