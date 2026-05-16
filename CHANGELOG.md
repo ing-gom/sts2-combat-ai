@@ -48,6 +48,27 @@ PlanScorer 의 Attack / Skill 분기 양쪽에 hook (Beat Down 등은 attack, Su
 
 Afterimage / Calamity / Serpent Form / Sleight of Flesh / The Sealed Throne — 카드 play 마다 trigger 되는 power. PowerSequencingTier.ConditionalBonus 의 Scaling 분기에서 `remaining playable cards × 60` 보너스. PowerCatalog 의 flat 값이 못 잡는 hand-size scaling 을 보완.
 
+### `EffectSynergy.cs` — attack/skill 효과 기반 순서
+
+Power 카드가 아닌 카드 (attack/skill) 에서 효과 axis 가 implicit 한 ordering 을 갖는 케이스 처리.
+
+- **DAMAGE_AMPLIFIER** (Aggression, Conflagration, Flanking, Knockdown, Lethality, Shadow Step, Sword Sage) — `remainingAttacks × 70`. 후속 공격이 없으면 -200.
+- **BLOCK_AMPLIFIER** (Entrench, Pillar of Creation, Unmovable — skill 만; Barricade/Blur/Danse/Shadowmeld 는 power 라 tier 처리) — `curBlock × 4 + remainingBlocks × 50`. 둘 다 0 이면 -250.
+- **VULN_AMPLIFIER** (Bully, Colossus, Cruelty, Debilitate, Dismantle, Dominate, Molten Fist) — 타겟 적 Vuln → +450, 다른 적 Vuln → +300, 손에 vuln applier → +250, 아무 source 없음 → -300.
+- **WEAK_AMPLIFIER** (Debilitate, Tracking) — 같은 패턴 작은 가중치.
+- **BLOCK_PAYOFF** (Body Slam) — `curBlock × 30`. Block 0 + 손에 block skill → -600. Block 0 + 없음 → -1500.
+- **HP_LOSS_CONSUMER** (Inferno, Tear Asunder) — PlayerHp ≤ 30 → +350, ≤ 50 → +200.
+
+Power 카드는 skip (PowerSequencingTier 가 처리).
+
+### `BuildSynergy.cs` — Producer↔Amplifier/Consumer 대칭
+
+기존 `Producer + Amplifier-in-hand → Producer 가 +250` 만 있었고 반대 방향 (Amplifier 가 Producer-in-hand 일 때 +200) 누락. Consumer 도 대칭으로 추가. Poison/Orb/Forge/Shiv/Skeleton/Doom 등 빌드에서 Amplifier/Consumer 쪽 우선순위가 제대로 반영.
+
+### Integration
+
+`PlanScorer.cs` Attack / Skill 분기에 `EffectSynergy.Compute` hook 추가. Score breakdown details 에 `vulnAmpTgt=+450,dmgAmp(atk*3)=+210` 같이 노출.
+
 ## v0.4.0 (2026-05-16)
 
 **Project rename + architecture split — Vakuu 종속 컨셉을 범용 Combat AI 로 재정렬.**

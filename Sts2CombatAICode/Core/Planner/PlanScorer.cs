@@ -373,9 +373,14 @@ internal static class PlanScorer
             var (atkAmpBonus, atkAmpDetail) = AmplifierSynergy.Compute(card, state, w);
             if (atkAmpBonus != 0) details.Add(atkAmpDetail);
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkAmpBonus;
+            // v0.5 — Effect-axis synergies (DAMAGE_AMPLIFIER, VULN_AMPLIFIER,
+            // WEAK_AMPLIFIER, BLOCK_PAYOFF, HP_LOSS_CONSUMER, …).
+            var (atkEffBonus, atkEffDetail) = EffectSynergy.Compute(card, targetIdx, state);
+            if (atkEffBonus != 0) details.Add(atkEffDetail);
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkAmpBonus + atkEffBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
-                Base: baseBonus, Effect: effect + attached + buildBonus + atkAmpBonus,
+                Base: baseBonus, Effect: effect + attached + buildBonus + atkAmpBonus + atkEffBonus,
                 TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -482,9 +487,15 @@ internal static class PlanScorer
             var (skillAmpBonus, skillAmpDetail) = AmplifierSynergy.Compute(card, state, w);
             if (skillAmpBonus != 0) details.Add(skillAmpDetail);
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus;
+            // v0.5 — Effect-axis synergies (BLOCK_AMPLIFIER, VULN_AMPLIFIER, etc.).
+            // Skill side: Entrench / Pillar / Unmovable rise when block accumulated;
+            // Bully / Cruelty / Dismantle rise when enemy is already Vuln.
+            var (skillEffBonus, skillEffDetail) = EffectSynergy.Compute(card, -1, state);
+            if (skillEffBonus != 0) details.Add(skillEffDetail);
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus;
             return new ScoreBreakdown(total, "Skill",
-                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus + skillAmpBonus,
+                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus + skillAmpBonus + skillEffBonus,
                 TargetBonus: 0, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
