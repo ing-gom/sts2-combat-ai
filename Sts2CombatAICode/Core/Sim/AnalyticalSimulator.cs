@@ -50,11 +50,10 @@ internal static class AnalyticalSimulator
             else if (card.IsPower) newFreePowers--;
         }
         if (card.EnergyGain > 0) energy += card.EnergyGain;
-        // v0.5 — EnergizedPower in PowerApps is an immediate +N energy effect
-        // (different from EnergyNextTurnPower which is for next turn). Apply it
-        // here so depth-2 sees the boost when scoring follow-up plays.
-        if (card.PowerApps.TryGetValue("EnergizedPower", out var energizedAmt) && energizedAmt > 0)
-            energy += energizedAmt;
+        // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
+        // energy here. The exact semantics (immediate vs next-turn) varies between
+        // STS variants and we don't have a test harness to verify either way.
+        // PowerCatalog values these via the power-stack mechanism instead.
 
         // 2. Remove the played card from hand. DeepClone produced new references for every
         // SimCard, so ReferenceEquals against the caller's `card` always fails — use record

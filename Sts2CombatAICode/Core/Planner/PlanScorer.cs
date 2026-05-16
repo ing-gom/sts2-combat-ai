@@ -858,16 +858,13 @@ internal static class PlanScorer
     {
         if (!card.IsEnergyGainCard) return 0;
 
-        // v0.5 — only IMMEDIATE energy gain (EnergyVar via EnergyGain > 0, or
-        // EnergizedPower in PowerApps) is evaluated for "unlock waiting big cards"
-        // logic. Next-turn-only gain (EnergyNextTurnPower like Berserk's recurring +1)
-        // doesn't help this turn's playability — the unlock / urgent / waste checks
-        // don't apply, and PowerCatalog values it correctly at 1500/stack already.
-        // Returning 0 here avoids double-penalising Berserk-style cards as "wasted gain".
+        // v0.5 — only IMMEDIATE energy gain (EnergyVar via EnergyGain > 0)
+        // is evaluated for "unlock waiting big cards" logic. EnergizedPower /
+        // EnergyNextTurnPower variants are next-turn / per-turn powers whose
+        // value PowerCatalog captures; folding them in here would double-credit
+        // a card whose actual game effect is on subsequent turns.
+        if (card.EnergyGain <= 0) return 0;
         int immediateGain = card.EnergyGain;
-        if (card.PowerApps.TryGetValue("EnergizedPower", out var energizedAmt))
-            immediateGain += energizedAmt;
-        if (immediateGain <= 0) return 0;
 
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);
 
