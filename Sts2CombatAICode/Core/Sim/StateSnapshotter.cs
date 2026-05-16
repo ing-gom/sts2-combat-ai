@@ -368,7 +368,21 @@ internal static class StateSnapshotter
             }
             orbTag = $" orbs=[{string.Join(",", slots)}/{s.PlayerOrbCapacity}]";
         }
-        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag} hand=[{hand}] enemies=[{enemies}]";
+        // v0.5 — surface player status powers when they're relevant. Common case
+        // (no debuffs / no Intangible / no free counters) prints nothing.
+        var statusBits = new List<string>();
+        if (s.PlayerStrength != 0)   statusBits.Add($"Str:{s.PlayerStrength}");
+        if (s.PlayerDexterity != 0)  statusBits.Add($"Dex:{s.PlayerDexterity}");
+        if (s.PlayerFocus != 0)      statusBits.Add($"Fcs:{s.PlayerFocus}");
+        if (s.PlayerVulnerable > 0)  statusBits.Add($"Vuln:{s.PlayerVulnerable}");
+        if (s.PlayerWeak > 0)        statusBits.Add($"Weak:{s.PlayerWeak}");
+        if (s.PlayerFrail > 0)       statusBits.Add($"Frail:{s.PlayerFrail}");
+        if (s.PlayerIntangible > 0)  statusBits.Add($"Intang:{s.PlayerIntangible}");
+        if (s.PlayerFreeAttacks > 0) statusBits.Add($"FreeA:{s.PlayerFreeAttacks}");
+        if (s.PlayerFreeSkills > 0)  statusBits.Add($"FreeS:{s.PlayerFreeSkills}");
+        if (s.PlayerFreePowers > 0)  statusBits.Add($"FreeP:{s.PlayerFreePowers}");
+        var statusTag = statusBits.Count > 0 ? $" status=[{string.Join(",", statusBits)}]" : "";
+        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag}{statusTag} hand=[{hand}] enemies=[{enemies}]";
     }
 
     private static string FormatCard(SimCard c)
