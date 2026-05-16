@@ -1,6 +1,6 @@
 ---
 name: ai-card-coverage
-description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 평가하는지 (vs HeuristicFallback / DefaultValue 의존) 정적 측정. 신규 카드 추가, PowerCatalog/CardOverrideCatalog 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 8개 metric (catalog inclusion / axis / build / PowerCatalog hit / Override / dropped / per-character / per-build) + 미커버 카드 상세 리포트.
+description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 평가하는지 (단독 평가 path + 카드 간 synergy 룰 reach) 정적 측정. 신규 카드 추가, PowerCatalog/CardOverrideCatalog/BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 단독 metric 6개 + 시너지 metric 4개 (synergy reach / pair-stem completeness / participation degree) + 미커버 카드 / orphan stem 상세.
 ---
 
 # AI Card Coverage Audit
@@ -18,7 +18,9 @@ description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 �
 
 ## 측정 Metric
 
-8 개 정적 지표. 모두 카탈로그 + 소스 파일만 보고 계산 (런타임 로그 X).
+10 개 정적 지표 — 단독 평가 (6) + 카드 간 synergy (4). 모두 카탈로그 + 소스 파일만 보고 계산 (런타임 로그 X).
+
+### 단독 카드 평가 path
 
 | Metric | 정의 | 의미 |
 |---|---|---|
@@ -28,8 +30,22 @@ description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 �
 | **PowerCatalog hit** (Power 한정) | PowerName 이 `SelfBuff`/`EnemyDebuff` dict 에 명시 등록 (lower bound) | Power 카드 명시 평가율 |
 | **Override 활용도** | `CardOverrideCatalog._bonuses` 매칭 (절대 수) | hand-tune 카드 트래킹 |
 | **Dropped** | axes/builds/keywords/trigger 모두 부재 | generic fallback 전적 의존 |
-| **Per-character 분포** | Ironclad/Silent/Defect/Watcher 별 위 metric | 캐릭터 간 평가 균형 |
-| **Per-build 분포** | 빌드 태그별 카드 수 | archetype 균형 |
+
+### 카드 간 Synergy 룰 reach
+
+| Metric | 정의 | 의미 |
+|---|---|---|
+| **Synergy participation** | 5 synergy 룰 (pair / build commit / amp / effect / hand) 중 1+ 에 등장하는 카드 비율 | "단독이 아닌" 카드 비율 |
+| **Synergy-rule reach** | 각 룰별 잠재 활성 카드 수 (`BuildSynergy pair / commitment / AmplifierSynergy / EffectSynergy / HandSynergy`) | 룰의 카드 풀 적용 범위 |
+| **Pair-axis stem completeness** | `*_PRODUCER` × (`*_AMPLIFIER` ∪ `*_CONSUMER`) 양쪽 카드 존재하는 stem 수 / 전체 stem | dead-pair stem 식별 |
+| **Synergy participation degree** | 카드별 매칭 룰 수 분포 (0/1/2/3+) | 0 = synergy 무관 단독 카드 |
+
+### 분포 보조
+
+| Metric | 정의 |
+|---|---|
+| **Per-character 분포** | Ironclad/Silent/Defect/Watcher/Necrobinder/Regent 별 위 metric |
+| **Per-build 분포** | 빌드 태그별 카드 수 |
 
 ## 초기 Threshold (calibration 전, 첫 실행 후 갱신)
 
@@ -39,18 +55,28 @@ description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 �
 | Axis coverage | ≥ 90% | 80~89% | < 80% |
 | PowerCatalog hit | ≥ 70% | 50~69% | < 50% |
 | Dropped | ≤ 2% | 2~5% | > 5% |
+| Synergy participation | ≥ 80% | 65~79% | < 65% |
+| Pair-axis stem completeness | ≥ 70% | 50~69% | < 50% |
 
 threshold 미달 시 우선순위:
 1. **Dropped > 5%**: `extract_card_triggers.py` 의 신호 풀 (axes / builds / keywords / description keyword) 확장 검토
 2. **PowerCatalog hit < 50%**: 누락 Power 이름 상위 N 개를 `PowerCatalog.SelfBuff` 에 명시 등록
 3. **Axis coverage < 80%**: `cards_catalog.json` 의 axis 매핑 (sts2-card-advisor 의 `card_axis_overrides.json`) 확장 — 상위 repo 의 axis-tagger 스킬로 작업
-4. **per-character 분포 편차 > 15%p**: 약한 캐릭터에 character-specific override 우선
+4. **Pair-axis stem orphan 다수**: orphan stem 표를 보고 → `producer-only` 는 amp/cons 추가 또는 producer suffix 제거, `no producer` 는 axis convention 통일 (`VULN` vs `VULN_PRODUCER`) 검토
+5. **Synergy participation < 65%**: AmplifierSynergy / EffectSynergy / HandSynergy 룰을 더 많은 카드에 hook 할 axis 확장 검토
+6. **per-character 분포 편차 > 15%p**: 약한 캐릭터에 character-specific override 우선
 
 ## 핵심 원칙
 
 ### 1. Lower bound 인식
 
 PowerCatalog hit 은 **lower bound**. 카탈로그 `vars` 가 카드가 실제 적용하는 모든 power 를 노출하지는 않음 (예: `CARD.BARRICADE` 의 `vars` 가 비어있지만 실제로는 `BarricadePower` 부여). id-derived `PascalCasePower` fallback 으로 일부 보완하지만, 카드 이름과 power 이름이 다른 경우 (예: `CARD.ABRASIVE → DexterityPower + ThornsPower`) 는 catch 못 함. 실제 hit 율은 보고된 수치보다 높음.
+
+HandSynergy reach 도 동일 한계 — vars 기반 lower bound (BARRICADE 처럼 vars 비어있는 카드는 누락).
+
+### Synergy 는 *잠재* 활성 수, 실제 활성 X
+
+Synergy-rule reach 는 "이 카드가 그 룰을 *공급할 자격*이 있는 카드 수" — 런타임에 실제 활성화되려면 partner 카드가 같은 hand 에 들어와야 함. **상한선 측정**. 실제 평균 activation 은 hand draw 통계에 의존하며 정적 분석으론 알 수 없음.
 
 ### 2. Override 절대 수 (비율 아님)
 
@@ -118,9 +144,12 @@ python scripts/measure_ai_card_coverage.py \
 2. **stdout** — 동일 내용 (sanity check)
 
 리포트 구성:
-- Headline metrics 표 (5 행)
-- PowerCatalog hit rate 세부 표 (lower bound + via vars / via id)
-- Per-character 분포 (Ironclad/Silent/Defect/Watcher)
+- Headline metrics 표 (6 행: 단독 5 + synergy participation 1)
+- PowerCatalog hit rate 세부 표
+- **Synergy-rule reach** (5 룰별 카드 수 / %)
+- **Pair-axis stem completeness** (P / A / C 카운트 표 + complete vs orphan)
+- **Synergy participation degree** (0/1/2/3/4/5 분포)
+- Per-character 분포
 - Per-build 분포 (14 빌드)
 - Top 30 axes
 - Dropped / PowerCatalog miss / no-axes 카드 ID 상위 N 개 (default 20)
@@ -135,8 +164,9 @@ python scripts/measure_ai_card_coverage.py \
 
 ## 한계 — 정적 분석의 본질
 
-- 런타임 `PlanScorer` 가 실제로 어떤 path 를 탔는지는 측정 X (DecisionLog 분석은 v2)
-- `BuildSynergy.Compute()` 가 axis 가 있어도 0 점 반환할 수 있음 (대응 axis 부재 시) — 측정은 "axis 있음" 까지만
+- 런타임 `PlanScorer` 가 실제로 어떤 path 를 탔는지는 측정 X (DecisionLog 분석은 후속)
+- Synergy reach 는 *잠재* 카드 수 — 같은 hand 에 partner 가 안 들어오면 실제론 활성 안 됨
 - `Modifier-aware` 평가 (Str/Vuln/Weak 등) 는 모든 Attack/Skill 카드에 자동 적용 — 별도 metric 없음
+- Axis convention 불일치: `VULN_AMPLIFIER` 는 있는데 `VULN_PRODUCER` 대신 `VULN` 만 쓰는 경우, pair completeness 표가 false-orphan 으로 보고. 표를 보고 axis convention 통일을 검토하는 게 룰 자체의 검증이기도 함.
 
-향후 v2 에서 DecisionLog ring buffer (32 entry) 파싱 추가 검토.
+향후 작업 후보: DecisionLog ring buffer (32 entry) 파싱으로 *실제 활성된* synergy 룰 카운트 (현 metric 은 상한선).

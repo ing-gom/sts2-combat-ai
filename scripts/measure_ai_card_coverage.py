@@ -28,6 +28,22 @@ from pathlib import Path
 POWER_NAME_RE = re.compile(r'"([A-Z][A-Za-z0-9]+Power)"')
 OVERRIDE_ID_RE = re.compile(r'"(CARD\.[A-Z0-9_]+)"')
 
+PAIR_SUFFIXES = ("_PRODUCER", "_AMPLIFIER", "_CONSUMER")
+AMPLIFIER_SYNERGY_AXES = {
+    "POWER_AMPLIFIER", "REPLAY",
+    "ATTACK_REPLAY", "ATTACK_REPLAY_RANDOM", "SKILL_REPLAY",
+}
+EFFECT_SYNERGY_AXES = {
+    "DAMAGE_AMPLIFIER", "BLOCK_AMPLIFIER",
+    "VULN_AMPLIFIER", "WEAK_AMPLIFIER",
+    "BLOCK_PAYOFF", "HP_LOSS_CONSUMER",
+}
+HAND_SYNERGY_POWERS = {
+    "StrengthPower", "TemporaryStrengthPower",
+    "DexterityPower", "TemporaryDexterityPower",
+    "VulnerablePower", "WeakPower",
+}
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -109,6 +125,8 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
     axes = card.get("axes") or []
     builds = card.get("builds") or []
     keywords = card.get("keywords") or []
+    axes_set = set(axes)
+    vars_keys = set((card.get("vars") or {}).keys())
 
     is_power = card.get("type") == "Power"
     pvars = power_vars(card)
@@ -116,6 +134,25 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
     pc_hit_vars = any(v in power_names for v in pvars)
     pc_hit_id = id_derived in power_names
     pc_hit = pc_hit_vars or pc_hit_id
+
+    # ---- synergy participation (catalog-static) ----
+    pair_stems_p = {a[:-len("_PRODUCER")] for a in axes if a.endswith("_PRODUCER")}
+    pair_stems_a = {a[:-len("_AMPLIFIER")] for a in axes if a.endswith("_AMPLIFIER")}
+    pair_stems_c = {a[:-len("_CONSUMER")] for a in axes if a.endswith("_CONSUMER")}
+    has_pair_role = bool(pair_stems_p | pair_stems_a | pair_stems_c)
+    has_amp_axis = bool(axes_set & AMPLIFIER_SYNERGY_AXES)
+    has_eff_axis = bool(axes_set & EFFECT_SYNERGY_AXES)
+    hand_powers = vars_keys & HAND_SYNERGY_POWERS
+    primary_builds = [b["tag"] for b in builds if b.get("role") == "primary"]
+    has_primary_build = bool(primary_builds)
+
+    synergy_rules_hit = sum([
+        has_pair_role,
+        has_amp_axis,
+        has_eff_axis,
+        bool(hand_powers),
+        has_primary_build,
+    ])
 
     return {
         "id": cid,
@@ -131,6 +168,20 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
         "pc_hit_via": ("vars" if pc_hit_vars else ("id" if pc_hit_id else "miss")) if is_power else None,
         "has_override": cid.upper() in override_ids,
         "dropped": not (axes or builds or keywords or has_trigger),
+        # synergy fields
+        "pair_p": pair_stems_p,
+        "pair_a": pair_stems_a,
+        "pair_c": pair_stems_c,
+        "has_pair_role": has_pair_role,
+        "has_amp_axis": has_amp_axis,
+        "amp_axes": axes_set & AMPLIFIER_SYNERGY_AXES,
+        "has_eff_axis": has_eff_axis,
+        "eff_axes": axes_set & EFFECT_SYNERGY_AXES,
+        "hand_powers": hand_powers,
+        "primary_builds": primary_builds,
+        "has_primary_build": has_primary_build,
+        "synergy_rules_hit": synergy_rules_hit,
+        "has_any_synergy": synergy_rules_hit > 0,
     }
 
 
@@ -189,6 +240,8 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"- Override: `{inputs['override_path']}` ({len(override_ids)} cards)")
     lines.append("")
 
+    n_any_synergy = sum(1 for r in rows if r["has_any_synergy"])
+
     lines.append(f"## Headline metrics  ({total} base cards)")
     lines.append("")
     lines.append("| Metric | Count | % |")
@@ -198,6 +251,7 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"| Build participation (`builds[]` non-empty) | {n_builds} / {total} | {pct(n_builds, total)} |")
     lines.append(f"| Override bonus applied | {n_override} / {total} | {pct(n_override, total)} |")
     lines.append(f"| Dropped (no axes/builds/keywords/trigger) | {n_dropped} / {total} | {pct(n_dropped, total)} |")
+    lines.append(f"| Any synergy-rule participation (≥1 of 5 rules) | {n_any_synergy} / {total} | {pct(n_any_synergy, total)} |")
     lines.append("")
 
     lines.append(f"## PowerCatalog hit rate  ({n_power} Power-type base cards)")
@@ -214,6 +268,91 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"| Hit via id-derived PascalCasePower | {n_pc_via_id} | {pct(n_pc_via_id, n_power)} |")
     lines.append(f"| **Any hit (lower bound)** | **{n_pc_hit}** | **{pct(n_pc_hit, n_power)}** |")
     lines.append(f"| Fallback only (HeuristicFallback / Default 200) | {n_power - n_pc_hit} | {pct(n_power - n_pc_hit, n_power)} |")
+    lines.append("")
+
+    # ========= Synergy / pair-axis coverage =========
+    lines.append("## Synergy-rule reach")
+    lines.append("")
+    lines.append("How many cards in the pool can trigger each cross-card synergy rule")
+    lines.append("`PlanScorer` invokes. Counts cards that *can supply* the rule's axis or")
+    lines.append("power input — a card with `POWER_AMPLIFIER` is a potential `AmplifierSynergy`")
+    lines.append("activator regardless of whether a target Power happens to be in hand at")
+    lines.append("runtime.")
+    lines.append("")
+    lines.append("| Rule | Source | Cards | % |")
+    lines.append("|---|---|---:|---:|")
+
+    n_pair = sum(1 for r in rows if r["has_pair_role"])
+    n_amp = sum(1 for r in rows if r["has_amp_axis"])
+    n_eff = sum(1 for r in rows if r["has_eff_axis"])
+    n_hand = sum(1 for r in rows if r["hand_powers"])
+    n_pbuild = sum(1 for r in rows if r["has_primary_build"])
+
+    lines.append(f"| BuildSynergy pair (Producer/Amplifier/Consumer) | `*_PRODUCER/_AMPLIFIER/_CONSUMER` axes | {n_pair} | {pct(n_pair, total)} |")
+    lines.append(f"| BuildSynergy commitment | primary build tag | {n_pbuild} | {pct(n_pbuild, total)} |")
+    lines.append(f"| AmplifierSynergy | `POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY*` / `SKILL_REPLAY` | {n_amp} | {pct(n_amp, total)} |")
+    lines.append(f"| EffectSynergy | `DAMAGE/BLOCK/VULN/WEAK_AMPLIFIER`, `BLOCK_PAYOFF`, `HP_LOSS_CONSUMER` | {n_eff} | {pct(n_eff, total)} |")
+    lines.append(f"| HandSynergy (lower bound) | `vars` keys ∈ {{Strength/Dex/Vuln/Weak Power…}} | {n_hand} | {pct(n_hand, total)} |")
+    lines.append("")
+
+    # Pair-axis stem completeness
+    stems_p: Counter[str] = Counter()
+    stems_a: Counter[str] = Counter()
+    stems_c: Counter[str] = Counter()
+    for r in rows:
+        for s in r["pair_p"]: stems_p[s] += 1
+        for s in r["pair_a"]: stems_a[s] += 1
+        for s in r["pair_c"]: stems_c[s] += 1
+    all_stems = sorted(set(stems_p) | set(stems_a) | set(stems_c))
+
+    n_complete = sum(1 for s in all_stems if stems_p[s] and (stems_a[s] or stems_c[s]))
+    n_orphan = sum(1 for s in all_stems if not stems_p[s] or not (stems_a[s] or stems_c[s]))
+
+    lines.append(f"## Pair-axis stem completeness  ({len(all_stems)} stems)")
+    lines.append("")
+    lines.append(f"A stem `X` triggers `BuildSynergy.Compute()` pair bonuses only when there")
+    lines.append(f"is at least one `X_PRODUCER` AND at least one `X_AMPLIFIER` or `X_CONSUMER`")
+    lines.append(f"card. Stems missing a side are dead pairs in the catalog.")
+    lines.append("")
+    lines.append(f"- **Complete stems** (P ≥ 1 AND (A ≥ 1 OR C ≥ 1)): **{n_complete} / {len(all_stems)}**")
+    lines.append(f"- **Orphan stems** (missing one side): **{n_orphan}**")
+    lines.append("")
+    lines.append("| Stem | Producer | Amplifier | Consumer | Status |")
+    lines.append("|---|---:|---:|---:|---|")
+    for s in all_stems:
+        p, a, c = stems_p[s], stems_a[s], stems_c[s]
+        if p and (a or c):
+            status = "complete"
+        elif p and not a and not c:
+            status = "producer-only"
+        elif not p and (a or c):
+            status = "no producer"
+        else:
+            status = "?"
+        lines.append(f"| {s} | {p} | {a} | {c} | {status} |")
+    lines.append("")
+
+    # Synergy participation distribution
+    degree_counts: Counter[int] = Counter(r["synergy_rules_hit"] for r in rows)
+    lines.append("## Synergy participation degree")
+    lines.append("")
+    lines.append("Per-card count of synergy rules the card *can* feed (out of 5):")
+    lines.append("`BuildSynergy pair`, `BuildSynergy commitment`, `AmplifierSynergy`,")
+    lines.append("`EffectSynergy`, `HandSynergy` (vars-based lower bound).")
+    lines.append("")
+    lines.append("| Degree | Cards | % | Interpretation |")
+    lines.append("|---:|---:|---:|---|")
+    interp = {
+        0: "no synergy hooks — evaluated as a standalone card",
+        1: "single-rule (mostly build or pair)",
+        2: "two-rule (build + pair, or pair + effect…)",
+        3: "three-rule (high synergy density)",
+        4: "four-rule (very dense)",
+        5: "all five",
+    }
+    for d in range(0, 6):
+        n = degree_counts[d]
+        lines.append(f"| {d} | {n} | {pct(n, total)} | {interp[d]} |")
     lines.append("")
 
     lines.append("## Per-character coverage")
@@ -300,6 +439,14 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append("  the card id (e.g. `CARD.ABRASIVE → DexterityPower + ThornsPower`).")
     lines.append("- **Override list is sparse by design.** Low % here is expected, not a bug;")
     lines.append("  the metric is for absolute count tracking across releases.")
+    lines.append("- **Synergy reach is a *potential* count, not realized activation.** A card")
+    lines.append("  with `POWER_AMPLIFIER` only earns the bonus if a target Power is in hand")
+    lines.append("  at the moment of scoring; runtime activation depends on hand composition,")
+    lines.append("  draw order, and remaining energy. Static reach is the upper bound.")
+    lines.append("- **HandSynergy reach is a lower bound (vars-based).** Cards that apply")
+    lines.append("  Strength/Dex/Vuln/Weak through descriptions without exposing the power")
+    lines.append("  name in `vars` are missed. Hits via `card.PowerApps` at runtime would be")
+    lines.append("  higher.")
     lines.append("")
 
     return "\n".join(lines)
