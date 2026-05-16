@@ -27,6 +27,7 @@ from pathlib import Path
 
 POWER_NAME_RE = re.compile(r'"([A-Z][A-Za-z0-9]+Power)"')
 OVERRIDE_ID_RE = re.compile(r'"(CARD\.[A-Z0-9_]+)"')
+TIER_RE = re.compile(r'\{\s*"([A-Z][A-Za-z0-9]+Power)"\s*,\s*SequencingTier\.(\w+)\s*\}')
 
 PAIR_SUFFIXES = ("_PRODUCER", "_AMPLIFIER", "_CONSUMER")
 AMPLIFIER_SYNERGY_AXES = {
@@ -44,6 +45,25 @@ HAND_SYNERGY_POWERS = {
     "VulnerablePower", "WeakPower",
 }
 
+# Self-modifier axes that drive PlanScorer.PlayOrderBias / waste-avoidance branches.
+SELF_MODIFIER_AXES = (
+    "EXHAUST_SELF", "RETAIN_SELF", "ETHEREAL_SELF",
+    "INNATE", "INNATE_SELF", "UNPLAYABLE",
+)
+
+# vars-key patterns the conditional-damage path in PlanScorer handles separately.
+CONDITIONAL_VAR_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "Calculated*": (
+        "CalculatedDamage", "CalculatedBlock", "CalculatedHits",
+        "CalculatedCards", "CalculatedChannels", "CalculatedDoom",
+        "CalculatedEnergy", "CalculatedFocus", "CalculatedForge",
+        "CalculatedShivs",
+    ),
+    "Calculation base/extra": ("CalculationBase", "CalculationExtra"),
+    "Extra*": ("ExtraDamage", "ExtraBlock", "ExtraCost"),
+    "Repeat": ("Repeat",),
+}
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -55,6 +75,8 @@ def parse_args() -> argparse.Namespace:
                    help="PowerCatalog.cs source (default: Sts2CombatAICode/Core/Planner/PowerCatalog.cs)")
     p.add_argument("--override-catalog", type=Path, default=None,
                    help="CardOverrideCatalog.cs source (default: Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs)")
+    p.add_argument("--sequencing-tier", type=Path, default=None,
+                   help="PowerSequencingTier.cs source (default: Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs)")
     p.add_argument("--out", type=Path, default=None,
                    help="Also write the Markdown report to this path")
     p.add_argument("--top-uncovered", type=int, default=20,
@@ -72,8 +94,9 @@ def load_inputs(args: argparse.Namespace):
     triggers_path = args.triggers or (root / "Sts2CombatAICode" / "Core" / "Data" / "card_triggers.json")
     power_path = args.power_catalog or (root / "Sts2CombatAICode" / "Core" / "Planner" / "PowerCatalog.cs")
     override_path = args.override_catalog or (root / "Sts2CombatAICode" / "Core" / "Planner" / "CardOverrideCatalog.cs")
+    tier_path = args.sequencing_tier or (root / "Sts2CombatAICode" / "Core" / "Planner" / "PowerSequencingTier.cs")
 
-    missing = [p for p in (catalog_path, triggers_path, power_path, override_path) if not p.exists()]
+    missing = [p for p in (catalog_path, triggers_path, power_path, override_path, tier_path) if not p.exists()]
     if missing:
         print("Missing input file(s):", file=sys.stderr)
         for p in missing:
@@ -84,19 +107,23 @@ def load_inputs(args: argparse.Namespace):
     triggers = json.loads(triggers_path.read_text(encoding="utf-8"))
     power_src = power_path.read_text(encoding="utf-8")
     override_src = override_path.read_text(encoding="utf-8")
+    tier_src = tier_path.read_text(encoding="utf-8")
 
     power_names = set(POWER_NAME_RE.findall(power_src))
     override_ids = {cid.upper() for cid in OVERRIDE_ID_RE.findall(override_src)}
+    tier_map: dict[str, str] = {pw: tier for pw, tier in TIER_RE.findall(tier_src)}
 
     return {
         "catalog": catalog,
         "triggers": triggers,
         "power_names": power_names,
         "override_ids": override_ids,
+        "tier_map": tier_map,
         "catalog_path": catalog_path,
         "triggers_path": triggers_path,
         "power_path": power_path,
         "override_path": override_path,
+        "tier_path": tier_path,
     }
 
 
@@ -118,7 +145,8 @@ def derive_power_name_from_id(card_id: str) -> str:
     return "".join(p.capitalize() for p in parts) + "Power"
 
 
-def classify(card: dict, triggers: dict, power_names: set[str], override_ids: set[str]) -> dict:
+def classify(card: dict, triggers: dict, power_names: set[str], override_ids: set[str],
+             tier_map: dict[str, str]) -> dict:
     cid = card["id"]
     trig = triggers["cards"].get(cid)
     has_trigger = trig is not None
@@ -134,6 +162,37 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
     pc_hit_vars = any(v in power_names for v in pvars)
     pc_hit_id = id_derived in power_names
     pc_hit = pc_hit_vars or pc_hit_id
+
+    # ---- PowerSequencingTier classification (Power cards) ----
+    seq_tier: str | None = None
+    if is_power:
+        candidates = list(pvars)
+        if id_derived not in candidates:
+            candidates.append(id_derived)
+        # Highest-priority tier wins, matching PowerSequencingTier.Classify() rule
+        priority = {"Setup": 4, "Scaling": 3, "Defensive": 2, "Tempo": 1, "Unknown": 0, "SelfHarm": -1}
+        for pn in candidates:
+            t = tier_map.get(pn)
+            if t is None: continue
+            if seq_tier is None or priority.get(t, 0) > priority.get(seq_tier, 0):
+                seq_tier = t
+        if seq_tier is None:
+            seq_tier = "Unknown"
+
+    # ---- Conditional / Calculated damage vars ----
+    cond_cats: set[str] = set()
+    for cat, keys in CONDITIONAL_VAR_CATEGORIES.items():
+        if any(k in vars_keys for k in keys):
+            cond_cats.add(cat)
+    has_conditional = bool(cond_cats)
+
+    # ---- Self-modifier axes (Exhaust/Retain/Ethereal/Innate/Unplayable) ----
+    self_mods = axes_set & set(SELF_MODIFIER_AXES)
+
+    # ---- SelectorMode triggers (Burn/Boost) — from card_triggers.json ----
+    selector_upgrade = bool(trig and trig.get("upgrade_trigger"))
+    selector_fetch = bool(trig and trig.get("fetch_trigger"))
+    has_selector_trigger = selector_upgrade or selector_fetch
 
     # ---- synergy participation (catalog-static) ----
     pair_stems_p = {a[:-len("_PRODUCER")] for a in axes if a.endswith("_PRODUCER")}
@@ -182,6 +241,15 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
         "has_primary_build": has_primary_build,
         "synergy_rules_hit": synergy_rules_hit,
         "has_any_synergy": synergy_rules_hit > 0,
+        # v3 — extended evaluation paths
+        "seq_tier": seq_tier,                          # None for non-Power
+        "cond_categories": cond_cats,
+        "has_conditional": has_conditional,
+        "self_modifiers": self_mods,
+        "has_self_modifier": bool(self_mods),
+        "selector_upgrade": selector_upgrade,
+        "selector_fetch": selector_fetch,
+        "has_selector_trigger": has_selector_trigger,
     }
 
 
@@ -194,9 +262,10 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     triggers = inputs["triggers"]
     power_names = inputs["power_names"]
     override_ids = inputs["override_ids"]
+    tier_map = inputs["tier_map"]
 
     base_cards = [c for c in catalog["cards"] if not c.get("is_upgraded")]
-    rows = [classify(c, triggers, power_names, override_ids) for c in base_cards]
+    rows = [classify(c, triggers, power_names, override_ids, tier_map) for c in base_cards]
 
     total = len(rows)
     n_trigger = sum(1 for r in rows if r["has_trigger"])
@@ -237,6 +306,7 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"- Master catalog: `{inputs['catalog_path']}` (game {catalog_version})")
     lines.append(f"- Embedded triggers: `{inputs['triggers_path']}` ({triggers_version})")
     lines.append(f"- PowerCatalog: `{inputs['power_path']}` ({len(power_names)} powers registered)")
+    lines.append(f"- PowerSequencingTier: `{inputs['tier_path']}` ({len(tier_map)} powers classified)")
     lines.append(f"- Override: `{inputs['override_path']}` ({len(override_ids)} cards)")
     lines.append("")
 
@@ -252,6 +322,13 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"| Override bonus applied | {n_override} / {total} | {pct(n_override, total)} |")
     lines.append(f"| Dropped (no axes/builds/keywords/trigger) | {n_dropped} / {total} | {pct(n_dropped, total)} |")
     lines.append(f"| Any synergy-rule participation (≥1 of 5 rules) | {n_any_synergy} / {total} | {pct(n_any_synergy, total)} |")
+
+    n_conditional = sum(1 for r in rows if r["has_conditional"])
+    n_self_mod = sum(1 for r in rows if r["has_self_modifier"])
+    n_selector = sum(1 for r in rows if r["has_selector_trigger"])
+    lines.append(f"| Conditional-damage vars (`Calculated*` / `Extra*` / `Repeat`) | {n_conditional} / {total} | {pct(n_conditional, total)} |")
+    lines.append(f"| Self-modifier axes (`EXHAUST/RETAIN/ETHEREAL/INNATE/UNPLAYABLE`) | {n_self_mod} / {total} | {pct(n_self_mod, total)} |")
+    lines.append(f"| SelectorMode trigger (`upgrade_trigger` / `fetch_trigger`) | {n_selector} / {total} | {pct(n_selector, total)} |")
     lines.append("")
 
     lines.append(f"## PowerCatalog hit rate  ({n_power} Power-type base cards)")
@@ -268,6 +345,75 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"| Hit via id-derived PascalCasePower | {n_pc_via_id} | {pct(n_pc_via_id, n_power)} |")
     lines.append(f"| **Any hit (lower bound)** | **{n_pc_hit}** | **{pct(n_pc_hit, n_power)}** |")
     lines.append(f"| Fallback only (HeuristicFallback / Default 200) | {n_power - n_pc_hit} | {pct(n_power - n_pc_hit, n_power)} |")
+    lines.append("")
+
+    # ========= PowerSequencingTier =========
+    tier_counts: Counter[str] = Counter(r["seq_tier"] for r in power_rows)
+    n_tier_classified = sum(v for k, v in tier_counts.items() if k != "Unknown")
+    lines.append("## PowerSequencingTier coverage  (Power cards only)")
+    lines.append("")
+    lines.append("Within-turn ordering bonus for Power cards. `Unknown` tier receives 0")
+    lines.append("ordering bonus — those cards rely on raw PowerCatalog value only.")
+    lines.append("")
+    lines.append("| Tier | Cards | % |")
+    lines.append("|---|---:|---:|")
+    for tier in ("Setup", "Scaling", "Defensive", "Tempo", "SelfHarm", "Unknown"):
+        n = tier_counts.get(tier, 0)
+        lines.append(f"| {tier} | {n} | {pct(n, n_power)} |")
+    lines.append(f"| **Classified (any non-Unknown)** | **{n_tier_classified}** | **{pct(n_tier_classified, n_power)}** |")
+    lines.append("")
+
+    # ========= Conditional damage =========
+    cond_cat_counts: Counter[str] = Counter()
+    for r in rows:
+        for cat in r["cond_categories"]:
+            cond_cat_counts[cat] += 1
+    lines.append(f"## Conditional damage / vars patterns  ({n_conditional} cards)")
+    lines.append("")
+    lines.append("Cards whose damage / block / hits depend on runtime calculation. PlanScorer")
+    lines.append("has special handling for these (`CalculatedDamage`, `ExtraDamage` etc.) —")
+    lines.append("missing the pattern means the card falls back to static stat scoring.")
+    lines.append("")
+    lines.append("| Category | Sample vars keys | Cards |")
+    lines.append("|---|---|---:|")
+    for cat, keys in CONDITIONAL_VAR_CATEGORIES.items():
+        n = cond_cat_counts.get(cat, 0)
+        sample = ", ".join(f"`{k}`" for k in keys[:3])
+        if len(keys) > 3:
+            sample += ", …"
+        lines.append(f"| {cat} | {sample} | {n} |")
+    lines.append("")
+
+    # ========= Self-modifier axes =========
+    self_mod_counts: Counter[str] = Counter()
+    for r in rows:
+        for a in r["self_modifiers"]:
+            self_mod_counts[a] += 1
+    lines.append(f"## Self-modifier axes  ({n_self_mod} cards have ≥1)")
+    lines.append("")
+    lines.append("Axes that drive `PlanScorer.PlayOrderBias` and waste-avoidance branches")
+    lines.append("(Retain defer, Ethereal-now bonus, Exhaust loss, Innate opener, Unplayable")
+    lines.append("rejection). A card outside this set takes the default play-order path.")
+    lines.append("")
+    lines.append("| Axis | Cards |")
+    lines.append("|---|---:|")
+    for a in SELF_MODIFIER_AXES:
+        lines.append(f"| {a} | {self_mod_counts.get(a, 0)} |")
+    lines.append("")
+
+    # ========= SelectorMode triggers =========
+    n_upg = sum(1 for r in rows if r["selector_upgrade"])
+    n_fch = sum(1 for r in rows if r["selector_fetch"])
+    lines.append(f"## SelectorMode triggers  ({n_selector} cards)")
+    lines.append("")
+    lines.append("Cards whose description keywords drive the Burn vs Boost prompt mode in")
+    lines.append("`SelectorMode`. Cards without any trigger fall back to the default mode")
+    lines.append("(usually Burn / discard-worst).")
+    lines.append("")
+    lines.append("| Trigger | Source | Cards |")
+    lines.append("|---|---|---:|")
+    lines.append(f"| `upgrade_trigger` | description contains \"강화\" | {n_upg} |")
+    lines.append(f"| `fetch_trigger` | description contains 가져옴 / 생성 | {n_fch} |")
     lines.append("")
 
     # ========= Synergy / pair-axis coverage =========
@@ -447,6 +593,13 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append("  Strength/Dex/Vuln/Weak through descriptions without exposing the power")
     lines.append("  name in `vars` are missed. Hits via `card.PowerApps` at runtime would be")
     lines.append("  higher.")
+    lines.append("- **PowerSequencingTier hit shares the lower-bound caveat.** Same vars +")
+    lines.append("  id-derived matching as PowerCatalog — a Power card whose applied power")
+    lines.append("  name is not in `vars` or in the id-derived form will be reported as")
+    lines.append("  `Unknown` even when the power IS registered in the tier map.")
+    lines.append("- **Target distribution and Orb ChannelCount-based reach are not measured**")
+    lines.append("  because the catalog exposes neither `target` nor `ChannelCount`. Those")
+    lines.append("  paths can only be audited via runtime reflection.")
     lines.append("")
 
     return "\n".join(lines)
