@@ -123,8 +123,14 @@ internal static class EffectSynergy
             !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
             && (c.Axes.Contains("WEAK") || c.PowerApps.ContainsKey("WeakPower")));
 
-        if (anyWeak)         { b += 250; parts.Add("weakAmpEnemy=+250"); }
-        else if (weakInHand) { b += 150; parts.Add("weakAmpInHand=+150"); }
+        // Multi-hit enemies (Repeats ≥ 2) make Weak's per-hit rounding compound.
+        // Each such enemy adds extra value to the amplifier.
+        int multiHitEnemies = state.Enemies.Count(e =>
+            e.IsAlive && e.HasAttackIntent && !e.IsInert && e.IntentRepeats >= 2);
+        int multiHitBonus = multiHitEnemies * 120;
+
+        if (anyWeak)         { b += 250 + multiHitBonus; parts.Add($"weakAmpEnemy=+{250 + multiHitBonus}"); }
+        else if (weakInHand) { b += 150 + multiHitBonus; parts.Add($"weakAmpInHand=+{150 + multiHitBonus}"); }
         else                 { b -= 150; parts.Add("weakAmpNoSource=-150"); }
     }
 

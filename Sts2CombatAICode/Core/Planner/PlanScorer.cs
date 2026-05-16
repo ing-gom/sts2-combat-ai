@@ -704,12 +704,21 @@ internal static class PlanScorer
         return 0;
     }
 
+    private const int HandSizeCap = 10;
+
     /// <summary>
     /// v0.2.6 — Draw-card value. Drawing is valuable when the rest of the hand can't do
     /// much. We measure the BEST score among the other cards in the hand and the size of
     /// the draw pile (no point drawing from an empty pile).
     ///
     /// v0.2.9 — pile-aware: if DrawPileSize+DiscardPileSize == 0 → drawing is futile.
+    ///
+    /// v0.5 — energy-after-draw + hand-cap checks:
+    ///   • Playing a 1-cost draw with 1 energy leaves 0 energy. Unless a 0-cost or
+    ///     energy-gain card is queued in hand to bridge, the drawn cards are
+    ///     next-turn-only — score discounted or penalised by remaining-hand quality.
+    ///   • Drawing past the 10-card hand cap wastes the overflow — penalty scales
+    ///     with the wasted fraction.
     /// </summary>
     private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w)
     {
@@ -719,11 +728,17 @@ internal static class PlanScorer
         int totalPile = state.DrawPileSize + state.DiscardPileSize;
         if (totalPile == 0) return w.DrawEmptyPilePenalty;
 
-        // Find the max score among other cards in hand.
+        // Walk the rest of the hand once — capture best non-draw score AND any
+        // chain-enabler counts (0-cost cards / energy-gain cards). One pass.
         int bestOtherScore = int.MinValue;
+        int zeroCostOthers = 0;
+        int energyGainOthers = 0;
         foreach (var c in state.Hand)
         {
             if (ReferenceEquals(c, card) || c.Played) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            if (c.Cost == 0) zeroCostOthers++;
+            if (c.IsEnergyGainCard) energyGainOthers++;
             if (c.IsDrawCard) continue;
             int targetIdx = -1;
             if (c.Target == MegaCrit.Sts2.Core.Entities.Cards.TargetType.AnyEnemy)
@@ -746,6 +761,35 @@ internal static class PlanScorer
         // v0.2.9 — small pile thinning: very small pile (<=2) reduces draw value
         // because there's little new info to fetch.
         if (totalPile <= 2) handBonus = handBonus / 2;
+
+        // v0.5 — Energy-after-draw check. If the draw leaves 0 energy and nothing
+        // in hand bridges (0-cost or energy-gain), the drawn cards are next-turn
+        // only — heavily discount when a strong play is being skipped, fractional
+        // value when the hand is weak (next-turn setup still has some worth).
+        int energyAfter = state.PlayerEnergy - card.Cost + card.EnergyGain;
+        bool canChainThisTurn = energyAfter > 0 || zeroCostOthers > 0 || energyGainOthers > 0;
+        if (!canChainThisTurn)
+        {
+            if (bestOtherScore >= w.HandStrongThreshold)
+                handBonus -= 800;
+            else if (bestOtherScore >= w.HandWeakThreshold)
+                handBonus -= 400;
+            else
+                handBonus = handBonus / 3;
+        }
+
+        // v0.5 — Hand-cap overflow: drawn cards over 10 are silently discarded.
+        // Penalty proportional to the wasted fraction of the draw.
+        if (card.DrawCount > 0)
+        {
+            int handAfterPlay = state.Hand.Count(c => !c.Played) - 1;  // self consumed
+            int wasted = (handAfterPlay + card.DrawCount) - HandSizeCap;
+            if (wasted > 0)
+            {
+                int wastedFrac = System.Math.Min(100, (wasted * 100) / card.DrawCount);
+                handBonus -= (System.Math.Abs(handBonus) * wastedFrac) / 100;
+            }
+        }
 
         return handBonus;
     }
