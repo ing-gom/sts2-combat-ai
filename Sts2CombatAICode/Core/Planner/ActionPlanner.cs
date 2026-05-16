@@ -133,7 +133,11 @@ internal static class ActionPlanner
             // Energy-gain card is pointless if there's nothing left to spend the gained energy on.
             // Excluding here (vs penalising in PlanScorer) guarantees we never play it as a
             // "least bad" fallback when the hand has no other useful card.
-            if (card.IsEnergyGainCard && !card.IsAttack && card.Damage == 0)
+            // v0.5 — only THIS-turn energy gain (Effect.EnergyGain > 0, Adrenaline-style)
+            // qualifies. NEXT-turn variants (EnergyNextTurnPower like Berserk) gain energy
+            // on subsequent turns and stay valuable even when this hand is empty.
+            if (card.IsEnergyGainCard && card.EnergyGain > 0
+                && !card.IsAttack && card.Damage == 0)
             {
                 bool anyOtherUseful = false;
                 foreach (var c in state.Hand)
