@@ -242,15 +242,61 @@ internal static class PlanScorer
                 }
             }
 
-            int damageMultiplier = isAoe ? System.Math.Max(1, aliveCount) : 1;
-            int effect = effectiveTotal * damageMultiplier * w.DamagePerPointBonus;
-            string dmgLabel = effectiveTotal != card.TotalDamage
-                ? $"eff{effectiveTotal}(base{card.TotalDamage})"
-                : $"dmg{card.TotalDamage}";
-            if (isAoe && aliveCount > 1)
-                details.Add($"{dmgLabel}*{w.DamagePerPointBonus}*aoe{aliveCount}={effect}");
+            int effect;
+            string dmgLabel;
+            if (isAoe)
+            {
+                // v0.5 — Per-enemy AOE damage with each target's own Vulnerable, Intangible
+                // (DamageCapPerHit) and HardenedShellRemaining cap applied. The previous bulk
+                // `effectivePerHit × Hits × aliveCount` used the wrong-target Vulnerable
+                // (always false for AOE) and ignored caps entirely, so AOE was over-valued
+                // against Intangible/HardToKill enemies and under-valued against vulnerable.
+                int aggregatedDmg = 0;
+                int capsHit = 0, shellHit = 0;
+                int aoeMultiplier = System.Math.Max(1, card.Hits);
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (!e.IsAlive) continue;
+                    int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
+                        state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                    if (e.DamageCapPerHit > 0 && perHit > e.DamageCapPerHit)
+                    {
+                        perHit = e.DamageCapPerHit;
+                        capsHit++;
+                    }
+                    int perEnemyTotal = perHit * aoeMultiplier;
+                    if (e.HardenedShellRemaining > 0 && perEnemyTotal > e.HardenedShellRemaining)
+                    {
+                        perEnemyTotal = e.HardenedShellRemaining;
+                        shellHit++;
+                    }
+                    else if (perHit > 0 && e.Powers.ContainsKey("HardenedShellPower"))
+                    {
+                        // Shell exists but budget spent — every hit on this enemy 0 dmg.
+                        perEnemyTotal = 0;
+                        shellHit++;
+                    }
+                    aggregatedDmg += perEnemyTotal;
+                }
+                effect = aggregatedDmg * w.DamagePerPointBonus;
+                dmgLabel = aggregatedDmg != card.TotalDamage * System.Math.Max(1, aliveCount)
+                    ? $"eff{aggregatedDmg}(base{card.TotalDamage}×{aliveCount})"
+                    : $"dmg{aggregatedDmg}";
+                var clampTags = (capsHit > 0 ? $",cap×{capsHit}" : "")
+                              + (shellHit > 0 ? $",shell×{shellHit}" : "");
+                details.Add(aliveCount > 1
+                    ? $"{dmgLabel}*{w.DamagePerPointBonus}*aoe{aliveCount}={effect}{clampTags}"
+                    : $"{dmgLabel}*{w.DamagePerPointBonus}={effect}{clampTags}");
+            }
             else
+            {
+                effect = effectiveTotal * w.DamagePerPointBonus;
+                dmgLabel = effectiveTotal != card.TotalDamage
+                    ? $"eff{effectiveTotal}(base{card.TotalDamage})"
+                    : $"dmg{card.TotalDamage}";
                 details.Add($"{dmgLabel}*{w.DamagePerPointBonus}={effect}");
+            }
 
             int attached = 0;
             foreach (var (powerName, amount) in card.PowerApps)
