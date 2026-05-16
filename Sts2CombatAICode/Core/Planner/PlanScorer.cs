@@ -277,11 +277,13 @@ internal static class PlanScorer
                 // then multiplier for AOE breadth.
                 int perEnemy = (int)(PowerCatalog.ValueEnemyDebuff(powerName, amount) * w.AttachedDebuffMultiplier);
 
-                // v0.2.9 — Artifact blocks our enemy debuffs. Per-enemy gating:
-                // count alive enemies whose ArtifactAmount blocks at least one stack.
+                // v0.2.9 — Artifact blocks our enemy debuffs. v0.5 — canonical STS
+                // semantics: each debuff APPLICATION consumes 1 Artifact charge and is
+                // entirely blocked (the amount is irrelevant). So an enemy is "reached"
+                // by this debuff iff its Artifact stack is 0.
                 if (isAoe)
                 {
-                    int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount < amount);
+                    int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount == 0);
                     int blocked = aliveCount - reach;
                     if (blocked > 0)
                         details.Add($"  artifact-blocked={blocked}");
@@ -292,11 +294,11 @@ internal static class PlanScorer
                 else
                 {
                     bool blockedSingle = targetIdx >= 0 && targetIdx < state.Enemies.Count
-                        && state.Enemies[targetIdx].ArtifactAmount >= amount;
+                        && state.Enemies[targetIdx].ArtifactAmount > 0;
                     if (blockedSingle)
                     {
                         details.Add($"+{Short(powerName)}({amount})=BLOCKED");
-                        // perEnemy = 0 — Artifact fully absorbs this debuff stack
+                        // perEnemy = 0 — Artifact fully absorbs this debuff application
                     }
                     else
                     {
@@ -488,13 +490,13 @@ internal static class PlanScorer
                     // v0.5 — skill enemy-debuff scoring now respects:
                     //   • AOE scaling: AllEnemies skills (Footwork-style Weak-to-all)
                     //     used to score a single-target value regardless of board.
-                    //   • Artifact gating: per-target Artifact absorbs the stack and
-                    //     should zero out that target's contribution. AOE reduces by
-                    //     count of enemies whose Artifact blocks the stack.
+                    //   • Artifact gating (canonical STS): each debuff APPLICATION
+                    //     consumes one Artifact charge and is entirely blocked. So an
+                    //     enemy is reachable iff their ArtifactAmount is 0.
                     int per = PowerCatalog.ValueEnemyDebuff(powerName, amount);
                     if (skillIsAoe)
                     {
-                        int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount < amount);
+                        int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount == 0);
                         int blocked = state.Enemies.Count(e => e.IsAlive) - reach;
                         v = per * reach;
                         powerEffect += v;
@@ -503,7 +505,7 @@ internal static class PlanScorer
                             : $"{Short(powerName)}({amount})→aoe×{reach}={v}");
                     }
                     else if (targetIdx >= 0 && targetIdx < state.Enemies.Count
-                             && state.Enemies[targetIdx].ArtifactAmount >= amount)
+                             && state.Enemies[targetIdx].ArtifactAmount > 0)
                     {
                         v = 0;
                         details.Add($"{Short(powerName)}({amount})→enemy=BLOCKED");
