@@ -23,7 +23,6 @@ internal static class CardOverrideCatalog
 
         // — Fetch / dig cards that bring more cards into play —
         ["CARD.ANOINTED"]     = 300,   // pulls all rare from draw pile
-        ["CARD.FORETHOUGHT"]  = 200,
         ["CARD.HAVOC"]        = 200,
         ["CARD.ALL_FOR_ONE"]  = 400,   // damage 10 + reclaim ALL 0-cost from discard
 

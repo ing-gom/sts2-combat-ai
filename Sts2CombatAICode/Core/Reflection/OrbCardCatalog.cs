@@ -77,7 +77,12 @@ internal static class OrbCardCatalog
 
         // ORB_PRODUCER axis means at least 1 channel — but for X-cost cases we've already
         // set channelCount above and don't want to overwrite.
-        if (channelCount == 0 && axes.Contains("ORB_PRODUCER"))
+        // v0.5 — also skip if the card already has an evoke contribution. Shatter and
+        // similar attack-evokers are tagged with both ORB_PRODUCER AND ORB_EVOKE in
+        // the catalog but only evoke the front orb (no channel). Without this guard,
+        // OrbCardCatalog would set channelCount=1, BuildSynergy would treat them as
+        // channelers and apply the wrong full-slots penalty.
+        if (channelCount == 0 && evokeCount == 0 && axes.Contains("ORB_PRODUCER"))
             channelCount = 1;
 
         if (kind == OrbKind.Unknown)

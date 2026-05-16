@@ -97,6 +97,10 @@ internal sealed class PlanScorerWeights
     // v0.2.11 — DoT-aware overkill avoidance.
     // Enemy already on heavy poison will die soon to DoT; extra direct damage is partly wasted.
     public int HeavyDotPenalty = -300;             // poison/constrict ≥ enemy_hp * 0.5 → overkill
+    // v0.5 — poison-lethal: PoisonAmount ≥ Hp → guaranteed dead before next attack. Most
+    // attacks on this target are wasted. Stronger penalty than HeavyDot so direct damage
+    // redirects to a live, threatening enemy instead.
+    public int PoisonLethalPenalty = -1200;
 
     // v0.2.13 — Defect orb-aware scoring.
     public int OrbProducerEmptySlotsBonus = 150;   // channeling when slots available
@@ -115,6 +119,16 @@ internal sealed class PlanScorerWeights
     public int HandWeakThreshold = 1000;           // below this → drawing helps
     public int HandStrongThreshold = 2000;         // above this → drawing wastes
     public int DrawEmptyPilePenalty = -1000;       // v0.2.9 — pile empty → drawing is futile
+
+    // v0.5 — Retain / Ethereal play-order biases.
+    // Retain: small per-alternative penalty so a retainable card defers until no
+    // non-retain play remains in hand. 60 × N alternatives gives a clear "play
+    // those first" signal without overriding lethal / threat-bonus situations.
+    public int RetainDeferPenaltyPerAlternative = 60;
+    // Ethereal: small flat bonus to ensure we don't lose a borderline-value
+    // ethereal to end-of-turn exhaust. Magnitude < BlockNeutralizeBonus so it
+    // doesn't pull the planner off a real defensive play.
+    public int EtherealPlayNowBonus = 120;
 
     public static readonly PlanScorerWeights Defensive = new()
     {
