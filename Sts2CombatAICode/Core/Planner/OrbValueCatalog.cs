@@ -45,21 +45,26 @@ internal static class OrbValueCatalog
 
     /// <summary>
     /// Value of channeling an orb of this kind (passive contribution over the remaining fight).
+    /// v0.5 — Focus scaling: every per-turn passive tick gains +PlayerFocus damage/block
+    /// (Plasma untouched since energy isn't Focus-scaled).
     /// </summary>
     public static int PassiveValue(OrbKind kind, SimState state, int aliveEnemies)
     {
         int turns = EstimateTurnsLeft(state);
+        int focus = System.Math.Max(0, state.PlayerFocus);
         return kind switch
         {
-            OrbKind.Lightning => 3 * DmgScore * turns,                       // 3 dmg/turn
-            OrbKind.Frost     => 2 * BlockScore * turns,                     // 2 block/turn
+            OrbKind.Lightning => (3 + focus) * DmgScore * turns,             // 3+Focus dmg/turn
+            OrbKind.Frost     => (2 + focus) * BlockScore * turns,           // 2+Focus block/turn
             // Dark passive raises the orb's own evokeVal — value materialises only on evoke;
             // attribute roughly half the accumulated value here so channeling early Dark
-            // doesn't look worse than evoking immediately.
-            OrbKind.Dark      => 6 * DmgScore * turns / 2,
-            OrbKind.Plasma    => 1 * EnergyScore * turns,                    // 1 energy/turn
+            // doesn't look worse than evoking immediately. Focus adds to the tick value too.
+            OrbKind.Dark      => (6 + focus) * DmgScore * turns / 2,
+            OrbKind.Plasma    => 1 * EnergyScore * turns,                    // 1 energy/turn (no Focus)
             // Glass passive decays 4→3→2→1→0 over 4 turns. AOE multiplies by alive enemies.
-            OrbKind.Glass     => GlassPassiveSum(turns) * DmgScore * System.Math.Max(1, aliveEnemies),
+            // Focus adds a flat +Focus per remaining turn on top of the decay curve.
+            OrbKind.Glass     => (GlassPassiveSum(turns) + focus * turns) * DmgScore
+                                * System.Math.Max(1, aliveEnemies),
             _ => 0,
         };
     }
@@ -67,16 +72,19 @@ internal static class OrbValueCatalog
     /// <summary>
     /// Value of evoking an orb of this kind once. For Dark, callers should pass the
     /// accumulated evokeVal explicitly (default 6 is the initial value).
+    /// v0.5 — Focus scaling: +PlayerFocus on damage/block evokes; Plasma untouched.
     /// </summary>
-    public static int EvokeValue(OrbKind kind, int aliveEnemies, int darkAccumulated = 6)
+    public static int EvokeValue(OrbKind kind, int aliveEnemies, int darkAccumulated = 6, int focus = 0)
     {
+        int f = System.Math.Max(0, focus);
         return kind switch
         {
-            OrbKind.Lightning => 8 * DmgScore,                                            // 8 dmg
-            OrbKind.Frost     => 5 * BlockScore,                                          // 5 block
-            OrbKind.Dark      => System.Math.Max(6, darkAccumulated) * DmgScore,          // accumulated dmg
-            OrbKind.Plasma    => 2 * EnergyScore,                                         // 2 energy
-            OrbKind.Glass     => 8 * DmgScore * System.Math.Max(1, aliveEnemies),         // AOE 8 (passive×2 from initial)
+            OrbKind.Lightning => (8 + f) * DmgScore,                                          // 8+Focus dmg
+            OrbKind.Frost     => (5 + f) * BlockScore,                                        // 5+Focus block
+            OrbKind.Dark      => System.Math.Max(6, darkAccumulated) * DmgScore,              // accumulated dmg
+                                                                                              // (Dark accumulator already absorbed Focus per tick.)
+            OrbKind.Plasma    => 2 * EnergyScore,                                             // 2 energy (no Focus)
+            OrbKind.Glass     => (8 + f) * DmgScore * System.Math.Max(1, aliveEnemies),       // AOE 8+Focus
             _ => 0,
         };
     }

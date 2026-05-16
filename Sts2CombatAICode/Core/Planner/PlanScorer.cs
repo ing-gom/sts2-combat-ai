@@ -714,7 +714,7 @@ internal static class PlanScorer
         {
             var head = state.OrbQueue[0];
             int darkAcc = state.OrbEvokeValues.Count > 0 ? state.OrbEvokeValues[0] : 6;
-            int perEvoke = OrbValueCatalog.EvokeValue(head, aliveEnemies, darkAcc);
+            int perEvoke = OrbValueCatalog.EvokeValue(head, aliveEnemies, darkAcc, state.PlayerFocus);
             int evokeTotal = perEvoke * card.EvokeCount;
             total += evokeTotal;
             parts.Add($"evoke({head.ShortTag()}×{card.EvokeCount})+{evokeTotal}");
@@ -745,7 +745,7 @@ internal static class PlanScorer
                     var kicked = state.OrbQueue[kickIdx];
                     int kickedVal = kickIdx < state.OrbEvokeValues.Count
                         ? state.OrbEvokeValues[kickIdx] : 6;
-                    kickedTotal += OrbValueCatalog.EvokeValue(kicked, aliveEnemies, kickedVal);
+                    kickedTotal += OrbValueCatalog.EvokeValue(kicked, aliveEnemies, kickedVal, state.PlayerFocus);
                 }
                 if (kickedTotal != 0)
                 {

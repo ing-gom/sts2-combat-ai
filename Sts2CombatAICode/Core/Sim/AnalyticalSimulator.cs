@@ -45,6 +45,7 @@ internal static class AnalyticalSimulator
         // 3. Apply card effects
         int newPlayerStr = next.PlayerStrength;
         int newPlayerDex = next.PlayerDexterity;
+        int newPlayerFocus = next.PlayerFocus;
         int newPlayerBlock = next.PlayerBlock;
         bool isAoe = card.Target == TargetType.AllEnemies;
         bool playerWeak = next.PlayerWeak > 0;
@@ -65,6 +66,12 @@ internal static class AnalyticalSimulator
                     case "DexterityPower":
                     case "TemporaryDexterityPower":
                         newPlayerDex += amount; break;
+                    // v0.5 — Focus scaling on orb output. Defect's BiasedCognition,
+                    // CreativeAI, etc. apply FocusPower; subsequent orb plays should
+                    // see the higher passive / evoke values in the second-card scorer.
+                    case "FocusPower":
+                    case "TemporaryFocusPower":
+                        newPlayerFocus += amount; break;
                     // Other powers (Inflame style) don't directly affect future card scoring
                     // in v0.2.5 — handled by per-power valuation in scorer.
                 }
@@ -187,6 +194,9 @@ internal static class AnalyticalSimulator
                         case "DexterityPower":
                         case "TemporaryDexterityPower":
                             newPlayerDex += amount; break;
+                        case "FocusPower":
+                        case "TemporaryFocusPower":
+                            newPlayerFocus += amount; break;
                     }
                 }
             }
@@ -263,7 +273,8 @@ internal static class AnalyticalSimulator
                 int headEvokeVal = evokeVals.Count > 0 ? evokeVals[0] : 0;
                 for (int i = 0; i < card.EvokeCount; i++)
                 {
-                    ApplyEvokeEffect(head, headEvokeVal, ref next, ref newPlayerBlock, ref energy, aliveCount);
+                    ApplyEvokeEffect(head, headEvokeVal, newPlayerFocus,
+                        ref next, ref newPlayerBlock, ref energy, aliveCount);
                 }
                 queue.RemoveAt(0);
                 if (evokeVals.Count > 0) evokeVals.RemoveAt(0);
@@ -279,7 +290,8 @@ internal static class AnalyticalSimulator
                     // Auto-evoke the head before the channel pushes the new orb.
                     var kicked = queue[0];
                     int kickedVal = evokeVals.Count > 0 ? evokeVals[0] : 0;
-                    ApplyEvokeEffect(kicked, kickedVal, ref next, ref newPlayerBlock, ref energy, aliveCount);
+                    ApplyEvokeEffect(kicked, kickedVal, newPlayerFocus,
+                        ref next, ref newPlayerBlock, ref energy, aliveCount);
                     queue.RemoveAt(0);
                     if (evokeVals.Count > 0) evokeVals.RemoveAt(0);
                 }
@@ -320,6 +332,7 @@ internal static class AnalyticalSimulator
             PlayerEnergy = energy,
             PlayerStrength = newPlayerStr,
             PlayerDexterity = newPlayerDex,
+            PlayerFocus = newPlayerFocus,
             PlayerBlock = newPlayerBlock,
             Hand = newHand,
             DrawPileSize = drawPileAfter,
@@ -331,27 +344,31 @@ internal static class AnalyticalSimulator
     /// Apply a single evoke of the given orb kind to the rolling state. Damage hits the
     /// weakest live enemy (Dark) / random one (Lightning) / all (Glass). Frost adds block.
     /// Plasma adds energy. Approximation — Dark accumulator is read from the caller.
+    /// v0.5 — Focus adds to every damage / block evoke (Plasma untouched).
     /// </summary>
     private static void ApplyEvokeEffect(
-        OrbKind kind, int darkAccumulated,
+        OrbKind kind, int darkAccumulated, int focus,
         ref SimState state, ref int playerBlock, ref int energy, int aliveCount)
     {
+        int f = System.Math.Max(0, focus);
         switch (kind)
         {
             case OrbKind.Frost:
-                playerBlock += 5;
+                playerBlock += 5 + f;
                 break;
             case OrbKind.Plasma:
                 energy += 2;
                 break;
             case OrbKind.Lightning:
-                state = DamageWeakest(state, 8);
+                state = DamageWeakest(state, 8 + f);
                 break;
             case OrbKind.Dark:
+                // Dark accumulator already absorbs Focus per tick from the game; the stored
+                // value is the actual per-evoke damage. Don't double-apply Focus here.
                 state = DamageWeakest(state, System.Math.Max(6, darkAccumulated));
                 break;
             case OrbKind.Glass:
-                state = DamageAll(state, 8);
+                state = DamageAll(state, 8 + f);
                 break;
         }
     }

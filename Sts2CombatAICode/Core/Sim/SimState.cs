@@ -43,6 +43,15 @@ internal sealed record SimState
     public int PlayerOrbCapacity { get; init; }
 
     /// <summary>
+    /// v0.5 — FocusPower stacks on the player. Adds to every Defect orb's
+    /// passive tick and evoke value (Lightning, Frost, Dark, Glass — Plasma
+    /// is unaffected since it grants energy not damage/block). Captured by
+    /// StateSnapshotter and propagated through the simulator's Power-card
+    /// branch so depth-2 sees the boosted orb output.
+    /// </summary>
+    public int PlayerFocus { get; init; }
+
+    /// <summary>
     /// v0.4 — Ordered orb queue. OrbQueue[0] is the head (oldest, evokes first / kicked first
     /// on overflow). Empty when not playing Defect. Count matches PlayerOrbCount.
     /// </summary>
