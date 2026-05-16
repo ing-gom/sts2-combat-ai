@@ -64,6 +64,7 @@ internal static class AnalyticalSimulator
         int newPlayerDex = next.PlayerDexterity;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
+        int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
         int newPlayerBlock = next.PlayerBlock;
         bool isAoe = card.Target == TargetType.AllEnemies;
         bool playerWeak = next.PlayerWeak > 0;
@@ -102,6 +103,12 @@ internal static class AnalyticalSimulator
                     // detail is irrelevant to within-turn lookahead — we use the
                     // stack to gate PredictPlayerDmg's per-hit cap.
                     case "IntangiblePower": newPlayerIntangible += amount; break;
+                    // v0.5 — Metallicize / PlatedArmor add to end-of-turn block.
+                    // Once applied, subsequent block-decision scoring sees the
+                    // cushion and stops over-recommending defends.
+                    case "MetallicizePower":
+                    case "PlatedArmorPower":
+                        newPlayerEotBlockBonus += amount; break;
                     // Other powers (Inflame style) don't directly affect future card scoring
                     // in v0.2.5 — handled by per-power valuation in scorer.
                 }
@@ -231,6 +238,9 @@ internal static class AnalyticalSimulator
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
                         case "IntangiblePower": newPlayerIntangible += amount; break;
+                        case "MetallicizePower":
+                        case "PlatedArmorPower":
+                            newPlayerEotBlockBonus += amount; break;
                     }
                 }
             }
@@ -375,6 +385,7 @@ internal static class AnalyticalSimulator
             PlayerDexterity = newPlayerDex,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
+            PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
             PlayerBlock = newPlayerBlock,
             PlayerFreeAttacks = newFreeAttacks,
             PlayerFreeSkills = newFreeSkills,
