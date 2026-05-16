@@ -7,8 +7,8 @@ HandSynergy) explicitly handles vs falls back to generic defaults.
 
 - Master catalog: `/home/user/sts2-combat-ai/scripts/cards_catalog.json` (game v0.103.2)
 - Embedded triggers: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
-- PowerCatalog: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (101 powers registered)
-- PowerSequencingTier: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (87 powers classified)
+- PowerCatalog: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (141 powers registered)
+- PowerSequencingTier: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (127 powers classified)
 - Override: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs` (13 cards)
 
 ## Headline metrics  (577 base cards)
@@ -35,10 +35,10 @@ key in its `vars`, or its id-derived `PascalCasePower` name, appears in
 | Metric | Count | % |
 |---|---:|---:|
 | Total Power cards | 112 | 100% |
-| Hit via `vars` *Power suffix | 31 | 27.7% |
-| Hit via id-derived PascalCasePower | 29 | 25.9% |
-| **Any hit (lower bound)** | **60** | **53.6%** |
-| Fallback only (HeuristicFallback / Default 200) | 52 | 46.4% |
+| Hit via `vars` *Power suffix | 49 | 43.8% |
+| Hit via id-derived PascalCasePower | 53 | 47.3% |
+| **Any hit (lower bound)** | **102** | **91.1%** |
+| Fallback only (HeuristicFallback / Default 200) | 10 | 8.9% |
 
 ## PowerCatalog hit — refined  (validation pass)
 
@@ -49,9 +49,9 @@ match one of the 8 name patterns receive a *specific* fallback value, not
 
 | Bucket | Cards | % of Power | Value source |
 |---|---:|---:|---|
-| **Explicit** (SelfBuff / EnemyDebuff dict) | 60 | 53.6% | hand-tuned per power |
+| **Explicit** (SelfBuff / EnemyDebuff dict) | 102 | 91.1% | hand-tuned per power |
 | **Pattern fallback** (HeuristicFallback name pattern) | 1 | 0.9% | category-default (still informative) |
-| **True DefaultValue=200** (no pattern match) | 51 | 45.5% | flat constant (real blind spot) |
+| **True DefaultValue=200** (no pattern match) | 9 | 8.0% | flat constant (real blind spot) |
 
 Pattern-fallback distribution:
 
@@ -66,13 +66,13 @@ ordering bonus — those cards rely on raw PowerCatalog value only.
 
 | Tier | Cards | % |
 |---|---:|---:|
-| Setup | 15 | 13.4% |
-| Scaling | 25 | 22.3% |
-| Defensive | 12 | 10.7% |
-| Tempo | 7 | 6.2% |
+| Setup | 16 | 14.3% |
+| Scaling | 51 | 45.5% |
+| Defensive | 17 | 15.2% |
+| Tempo | 17 | 15.2% |
 | SelfHarm | 1 | 0.9% |
-| Unknown | 52 | 46.4% |
-| **Classified (any non-Unknown)** | **60** | **53.6%** |
+| Unknown | 10 | 8.9% |
+| **Classified (any non-Unknown)** | **102** | **91.1%** |
 
 ## Conditional damage / vars patterns  (66 cards)
 
@@ -188,12 +188,12 @@ Per-card count of synergy rules the card *can* feed (out of 5):
 
 | Character | Cards | In triggers | Axes | Builds | Power hit | Dropped |
 |---|---:|---:|---:|---:|---:|---:|
-| DEFECT | 88 | 88 (100.0%) | 88 (100.0%) | 53 (60.2%) | 10/20 (50.0%) | 0 (0.0%) |
-| IRONCLAD | 87 | 87 (100.0%) | 87 (100.0%) | 65 (74.7%) | 13/21 (61.9%) | 0 (0.0%) |
-| NECROBINDER | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 15/18 (83.3%) | 0 (0.0%) |
-| REGENT | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 4/19 (21.1%) | 0 (0.0%) |
-| SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 83 (60.1%) | 7/15 (46.7%) | 1 (0.7%) |
-| SILENT | 88 | 88 (100.0%) | 88 (100.0%) | 69 (78.4%) | 11/19 (57.9%) | 0 (0.0%) |
+| DEFECT | 88 | 88 (100.0%) | 88 (100.0%) | 53 (60.2%) | 18/20 (90.0%) | 0 (0.0%) |
+| IRONCLAD | 87 | 87 (100.0%) | 87 (100.0%) | 65 (74.7%) | 19/21 (90.5%) | 0 (0.0%) |
+| NECROBINDER | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 18/18 (100.0%) | 0 (0.0%) |
+| REGENT | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 18/19 (94.7%) | 0 (0.0%) |
+| SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 83 (60.1%) | 13/15 (86.7%) | 1 (0.7%) |
+| SILENT | 88 | 88 (100.0%) | 88 (100.0%) | 69 (78.4%) | 16/19 (84.2%) | 0 (0.0%) |
 
 ## Tier × Coverage overlap  (impact-weighted)
 
@@ -206,9 +206,9 @@ status/curse — usually skip-able.
 |---|---:|---:|---:|---:|---:|
 | S | 93 | 0 | 0 | 0 | 0 |
 | A | 145 | 0 | 0 | 0 | 0 |
-| B | 158 | 0 | 24 | 24 | 24 |
-| C | 104 | 0 | 17 | 17 | 17 |
-| D | 47 | 0 | 11 | 10 | 11 |
+| B | 158 | 0 | 0 | 0 | 0 |
+| C | 104 | 0 | 0 | 0 | 0 |
+| D | 47 | 0 | 10 | 9 | 10 |
 | ? | 30 | 1 | 0 | 0 | 0 |
 
 **Reading**: focus on S/A rows — high-tier cards in gap columns are the
@@ -274,32 +274,22 @@ real audit signal. D-tier gaps are usually safe to defer.
 |---|---|---|---|
 | CARD.FRANTIC_ESCAPE | SHARED |  | Status |
 
-## Power cards without explicit PowerCatalog hit  (52 total, top 20)
+## Power cards without explicit PowerCatalog hit  (10 total, top 20)
 
 These rely on `HeuristicFallback()` or `DefaultValue = 200`.
 
 | Id | Character | Tier | vars keys |
 |---|---|---|---|
-| CARD.ACCELERANT | SILENT | B | Accelerant |
-| CARD.AGGRESSION | IRONCLAD | B | — |
-| CARD.ARSENAL | REGENT | C | ArsenalPower |
-| CARD.BLACK_HOLE | REGENT | B | BlackHolePower |
 | CARD.CALAMITY | SHARED | D | — |
-| CARD.CALCIFY | NECROBINDER | C | CalcifyPower |
-| CARD.CAPACITOR | DEFECT | B | Repeat |
 | CARD.CONSUMING_SHADOW | DEFECT | D | ConsumingShadowPower, Repeat |
-| CARD.CREATIVE_AI | DEFECT | B | CreativeAi |
-| CARD.DRUM_OF_BATTLE | IRONCLAD | C | Cards, DrumOfBattlePower |
-| CARD.ENVENOM | SILENT | C | EnvenomPower |
-| CARD.ETERNAL_ARMOR | SHARED | C | PlatingPower |
-| CARD.FAN_OF_KNIVES | SILENT | C | Shivs |
-| CARD.FURNACE | REGENT | C | Forge |
-| CARD.GENESIS | REGENT | B | StarsPerTurn |
-| CARD.HAILSTORM | DEFECT | C | HailstormPower |
-| CARD.HELLO_WORLD | SHARED | B | — |
 | CARD.HELLRAISER | IRONCLAD | D | — |
-| CARD.ITERATION | DEFECT | B | IterationPower |
 | CARD.JUGGLING | IRONCLAD | D | — |
+| CARD.LOOP | DEFECT | D | Loop |
+| CARD.MONARCHS_GAZE | REGENT | D | StrengthLoss |
+| CARD.NOSTALGIA | SHARED | D | — |
+| CARD.OUTBREAK | SILENT | D | OutbreakPower, Repeat |
+| CARD.SERPENT_FORM | SILENT | D | SerpentFormPower |
+| CARD.SPEEDSTER | SILENT | D | SpeedsterPower |
 
 ## Cards with no axes  (1 total, top 20)
 
