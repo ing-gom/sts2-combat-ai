@@ -367,9 +367,15 @@ internal static class PlanScorer
             var (atkOrbBonus, atkOrbDetail) = EvaluateOrbEffects(card, state);
             if (atkOrbBonus != 0) details.Add(atkOrbDetail);
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus;
+            // v0.5 — ATTACK_REPLAY axis (Beat Down, One-Two Punch, Stampede). Scores
+            // off the best other attack in hand, so a replay attack rises in priority
+            // when another high-value attack is queued behind it.
+            var (atkAmpBonus, atkAmpDetail) = AmplifierSynergy.Compute(card, state, w);
+            if (atkAmpBonus != 0) details.Add(atkAmpDetail);
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkAmpBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
-                Base: baseBonus, Effect: effect + attached + buildBonus,
+                Base: baseBonus, Effect: effect + attached + buildBonus + atkAmpBonus,
                 TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -469,9 +475,16 @@ internal static class PlanScorer
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus;
+
+            // v0.5 — POWER_AMPLIFIER / REPLAY / SKILL_REPLAY axes (Subroutine, Signal
+            // Boost, Dual Wield, Iteration, Loop, Juggling, Hidden Gem, Nostalgia,
+            // Catastrophe, Nightmare). Scores off the best replay target in hand.
+            var (skillAmpBonus, skillAmpDetail) = AmplifierSynergy.Compute(card, state, w);
+            if (skillAmpBonus != 0) details.Add(skillAmpDetail);
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus;
             return new ScoreBreakdown(total, "Skill",
-                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus,
+                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus + skillAmpBonus,
                 TargetBonus: 0, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }

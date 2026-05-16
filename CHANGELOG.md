@@ -32,6 +32,22 @@ PowerCatalog 가 답하는 "이 버프는 fight 전체에서 얼마나 가치 �
 
 `PlanScorer.BreakdownInternal` 의 power 분기에 통합. score breakdown details 에 `tier=Setup+200,focusOrbSyn=+240` 같은 형태로 노출. 기존 catalog / synergy / fight-context 로직은 그대로.
 
+### `AmplifierSynergy.cs` — power 카드에 영향 주는 skill/attack 우선순위
+
+`POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY` / `ATTACK_REPLAY_RANDOM` / `SKILL_REPLAY` axis 를 가진 카드 (Subroutine, Signal Boost, Dual Wield, Iteration, Loop, Juggling, Hidden Gem, Nostalgia, Catastrophe, Nightmare, Beat Down, One-Two Punch, Stampede) 의 점수를 *손에 남은 best 타겟의 PlanScorer.Score × 비율*로 계산.
+
+비율: PowerAmp 0.50 / AtkReplay 0.50 / AtkReplay-Random 0.35 / SkillReplay 0.45 / Generic 0.45. Cap 3000.
+
+손에 타겟 없으면 `-500` 페널티 (Subroutine + power 0장은 dead card).
+
+재귀 방지: 타겟 풀에서 amplifier axis / draw card 자체를 제외. Amp→Replay→Amp 루프, Replay→Draw→Replay 루프 차단.
+
+PlanScorer 의 Attack / Skill 분기 양쪽에 hook (Beat Down 등은 attack, Subroutine 등은 skill).
+
+### PLAY_TRIGGER power 인식
+
+Afterimage / Calamity / Serpent Form / Sleight of Flesh / The Sealed Throne — 카드 play 마다 trigger 되는 power. PowerSequencingTier.ConditionalBonus 의 Scaling 분기에서 `remaining playable cards × 60` 보너스. PowerCatalog 의 flat 값이 못 잡는 hand-size scaling 을 보완.
+
 ## v0.4.0 (2026-05-16)
 
 **Project rename + architecture split — Vakuu 종속 컨셉을 범용 Combat AI 로 재정렬.**
