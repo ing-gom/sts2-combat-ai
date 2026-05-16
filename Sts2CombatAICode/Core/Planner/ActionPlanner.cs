@@ -147,8 +147,10 @@ internal static class ActionPlanner
             // v0.5 — only THIS-turn energy gain (Effect.EnergyGain > 0, Adrenaline-style)
             // qualifies. NEXT-turn variants (EnergyNextTurnPower like Berserk) gain energy
             // on subsequent turns and stay valuable even when this hand is empty.
+            // Also exempt cards that DRAW (Skim-style) — drawing produces new candidates,
+            // so an isolated Skim is still worth playing for the draw.
             if (card.IsEnergyGainCard && card.EnergyGain > 0
-                && !card.IsAttack && card.Damage == 0)
+                && !card.IsAttack && card.Damage == 0 && card.DrawCount == 0)
             {
                 bool anyOtherUseful = false;
                 foreach (var c in state.Hand)
