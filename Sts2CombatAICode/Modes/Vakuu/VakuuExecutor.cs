@@ -99,10 +99,16 @@ internal static class VakuuExecutor
 
                 // v0.4 — dump the top scoring candidates so we can see *why* a particular card
                 // won. Shows first-score + second-step-best + lookahead total per candidate.
+                // v0.5 — also show which follow-up the depth-2 picked, so combo decisions
+                // ("Bash because depth-2 picks vuln-boosted Strike") become inspectable.
                 var topCands = ActionPlanner.LastCandidates
                     .OrderByDescending(c => c.total)
                     .Take(5)
-                    .Select(c => $"{c.id}@{c.targetIdx}=1st:{c.firstScore}+2nd:{c.secondScore}={c.total}");
+                    .Select(c =>
+                    {
+                        var nextTag = string.IsNullOrEmpty(c.bestNextId) ? "" : $"→{c.bestNextId}";
+                        return $"{c.id}@{c.targetIdx}=1st:{c.firstScore}+2nd:{c.secondScore}{nextTag}={c.total}";
+                    });
                 MainFile.Logger.Info($"[CombatAI]   top: {string.Join(" | ", topCands)}");
 
                 Creature? target = ResolveTarget(plan.Value, snapshot, combatState, player);
