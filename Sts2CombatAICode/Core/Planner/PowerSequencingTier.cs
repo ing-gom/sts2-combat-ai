@@ -192,6 +192,28 @@ internal static class PowerSequencingTier
             !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
             && (c.ChannelCount > 0 || c.EvokeCount > 0));
 
+        // Survival urgency — Setup / Scaling / Tempo powers should defer when the
+        // player is about to die. Defensive tier is exempt (it IS the survival play).
+        // SelfHarm is already deep-negative — no need to pile on.
+        if (tier == SequencingTier.Setup
+            || tier == SequencingTier.Scaling
+            || tier == SequencingTier.Tempo)
+        {
+            var urgency = EnemyTurnSimulator.GetSurvivalUrgency(state);
+            int p = urgency switch
+            {
+                SurvivalUrgency.Fatal    => -2200,
+                SurvivalUrgency.Heavy    => -900,
+                SurvivalUrgency.Moderate => -250,
+                _ => 0,
+            };
+            if (p != 0)
+            {
+                b += p;
+                parts.Add($"survival{urgency}={p}");
+            }
+        }
+
         switch (tier)
         {
             case SequencingTier.Setup:
