@@ -40,6 +40,25 @@ key in its `vars`, or its id-derived `PascalCasePower` name, appears in
 | **Any hit (lower bound)** | **28** | **25.0%** |
 | Fallback only (HeuristicFallback / Default 200) | 84 | 75.0% |
 
+## PowerCatalog hit — refined  (validation pass)
+
+Splits the 'fallback only' count above into two sub-buckets, mirroring
+`PowerCatalog.HeuristicFallback()` (PowerCatalog.cs:130-155). Cards that
+match one of the 8 name patterns receive a *specific* fallback value, not
+`DefaultValue=200`. Only the third bucket is a true 'default-only' card.
+
+| Bucket | Cards | % of Power | Value source |
+|---|---:|---:|---|
+| **Explicit** (SelfBuff / EnemyDebuff dict) | 28 | 25.0% | hand-tuned per power |
+| **Pattern fallback** (HeuristicFallback name pattern) | 2 | 1.8% | category-default (still informative) |
+| **True DefaultValue=200** (no pattern match) | 82 | 73.2% | flat constant (real blind spot) |
+
+Pattern-fallback distribution:
+
+| Pattern | Cards |
+|---|---:|
+| `*FormPower` | 2 |
+
 ## PowerSequencingTier coverage  (Power cards only)
 
 Within-turn ordering bonus for Power cards. `Unknown` tier receives 0
@@ -176,6 +195,25 @@ Per-card count of synergy rules the card *can* feed (out of 5):
 | SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 83 (60.1%) | 5/15 (33.3%) | 1 (0.7%) |
 | SILENT | 88 | 88 (100.0%) | 88 (100.0%) | 69 (78.4%) | 6/19 (31.6%) | 0 (0.0%) |
 
+## Tier × Coverage overlap  (impact-weighted)
+
+Cross-tabulates each gap metric with the card's CSV tier (S/A/B/C/D).
+A 'dropped' or 'PowerCatalog miss' on an S-tier card is *critical*; on a
+D-tier card it is mostly harmless. Cards with tier='?' are unrated or
+status/curse — usually skip-able.
+
+| Tier | Total | Dropped | PC miss (Power) | True-default (Power) | Tier=Unknown (Power) |
+|---|---:|---:|---:|---:|---:|
+| S | 93 | 0 | 16 | 15 | 16 |
+| A | 145 | 0 | 16 | 16 | 16 |
+| B | 158 | 0 | 24 | 24 | 24 |
+| C | 104 | 0 | 17 | 17 | 17 |
+| D | 47 | 0 | 11 | 10 | 11 |
+| ? | 30 | 1 | 0 | 0 | 0 |
+
+**Reading**: focus on S/A rows — high-tier cards in gap columns are the
+real audit signal. D-tier gaps are usually safe to defer.
+
 ## Per-build participation (from embedded triggers)
 
 | Build tag | Cards |
@@ -294,3 +332,8 @@ These rely on `HeuristicFallback()` or `DefaultValue = 200`.
 - **Target distribution and Orb ChannelCount-based reach are not measured**
   because the catalog exposes neither `target` nor `ChannelCount`. Those
   paths can only be audited via runtime reflection.
+- **'True DefaultValue' upper bound.** A card classified as default-only
+  may actually apply a power whose real game class name differs from the
+  id-derived `PascalCasePower`. We can't verify game power class names
+  statically, so this bucket is an upper bound — real default-only count
+  is *at most* this many.

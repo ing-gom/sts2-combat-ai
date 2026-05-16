@@ -137,6 +137,32 @@ def power_vars(card: dict) -> list[str]:
     return [k for k in (card.get("vars") or {}) if k.endswith("Power")]
 
 
+# Patterns from PowerCatalog.HeuristicFallback() — order matters (first match wins).
+def heuristic_pattern(power_name: str) -> str | None:
+    """Return the HeuristicFallback bucket name a power name maps to, or None
+    if it falls through to DefaultValue=200. Mirrors PowerCatalog.cs:130-155."""
+    if not power_name:
+        return None
+    if power_name.startswith("Temporary"):
+        return "Temporary*"
+    if (power_name.startswith("No") and len(power_name) > 2
+            and power_name[2].isupper()):
+        return "No*"
+    if power_name.endswith("NextTurnPower"):
+        return "*NextTurnPower"
+    if power_name.endswith("FormPower"):
+        return "*FormPower"
+    if power_name.startswith("Free"):
+        return "Free*"
+    if "Strength" in power_name:
+        return "*Strength*"
+    if "Dexterity" in power_name:
+        return "*Dexterity*"
+    if "Focus" in power_name:
+        return "*Focus*"
+    return None
+
+
 def derive_power_name_from_id(card_id: str) -> str:
     """CARD.ECHO_FORM -> EchoFormPower (id-based fallback when vars is empty).
 
@@ -166,6 +192,16 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
     pc_hit_vars = any(v in power_names for v in pvars)
     pc_hit_id = id_derived in power_names
     pc_hit = pc_hit_vars or pc_hit_id
+
+    # HeuristicFallback pattern refinement — for Power cards that missed
+    # the explicit table, check whether the pattern fallback bucket gives
+    # them something more specific than DefaultValue.
+    heur_pattern: str | None = None
+    if is_power and not pc_hit:
+        for cand in [*pvars, id_derived]:
+            heur_pattern = heuristic_pattern(cand)
+            if heur_pattern:
+                break
 
     # ---- PowerSequencingTier classification (Power cards) ----
     seq_tier: str | None = None
@@ -229,6 +265,7 @@ def classify(card: dict, triggers: dict, power_names: set[str], override_ids: se
         "is_power": is_power,
         "pc_hit": pc_hit if is_power else None,
         "pc_hit_via": ("vars" if pc_hit_vars else ("id" if pc_hit_id else "miss")) if is_power else None,
+        "heur_pattern": heur_pattern,    # None unless Power card + PowerCatalog miss
         "has_override": cid.upper() in override_ids,
         "dropped": not (axes or builds or keywords or has_trigger),
         # synergy fields
@@ -355,6 +392,37 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append(f"| **Any hit (lower bound)** | **{n_pc_hit}** | **{pct(n_pc_hit, n_power)}** |")
     lines.append(f"| Fallback only (HeuristicFallback / Default 200) | {n_power - n_pc_hit} | {pct(n_power - n_pc_hit, n_power)} |")
     lines.append("")
+
+    # ========= PowerCatalog hit — refined (validated) =========
+    miss_rows = [r for r in power_rows if not r["pc_hit"]]
+    pattern_counts: Counter[str] = Counter()
+    n_pattern_hit = 0
+    for r in miss_rows:
+        if r["heur_pattern"]:
+            pattern_counts[r["heur_pattern"]] += 1
+            n_pattern_hit += 1
+    n_true_default = len(miss_rows) - n_pattern_hit
+    lines.append("## PowerCatalog hit — refined  (validation pass)")
+    lines.append("")
+    lines.append("Splits the 'fallback only' count above into two sub-buckets, mirroring")
+    lines.append("`PowerCatalog.HeuristicFallback()` (PowerCatalog.cs:130-155). Cards that")
+    lines.append("match one of the 8 name patterns receive a *specific* fallback value, not")
+    lines.append("`DefaultValue=200`. Only the third bucket is a true 'default-only' card.")
+    lines.append("")
+    lines.append("| Bucket | Cards | % of Power | Value source |")
+    lines.append("|---|---:|---:|---|")
+    lines.append(f"| **Explicit** (SelfBuff / EnemyDebuff dict) | {n_pc_hit} | {pct(n_pc_hit, n_power)} | hand-tuned per power |")
+    lines.append(f"| **Pattern fallback** (HeuristicFallback name pattern) | {n_pattern_hit} | {pct(n_pattern_hit, n_power)} | category-default (still informative) |")
+    lines.append(f"| **True DefaultValue=200** (no pattern match) | {n_true_default} | {pct(n_true_default, n_power)} | flat constant (real blind spot) |")
+    lines.append("")
+    if pattern_counts:
+        lines.append("Pattern-fallback distribution:")
+        lines.append("")
+        lines.append("| Pattern | Cards |")
+        lines.append("|---|---:|")
+        for pat, n in sorted(pattern_counts.items(), key=lambda x: -x[1]):
+            lines.append(f"| `{pat}` | {n} |")
+        lines.append("")
 
     # ========= PowerSequencingTier =========
     tier_counts: Counter[str] = Counter(r["seq_tier"] for r in power_rows)
@@ -528,6 +596,37 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
                      f"{c_bld} ({pct(c_bld, t)}) | {pow_cell} | {c_drop} ({pct(c_drop, t)}) |")
     lines.append("")
 
+    # ========= Tier × Coverage overlap (impact-weighted validation) =========
+    lines.append("## Tier × Coverage overlap  (impact-weighted)")
+    lines.append("")
+    lines.append("Cross-tabulates each gap metric with the card's CSV tier (S/A/B/C/D).")
+    lines.append("A 'dropped' or 'PowerCatalog miss' on an S-tier card is *critical*; on a")
+    lines.append("D-tier card it is mostly harmless. Cards with tier='?' are unrated or")
+    lines.append("status/curse — usually skip-able.")
+    lines.append("")
+    lines.append("| Tier | Total | Dropped | PC miss (Power) | True-default (Power) | Tier=Unknown (Power) |")
+    lines.append("|---|---:|---:|---:|---:|---:|")
+    tier_order = ["S", "A", "B", "C", "D", "?", ""]
+    by_tier: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        t = r["tier"] or "?"
+        by_tier[t].append(r)
+    seen_tiers = sorted(by_tier.keys(),
+                        key=lambda t: tier_order.index(t) if t in tier_order else 99)
+    for t in seen_tiers:
+        rs = by_tier[t]
+        n_t = len(rs)
+        n_drop = sum(1 for r in rs if r["dropped"])
+        n_pcmiss = sum(1 for r in rs if r["is_power"] and not r["pc_hit"])
+        n_default = sum(1 for r in rs if r["is_power"] and not r["pc_hit"] and not r["heur_pattern"])
+        n_unknown_seq = sum(1 for r in rs if r["is_power"] and r["seq_tier"] == "Unknown")
+        label = t if t else "(blank)"
+        lines.append(f"| {label} | {n_t} | {n_drop} | {n_pcmiss} | {n_default} | {n_unknown_seq} |")
+    lines.append("")
+    lines.append("**Reading**: focus on S/A rows — high-tier cards in gap columns are the")
+    lines.append("real audit signal. D-tier gaps are usually safe to defer.")
+    lines.append("")
+
     lines.append("## Per-build participation (from embedded triggers)")
     lines.append("")
     lines.append("| Build tag | Cards |")
@@ -609,6 +708,11 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines.append("- **Target distribution and Orb ChannelCount-based reach are not measured**")
     lines.append("  because the catalog exposes neither `target` nor `ChannelCount`. Those")
     lines.append("  paths can only be audited via runtime reflection.")
+    lines.append("- **'True DefaultValue' upper bound.** A card classified as default-only")
+    lines.append("  may actually apply a power whose real game class name differs from the")
+    lines.append("  id-derived `PascalCasePower`. We can't verify game power class names")
+    lines.append("  statically, so this bucket is an upper bound — real default-only count")
+    lines.append("  is *at most* this many.")
     lines.append("")
 
     return "\n".join(lines)
