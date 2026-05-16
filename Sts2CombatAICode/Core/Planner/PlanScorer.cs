@@ -786,10 +786,16 @@ internal static class PlanScorer
     /// the draw pile (no point drawing from an empty pile).
     ///
     /// v0.2.9 — pile-aware: if DrawPileSize+DiscardPileSize == 0 → drawing is futile.
+    /// v0.5 — only THIS-turn draws (DrawCount > 0 or DrawCardPower in PowerApps) use the
+    /// hand-quality logic. Cards with DrawCardsNextTurnPower (Machine Learning) draw
+    /// NEXT turn — current hand quality is irrelevant; PowerCatalog already values them
+    /// at 900/stack. Returning 0 here avoids double-credit of "weak hand → +1500 bonus".
     /// </summary>
     private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w)
     {
         if (!card.IsDrawCard) return 0;
+        bool thisTurnDraw = card.DrawCount > 0 || card.PowerApps.ContainsKey("DrawCardPower");
+        if (!thisTurnDraw) return 0;
 
         // v0.2.9 — pile guard: nothing to draw means no value.
         int totalPile = state.DrawPileSize + state.DiscardPileSize;
