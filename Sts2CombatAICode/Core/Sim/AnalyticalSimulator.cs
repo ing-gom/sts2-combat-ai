@@ -96,13 +96,39 @@ internal static class AnalyticalSimulator
                 int dmgPastBlock = System.Math.Max(0, totalDmg - enemy.Block);
                 int hpAfter = System.Math.Max(0, enemy.Hp - dmgPastBlock);
 
-                // Attached debuff stacks
+                // Attached debuff stacks. v0.5 — extend beyond Vulnerable/Weak so
+                // depth-2 sees the full debuff picture: Frail (enemy block gain ×0.75
+                // — informational), Poison / Constrict / Burn (DoT that triggers the
+                // HeavyDotPenalty so we don't overkill an enemy already dying to DoT).
+                // Artifact intercepts incoming debuffs stack-by-stack and is consumed
+                // in the order debuffs are applied — we approximate by deducting from
+                // a remaining-Artifact counter as each stack lands.
                 int newVuln = enemy.VulnerableAmount;
                 int newWeak = enemy.WeakAmount;
+                int newFrail = enemy.FrailAmount;
+                int newPoison = enemy.PoisonAmount;
+                int newConstrict = enemy.ConstrictAmount;
+                int newBurn = enemy.BurnAmount;
+                int artifactLeft = enemy.ArtifactAmount;
                 foreach (var (powerName, amount) in card.PowerApps)
                 {
-                    if (powerName == "VulnerablePower") newVuln += amount;
-                    else if (powerName == "WeakPower") newWeak += amount;
+                    int delta = amount;
+                    if (artifactLeft > 0)
+                    {
+                        int absorb = System.Math.Min(artifactLeft, delta);
+                        delta -= absorb;
+                        artifactLeft -= absorb;
+                        if (delta == 0) continue;
+                    }
+                    switch (powerName)
+                    {
+                        case "VulnerablePower": newVuln += delta; break;
+                        case "WeakPower":       newWeak += delta; break;
+                        case "FrailPower":      newFrail += delta; break;
+                        case "PoisonPower":     newPoison += delta; break;
+                        case "ConstrictPower":  newConstrict += delta; break;
+                        case "BurnPower":       newBurn += delta; break;
+                    }
                 }
 
                 newEnemies.Add(enemy with
@@ -111,6 +137,11 @@ internal static class AnalyticalSimulator
                     Block = blockAfter,
                     VulnerableAmount = newVuln,
                     WeakAmount = newWeak,
+                    FrailAmount = newFrail,
+                    PoisonAmount = newPoison,
+                    ConstrictAmount = newConstrict,
+                    BurnAmount = newBurn,
+                    ArtifactAmount = artifactLeft,
                 });
             }
             next = next with { Enemies = newEnemies };
@@ -159,17 +190,44 @@ internal static class AnalyticalSimulator
                     bool isTarget = isAoe ? enemy.IsAlive : (i == targetIdx && enemy.IsAlive);
                     if (!isTarget) { newEnemies.Add(enemy); continue; }
 
+                    // v0.5 — same full debuff propagation as the attack path. Artifact
+                    // absorbs stacks until depleted (per-stack, in PowerApps order).
                     int newVuln = enemy.VulnerableAmount;
                     int newWeak = enemy.WeakAmount;
+                    int newFrail = enemy.FrailAmount;
+                    int newPoison = enemy.PoisonAmount;
+                    int newConstrict = enemy.ConstrictAmount;
+                    int newBurn = enemy.BurnAmount;
+                    int artifactLeft = enemy.ArtifactAmount;
                     foreach (var (powerName, amount) in card.PowerApps)
                     {
-                        if (powerName == "VulnerablePower") newVuln += amount;
-                        else if (powerName == "WeakPower") newWeak += amount;
+                        int delta = amount;
+                        if (artifactLeft > 0)
+                        {
+                            int absorb = System.Math.Min(artifactLeft, delta);
+                            delta -= absorb;
+                            artifactLeft -= absorb;
+                            if (delta == 0) continue;
+                        }
+                        switch (powerName)
+                        {
+                            case "VulnerablePower": newVuln += delta; break;
+                            case "WeakPower":       newWeak += delta; break;
+                            case "FrailPower":      newFrail += delta; break;
+                            case "PoisonPower":     newPoison += delta; break;
+                            case "ConstrictPower":  newConstrict += delta; break;
+                            case "BurnPower":       newBurn += delta; break;
+                        }
                     }
                     newEnemies.Add(enemy with
                     {
                         VulnerableAmount = newVuln,
                         WeakAmount = newWeak,
+                        FrailAmount = newFrail,
+                        PoisonAmount = newPoison,
+                        ConstrictAmount = newConstrict,
+                        BurnAmount = newBurn,
+                        ArtifactAmount = artifactLeft,
                     });
                 }
                 next = next with { Enemies = newEnemies };
