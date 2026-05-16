@@ -27,6 +27,13 @@ internal static class HandSynergy
     /// Bonus added to a power-apply's value based on hand composition.
     /// <paramref name="self"/> is the card being scored (excluded from hand counting).
     /// <paramref name="amount"/> is the power stack count.
+    ///
+    /// v0.5 — depth-2 lookahead double-count correction. ActionPlanner's lookahead
+    /// already scores ONE next card with the buff applied, so HandSynergy would
+    /// double-credit that single beneficiary if it counted every attack/skill in
+    /// hand. Subtract one beneficiary so the lookahead's contribution plus this
+    /// hand-wide bonus sum to the right total. When only 0–1 beneficiaries exist,
+    /// the lookahead fully covers them and HandSynergy returns 0.
     /// </summary>
     public static int Compute(string powerName, int amount, SimCard self, SimState state)
     {
@@ -38,18 +45,23 @@ internal static class HandSynergy
             !ReferenceEquals(c, self) && !c.Played && c.IsSkill && c.Block > 0
             && (c.Target == TargetType.Self || c.Target == TargetType.AnyPlayer));
 
+        // Subtract the single beneficiary the depth-2 lookahead will independently
+        // credit. Negative-clamp so a hand with 0–1 beneficiaries returns 0.
+        int incrementalAtkBeneficiaries  = System.Math.Max(0, remainingAttacks    - 1);
+        int incrementalBlockBeneficiaries = System.Math.Max(0, remainingSelfBlocks - 1);
+
         return powerName switch
         {
             // Self-buff synergies — multiplied by both stacks AND beneficiary count.
-            "StrengthPower" => remainingAttacks * amount * StrengthSynergyPerAttack,
-            "TemporaryStrengthPower" => remainingAttacks * amount * StrengthSynergyPerAttack,
-            "DexterityPower" => remainingSelfBlocks * amount * DexteritySynergyPerSkill,
-            "TemporaryDexterityPower" => remainingSelfBlocks * amount * DexteritySynergyPerSkill,
+            "StrengthPower"          => incrementalAtkBeneficiaries  * amount * StrengthSynergyPerAttack,
+            "TemporaryStrengthPower" => incrementalAtkBeneficiaries  * amount * StrengthSynergyPerAttack,
+            "DexterityPower"         => incrementalBlockBeneficiaries * amount * DexteritySynergyPerSkill,
+            "TemporaryDexterityPower"=> incrementalBlockBeneficiaries * amount * DexteritySynergyPerSkill,
 
             // Enemy-debuff synergies — Vulnerable/Weak amount = turn count, so don't
             // scale with stacks (just persistence). Scale only by remaining beneficiary cards.
-            "VulnerablePower" => remainingAttacks * VulnerableSynergyPerAttack,
-            "WeakPower" => remainingAttacks * WeakSynergyPerAttacker,
+            "VulnerablePower" => incrementalAtkBeneficiaries * VulnerableSynergyPerAttack,
+            "WeakPower"       => incrementalAtkBeneficiaries * WeakSynergyPerAttacker,
 
             _ => 0,
         };
