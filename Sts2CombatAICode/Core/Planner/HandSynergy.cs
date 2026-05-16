@@ -40,9 +40,9 @@ internal static class HandSynergy
         if (amount <= 0) return 0;
 
         int remainingAttacks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsAttack);
+            !ReferenceEquals(c, self) && c.IsAttack);
         int remainingSelfBlocks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsSkill && c.Block > 0
+            !ReferenceEquals(c, self) && c.IsSkill && c.Block > 0
             && (c.Target == TargetType.Self || c.Target == TargetType.AnyPlayer));
 
         // Subtract the single beneficiary the depth-2 lookahead will independently

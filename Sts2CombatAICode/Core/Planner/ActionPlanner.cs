@@ -125,7 +125,6 @@ internal static class ActionPlanner
     {
         foreach (var card in state.Hand)
         {
-            if (card.Played) continue;
             if (!card.IsPlayable) continue;        // Unplayable (curse/status/conditional)
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
             if (card.Cost > state.PlayerEnergy) continue;
@@ -140,7 +139,6 @@ internal static class ActionPlanner
                 foreach (var c in state.Hand)
                 {
                     if (ReferenceEquals(c, card)) continue;
-                    if (c.Played) continue;
                     if (!c.IsPlayable) continue;
                     if (c.IsCurseOrStatus) continue;
                     if (c.Cost < 0) continue;

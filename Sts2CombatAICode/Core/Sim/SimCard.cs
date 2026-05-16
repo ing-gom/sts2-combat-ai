@@ -20,7 +20,6 @@ internal sealed record SimCard
     // Live mode executors require non-null at execution time.
     public CardModel? SourceRef { get; init; }
     public required CardEffectSummary Effect { get; init; }
-    public bool Played { get; set; }
 
     /// <summary>
     /// True when CardModel.CanPlay() is true at snapshot time. Unplayable cards
