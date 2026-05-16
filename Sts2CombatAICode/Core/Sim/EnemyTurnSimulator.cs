@@ -16,6 +16,12 @@ internal static class EnemyTurnSimulator
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
+            // v0.5 — DoT pre-kill. Poison ticks at start of enemy turn BEFORE the
+            // enemy acts, so an enemy with PoisonAmount ≥ Hp dies before attacking
+            // and contributes 0 threat. Without this, a turn that lethal-poisoned
+            // the enemy still scored block cards as "tank the incoming hit", and
+            // the lookahead never saw the threat drop after our poison play.
+            if (e.PoisonAmount > 0 && e.PoisonAmount >= e.Hp) continue;
             // Strength stacks ride on every hit — the raw IntentDamage we get from
             // AttackIntent.DamageCalc isn't strength-adjusted in all cases, so add it
             // explicitly. Multi-hit attacks get strength per hit.
