@@ -3,7 +3,7 @@ Audit which cards from cards_catalog.json (full) made it into our mod's
 embedded card_triggers.json, and which were dropped (and why).
 
 Run from repo root:
-    python Sts2VakuuPlus/scripts/audit_catalog_coverage.py
+    python scripts/audit_catalog_coverage.py
 """
 
 import json
@@ -12,9 +12,9 @@ from pathlib import Path
 
 
 def main():
-    repo_root = Path(__file__).resolve().parent.parent.parent
+    repo_root = Path(__file__).resolve().parent.parent
     full = json.loads((repo_root / "scripts" / "cards_catalog.json").read_text(encoding="utf-8"))
-    ours = json.loads((repo_root / "Sts2VakuuPlus" / "Sts2VakuuPlusCode" / "Data" / "card_triggers.json").read_text(encoding="utf-8"))
+    ours = json.loads((repo_root / "Sts2CombatAICode" / "Core" / "Data" / "card_triggers.json").read_text(encoding="utf-8"))
 
     full_cards = [c for c in full["cards"] if not c.get("is_upgraded")]
     print(f"== Coverage ==")

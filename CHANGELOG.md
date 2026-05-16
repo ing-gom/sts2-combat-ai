@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.0 (2026-05-16)
+
+**Project rename + architecture split — Vakuu 종속 컨셉을 범용 Combat AI 로 재정렬.**
+
+기능 변경 없음 — 순수 리팩터. 같은 의사결정 로직, 같은 Vakuu hook, 다른 폴더 구조.
+
+### Project rename
+- `Sts2VakuuPlus` → `Sts2CombatAI` (csproj, RootNamespace, AssemblyName, ModId, mod manifest, 로그 prefix `[VakuuPlus]` → `[CombatAI]`)
+- 사용자 데이터 디렉토리 `{user_data}/Sts2VakuuPlus/` → `{user_data}/Sts2CombatAI/` (기존 playstyle.json 은 마이그레이션되지 않음 — 한 번 다시 선택)
+- 모드 폴더 경로 `mods/Sts2VakuuPlus/` → `mods/Sts2CombatAI/`
+
+### Folder split — Core vs Modes
+- `Sts2VakuuPlusCode/` → `Sts2CombatAICode/`
+- 의사결정 엔진은 `Sts2CombatAICode/Core/` 아래로 (Planner / Sim / Reflection / Data / Diagnostics / Runtime). 모드와 무관 — namespace `Sts2CombatAI.Planner`, `Sts2CombatAI.Sim`, etc.
+- Vakuu 전용 trigger / runtime 은 `Sts2CombatAICode/Modes/Vakuu/` 로 분리 (namespace `Sts2CombatAI.Modes.Vakuu`):
+  - `WhisperingEarringPlannerPatch.cs` (게임 relic hook)
+  - `VakuuExecutor.cs` (13-step auto-play loop — was Planner/VakuuExecutor.cs)
+  - `VakuuCardSelectorPatches.cs` (mid-play prompt 응답 — was Patches/)
+  - `VakuuTestButtonPatch.cs` (Vakuu Play 디버그 버튼 — was Patches/)
+  - `TestButtonPoller.cs` (위 버튼의 fallback poller — was Runtime/)
+- 향후 새 모드는 `Modes/<NewMode>/` 에 trigger + executor 만 추가하면 Core 재사용. Smart Vakuu (예정) 도 같은 방식.
+
 ## v0.3.0 (2026-05-15)
 
 **Major release — simulator accuracy + character mechanics + persistence.**

@@ -1,31 +1,45 @@
-# Sts2VakuuPlus
+# Sts2CombatAI
 
-**Vakuu 가 사실은 멍청한 알고리즘이었다.** 이 모드는 Vakuu 에게 진짜 뇌를 달아줍니다.
+**Slay the Spire 2 의 전투 의사결정을 자동화하는 범용 AI 코어.**
+카드/타겟 시퀀스를 평가해 예상 HP 손실을 최소화하는 planner + simulator + scorer 묶음.
 
-## What's Vakuu?
+코어 자체는 trigger-agnostic — 어떤 *모드* 가 어느 시점에 호출하든 동일한 판단 로직을 돌린다.
+현재 제공되는 모드는 한 가지: **Vakuu** (Whispering Earring 의 vanilla auto-play 를 코어 AI 로 교체).
 
-Whispering Earring (Ancient 유물) 의 효과 — *"Vakuu plays your first turn for you"*. 그러나 [decompile](../research/baku_decompile/WhisperingEarring.cs) 으로 확인한 vanilla 동작:
+## 아키텍처
 
-```csharp
-CardModel card = pile.Cards.FirstOrDefault(c => c.CanPlay());
+```
+Sts2CombatAICode/
+├── MainFile.cs                — Harmony entrypoint, mode wiring
+├── Core/                      — 모드와 무관한 의사결정 엔진
+│   ├── Planner/               (ActionPlanner, PlanScorer, Playstyle, ...)
+│   ├── Sim/                   (SimState, AnalyticalSimulator, StateSnapshotter, ...)
+│   ├── Reflection/            (CardReflection, CombatReflection, ...)
+│   ├── Data/                  (CardCatalog + embedded card_triggers.json)
+│   ├── Diagnostics/           (DecisionLog ring buffer)
+│   └── Runtime/               (PlaystylePersistence)
+└── Modes/
+    └── Vakuu/                 — Vakuu mode: Core 를 호출하는 runtime driver
+        ├── WhisperingEarringPlannerPatch.cs
+        ├── VakuuExecutor.cs
+        ├── VakuuCardSelectorPatches.cs
+        ├── VakuuTestButtonPatch.cs
+        └── TestButtonPoller.cs
 ```
 
-→ **그냥 hand 의 첫 playable 카드** 를 13장까지 plays. 전략 0.
+새 모드를 추가하려면: `Modes/<NewMode>/` 아래에 trigger Harmony patch + executor 를 만들고
+`Core` 의 `ActionPlanner.PlanNextStep(snapshot)` 를 호출하면 끝. Core 는 건드릴 필요 없음.
 
-## What this mod changes (v0.3.0)
-
-Vakuu 의 의사결정을 ~145 개의 룰 + 576 카드 catalog + depth-2 forward simulator 로 완전 교체.
+## Core — 의사결정 엔진
 
 ### 카드 인식 (모든 캐릭터 100% coverage)
-
-- **576 카드** catalog 자동 read (cards_catalog.json embedded)
+- **576 카드** catalog 자동 read (`Core/Data/card_triggers.json` embedded)
 - **14 빌드** 자동 분류 (독 / 광역 / 성장 / 소멸 / 골골이 / 별 / ...)
 - **17 enemy intent** 분류 (Attack/Buff/Heal/Summon/DeathBlow/Defend/Debuff/Stun/...)
 - **65+ Power priority catalog** (EchoForm/Barricade/Strength/Vulnerable/Poison ...)
 - 카드 ID 하드코딩 **0** — 게임 패치 시 catalog 만 재추출
 
 ### 의사결정 영역
-
 - **카드 효과 정확값**: Damage / Block / Hits / PowerApps via DynamicVars + PreviewValue (multiplier-aware)
 - **Status modifier**: (base + Strength) × Vulnerable × Weak / (base + Dex) × Frail
 - **적 상태 인식**: Vulnerable/Strength/Frail/Artifact/Ritual/Poison stack → target priority 차등
@@ -38,26 +52,37 @@ Vakuu 의 의사결정을 ~145 개의 룰 + 576 카드 catalog + depth-2 forward
 - **Depth-2 lookahead**: 첫 카드 후 best second card 시뮬레이션해서 평가
 
 ### 4가지 Playstyle (영구 저장)
-
 End Turn 버튼 옆 **Style** 버튼으로 cycle:
-
 - **Defensive** — block 1500, 위협 임계 0.2, attack 약화
 - **Balanced** — default
 - **Aggressive** — attack +350, block 약화, threshold 0.55
 - **Killer** — block 0, lethal range 6000, attack 압도
 
-선택한 Style 은 `{user_data}/Sts2VakuuPlus/playstyle.json` 에 자동 저장 → 게임 재시작 후 유지.
+선택한 Style 은 `{user_data}/Sts2CombatAI/playstyle.json` 에 자동 저장 → 게임 재시작 후 유지.
 
-### 테스트 버튼
+## Mode: Vakuu
 
-End Turn 버튼 옆 **Vakuu Play** — Whispering Earring 없어도 *모든 턴* 에서 planner 호출. 디버그/실험용.
+Whispering Earring (Ancient 유물) 의 효과 — *"Vakuu plays your first turn for you"*. 그러나 [decompile](../research/baku_decompile/WhisperingEarring.cs) 으로 확인한 vanilla 동작:
+
+```csharp
+CardModel card = pile.Cards.FirstOrDefault(c => c.CanPlay());
+```
+
+→ **그냥 hand 의 첫 playable 카드** 를 13장까지 plays. 전략 0.
+
+이 모드는 그 hook (`WhisperingEarring.BeforePlayPhaseStartLate`) 을 가로채 Core AI 로 위임한다.
+구성:
+- `WhisperingEarringPlannerPatch` — 게임의 Vakuu 발동을 Harmony Prefix 로 가로채서 `VakuuExecutor` 로 위임
+- `VakuuExecutor` — 13-step loop: snapshot → Core planner → AutoPlay → 반복
+- `VakuuCardSelectorPatches` — Vakuu 의 mid-play card prompt (discard/exhaust/upgrade) 를 Core scorer 로 응답
+- `VakuuTestButtonPatch` + `TestButtonPoller` — End Turn 옆 **Vakuu Play** 디버그 버튼 (relic 없이 매 턴 호출)
 
 ## Installation
 
 ```
-SlayTheSpire2/mods/Sts2VakuuPlus/
-├── Sts2VakuuPlus.dll
-└── Sts2VakuuPlus.json
+SlayTheSpire2/mods/Sts2CombatAI/
+├── Sts2CombatAI.dll
+└── Sts2CombatAI.json
 ```
 
 게임 내 Mods 메뉴에서 enabled 확인.
@@ -66,31 +91,30 @@ SlayTheSpire2/mods/Sts2VakuuPlus/
 
 게임 로그 위치: `%APPDATA%\Godot\app_userdata\SlayTheSpire2\logs\` 최신 `.log`
 
-`[VakuuPlus]` prefix 라인이 매 step 의 결정 + score breakdown 출력:
+`[CombatAI]` prefix 라인이 매 step 의 결정 + score breakdown 출력:
 
 ```
-[VakuuPlus] starting plan (style=Balanced)
-[VakuuPlus] step 1 snapshot: player[hp=80 block=0 energy=3] 
+[CombatAI] starting plan (style=Balanced)
+[CombatAI] step 1 snapshot: player[hp=80 block=0 energy=3] 
   hand=[Strike(A1/d6),Inflame(P1/Stre:2),...] enemies=[Acolyte(...)]
-[VakuuPlus] step 1 → CARD.INFLAME@self (score=2207 reason=power(StrengthPower:2))
-[VakuuPlus]   breakdown: Power base=1007 effect=1200 target=0 threat=0
+[CombatAI] step 1 → CARD.INFLAME@self (score=2207 reason=power(StrengthPower:2))
+[CombatAI]   breakdown: Power base=1007 effect=1200 target=0 threat=0
               [powerBase=1000,Stre(2)=1200,buildSyn=160,energyCtx=200]
-[VakuuPlus] turn complete, 3 cards played, took 24ms total
+[CombatAI] turn complete, 3 cards played, took 24ms total
 ```
 
 ## 빌드 (개발자)
 
 ```bash
-cd Sts2VakuuPlus
 dotnet build
 ```
 
-자동으로 `{STS2 install}/mods/Sts2VakuuPlus/` 에 dll + json 복사.
+자동으로 `{STS2 install}/mods/Sts2CombatAI/` 에 dll + json 복사.
 
 ## 테스트 실행
 
 ```bash
-cd Sts2VakuuPlus.Tests
+cd Sts2CombatAI.Tests
 dotnet run
 ```
 
@@ -101,32 +125,32 @@ dotnet run
 ```bash
 # 1. Sts2CardAdvisor 의 headless-sync 로 cards_catalog.json 재생성
 # 2. 우리 mod 용 작은 catalog 추출
-python Sts2VakuuPlus/scripts/extract_card_triggers.py
+python scripts/extract_card_triggers.py
 # 3. mod 재빌드
-cd Sts2VakuuPlus && dotnet build
+dotnet build
 ```
 
-## 아키텍처
+## 실행 흐름 (Vakuu mode 기준)
 
 ```
 Whispering Earring 또는 Vakuu Play 버튼 trigger
        ↓
-VakuuExecutor.RunPlannedTurn  ← 매 step 13회 loop
+Modes/Vakuu/VakuuExecutor.RunPlannedTurn  ← 매 step 13회 loop
        ↓
-StateSnapshotter.Capture (Live → SimState)
+Core/Sim/StateSnapshotter.Capture (Live → SimState)
        ├─ Player HP/Block/Energy/Strength/Dex/Stars
        ├─ Hand (cards via CardReflection.GetEffectSummary — DynamicVars + PreviewValue)
        ├─ Enemies (HP/Block/Vulnerable/Strength/Weak/Frail/Artifact/Poison/...)
        ├─ Pile sizes (Draw/Discard)
        └─ Orb slots (Defect 만)
        ↓
-ActionPlanner.PlanNextStep (depth-2 lookahead)
+Core/Planner/ActionPlanner.PlanNextStep (depth-2 lookahead)
        ├─ EnumerateCandidates (CanPlay + 에너지 budget)
        ├─ for each candidate: PlanScorer.Score
        ├─ AnalyticalSimulator.ApplyCardPlay → next state
        └─ best second card → first + second total
        ↓
-PlanScorer (145+ 룰)
+Core/Planner/PlanScorer (145+ 룰)
        ├─ Card type baseline
        ├─ PowerCatalog (65+ self/enemy split + stack curve)
        ├─ Modifier-aware damage (Strength × Vulnerable × Weak)
@@ -138,7 +162,7 @@ PlanScorer (145+ 룰)
        ↓
 CardCmd.AutoPlay (game-engine 실제 plays)
        ↓
-DecisionLog.Record (ring buffer, 32 entries)
+Core/Diagnostics/DecisionLog.Record (ring buffer, 32 entries)
 ```
 
 ## License
