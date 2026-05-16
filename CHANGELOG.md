@@ -24,7 +24,8 @@
 - **OrbCardCatalog** 의 ORB_PRODUCER fallback 이 ORB_EVOKE 카드는 skip (Shatter 가 phantom
   channelCount=1 받아서 BuildSynergy 가 producer 로 오인하던 문제).
 - **EvokeValue / PassiveValue 가 PlayerFocus 반영** — Defect 후반 scaling 가시화.
-- **EnergizedPower** 즉시 에너지 게인으로 처리 (sim 적용 + EvaluateEnergyGain unlock 로직).
+- **EnergizedPower / EnergyNextTurnPower** 는 PowerCatalog 만 사용 (sim 의 immediate
+  energy + EvaluateEnergyGain unlock 로직은 STS2 semantics 미확인이라 보류).
 - **Skim 류 (energy gain + draw)** 가 hand-empty filter 통과 — 자기 자신의 draw 가 follow-up 생성.
 - **Draw card 가 played 후 discard 에 들어가는 순서** 수정 (draw 가 먼저, discard pile bump 가
   그 다음 — 갓 play 한 카드를 같은 turn 에 다시 draw 하는 anomaly 방지).
