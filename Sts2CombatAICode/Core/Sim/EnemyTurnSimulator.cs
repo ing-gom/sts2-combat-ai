@@ -23,7 +23,11 @@ internal static class EnemyTurnSimulator
             foreach (var e in s.Enemies)
             {
                 if (!e.IsAlive) continue;
-                if (e.PoisonAmount > 0 && e.PoisonAmount >= e.Hp) continue;
+                // v0.5 — DoT pre-kill includes Poison AND Constrict (both tick at
+            // start of enemy turn before any intent fires). Burn left out
+            // because its tick timing varies between STS variants.
+            int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+            if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
                 if (e.HasAttackIntent || e.HasDeathBlowIntent)
                     hits += Math.Max(1, e.IntentRepeats);
             }
@@ -46,7 +50,11 @@ internal static class EnemyTurnSimulator
             // and contributes 0 threat. Without this, a turn that lethal-poisoned
             // the enemy still scored block cards as "tank the incoming hit", and
             // the lookahead never saw the threat drop after our poison play.
-            if (e.PoisonAmount > 0 && e.PoisonAmount >= e.Hp) continue;
+            // v0.5 — DoT pre-kill includes Poison AND Constrict (both tick at
+            // start of enemy turn before any intent fires). Burn left out
+            // because its tick timing varies between STS variants.
+            int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+            if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
             // Strength stacks ride on every hit — the raw IntentDamage we get from
             // AttackIntent.DamageCalc isn't strength-adjusted in all cases, so add it
             // explicitly. Multi-hit attacks get strength per hit.
