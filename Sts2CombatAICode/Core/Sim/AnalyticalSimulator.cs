@@ -392,10 +392,7 @@ internal static class AnalyticalSimulator
             if (enemies[i].Hp < weakestHp) { weakestHp = enemies[i].Hp; weakestIdx = i; }
         }
         if (weakestIdx < 0) return state;
-        var e = enemies[weakestIdx];
-        int blockAfter = System.Math.Max(0, e.Block - dmg);
-        int leak = System.Math.Max(0, dmg - e.Block);
-        enemies[weakestIdx] = e with { Block = blockAfter, Hp = System.Math.Max(0, e.Hp - leak) };
+        enemies[weakestIdx] = ApplyCappedHit(enemies[weakestIdx], dmg);
         return state with { Enemies = enemies };
     }
 
@@ -405,11 +402,36 @@ internal static class AnalyticalSimulator
         foreach (var e in state.Enemies)
         {
             if (!e.IsAlive) { enemies.Add(e); continue; }
-            int blockAfter = System.Math.Max(0, e.Block - dmg);
-            int leak = System.Math.Max(0, dmg - e.Block);
-            enemies.Add(e with { Block = blockAfter, Hp = System.Math.Max(0, e.Hp - leak) });
+            enemies.Add(ApplyCappedHit(e, dmg));
         }
         return state with { Enemies = enemies };
+    }
+
+    /// <summary>
+    /// Apply a single orb-hit's damage to an enemy with per-hit Intangible cap and
+    /// HardenedShellRemaining budget. v0.5 — DamageWeakest / DamageAll used to skip
+    /// both caps, so orb damage in the depth-2 sim overstated kills against shielded
+    /// boards (Cathedral Intangible phase, Donu/Deca shells).
+    /// </summary>
+    private static SimEnemy ApplyCappedHit(SimEnemy e, int dmg)
+    {
+        int effective = dmg;
+        if (e.DamageCapPerHit > 0 && effective > e.DamageCapPerHit)
+            effective = e.DamageCapPerHit;
+        int shellLeft = e.HardenedShellRemaining;
+        if (shellLeft > 0 && effective > shellLeft)
+            effective = shellLeft;
+        else if (effective > 0 && shellLeft == 0 && e.Powers.ContainsKey("HardenedShellPower"))
+            effective = 0;
+        int blockAfter = System.Math.Max(0, e.Block - effective);
+        int leak = System.Math.Max(0, effective - e.Block);
+        int newShell = shellLeft > 0 ? System.Math.Max(0, shellLeft - effective) : shellLeft;
+        return e with
+        {
+            Block = blockAfter,
+            Hp = System.Math.Max(0, e.Hp - leak),
+            HardenedShellRemaining = newShell,
+        };
     }
 
     /// <summary>
