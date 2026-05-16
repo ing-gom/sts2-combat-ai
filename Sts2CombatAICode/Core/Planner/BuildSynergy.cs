@@ -33,8 +33,13 @@ internal static class BuildSynergy
         int bonus = 0;
 
         // v0.2.13 — Defect orb-state awareness.
-        bool isOrbProducer = card.Axes.Contains("ORB_PRODUCER");
-        bool isOrbConsumer = card.Axes.Contains("ORB_CONSUMER");
+        // v0.5 — use Effect.ChannelCount / EvokeCount rather than the raw axes. The
+        // catalog tags Dualcast / Quadcast / MultiCast as ORB_PRODUCER even though
+        // they actually only re-evoke the front orb (their channel count is 0). With
+        // the axis-only check, those cards picked up the channeler "full slots → -300"
+        // penalty exactly when they're most useful — clearing the full queue via evoke.
+        bool isOrbProducer = card.Effect.ChannelCount > 0;
+        bool isOrbConsumer = card.Effect.EvokeCount > 0 || card.Axes.Contains("ORB_CONSUMER");
         if (isOrbProducer || isOrbConsumer)
         {
             int slots = state.PlayerOrbCapacity;
