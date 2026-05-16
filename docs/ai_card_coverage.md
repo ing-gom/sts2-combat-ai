@@ -14,6 +14,7 @@
 | Build participation (`builds[]` non-empty) | 416 / 577 | 72.1% |
 | Override bonus applied | 13 / 577 | 2.3% |
 | Dropped (no axes/builds/keywords/trigger) | 1 / 577 | 0.2% |
+| Any synergy-rule participation (≥1 of 5 rules) | 458 / 577 | 79.4% |
 
 ## PowerCatalog hit rate  (112 Power-type base cards)
 
@@ -29,6 +30,77 @@ key in its `vars`, or its id-derived `PascalCasePower` name, appears in
 | Hit via id-derived PascalCasePower | 10 | 8.9% |
 | **Any hit (lower bound)** | **28** | **25.0%** |
 | Fallback only (HeuristicFallback / Default 200) | 84 | 75.0% |
+
+## Synergy-rule reach
+
+How many cards in the pool can trigger each cross-card synergy rule
+`PlanScorer` invokes. Counts cards that *can supply* the rule's axis or
+power input — a card with `POWER_AMPLIFIER` is a potential `AmplifierSynergy`
+activator regardless of whether a target Power happens to be in hand at
+runtime.
+
+| Rule | Source | Cards | % |
+|---|---|---:|---:|
+| BuildSynergy pair (Producer/Amplifier/Consumer) | `*_PRODUCER/_AMPLIFIER/_CONSUMER` axes | 224 | 38.8% |
+| BuildSynergy commitment | primary build tag | 370 | 64.1% |
+| AmplifierSynergy | `POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY*` / `SKILL_REPLAY` | 16 | 2.8% |
+| EffectSynergy | `DAMAGE/BLOCK/VULN/WEAK_AMPLIFIER`, `BLOCK_PAYOFF`, `HP_LOSS_CONSUMER` | 28 | 4.9% |
+| HandSynergy (lower bound) | `vars` keys ∈ {Strength/Dex/Vuln/Weak Power…} | 40 | 6.9% |
+
+## Pair-axis stem completeness  (28 stems)
+
+A stem `X` triggers `BuildSynergy.Compute()` pair bonuses only when there
+is at least one `X_PRODUCER` AND at least one `X_AMPLIFIER` or `X_CONSUMER`
+card. Stems missing a side are dead pairs in the catalog.
+
+- **Complete stems** (P ≥ 1 AND (A ≥ 1 OR C ≥ 1)): **11 / 28**
+- **Orphan stems** (missing one side): **17**
+
+| Stem | Producer | Amplifier | Consumer | Status |
+|---|---:|---:|---:|---|
+| BLOCK | 0 | 7 | 0 | no producer |
+| CUNNING | 10 | 0 | 10 | complete |
+| DAMAGE | 0 | 8 | 0 | no producer |
+| DARK_ORB | 0 | 1 | 0 | no producer |
+| DEFEND_TYPE | 0 | 1 | 0 | no producer |
+| DOOM | 9 | 1 | 3 | complete |
+| DOOM_SELF | 1 | 0 | 0 | producer-only |
+| DRAW | 0 | 1 | 0 | no producer |
+| ENERGY | 5 | 0 | 0 | producer-only |
+| EXHAUST | 17 | 0 | 5 | complete |
+| FORGE | 11 | 2 | 0 | complete |
+| HP_LOSS | 0 | 0 | 3 | no producer |
+| LORDS_BLADE | 0 | 1 | 0 | no producer |
+| ORB | 35 | 2 | 1 | complete |
+| ORB_VARIETY | 0 | 3 | 0 | no producer |
+| POISON | 9 | 1 | 2 | complete |
+| POWER | 0 | 3 | 0 | no producer |
+| SHIV | 4 | 2 | 1 | complete |
+| SKELETON | 12 | 0 | 5 | complete |
+| SKELETON_ATTACK | 0 | 1 | 0 | no producer |
+| SOUL | 11 | 0 | 3 | complete |
+| STAR | 23 | 0 | 1 | complete |
+| STATUS | 0 | 0 | 3 | no producer |
+| STRENGTH | 13 | 0 | 0 | producer-only |
+| STRIKE | 0 | 0 | 2 | no producer |
+| VOLATILE | 4 | 0 | 5 | complete |
+| VULN | 0 | 7 | 0 | no producer |
+| WEAK | 0 | 2 | 0 | no producer |
+
+## Synergy participation degree
+
+Per-card count of synergy rules the card *can* feed (out of 5):
+`BuildSynergy pair`, `BuildSynergy commitment`, `AmplifierSynergy`,
+`EffectSynergy`, `HandSynergy` (vars-based lower bound).
+
+| Degree | Cards | % | Interpretation |
+|---:|---:|---:|---|
+| 0 | 119 | 20.6% | no synergy hooks — evaluated as a standalone card |
+| 1 | 272 | 47.1% | single-rule (mostly build or pair) |
+| 2 | 154 | 26.7% | two-rule (build + pair, or pair + effect…) |
+| 3 | 30 | 5.2% | three-rule (high synergy density) |
+| 4 | 2 | 0.3% | four-rule (very dense) |
+| 5 | 0 | 0.0% | all five |
 
 ## Per-character coverage
 
@@ -144,3 +216,11 @@ These rely on `HeuristicFallback()` or `DefaultValue = 200`.
   the card id (e.g. `CARD.ABRASIVE → DexterityPower + ThornsPower`).
 - **Override list is sparse by design.** Low % here is expected, not a bug;
   the metric is for absolute count tracking across releases.
+- **Synergy reach is a *potential* count, not realized activation.** A card
+  with `POWER_AMPLIFIER` only earns the bonus if a target Power is in hand
+  at the moment of scoring; runtime activation depends on hand composition,
+  draw order, and remaining energy. Static reach is the upper bound.
+- **HandSynergy reach is a lower bound (vars-based).** Cards that apply
+  Strength/Dex/Vuln/Weak through descriptions without exposing the power
+  name in `vars` are missed. Hits via `card.PowerApps` at runtime would be
+  higher.
