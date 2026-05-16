@@ -1,14 +1,18 @@
 """
-Measure how much of the STS2 card pool the combat AI evaluates with explicit
-rules versus relying on generic fallbacks.
+Measure how much of the STS2 card pool the Sts2CombatAI mod's evaluation
+rules cover with explicit handling vs falling back to generic defaults
+(HeuristicFallback / DefaultValue / Unknown tier). The "AI" in the script
+name refers to this mod's planner, not the game's built-in fallback AI
+(which this mod replaces).
 
-Reads four static inputs:
-  - scripts/cards_catalog.json (master, from Sts2CardAdvisor)
-  - Sts2CombatAICode/Core/Data/card_triggers.json (embedded extract)
-  - Sts2CombatAICode/Core/Planner/PowerCatalog.cs (explicit SelfBuff/EnemyDebuff)
-  - Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs (sparse hand-tuned bonuses)
+Reads five static inputs:
+  - scripts/cards_catalog.json (master card pool, dumped from sts2.dll)
+  - Sts2CombatAICode/Core/Data/card_triggers.json (this mod's embedded extract)
+  - Sts2CombatAICode/Core/Planner/PowerCatalog.cs (this mod's per-power valuation)
+  - Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs (within-turn tier map)
+  - Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs (hand-tuned bonuses)
 
-Reports 8 coverage metrics in a Markdown table plus per-character / per-build
+Reports 14 coverage metrics in Markdown plus per-character / per-build
 breakdown plus the first N "uncovered" card IDs.
 
 Run from repo root (Sts2CombatAI/):
@@ -301,7 +305,12 @@ def build_report(inputs: dict, top_uncovered: int) -> str:
     lines: list[str] = []
     catalog_version = catalog.get("game_version", "?")
     triggers_version = triggers.get("version", "?")
-    lines.append(f"# AI Card Coverage Report")
+    lines.append(f"# Sts2CombatAI Rule Coverage Report")
+    lines.append("")
+    lines.append("Coverage of the STS2 card pool by this mod's evaluation rules. Measures")
+    lines.append("how much of the card pool each rule (PowerCatalog, PowerSequencingTier,")
+    lines.append("CardOverrideCatalog, BuildSynergy, AmplifierSynergy, EffectSynergy,")
+    lines.append("HandSynergy) explicitly handles vs falls back to generic defaults.")
     lines.append("")
     lines.append(f"- Master catalog: `{inputs['catalog_path']}` (game {catalog_version})")
     lines.append(f"- Embedded triggers: `{inputs['triggers_path']}` ({triggers_version})")
