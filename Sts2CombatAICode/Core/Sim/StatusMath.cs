@@ -35,4 +35,41 @@ internal static class StatusMath
         if (defenderFrail) v *= FrailMult;
         return Math.Max(0, (int)Math.Floor(v));
     }
+
+    /// <summary>
+    /// Per-hit attack damage clamped by the target's IntangiblePower / HardToKill
+    /// cap (<see cref="SimEnemy.DamageCapPerHit"/>). 0 cap means uncapped.
+    /// </summary>
+    public static int EffectivePerHitCapped(int baseDamage, int attackerStrength,
+        SimEnemy target, bool attackerWeak)
+    {
+        int per = EffectiveAttackDmg(baseDamage, attackerStrength,
+            target.VulnerableAmount > 0, attackerWeak);
+        if (target.DamageCapPerHit > 0 && per > target.DamageCapPerHit)
+            per = target.DamageCapPerHit;
+        return per;
+    }
+
+    /// <summary>
+    /// Per-target total attack damage: hits × per-hit (after Intangible cap), then
+    /// clamped by HardenedShellRemaining. If the target has HardenedShellPower but
+    /// the budget is fully spent (Remaining == 0), returns 0.
+    /// </summary>
+    public static int EffectivePerEnemyTotal(int baseDamage, int hits, int attackerStrength,
+        SimEnemy target, bool attackerWeak)
+    {
+        int perHit = EffectivePerHitCapped(baseDamage, attackerStrength, target, attackerWeak);
+        int hitsClamped = Math.Max(1, hits);
+        int total = perHit * hitsClamped;
+        if (target.HardenedShellRemaining > 0)
+        {
+            if (total > target.HardenedShellRemaining)
+                total = target.HardenedShellRemaining;
+        }
+        else if (perHit > 0 && target.Powers.ContainsKey("HardenedShellPower"))
+        {
+            total = 0;
+        }
+        return total;
+    }
 }
