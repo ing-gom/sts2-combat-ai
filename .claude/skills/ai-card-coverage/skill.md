@@ -1,6 +1,6 @@
 ---
 name: ai-card-coverage
-description: Sts2CombatAI mod 의 카드 평가 룰 (PlanScorer + PowerCatalog + PowerSequencingTier + CardOverrideCatalog + BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy) 이 STS2 카드 풀을 명시적으로 얼마나 다루는지 정적 측정. 신규 카드 추가, 평가 룰 (PowerCatalog/PowerSequencingTier/CardOverrideCatalog/*Synergy.cs) 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 14 metric (단독 6 + synergy 4 + 부가 4) + 미커버 카드 / orphan stem 상세. 게임 본체 fallback AI 가 아닌 *mod 의 자체 룰* 의 커버리지 측정.
+description: Sts2CombatAI mod 의 카드 평가 룰 (PlanScorer + PowerCatalog + PowerSequencingTier + CardOverrideCatalog + BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy) 이 STS2 카드 풀을 명시적으로 얼마나 다루는지 정적 측정. 신규 카드 추가, 평가 룰 (PowerCatalog/PowerSequencingTier/CardOverrideCatalog/*Synergy.cs) 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 16 metric (단독 6 + synergy 4 + 부가 4 + 검증 2: HeuristicFallback 패턴 분리 + Tier × Coverage overlap) + 미커버 카드 / orphan stem 상세. 게임 본체 fallback AI 가 아닌 *mod 의 자체 룰* 의 커버리지 측정.
 ---
 
 # Mod 평가 룰 카드 커버리지 감사
@@ -32,7 +32,7 @@ Sts2CombatAI mod 의 카드 평가 룰 풀이 STS2 카드 풀을 명시적으로
 
 ## 측정 Metric
 
-14 개 정적 지표 — 단독 평가 (6) + 카드 간 synergy (4) + 부가 평가 경로 (4). 모두 카탈로그 + 소스 파일만 보고 계산 (런타임 로그 X).
+16 개 정적 지표 — 단독 평가 (6) + 카드 간 synergy (4) + 부가 평가 경로 (4) + 검증 (2). 모두 카탈로그 + 소스 파일만 보고 계산 (런타임 로그 X).
 
 ### 단독 카드 평가 path
 
@@ -63,6 +63,13 @@ Sts2CombatAI mod 의 카드 평가 룰 풀이 STS2 카드 풀을 명시적으로
 | **Self-modifier axes 분포** | `EXHAUST_SELF / RETAIN_SELF / ETHEREAL_SELF / INNATE / UNPLAYABLE` axis 분포 | PlanScorer.PlayOrderBias / 폐기 회피 분기 |
 | **SelectorMode trigger** | `upgrade_trigger` / `fetch_trigger` boolean | Burn vs Boost 모드 prompt 분기 |
 
+### 검증 metric (v4 — validation pass)
+
+| Metric | 정의 | 의미 |
+|---|---|---|
+| **PowerCatalog hit refined** | PC miss 카드를 `HeuristicFallback()` 의 8 name pattern (`Temporary*` / `No*` / `*NextTurnPower` / `*FormPower` / `Free*` / `*Strength*` / `*Dexterity*` / `*Focus*`) 매칭으로 세분화 → explicit / pattern / true-default 3 bucket | 진짜 `DefaultValue=200` 의존 카드 분리 (실제 평가 부정확 후보) |
+| **Tier × Coverage overlap** | 각 gap (dropped / PC miss / true-default / Unknown tier) 의 CSV tier (S/A/B/C/D) 분포 | impact-weighted audit signal — S/A 카드의 gap 이 critical, D 의 gap 은 defer 가능 |
+
 ### 분포 보조
 
 | Metric | 정의 |
@@ -81,6 +88,8 @@ Sts2CombatAI mod 의 카드 평가 룰 풀이 STS2 카드 풀을 명시적으로
 | Synergy participation | ≥ 80% | 65~79% | < 65% |
 | Pair-axis stem completeness | ≥ 70% | 50~69% | < 50% |
 | PowerSequencingTier classified (lb) | ≥ 70% | 50~69% | < 50% |
+| S/A-tier PC miss (impact-weighted) | ≤ 10% | 10~20% | > 20% |
+| True-default Power cards | ≤ 30% of Power | 30~50% | > 50% |
 
 threshold 미달 시 우선순위:
 1. **Dropped > 5%**: `extract_card_triggers.py` 의 신호 풀 (axes / builds / keywords / description keyword) 확장 검토
@@ -172,6 +181,7 @@ python scripts/measure_ai_card_coverage.py \
 리포트 구성:
 - Headline metrics 표 (9 행: 단독 5 + synergy participation 1 + 부가 3)
 - PowerCatalog hit rate 세부 표
+- **PowerCatalog hit — refined** (validation, explicit / pattern / true-default 3 bucket)
 - **PowerSequencingTier coverage** (5 tier + Unknown 분포)
 - **Conditional damage 패턴 분포** (Calculated* / Extra* / Repeat 카테고리별)
 - **Self-modifier axes 분포** (5 axis별 카드 수)
@@ -180,6 +190,7 @@ python scripts/measure_ai_card_coverage.py \
 - **Pair-axis stem completeness** (P / A / C 카운트 표 + complete vs orphan)
 - **Synergy participation degree** (0/1/2/3/4/5 분포)
 - Per-character 분포
+- **Tier × Coverage overlap** (impact-weighted: tier 별 gap 분포)
 - Per-build 분포 (14 빌드)
 - Top 30 axes
 - Dropped / PowerCatalog miss / no-axes 카드 ID 상위 N 개 (default 20)
