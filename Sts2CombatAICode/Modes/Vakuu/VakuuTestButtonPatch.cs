@@ -90,11 +90,6 @@ internal static class VakuuTestButtonPatch
                 $"[CombatAI] test button attached as child of NEndTurnButton " +
                 $"at offset (0,{playBtn.Position.Y:F0}) size=({endTurnSize.X:F0},{endTurnSize.Y:F0}) " +
                 $"endTurnChildren=[{childSummary}]");
-            return;
-
-            MainFile.Logger.Info(
-                $"[CombatAI] test button attached as child of NEndTurnButton " +
-                $"at offset (0,{playBtn.Position.Y:F0}) size=({endTurnSize.X:F0},{endTurnSize.Y:F0})");
         }
         catch (Exception ex)
         {

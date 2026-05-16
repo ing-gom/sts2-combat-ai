@@ -43,13 +43,16 @@ Sts2CombatAICode/
 - **카드 효과 정확값**: Damage / Block / Hits / PowerApps via DynamicVars + PreviewValue (multiplier-aware)
 - **Status modifier**: (base + Strength) × Vulnerable × Weak / (base + Dex) × Frail
 - **적 상태 인식**: Vulnerable/Strength/Frail/Artifact/Ritual/Poison stack → target priority 차등
+- **Per-hit / per-turn cap**: IntangiblePower(=1) / HardToKill / HardenedShellRemaining 별 데미지 클램프 (단일 + AOE 모두)
 - **에너지 낭비 회피**: damage ≤ target.Block → penalty
-- **Energy gain 카드**: 부족할 때만 우선 (Adrenaline 콤보 인식)
+- **Energy gain 카드**: 부족할 때만 우선 (Adrenaline 콤보 인식, EnergyNextTurnPower 별도 처리)
 - **Draw 카드**: hand 의 best score 가 낮을 때 (수혈 가치)
 - **Build synergy**: Producer + Amplifier/Consumer 페어 + 같은 build 카드 갯수
-- **Defect orb**: 슬롯 채워짐 / 비어있음에 따라 Producer/Consumer 차등
-- **Forward simulator**: 카드 plays 시뮬레이션 (EnergyGain / DrawCount / Damage / Block / Power 적용)
-- **Depth-2 lookahead**: 첫 카드 후 best second card 시뮬레이션해서 평가
+- **Defect orb**: 슬롯 채워짐 / 비어있음에 따라 Producer/Consumer 차등, channel-into-full kick 정확 카운트, **Focus** 가 모든 evoke/passive 에 적용
+- **Threat estimate**: 플레이어 Vulnerable(×1.5) + 적 Weak(×0.75) + Poison-lethal 적군 제외
+- **Play-order bias**: Retain → 다른 plays 우선 후 defer / Ethereal → turn-end exhaust 회피 / 0-cost → MinPlayScore floor 우회
+- **Forward simulator**: 카드 plays 시뮬레이션 (EnergyGain / DrawCount / Damage / Block / Power 적용 + Intangible/Shell cap + 디버프 propagation + Artifact 흡수 + discard 증가)
+- **Depth-2 lookahead**: 첫 카드 후 best second card 시뮬레이션해서 평가, tie-break 은 first-card 점수 우선
 
 ### 4가지 Playstyle (영구 저장)
 End Turn 버튼 옆 **Style** 버튼으로 cycle:

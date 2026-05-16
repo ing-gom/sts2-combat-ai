@@ -185,11 +185,11 @@ internal static class PowerSequencingTier
         var parts = new List<string>();
 
         int remainingAttacks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable && c.IsAttack);
+            !ReferenceEquals(c, self) && c.IsPlayable && c.IsAttack);
         int remainingSelfBlocks = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable && c.IsSkill && c.Block > 0);
+            !ReferenceEquals(c, self) && c.IsPlayable && c.IsSkill && c.Block > 0);
         int remainingOrbCards = state.Hand.Count(c =>
-            !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+            !ReferenceEquals(c, self) && c.IsPlayable
             && (c.ChannelCount > 0 || c.EvokeCount > 0));
 
         // Survival urgency — Setup / Scaling / Tempo powers should defer when the
@@ -293,7 +293,7 @@ internal static class PowerSequencingTier
                 if (self.Axes.Contains("PLAY_TRIGGER"))
                 {
                     int remainingPlayable = state.Hand.Count(c =>
-                        !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+                        !ReferenceEquals(c, self) && c.IsPlayable
                         && !c.IsCurseOrStatus);
                     int v = remainingPlayable * 60;
                     if (v > 0) { b += v; parts.Add($"playTrigSyn=+{v}"); }

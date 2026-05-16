@@ -47,7 +47,7 @@ internal static class AmplifierSynergy
             || c.Axes.Contains("SKILL_REPLAY"));
 
     private static bool IsValidTarget(SimCard c, SimCard self)
-        => !ReferenceEquals(c, self) && !c.Played && c.IsPlayable
+        => !ReferenceEquals(c, self) && c.IsPlayable
            && !c.IsCurseOrStatus
            && !c.IsDrawCard            // breaks Replay → DrawCard → Replay recursion
            && !HasAmplifierAxis(c);    // breaks Amplifier → Amplifier recursion

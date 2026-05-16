@@ -44,6 +44,41 @@ internal static class PlanScorer
         => AdjustBreakdownForEnchant(BreakdownInternal(card, targetIdx, state, w), card);
 
     /// <summary>
+    /// Play-order biases for Retain / Ethereal. Kept OUT of <see cref="Score"/> /
+    /// <see cref="Breakdown"/> so that selector-context callers (discard/exhaust
+    /// prompts, reward selection) see the unbiased card value — otherwise the
+    /// retain defer-penalty would make retain cards look "worst" and the smart
+    /// selector would discard them preferentially, the opposite of what we want.
+    ///
+    /// Used only by <see cref="ActionPlanner"/> for first-card / depth-2 scoring.
+    ///   • Retain — small per-other-playable penalty so a retainable card waits
+    ///     until no non-retain alternative remains.
+    ///   • Ethereal — flat bonus so a card that would otherwise exhaust unplayed
+    ///     wins close-call comparisons against equal-scored non-ethereal cards.
+    /// </summary>
+    public static int PlayOrderBias(SimCard card, SimState state, PlanScorerWeights w)
+    {
+        int delta = 0;
+        if (card.IsRetain)
+        {
+            int otherPlayable = 0;
+            foreach (var c in state.Hand)
+            {
+                if (ReferenceEquals(c, card)) continue;
+                if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+                if (c.IsRetain) continue;          // other retains share the same defer urge
+                if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;
+                otherPlayable++;
+            }
+            if (otherPlayable > 0)
+                delta -= w.RetainDeferPenaltyPerAlternative * otherPlayable;
+        }
+        if (card.IsEthereal)
+            delta += w.EtherealPlayNowBonus;
+        return delta;
+    }
+
+    /// <summary>
     /// Wrap Breakdown's Total + Details with the enchantment adjustment so logs show
     /// e.g. "ench:×2[Glam]" and the planner actually compares enchanted vs plain cards
     /// using the adjusted score.
@@ -128,7 +163,7 @@ internal static class PlanScorer
             // v0.5 — Tier-based ordering for multi-Power hands. Setup > Scaling >
             // Defensive > Tempo > SelfHarm; Defensive jumps the queue under threat.
             int powerCardsInHand = state.Hand.Count(c =>
-                !c.Played && c.IsPower && c.IsPlayable);
+                c.IsPower && c.IsPlayable);
             var tier = PowerSequencingTier.Classify(card);
             int tierOrdering = PowerSequencingTier.OrderingBonus(tier, powerCardsInHand);
             var (tierCond, tierDetail) = PowerSequencingTier.ConditionalBonus(card, tier, state, w);
@@ -143,7 +178,7 @@ internal static class PlanScorer
                         + powerOrbBonus + tierOrdering + tierCond + buildBonus;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + tierOrdering + tierCond + buildBonus,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -204,15 +239,48 @@ internal static class PlanScorer
                 }
             }
 
-            int damageMultiplier = isAoe ? System.Math.Max(1, aliveCount) : 1;
-            int effect = effectiveTotal * damageMultiplier * w.DamagePerPointBonus;
-            string dmgLabel = effectiveTotal != card.TotalDamage
-                ? $"eff{effectiveTotal}(base{card.TotalDamage})"
-                : $"dmg{card.TotalDamage}";
-            if (isAoe && aliveCount > 1)
-                details.Add($"{dmgLabel}*{w.DamagePerPointBonus}*aoe{aliveCount}={effect}");
+            int effect;
+            string dmgLabel;
+            if (isAoe)
+            {
+                // v0.5 — Per-enemy AOE damage with each target's own Vulnerable, Intangible
+                // (DamageCapPerHit) and HardenedShellRemaining cap applied via StatusMath
+                // helpers. Previous bulk `effectivePerHit × Hits × aliveCount` used the
+                // wrong-target Vulnerable (always false for AOE) and ignored caps entirely.
+                int aggregatedDmg = 0;
+                int capsHit = 0, shellHit = 0;
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (!e.IsAlive) continue;
+                    int rawPer = StatusMath.EffectiveAttackDmg(card.Damage,
+                        state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                    int perEnemyTotal = StatusMath.EffectivePerEnemyTotal(
+                        card.Damage, card.Hits, state.PlayerStrength, e, playerIsWeak);
+                    if (rawPer > 0 && e.DamageCapPerHit > 0 && rawPer > e.DamageCapPerHit) capsHit++;
+                    if ((e.HardenedShellRemaining > 0 && rawPer * System.Math.Max(1, card.Hits) > e.HardenedShellRemaining)
+                        || (rawPer > 0 && e.HardenedShellRemaining == 0
+                            && e.Powers.ContainsKey("HardenedShellPower"))) shellHit++;
+                    aggregatedDmg += perEnemyTotal;
+                }
+                effect = aggregatedDmg * w.DamagePerPointBonus;
+                dmgLabel = aggregatedDmg != card.TotalDamage * System.Math.Max(1, aliveCount)
+                    ? $"eff{aggregatedDmg}(base{card.TotalDamage}×{aliveCount})"
+                    : $"dmg{aggregatedDmg}";
+                var clampTags = (capsHit > 0 ? $",cap×{capsHit}" : "")
+                              + (shellHit > 0 ? $",shell×{shellHit}" : "");
+                details.Add(aliveCount > 1
+                    ? $"{dmgLabel}*{w.DamagePerPointBonus}*aoe{aliveCount}={effect}{clampTags}"
+                    : $"{dmgLabel}*{w.DamagePerPointBonus}={effect}{clampTags}");
+            }
             else
+            {
+                effect = effectiveTotal * w.DamagePerPointBonus;
+                dmgLabel = effectiveTotal != card.TotalDamage
+                    ? $"eff{effectiveTotal}(base{card.TotalDamage})"
+                    : $"dmg{card.TotalDamage}";
                 details.Add($"{dmgLabel}*{w.DamagePerPointBonus}={effect}");
+            }
 
             int attached = 0;
             foreach (var (powerName, amount) in card.PowerApps)
@@ -221,11 +289,13 @@ internal static class PlanScorer
                 // then multiplier for AOE breadth.
                 int perEnemy = (int)(PowerCatalog.ValueEnemyDebuff(powerName, amount) * w.AttachedDebuffMultiplier);
 
-                // v0.2.9 — Artifact blocks our enemy debuffs. Per-enemy gating:
-                // count alive enemies whose ArtifactAmount blocks at least one stack.
+                // v0.2.9 — Artifact blocks our enemy debuffs. v0.5 — canonical STS
+                // semantics: each debuff APPLICATION consumes 1 Artifact charge and is
+                // entirely blocked (the amount is irrelevant). So an enemy is "reached"
+                // by this debuff iff its Artifact stack is 0.
                 if (isAoe)
                 {
-                    int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount < amount);
+                    int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount == 0);
                     int blocked = aliveCount - reach;
                     if (blocked > 0)
                         details.Add($"  artifact-blocked={blocked}");
@@ -236,11 +306,11 @@ internal static class PlanScorer
                 else
                 {
                     bool blockedSingle = targetIdx >= 0 && targetIdx < state.Enemies.Count
-                        && state.Enemies[targetIdx].ArtifactAmount >= amount;
+                        && state.Enemies[targetIdx].ArtifactAmount > 0;
                     if (blockedSingle)
                     {
                         details.Add($"+{Short(powerName)}({amount})=BLOCKED");
-                        // perEnemy = 0 — Artifact fully absorbs this debuff stack
+                        // perEnemy = 0 — Artifact fully absorbs this debuff application
                     }
                     else
                     {
@@ -267,12 +337,12 @@ internal static class PlanScorer
                 for (int i = 0; i < state.Enemies.Count; i++)
                 {
                     if (!state.Enemies[i].IsAlive) continue;
-                    bool eVuln = state.Enemies[i].VulnerableAmount > 0;
-                    int perEnemyDmg = StatusMath.EffectiveAttackDmg(card.Damage,
-                        state.PlayerStrength, eVuln, playerIsWeak) * System.Math.Max(1, card.Hits);
+                    var ei = state.Enemies[i];
+                    int perEnemyDmg = StatusMath.EffectivePerEnemyTotal(
+                        card.Damage, card.Hits, state.PlayerStrength, ei, playerIsWeak);
                     var (b, d) = ScoreAttackTarget(card, i, state, w, perEnemyDmg);
                     targetBonus += b;
-                    totalAliveBlock += state.Enemies[i].Block;
+                    totalAliveBlock += ei.Block;
                     totalAliveDmg += perEnemyDmg;
                     aliveTargets++;
                     if (!string.IsNullOrEmpty(d)) aoeParts.Add($"e{i}:{d}");
@@ -283,6 +353,16 @@ internal static class PlanScorer
                 {
                     wastedPenalty = w.WastedAttackPenalty / 2;
                     details.Add($"WASTED_AOE{wastedPenalty}");
+                }
+                // v0.5 — AOE-zeroed check: every enemy capped to 0 damage (full shell
+                // or Intangible-with-no-piercing). Without this, an AOE swing that
+                // accomplishes literally nothing would only get the half-penalty above
+                // (and only if totalAliveBlock > 0); shell-spent boards have 0 block
+                // remaining so the check above would skip them.
+                else if (aliveTargets > 0 && totalAliveDmg == 0 && card.Damage > 0)
+                {
+                    wastedPenalty = w.WastedAttackPenalty;
+                    details.Add($"WASTED_AOE_ZERO{wastedPenalty}");
                 }
             }
             else
@@ -367,6 +447,20 @@ internal static class PlanScorer
             var (atkOrbBonus, atkOrbDetail) = EvaluateOrbEffects(card, state);
             if (atkOrbBonus != 0) details.Add(atkOrbDetail);
 
+            // v0.5 — attack cards can also carry EnergyGain (rare but exists, e.g.,
+            // Defect's Sweeping Beam variants). Previously only Power/Skill paths
+            // consulted EvaluateEnergyGain so attack+energy-gain combos missed the
+            // urgent / waste signals. EvaluateEnergyGain returns 0 for non-gain cards
+            // so this is a no-op for plain attacks.
+            int atkEnergyBonus = EvaluateEnergyGain(card, state, w);
+            if (atkEnergyBonus != 0) details.Add($"energyCtx={atkEnergyBonus}");
+
+            // v0.5 — attack cards can also have draw (DrawCardPower in PowerApps,
+            // Mind Blast / cycle-attack hybrids). Same pattern: EvaluateDrawCard
+            // returns 0 for non-draw cards, so this is a no-op for plain attacks.
+            int atkDrawBonus = EvaluateDrawCard(card, state, w);
+            if (atkDrawBonus != 0) details.Add($"drawCtx={atkDrawBonus}");
+
             // v0.5 — ATTACK_REPLAY axis (Beat Down, One-Two Punch, Stampede). Scores
             // off the best other attack in hand, so a replay attack rises in priority
             // when another high-value attack is queued behind it.
@@ -379,8 +473,8 @@ internal static class PlanScorer
             if (atkEffBonus != 0) details.Add(atkEffDetail);
 
             // v0.5 — Survival urgency: non-lethal attacks should defer to defense
-            // when the player is about to die. Lethal kills bypass this naturally
-            // via RealLethalKillBonus (+5000) which dwarfs the penalty.
+            // when the player is about to die. Lethal kills bypass naturally via
+            // RealLethalKillBonus (+5000) which dwarfs the penalty.
             int survivalAtkPenalty = 0;
             {
                 var urg = EnemyTurnSimulator.GetSurvivalUrgency(state);
@@ -403,9 +497,10 @@ internal static class PlanScorer
                 }
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty;
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
-                Base: baseBonus, Effect: effect + attached + buildBonus + atkAmpBonus + atkEffBonus,
+                Base: baseBonus,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus,
                 TargetBonus: targetBonus + wastedPenalty + survivalAtkPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -427,14 +522,49 @@ internal static class PlanScorer
             }
 
             bool isSelfApply = IsSelfTargetedTarget(card.Target);
+            bool skillIsAoe = card.Target == TargetType.AllEnemies;
             int powerEffect = 0;
             foreach (var (powerName, amount) in card.PowerApps)
             {
-                int v = isSelfApply
-                    ? PowerCatalog.ValueSelfBuff(powerName, amount)
-                    : PowerCatalog.ValueEnemyDebuff(powerName, amount);
-                powerEffect += v;
-                details.Add($"{Short(powerName)}({amount}){(isSelfApply ? "→self" : "→enemy")}={v}");
+                int v;
+                if (isSelfApply)
+                {
+                    v = PowerCatalog.ValueSelfBuff(powerName, amount);
+                    powerEffect += v;
+                    details.Add($"{Short(powerName)}({amount})→self={v}");
+                }
+                else
+                {
+                    // v0.5 — skill enemy-debuff scoring now respects:
+                    //   • AOE scaling: AllEnemies skills (Footwork-style Weak-to-all)
+                    //     used to score a single-target value regardless of board.
+                    //   • Artifact gating (canonical STS): each debuff APPLICATION
+                    //     consumes one Artifact charge and is entirely blocked. So an
+                    //     enemy is reachable iff their ArtifactAmount is 0.
+                    int per = PowerCatalog.ValueEnemyDebuff(powerName, amount);
+                    if (skillIsAoe)
+                    {
+                        int reach = state.Enemies.Count(e => e.IsAlive && e.ArtifactAmount == 0);
+                        int blocked = state.Enemies.Count(e => e.IsAlive) - reach;
+                        v = per * reach;
+                        powerEffect += v;
+                        details.Add(blocked > 0
+                            ? $"{Short(powerName)}({amount})→aoe×{reach}={v} (artif-blk={blocked})"
+                            : $"{Short(powerName)}({amount})→aoe×{reach}={v}");
+                    }
+                    else if (targetIdx >= 0 && targetIdx < state.Enemies.Count
+                             && state.Enemies[targetIdx].ArtifactAmount > 0)
+                    {
+                        v = 0;
+                        details.Add($"{Short(powerName)}({amount})→enemy=BLOCKED");
+                    }
+                    else
+                    {
+                        v = per;
+                        powerEffect += v;
+                        details.Add($"{Short(powerName)}({amount})→enemy={v}");
+                    }
+                }
                 int syn = HandSynergy.Compute(powerName, amount, card, state);
                 if (syn != 0)
                 {
@@ -538,8 +668,9 @@ internal static class PlanScorer
 
             int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty;
             return new ScoreBreakdown(total, "Skill",
-                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty,
-                TargetBonus: 0, ThreatBonus: threatBonus,
+                Base: baseBonus,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty,
+                TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
     }
@@ -560,6 +691,16 @@ internal static class PlanScorer
         // bypasses the turn they'd otherwise spend hitting us. Earlier −1500 penalty was
         // over-applied and pushed Vakuu into defend-only loops vs sleeping bosses.
 
+        // v0.5 — DoT-lethal short-circuit. Target dies to its own Poison + Constrict
+        // tick at start of next turn, before any intent fires. Skip ALL intent /
+        // state bonuses (buff-stop / heal-deny / etc.) — none of those triggers can
+        // land if the enemy is dead by the time their turn starts. Heavy flat penalty
+        // so live enemies always win target priority when one exists. Burn is
+        // intentionally excluded since its tick timing isn't universal.
+        int preTurnDot = target.PoisonAmount + target.ConstrictAmount;
+        if (preTurnDot > 0 && preTurnDot >= target.Hp)
+            return (w.PoisonLethalPenalty, $"tgt:dotLethal{w.PoisonLethalPenalty}");
+
         int s = 0;
         var parts = new List<string>();
         if (target.HasBuffIntent) { s += w.BuffEnemyKillBonus; parts.Add($"buff+{w.BuffEnemyKillBonus}"); }
@@ -579,6 +720,8 @@ internal static class PlanScorer
         }
 
         // v0.2.11 — heavy DoT overkill: target already dying to poison this/next turn.
+        // Poison-lethal case (PoisonAmount ≥ Hp) is handled by the early-return at the
+        // top of this method, so here we only apply the milder warning for partial DoT.
         int dotDamage = target.PoisonAmount + target.ConstrictAmount + target.BurnAmount;
         if (dotDamage > 0 && dotDamage >= target.Hp / 2)
         {
@@ -601,13 +744,26 @@ internal static class PlanScorer
             int handAttackDmg = 0;
             bool playerWeakForCalc = state.PlayerWeak > 0;
             int energyForCalc = state.PlayerEnergy;
-            // Greedy: sum effective damage of cheap-enough attack cards in hand.
+            // v0.5 — track HardenedShell budget across the projected attack chain so
+            // multi-card lethal-range estimates don't double-spend the shell. The
+            // budget is a per-turn total: each card chips into a shared pool, and a
+            // depleted pool zeros out subsequent attacks.
+            int shellBudget = target.HardenedShellRemaining;
+            bool hasShell = shellBudget > 0 || target.Powers.ContainsKey("HardenedShellPower");
+            // Greedy: sum effective damage of cheap-enough attack cards in hand,
+            // each capped by per-hit Intangible and the running shell budget.
             foreach (var c in state.Hand.OrderBy(x => x.Cost))
             {
-                if (c.Played || !c.IsPlayable || !c.IsAttack || c.Cost > energyForCalc) continue;
-                int per = StatusMath.EffectiveAttackDmg(c.Damage,
-                    state.PlayerStrength, target.VulnerableAmount > 0, playerWeakForCalc);
-                handAttackDmg += per * System.Math.Max(1, c.Hits);
+                if (!c.IsPlayable || !c.IsAttack || c.Cost > energyForCalc) continue;
+                int perHit = StatusMath.EffectivePerHitCapped(
+                    c.Damage, state.PlayerStrength, target, playerWeakForCalc);
+                int cardTotal = perHit * System.Math.Max(1, c.Hits);
+                if (hasShell)
+                {
+                    if (cardTotal > shellBudget) cardTotal = shellBudget;
+                    shellBudget = System.Math.Max(0, shellBudget - cardTotal);
+                }
+                handAttackDmg += cardTotal;
                 energyForCalc -= c.Cost;
                 if (energyForCalc <= 0) break;
             }
@@ -668,28 +824,44 @@ internal static class PlanScorer
         {
             var head = state.OrbQueue[0];
             int darkAcc = state.OrbEvokeValues.Count > 0 ? state.OrbEvokeValues[0] : 6;
-            int perEvoke = OrbValueCatalog.EvokeValue(head, aliveEnemies, darkAcc);
+            int perEvoke = OrbValueCatalog.EvokeValue(head, aliveEnemies, darkAcc, state.PlayerFocus);
             int evokeTotal = perEvoke * card.EvokeCount;
             total += evokeTotal;
             parts.Add($"evoke({head.ShortTag()}×{card.EvokeCount})+{evokeTotal}");
         }
 
-        if (card.ChannelCount > 0 && card.ChannelKind != OrbKind.Unknown)
+        if (card.ChannelCount > 0 && card.ChannelKind != OrbKind.Unknown
+            && state.PlayerOrbCapacity > 0)
         {
             int perChannel = OrbValueCatalog.PassiveValue(card.ChannelKind, state, aliveEnemies);
             int channelTotal = perChannel * card.ChannelCount;
             total += channelTotal;
             parts.Add($"channel({card.ChannelKind.ShortTag()}×{card.ChannelCount})+{channelTotal}");
 
-            if (state.PlayerOrbCapacity > 0
-                && state.OrbQueue.Count >= state.PlayerOrbCapacity
-                && state.OrbQueue.Count > 0)
+            // v0.5 — auto-evoke (kick) accounting. A channel triggers a kick iff the queue
+            // is already at capacity at the moment of that channel. Multi-channel cards
+            // (Glacier 2 Frost, ConsumingShadow 2 Dark, Refract 2 Glass) can FILL a partial
+            // queue and then start kicking. Correct kick count = overflow:
+            //   kicks = max(0, initialQueueSize + ChannelCount − Capacity)
+            // The previous formulation gated kicks behind "queue already at cap", missing
+            // the partial-queue case (e.g., Defect at 2/3 channels 2 → 1 kick on channel #2).
+            int kicks = System.Math.Max(0,
+                state.OrbQueue.Count + card.ChannelCount - state.PlayerOrbCapacity);
+            if (kicks > 0)
             {
-                var head = state.OrbQueue[0];
-                int darkAcc = state.OrbEvokeValues.Count > 0 ? state.OrbEvokeValues[0] : 6;
-                int kickedEvoke = OrbValueCatalog.EvokeValue(head, aliveEnemies, darkAcc);
-                total += kickedEvoke;
-                parts.Add($"kicks({head.ShortTag()})+{kickedEvoke}");
+                int kickedTotal = 0;
+                for (int kickIdx = 0; kickIdx < kicks && kickIdx < state.OrbQueue.Count; kickIdx++)
+                {
+                    var kicked = state.OrbQueue[kickIdx];
+                    int kickedVal = kickIdx < state.OrbEvokeValues.Count
+                        ? state.OrbEvokeValues[kickIdx] : 6;
+                    kickedTotal += OrbValueCatalog.EvokeValue(kicked, aliveEnemies, kickedVal, state.PlayerFocus);
+                }
+                if (kickedTotal != 0)
+                {
+                    total += kickedTotal;
+                    parts.Add($"kicks×{kicks}+{kickedTotal}");
+                }
             }
         }
 
@@ -713,6 +885,13 @@ internal static class PlanScorer
     ///
     /// v0.2.9 — pile-aware: if DrawPileSize+DiscardPileSize == 0 → drawing is futile.
     ///
+    /// v0.5 — only THIS-turn immediate draws (DrawCount > 0 via CardsVar) use the
+    /// hand-quality logic. DrawCardPower and DrawCardsNextTurnPower are per-turn /
+    /// next-turn buffs whose value is already in PowerCatalog (900/stack), so the
+    /// hand-quality bonus would double-credit. Conservative scope avoids the risk
+    /// of mis-categorising DrawCardPower as immediate when it's actually a per-turn
+    /// buff.
+    ///
     /// v0.5 — energy-after-draw + hand-cap checks:
     ///   • Playing a 1-cost draw with 1 energy leaves 0 energy. Unless a 0-cost or
     ///     energy-gain card is queued in hand to bridge, the drawn cards are
@@ -722,7 +901,7 @@ internal static class PlanScorer
     /// </summary>
     private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w)
     {
-        if (!card.IsDrawCard) return 0;
+        if (card.DrawCount <= 0) return 0;
 
         // v0.2.9 — pile guard: nothing to draw means no value.
         int totalPile = state.DrawPileSize + state.DiscardPileSize;
@@ -735,7 +914,7 @@ internal static class PlanScorer
         int energyGainOthers = 0;
         foreach (var c in state.Hand)
         {
-            if (ReferenceEquals(c, card) || c.Played) continue;
+            if (ReferenceEquals(c, card)) continue;
             if (!c.IsPlayable || c.IsCurseOrStatus) continue;
             if (c.Cost == 0) zeroCostOthers++;
             if (c.IsEnergyGainCard) energyGainOthers++;
@@ -782,7 +961,7 @@ internal static class PlanScorer
         // Penalty proportional to the wasted fraction of the draw.
         if (card.DrawCount > 0)
         {
-            int handAfterPlay = state.Hand.Count(c => !c.Played) - 1;  // self consumed
+            int handAfterPlay = state.Hand.Count - 1;  // self consumed
             int wasted = (handAfterPlay + card.DrawCount) - HandSizeCap;
             if (wasted > 0)
             {
@@ -803,10 +982,18 @@ internal static class PlanScorer
     {
         if (!card.IsEnergyGainCard) return 0;
 
+        // v0.5 — only IMMEDIATE energy gain (EnergyVar via EnergyGain > 0)
+        // is evaluated for "unlock waiting big cards" logic. EnergizedPower /
+        // EnergyNextTurnPower variants are next-turn / per-turn powers whose
+        // value PowerCatalog captures; folding them in here would double-credit
+        // a card whose actual game effect is on subsequent turns.
+        if (card.EnergyGain <= 0) return 0;
+        int immediateGain = card.EnergyGain;
+
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);
 
         var otherPlayable = state.Hand
-            .Where(c => !ReferenceEquals(c, card) && !c.Played && c.IsPlayable
+            .Where(c => !ReferenceEquals(c, card) && c.IsPlayable
                        && c.Cost >= 0 && !c.IsCurseOrStatus)
             .ToList();
         if (otherPlayable.Count == 0) return -1500;
@@ -815,7 +1002,7 @@ internal static class PlanScorer
         // without it: cost > remainingEnergy (couldn't afford) AND cost ≤ remaining + gain
         // (now affordable). Cards cheap enough to already play, or still too expensive after
         // the gain, don't count toward valuation.
-        int afterGain = remainingEnergy + card.EnergyGain;
+        int afterGain = remainingEnergy + immediateGain;
         int unlocked = otherPlayable.Count(c => c.Cost > remainingEnergy && c.Cost <= afterGain);
         if (unlocked == 0) return w.EnergyGainWastedPenalty;
 

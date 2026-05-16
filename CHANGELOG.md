@@ -2,10 +2,10 @@
 
 ## v0.5.0 (2026-05-16)
 
-**Power-card sequencing tier — 같은 손 안 power 카드 간 우선순위.**
+**카드 사용순서 정확도 향상 — 시뮬레이터/스코어러 정합성 정리 + 카드 우선순위 분류 신규.**
 
-PowerCatalog 가 답하는 "이 버프는 fight 전체에서 얼마나 가치 있나" 와는 직교한 새 layer.
-같은 손에 여러 power 카드가 있을 때 어느 것을 먼저 plays 할지 결정.
+게임 로직은 동일하지만 plan 이 실제 in-game 결과와 더 가까워지도록 다수의 sim/scoring
+버그 수정 + 누락된 효과 보강. 추가로 카드 타입 / 효과 / 상황 별 우선순위 분류 layer 신설.
 
 ### `PowerSequencingTier.cs` 신규
 
@@ -110,6 +110,96 @@ Power 카드는 skip (PowerSequencingTier 가 처리).
 - After: energyAfter = 0, zeroCost = 0, energyGain = 0 → canChain = false → bestOther(Strike) < HandWeakThreshold 라 bonus / 3 = +166. Strike 가 attack 점수로 이김 ✓
 
 **Pommel Strike 자체는 attack 점수가 있어 plays 될 수 있지만, 순수 draw 스킬 (Backflip 같은) 이 같은 상황에 있을 때 우선 deferred.**
+
+### v0.5 추가 패스 (Iter 44-60)
+- **Negative Focus** 도 honor — clamp 위치를 input 대신 output (per-tick 0 floor) 로.
+- **Orb evoke (Lightning/Dark/Glass)** 가 Intangible / HardenedShell cap 적용. 이전엔 sim 의
+  DamageWeakest/DamageAll 이 캡 없이 데미지 → corpse follow-up 계획.
+- **Lethal-range hand projection** 도 Intangible / Shell budget 트래킹 — 못 죽일 적에 lethal
+  bonus 가 잘못 fire 되는 문제.
+- **FreeAttack/Skill/PowerPower** 카운터 SimState 에 트래킹 + sim 에서 consume + EnumerateCandidates
+  가 비싼 카드를 free play 로 통과시킴.
+- **Player IntangiblePower** 가 PredictPlayerDmg 에서 incoming hit 을 1/hit 으로 cap. 이전엔
+  Apparition 후에도 over-defend.
+- **Metallicize / PlatedArmor** end-of-turn block 이 threat 계산에 반영 (불필요한 defend 회피).
+- **Thorns 데미지가 PlayerHp 에 반영** — multi-hit attack vs thorny enemy 의 cumulative HP burn
+  을 depth-2 가 인식.
+- **DoT-lethal threshold** 가 Poison + Constrict 합산 (둘 다 pre-attack tick).
+- **Artifact 가 entire debuff application 차단** (canonical STS) — 이전엔 stack-by-stack 으로
+  부분 차감하여 partial debuff 가 잘못 land 한 것처럼 계산.
+- **OrbCardCatalog** 의 ORB_PRODUCER fallback 이 ORB_EVOKE 카드는 skip (Shatter 가 phantom
+  channelCount=1 받아서 BuildSynergy 가 producer 로 오인하던 문제).
+- **EvokeValue / PassiveValue 가 PlayerFocus 반영** — Defect 후반 scaling 가시화.
+- **EnergizedPower / EnergyNextTurnPower** 는 PowerCatalog 만 사용 (sim 의 immediate
+  energy + EvaluateEnergyGain unlock 로직은 STS2 semantics 미확인이라 보류).
+- **Skim 류 (energy gain + draw)** 가 hand-empty filter 통과 — 자기 자신의 draw 가 follow-up 생성.
+- **Draw card 가 played 후 discard 에 들어가는 순서** 수정 (draw 가 먼저, discard pile bump 가
+  그 다음 — 갓 play 한 카드를 같은 turn 에 다시 draw 하는 anomaly 방지).
+- **Sim 의 BuildSynergy** producer/consumer 판정이 axes 대신 ChannelCount/EvokeCount 로 (Dualcast/
+  Quadcast 가 full slot 에서 -300 penalty 받던 700-point swing fix).
+
+### Play-order biases (신규)
+- **Retain** 카드는 다른 plays 가 남아있을 때 우선순위 ↓ (defer). 마지막 선택지일 때는 정상 점수.
+- **Ethereal** 카드는 turn-end exhaust 회피를 위한 소폭 boost (play-now).
+- **Innate** 플래그 surfaced (현재는 정보 전용).
+- Bias 는 `ActionPlanner` 에서만 적용 — `SmartSelectorLogic` (discard/exhaust prompt) 는 unbiased
+  score 사용하도록 분리. 이전에는 retain 카드가 discard 우선순위로 잘못 선택될 수 있었음.
+
+### Simulator accuracy
+- **`AnalyticalSimulator` 공격 데미지 cap chain**: Intangible per-hit cap + HardenedShellRemaining
+  total cap 적용. 이전에는 uncapped damage 로 HP 깎아서 depth-2 가 corpse 에 follow-up 을 계획.
+- **HardenedShellRemaining 감소** 동기화 — successive shell 공격 sequence 가 실제 게임처럼 점감.
+- **Frail / Poison / Constrict / Burn / Artifact** 디버프 propagation. 이전에는 Vulnerable / Weak
+  만 적용. 이제 lookahead 가 full debuff 상태 인식 (Catalyst → 대형 poison 콤보 등).
+- **Strength / Dexterity** 가 Power 카드뿐 아니라 self-target Skill 에서도 player stat 에 누적
+  (Spot Weakness 류). `TemporaryStrengthPower` / `TemporaryDexterityPower` 도 포함.
+
+### Threat estimation
+- **Poison-lethal 적군 → threat 제외**. `PoisonAmount ≥ Hp` 인 적은 자신의 다음 turn 시작에 죽으므로
+  intent 가 fire 되지 않음. PredictPlayerDmg 가 이를 인식해서 불필요한 block 결정 회피.
+- **Player Vulnerable 멀티플라이어 (×1.5)** 적용. 이전엔 PlayerVulnerable 값이 capture 되었지만
+  threat 계산에 미사용 → vulnerable 상태에서 incoming damage 50% 과소평가 문제.
+
+### Per-enemy AOE accuracy
+- **AOE 공격 effect 계산**: 적별 Vulnerable + Intangible cap + Shell cap 개별 적용. 이전 bulk
+  `effectivePerHit × Hits × aliveCount` 식은 잘못된 target 의 Vulnerable 을 쓰고 cap 을 무시했음.
+- **AOE target loop** 도 동일하게 capped per-enemy damage 사용 → 잘못된 lethal flagging 수정.
+- **AOE-zeroed** wasted-attack 페널티 신규: 모든 적이 0 데미지로 cap (full shell board, full
+  Intangible) 일 때 penalty 적용.
+
+### Skill PowerApps
+- **AllEnemies 스킬 디버프** (Footwork-style Weak-to-all) 가 alive enemy count 로 scale.
+- **Single-target enemy skill** 의 **Artifact gating**: 대상 Artifact 가 stack 을 fully 흡수하면
+  value 0 처리. 이전엔 부여되지 않는 디버프에 점수 부여.
+
+### Target priority
+- **Poison-lethal target short-circuit**: PoisonAmount ≥ Hp 인 target 은 모든 intent / state
+  bonus 무시하고 즉시 강한 penalty (`PoisonLethalPenalty -1200`). 이전 tier 방식은 buff target
+  bonus 와 합쳐서 net positive 가 될 수 있어서 corpse-walking minion 에 공격 낭비.
+
+### Bug fixes
+- **`EvaluateEnergyGain` 가 `EnergyNextTurnPower` 카드 (Berserk-style) 잘못 페널티**: 이제 즉시
+  `EnergyGain > 0` 인 카드에만 unlock 로직 적용. Berserk 의 PowerCatalog 값이 단독으로 유효.
+- **`EnumerateCandidates` 가 next-turn energy power 카드를 hand 가 비었다는 이유로 skip**: 동일
+  fix — IsEnergyGainCard 가 아닌 EnergyGain > 0 으로 narrow.
+- **CardOverrideCatalog 의 사라진 `CARD.FORETHOUGHT` 항목 제거** (STS2 v0.103.2 catalog 에 없음).
+
+### Score breakdown / diagnostics
+- **HandSynergy lookahead double-count 보정**: depth-2 가 이미 한 beneficiary 의 buff 적용을
+  catch 하므로 HandSynergy 는 그 외 (N-1) 명만 카운트. 이전엔 Inflame / Bash 류 setup 카드가
+  ~50-100 점 과대평가.
+- **0-cost 카드 MinPlayScore 우회**: 0-cost positive 카드는 floor 무시하고 항상 play (free 카드를
+  turn-end 에 버리지 않도록).
+- **`bestNextId`** 가 candidate trace 에 추가됨 — depth-2 가 어떤 follow-up 을 골랐는지 로그에 표시.
+- **Card log 에 |R / |E / |I / |X (Retain/Ethereal/Innate/Unplayable) 플래그 표시**.
+- **ScoreBreakdown component 합산**이 Total 과 일치하도록 수정 (로그 명확성).
+- **`SimCard.Played` dead 필드 제거** — 시뮬레이터는 hand 에서 제거하지 mark 하지 않음.
+- **다중 channel 카드 kick value** (Glacier 2 Frost / ConsumingShadow 2 Dark / Refract 2 Glass)
+  가 full slot 상황에서 모든 kicked orb 의 evoke value 합산.
+
+### Tests
+- Test 프로젝트가 이 repo 에 없어서 직접 실행 검증 못함 (build 환경 부재). 모든 변경은 정합성
+  분석 + 코드 리뷰 기반. 다음 dotnet 빌드 시 unit test 회귀 확인 권장.
 
 ## v0.4.0 (2026-05-16)
 
