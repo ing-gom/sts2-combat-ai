@@ -85,6 +85,8 @@ def parse_args() -> argparse.Namespace:
                    help="Also write the Markdown report to this path")
     p.add_argument("--top-uncovered", type=int, default=20,
                    help="How many dropped / no-axis cards to list (default 20)")
+    p.add_argument("--allow-version-mismatch", action="store_true",
+                   help="Skip the cards_catalog.json / card_triggers.json version drift guard")
     return p.parse_args()
 
 
@@ -109,6 +111,23 @@ def load_inputs(args: argparse.Namespace):
 
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     triggers = json.loads(triggers_path.read_text(encoding="utf-8"))
+
+    catalog_version = catalog.get("game_version")
+    triggers_version = triggers.get("version")
+    if catalog_version != triggers_version:
+        msg = (
+            f"Version drift detected:\n"
+            f"  catalog game_version : {catalog_version}  ({catalog_path})\n"
+            f"  triggers version     : {triggers_version}  ({triggers_path})\n"
+            f"Re-run scripts/extract_card_triggers.py against the current catalog,\n"
+            f"or pass --allow-version-mismatch to proceed anyway."
+        )
+        if args.allow_version_mismatch:
+            print(f"WARNING: {msg}", file=sys.stderr)
+        else:
+            print(msg, file=sys.stderr)
+            sys.exit(3)
+
     power_src = power_path.read_text(encoding="utf-8")
     override_src = override_path.read_text(encoding="utf-8")
     tier_src = tier_path.read_text(encoding="utf-8")

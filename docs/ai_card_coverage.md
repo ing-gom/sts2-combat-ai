@@ -5,11 +5,11 @@ how much of the card pool each rule (PowerCatalog, PowerSequencingTier,
 CardOverrideCatalog, BuildSynergy, AmplifierSynergy, EffectSynergy,
 HandSynergy) explicitly handles vs falls back to generic defaults.
 
-- Master catalog: `..\scripts\cards_catalog.json` (game v0.103.2)
-- Embedded triggers: `C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Data\card_triggers.json` (v0.103.2)
-- PowerCatalog: `C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Planner\PowerCatalog.cs` (69 powers registered)
-- PowerSequencingTier: `C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Planner\PowerSequencingTier.cs` (55 powers classified)
-- Override: `C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Planner\CardOverrideCatalog.cs` (13 cards)
+- Master catalog: `/home/user/sts2-combat-ai/scripts/cards_catalog.json` (game v0.103.2)
+- Embedded triggers: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
+- PowerCatalog: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (69 powers registered)
+- PowerSequencingTier: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (55 powers classified)
+- Override: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs` (13 cards)
 
 ## Headline metrics  (577 base cards)
 
