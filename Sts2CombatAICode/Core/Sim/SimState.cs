@@ -52,6 +52,18 @@ internal sealed record SimState
     public int PlayerFocus { get; init; }
 
     /// <summary>
+    /// v0.5 — Per-type "next N plays cost 0" counters from FreeAttackPower /
+    /// FreeSkillPower / FreePowerPower. When > 0, EnumerateCandidates lets
+    /// otherwise-unaffordable cards through and the simulator skips the energy
+    /// spend on play (decrementing the counter). Without this, depth-2 still
+    /// charges the card's cost in the lookahead even when a Free*Power has
+    /// already been applied this turn.
+    /// </summary>
+    public int PlayerFreeAttacks { get; init; }
+    public int PlayerFreeSkills { get; init; }
+    public int PlayerFreePowers { get; init; }
+
+    /// <summary>
     /// v0.4 — Ordered orb queue. OrbQueue[0] is the head (oldest, evokes first / kicked first
     /// on overflow). Empty when not playing Defect. Count matches PlayerOrbCount.
     /// </summary>
