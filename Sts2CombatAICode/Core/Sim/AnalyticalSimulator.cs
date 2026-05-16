@@ -306,12 +306,13 @@ internal static class AnalyticalSimulator
             };
         }
 
-        // v0.5 — the card we just played joins the discard pile (or exhaust pile if
-        // IsExhaust). Track this so subsequent Draw-card scoring in depth-2 sees the
-        // post-play pile sizes, not the pre-play snapshot.
+        // v0.5 — the card we just played joins the discard pile unless it exhausts
+        // on play (catalog Exhaust flag). The catalog marks Slimed, Apparition, etc.
+        // as Exhaust so the gate doesn't need a separate curse/status exclusion. Track
+        // this so subsequent Draw-card scoring in depth-2 sees the post-play pile size.
         int drawPileAfter = next.DrawPileSize;
         int discardAfter = next.DiscardPileSize;
-        if (!card.IsExhaust && !card.IsCurseOrStatus)
+        if (!card.IsExhaust)
             discardAfter += 1;
 
         // 4. DrawCount: simulate fetching N cards from the pile as low-value placeholders.
