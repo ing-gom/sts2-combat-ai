@@ -38,20 +38,29 @@ internal static class SmartSelectorLogic
         var summary = CardReflection.GetEffectSummary(card);
         // v0.5 — pull catalog metadata so BuildSynergy / orb axes / retain logic see
         // the same data as the in-hand planner path. Previously these options scored
-        // as if every card had no axes / no build tags, so discard prompts would
-        // sometimes mark a high-synergy build card as "worst" purely because its
-        // raw damage was lower than a generic Strike.
+        // as if every card had no axes / no build tags / no orb metadata, so:
+        //   • Discard prompts could mark a high-synergy build card as "worst" purely
+        //     because its raw damage was lower than a generic Strike.
+        //   • Orb-related selection (Dualcast / Quadcast / Capacitor in a reward)
+        //     missed their evoke/channel score contribution entirely.
         var id = card.Id.Entry;
         var catalogInfo = Data.CardCatalog.Lookup(id);
         var axes = catalogInfo?.Axes ?? System.Array.Empty<string>();
+        int costSpent = CardReflection.GetCost(card);
+        var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes);
+        var effect = summary with {
+            EvokeCount = orbMeta.EvokeCount,
+            ChannelCount = orbMeta.ChannelCount,
+            ChannelKind = orbMeta.ChannelKind,
+        };
         var simCard = new SimCard
         {
             Id = id,
-            Cost = CardReflection.GetCost(card),
+            Cost = costSpent,
             Kind = card.Type,
             Target = card.TargetType,
             SourceRef = card,
-            Effect = summary,
+            Effect = effect,
             Axes = axes,
             PrimaryBuildTags = catalogInfo?.PrimaryBuildTags ?? System.Array.Empty<string>(),
             IsRetain = catalogInfo?.Retain ?? false,
