@@ -162,6 +162,64 @@ internal static class PowerSequencingTier
             { "WellLaidPlansPower",       SequencingTier.Tempo },
             { "InfiniteBladesPower",      SequencingTier.Tempo },
             { "ForbiddenGrimoirePower",   SequencingTier.Tempo },     // out-of-combat reward — defer
+
+            // ─── Coverage pass v0.103.2 — B/C tier ──────────────────────────────
+            // Shared (Plating block carryover — also classifies STONE_ARMOR / ETERNAL_ARMOR)
+            { "PlatingPower",             SequencingTier.Defensive },
+
+            // B tier — Setup (multiplies same-turn plays)
+            { "PhantomBladesPower",       SequencingTier.Setup },     // first Shiv +9 dmg
+
+            // B tier — Scaling (long-fight permanents)
+            { "CapacitorPower",           SequencingTier.Scaling },
+            { "IterationPower",           SequencingTier.Scaling },
+            { "SmokestackPower",          SequencingTier.Scaling },
+            { "StormPower",               SequencingTier.Scaling },
+            { "SubroutinePower",          SequencingTier.Scaling },
+            { "TrashToTreasurePower",     SequencingTier.Scaling },
+            { "StampedePower",            SequencingTier.Scaling },
+            { "ViciousPower",             SequencingTier.Scaling },
+            { "BlackHolePower",           SequencingTier.Scaling },
+            { "GenesisPower",             SequencingTier.Scaling },
+            { "OrbitPower",               SequencingTier.Scaling },
+            { "PaleBlueDotPower",         SequencingTier.Scaling },
+            { "TyrannyPower",             SequencingTier.Scaling },
+            { "PanachePower",             SequencingTier.Scaling },
+            { "PrepTimePower",            SequencingTier.Scaling },
+            { "AccelerantPower",          SequencingTier.Scaling },
+
+            // B tier — Defensive
+            // (none — block-granting B-tier Powers covered via PlatingPower)
+
+            // B tier — Tempo (energy/draw/free-cost)
+            { "CreativeAiPower",          SequencingTier.Tempo },
+            { "AggressionPower",          SequencingTier.Tempo },
+            { "PyrePower",                SequencingTier.Tempo },
+            { "SentryModePower",          SequencingTier.Tempo },
+            { "RoyaltiesPower",           SequencingTier.Tempo },     // out-of-combat — defer
+            { "HelloWorldPower",          SequencingTier.Tempo },
+
+            // C tier — Scaling
+            { "HailstormPower",           SequencingTier.Scaling },
+            { "CalcifyPower",             SequencingTier.Scaling },
+            { "NecroMasteryPower",        SequencingTier.Scaling },
+            { "ArsenalPower",             SequencingTier.Scaling },
+            { "FurnacePower",             SequencingTier.Scaling },
+            { "SeekingEdgePower",         SequencingTier.Scaling },
+            { "SwordSagePower",           SequencingTier.Scaling },
+            { "RollingBoulderPower",      SequencingTier.Scaling },
+            { "EnvenomPower",             SequencingTier.Scaling },
+            { "MasterPlannerPower",       SequencingTier.Scaling },
+
+            // C tier — Defensive
+            { "ParryPower",               SequencingTier.Defensive },
+            { "PillarOfCreationPower",    SequencingTier.Defensive },
+
+            // C tier — Tempo
+            { "DrumOfBattlePower",        SequencingTier.Tempo },
+            { "SpectrumShiftPower",       SequencingTier.Tempo },
+            { "StratagemPower",           SequencingTier.Tempo },
+            { "FanOfKnivesPower",         SequencingTier.Tempo },     // 4-Shiv burst
         };
 
     /// <summary>

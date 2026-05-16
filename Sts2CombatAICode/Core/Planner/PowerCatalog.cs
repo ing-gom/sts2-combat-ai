@@ -139,6 +139,67 @@ internal static class PowerCatalog
         { "TrackingPower",            600 },  // S — Weak amplifier (2x dmg on Weak)
         { "WellLaidPlansPower",       400 },  // S — retain 1 per turn
         { "InfiniteBladesPower",      500 },  // A — free Shiv per turn
+
+        // ─── Coverage pass v0.103.2 — B/C tier cards previously default ─────
+        // Shared mechanic — also covers STONE_ARMOR (B) and ETERNAL_ARMOR (C)
+        // via vars match. PlatedArmorPower (existing) and PlatingPower may be
+        // the same class with a name discrepancy; keeping both is harmless.
+        { "PlatingPower",             400 },  // Plating block carryover (decays on hit)
+
+        // ─── B tier ─────────────────────────────────────────────────────────
+        // Defect
+        { "CapacitorPower",           350 },  // +2 orb slots (scales with Focus)
+        { "CreativeAiPower",          450 },  // random Power /turn to hand
+        { "IterationPower",           350 },  // 2 draw on first Status draw /turn
+        { "SmokestackPower",          400 },  // AoE 5 on Status generated
+        { "StormPower",               450 },  // Lightning channel /Power play
+        { "SubroutinePower",          500 },  // +1 energy /Power play
+        { "TrashToTreasurePower",     400 },  // random orb /Status generated
+        // Ironclad
+        { "AggressionPower",          400 },  // discard-pile attack recall +upgrade
+        { "PyrePower",                600 },  // permanent +1 energy /turn
+        { "StampedePower",            350 },  // turn-end random attack auto-play
+        { "ViciousPower",             400 },  // draw on Vuln applied
+        // Necrobinder
+        { "SentryModePower",          400 },  // per-turn Skim to hand
+        // Regent
+        { "BlackHolePower",           450 },  // AoE 3 on Star consume/gain
+        { "GenesisPower",             500 },  // Star /turn
+        { "OrbitPower",               400 },  // Star on every 4 energy spent
+        { "PaleBlueDotPower",         350 },  // bonus draw on 5+ card turns
+        { "RoyaltiesPower",           150 },  // out-of-combat gold reward
+        { "TyrannyPower",             300 },  // turn-start draw +exhaust
+        // Shared
+        { "HelloWorldPower",          400 },  // Common card /turn to hand
+        { "PanachePower",             400 },  // AoE 10 every 5 cards played
+        { "PrepTimePower",            450 },  // Vigor 4 /turn
+        // Silent
+        { "AccelerantPower",          500 },  // +1 Poison tick /apply
+        { "PhantomBladesPower",       500 },  // Shivs gain Retain +9 dmg first /turn
+
+        // ─── C tier ─────────────────────────────────────────────────────────
+        // Defect
+        { "HailstormPower",           350 },  // turn-end AoE 6 if Frost held
+        // Ironclad
+        { "DrumOfBattlePower",        350 },  // 2 draw +exhaust top of draw /turn
+        // Necrobinder
+        { "CalcifyPower",             400 },  // Skeleton attack damage +4
+        { "NecroMasteryPower",        500 },  // summon 5 +Skeleton HP-loss echo
+        // Regent
+        { "ArsenalPower",             400 },  // +1 Strength /card generated
+        { "FurnacePower",             400 },  // Forge 4 /turn
+        { "ParryPower",               350 },  // +10 block /Lord's Blade play
+        { "PillarOfCreationPower",    300 },  // +3 block /card generated
+        { "SeekingEdgePower",         350 },  // Forge 7 + Lord's Blade AoE toggle
+        { "SpectrumShiftPower",       250 },  // Colorless random /turn
+        { "SwordSagePower",           400 },  // Lord's Blade +1 hit
+        // Shared
+        { "RollingBoulderPower",      350 },  // turn-start AoE 5, +5 each turn
+        { "StratagemPower",           250 },  // shuffle-trigger hand-grab
+        // Silent
+        { "EnvenomPower",             500 },  // +1 Poison on unblocked attack
+        { "FanOfKnivesPower",         400 },  // Shivs target all (permanent toggle)
+        { "MasterPlannerPower",       300 },  // Skill cards gain Sly
     };
 
     public static readonly IReadOnlyDictionary<string, int> EnemyDebuff = new Dictionary<string, int>
