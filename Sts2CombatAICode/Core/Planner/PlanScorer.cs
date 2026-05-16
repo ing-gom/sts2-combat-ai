@@ -41,7 +41,58 @@ internal static class PlanScorer
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current));
 
     public static ScoreBreakdown Breakdown(SimCard card, int targetIdx, SimState state, PlanScorerWeights w)
-        => AdjustBreakdownForEnchant(BreakdownInternal(card, targetIdx, state, w), card);
+        => AdjustBreakdownForPlayOrder(
+            AdjustBreakdownForEnchant(BreakdownInternal(card, targetIdx, state, w), card),
+            card, state, w);
+
+    /// <summary>
+    /// Apply Retain / Ethereal play-order biases. These don't change a card's *value*,
+    /// only its preferred sequencing within the turn:
+    ///   • Retain — small per-other-playable penalty so a retainable card waits until
+    ///     no non-retain alternative remains. When retain is the only useful play,
+    ///     the penalty is 0 and the card plays normally.
+    ///   • Ethereal — flat bonus so a card that would otherwise exhaust unplayed
+    ///     wins close-call comparisons against equal-scored non-ethereal cards.
+    /// Magnitudes are intentionally small (≤ ~100) so they break ties without
+    /// overriding clear PowerCatalog / damage / block winners.
+    /// </summary>
+    private static ScoreBreakdown AdjustBreakdownForPlayOrder(
+        ScoreBreakdown bd, SimCard card, SimState state, PlanScorerWeights w)
+    {
+        int delta = 0;
+        string? tag = null;
+
+        if (card.IsRetain)
+        {
+            int otherPlayable = 0;
+            foreach (var c in state.Hand)
+            {
+                if (ReferenceEquals(c, card) || c.Played) continue;
+                if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+                if (c.IsRetain) continue;          // other retains have the same defer urge
+                if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;
+                otherPlayable++;
+            }
+            if (otherPlayable > 0)
+            {
+                int penalty = -w.RetainDeferPenaltyPerAlternative * otherPlayable;
+                delta += penalty;
+                tag = $"retainDefer({otherPlayable}){penalty}";
+            }
+        }
+
+        if (card.IsEthereal)
+        {
+            delta += w.EtherealPlayNowBonus;
+            tag = tag == null
+                ? $"ethereal+{w.EtherealPlayNowBonus}"
+                : $"{tag},ethereal+{w.EtherealPlayNowBonus}";
+        }
+
+        if (delta == 0) return bd;
+        var details = string.IsNullOrEmpty(bd.Details) ? tag! : $"{bd.Details},{tag}";
+        return bd with { Total = bd.Total + delta, Details = details };
+    }
 
     /// <summary>
     /// Wrap Breakdown's Total + Details with the enchantment adjustment so logs show
