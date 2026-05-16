@@ -181,7 +181,8 @@ internal static class PlanScorer
             buildBonus += overrideBonus;
             int total = baseBonus + effect + costTie + energyBonus + fightCtx + powerOrbBonus + buildBonus;
             return new ScoreBreakdown(total, "Power",
-                Base: baseBonus + costTie, Effect: effect + energyBonus + fightCtx + buildBonus,
+                Base: baseBonus + costTie,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + buildBonus,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -450,7 +451,8 @@ internal static class PlanScorer
 
             int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
-                Base: baseBonus, Effect: effect + attached + buildBonus,
+                Base: baseBonus,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus,
                 TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -587,8 +589,9 @@ internal static class PlanScorer
             buildBonus += overrideBonus;
             int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus;
             return new ScoreBreakdown(total, "Skill",
-                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus,
-                TargetBonus: 0, ThreatBonus: threatBonus,
+                Base: baseBonus,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus,
+                TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
     }
