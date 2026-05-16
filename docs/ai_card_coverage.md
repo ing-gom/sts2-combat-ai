@@ -3,6 +3,7 @@
 - Master catalog: `..\scripts\cards_catalog.json` (game v0.103.2)
 - Embedded triggers: `C:\Users\kl95\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Data\card_triggers.json` (v0.103.2)
 - PowerCatalog: `C:\Users\kl95\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Planner\PowerCatalog.cs` (69 powers registered)
+- PowerSequencingTier: `C:\Users\kl95\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Planner\PowerSequencingTier.cs` (55 powers classified)
 - Override: `C:\Users\kl95\sts2-card-advisor-dev\Sts2CombatAI\Sts2CombatAICode\Core\Planner\CardOverrideCatalog.cs` (13 cards)
 
 ## Headline metrics  (577 base cards)
@@ -15,6 +16,9 @@
 | Override bonus applied | 13 / 577 | 2.3% |
 | Dropped (no axes/builds/keywords/trigger) | 1 / 577 | 0.2% |
 | Any synergy-rule participation (≥1 of 5 rules) | 458 / 577 | 79.4% |
+| Conditional-damage vars (`Calculated*` / `Extra*` / `Repeat`) | 66 / 577 | 11.4% |
+| Self-modifier axes (`EXHAUST/RETAIN/ETHEREAL/INNATE/UNPLAYABLE`) | 143 / 577 | 24.8% |
+| SelectorMode trigger (`upgrade_trigger` / `fetch_trigger`) | 64 / 577 | 11.1% |
 
 ## PowerCatalog hit rate  (112 Power-type base cards)
 
@@ -30,6 +34,60 @@ key in its `vars`, or its id-derived `PascalCasePower` name, appears in
 | Hit via id-derived PascalCasePower | 10 | 8.9% |
 | **Any hit (lower bound)** | **28** | **25.0%** |
 | Fallback only (HeuristicFallback / Default 200) | 84 | 75.0% |
+
+## PowerSequencingTier coverage  (Power cards only)
+
+Within-turn ordering bonus for Power cards. `Unknown` tier receives 0
+ordering bonus — those cards rely on raw PowerCatalog value only.
+
+| Tier | Cards | % |
+|---|---:|---:|
+| Setup | 11 | 9.8% |
+| Scaling | 11 | 9.8% |
+| Defensive | 5 | 4.5% |
+| Tempo | 0 | 0.0% |
+| SelfHarm | 1 | 0.9% |
+| Unknown | 84 | 75.0% |
+| **Classified (any non-Unknown)** | **28** | **25.0%** |
+
+## Conditional damage / vars patterns  (66 cards)
+
+Cards whose damage / block / hits depend on runtime calculation. PlanScorer
+has special handling for these (`CalculatedDamage`, `ExtraDamage` etc.) —
+missing the pattern means the card falls back to static stat scoring.
+
+| Category | Sample vars keys | Cards |
+|---|---|---:|
+| Calculated* | `CalculatedDamage`, `CalculatedBlock`, `CalculatedHits`, … | 42 |
+| Calculation base/extra | `CalculationBase`, `CalculationExtra` | 43 |
+| Extra* | `ExtraDamage`, `ExtraBlock`, `ExtraCost` | 22 |
+| Repeat | `Repeat` | 23 |
+
+## Self-modifier axes  (143 cards have ≥1)
+
+Axes that drive `PlanScorer.PlayOrderBias` and waste-avoidance branches
+(Retain defer, Ethereal-now bonus, Exhaust loss, Innate opener, Unplayable
+rejection). A card outside this set takes the default play-order path.
+
+| Axis | Cards |
+|---|---:|
+| EXHAUST_SELF | 97 |
+| RETAIN_SELF | 11 |
+| ETHEREAL_SELF | 18 |
+| INNATE | 9 |
+| INNATE_SELF | 9 |
+| UNPLAYABLE | 25 |
+
+## SelectorMode triggers  (64 cards)
+
+Cards whose description keywords drive the Burn vs Boost prompt mode in
+`SelectorMode`. Cards without any trigger fall back to the default mode
+(usually Burn / discard-worst).
+
+| Trigger | Source | Cards |
+|---|---|---:|
+| `upgrade_trigger` | description contains "강화" | 12 |
+| `fetch_trigger` | description contains 가져옴 / 생성 | 59 |
 
 ## Synergy-rule reach
 
@@ -224,3 +282,10 @@ These rely on `HeuristicFallback()` or `DefaultValue = 200`.
   Strength/Dex/Vuln/Weak through descriptions without exposing the power
   name in `vars` are missed. Hits via `card.PowerApps` at runtime would be
   higher.
+- **PowerSequencingTier hit shares the lower-bound caveat.** Same vars +
+  id-derived matching as PowerCatalog — a Power card whose applied power
+  name is not in `vars` or in the id-derived form will be reported as
+  `Unknown` even when the power IS registered in the tier map.
+- **Target distribution and Orb ChannelCount-based reach are not measured**
+  because the catalog exposes neither `target` nor `ChannelCount`. Those
+  paths can only be audited via runtime reflection.

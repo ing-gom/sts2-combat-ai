@@ -1,6 +1,6 @@
 ---
 name: ai-card-coverage
-description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 평가하는지 (단독 평가 path + 카드 간 synergy 룰 reach) 정적 측정. 신규 카드 추가, PowerCatalog/CardOverrideCatalog/BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 단독 metric 6개 + 시너지 metric 4개 (synergy reach / pair-stem completeness / participation degree) + 미커버 카드 / orphan stem 상세.
+description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 평가하는지 (단독 평가 path + 카드 간 synergy 룰 + 부가 평가 경로) 정적 측정. 신규 카드 추가, PowerCatalog/PowerSequencingTier/CardOverrideCatalog/BuildSynergy/AmplifierSynergy/EffectSynergy/HandSynergy 변경, 신규 axis/archetype 추가, 릴리즈 전 정기 audit 시 호출. 14 metric (단독 6 + synergy 4 + 부가 4: PowerSequencingTier / Conditional damage / Self-modifier / SelectorMode) + 미커버 카드 / orphan stem 상세.
 ---
 
 # AI Card Coverage Audit
@@ -18,7 +18,7 @@ description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 �
 
 ## 측정 Metric
 
-10 개 정적 지표 — 단독 평가 (6) + 카드 간 synergy (4). 모두 카탈로그 + 소스 파일만 보고 계산 (런타임 로그 X).
+14 개 정적 지표 — 단독 평가 (6) + 카드 간 synergy (4) + 부가 평가 경로 (4). 모두 카탈로그 + 소스 파일만 보고 계산 (런타임 로그 X).
 
 ### 단독 카드 평가 path
 
@@ -40,6 +40,15 @@ description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 �
 | **Pair-axis stem completeness** | `*_PRODUCER` × (`*_AMPLIFIER` ∪ `*_CONSUMER`) 양쪽 카드 존재하는 stem 수 / 전체 stem | dead-pair stem 식별 |
 | **Synergy participation degree** | 카드별 매칭 룰 수 분포 (0/1/2/3+) | 0 = synergy 무관 단독 카드 |
 
+### 부가 평가 경로 (v3)
+
+| Metric | 정의 | 의미 |
+|---|---|---|
+| **PowerSequencingTier coverage** | Power 카드 중 `PowerSequencingTier._tiers` 의 5 tier (Setup/Scaling/Defensive/Tempo/SelfHarm) 에 분류된 비율 (lower bound) | within-turn ordering bonus 의 카드 풀 적용 |
+| **Conditional-damage vars** | `vars` 에 `Calculated*` / `CalculationBase` / `CalculationExtra` / `Extra*` / `Repeat` 키 포함 카드 | PlanScorer 의 conditional damage path 가 작동하는 카드 |
+| **Self-modifier axes 분포** | `EXHAUST_SELF / RETAIN_SELF / ETHEREAL_SELF / INNATE / UNPLAYABLE` axis 분포 | PlanScorer.PlayOrderBias / 폐기 회피 분기 |
+| **SelectorMode trigger** | `upgrade_trigger` / `fetch_trigger` boolean | Burn vs Boost 모드 prompt 분기 |
+
 ### 분포 보조
 
 | Metric | 정의 |
@@ -57,6 +66,7 @@ description: Sts2CombatAI 가 STS2 카드 풀을 명시 규칙으로 얼마나 �
 | Dropped | ≤ 2% | 2~5% | > 5% |
 | Synergy participation | ≥ 80% | 65~79% | < 65% |
 | Pair-axis stem completeness | ≥ 70% | 50~69% | < 50% |
+| PowerSequencingTier classified (lb) | ≥ 70% | 50~69% | < 50% |
 
 threshold 미달 시 우선순위:
 1. **Dropped > 5%**: `extract_card_triggers.py` 의 신호 풀 (axes / builds / keywords / description keyword) 확장 검토
@@ -64,7 +74,9 @@ threshold 미달 시 우선순위:
 3. **Axis coverage < 80%**: `cards_catalog.json` 의 axis 매핑 (sts2-card-advisor 의 `card_axis_overrides.json`) 확장 — 상위 repo 의 axis-tagger 스킬로 작업
 4. **Pair-axis stem orphan 다수**: orphan stem 표를 보고 → `producer-only` 는 amp/cons 추가 또는 producer suffix 제거, `no producer` 는 axis convention 통일 (`VULN` vs `VULN_PRODUCER`) 검토
 5. **Synergy participation < 65%**: AmplifierSynergy / EffectSynergy / HandSynergy 룰을 더 많은 카드에 hook 할 axis 확장 검토
-6. **per-character 분포 편차 > 15%p**: 약한 캐릭터에 character-specific override 우선
+6. **PowerSequencingTier classified < 50%**: PowerCatalog hit % 와 같은 비율로 움직임 — 같은 lower-bound 한계 (vars 기반). PowerCatalog 등록 우선순위와 함께 작업
+7. **Conditional-damage cards 가 0**: `extract_card_triggers.py` 의 vars 추출이 변경됐을 가능성. catalog vars 키 universe 와 대조
+8. **per-character 분포 편차 > 15%p**: 약한 캐릭터에 character-specific override 우선
 
 ## 핵심 원칙
 
@@ -144,8 +156,12 @@ python scripts/measure_ai_card_coverage.py \
 2. **stdout** — 동일 내용 (sanity check)
 
 리포트 구성:
-- Headline metrics 표 (6 행: 단독 5 + synergy participation 1)
+- Headline metrics 표 (9 행: 단독 5 + synergy participation 1 + 부가 3)
 - PowerCatalog hit rate 세부 표
+- **PowerSequencingTier coverage** (5 tier + Unknown 분포)
+- **Conditional damage 패턴 분포** (Calculated* / Extra* / Repeat 카테고리별)
+- **Self-modifier axes 분포** (5 axis별 카드 수)
+- **SelectorMode 트리거 분포** (upgrade/fetch)
 - **Synergy-rule reach** (5 룰별 카드 수 / %)
 - **Pair-axis stem completeness** (P / A / C 카운트 표 + complete vs orphan)
 - **Synergy participation degree** (0/1/2/3/4/5 분포)
@@ -168,5 +184,8 @@ python scripts/measure_ai_card_coverage.py \
 - Synergy reach 는 *잠재* 카드 수 — 같은 hand 에 partner 가 안 들어오면 실제론 활성 안 됨
 - `Modifier-aware` 평가 (Str/Vuln/Weak 등) 는 모든 Attack/Skill 카드에 자동 적용 — 별도 metric 없음
 - Axis convention 불일치: `VULN_AMPLIFIER` 는 있는데 `VULN_PRODUCER` 대신 `VULN` 만 쓰는 경우, pair completeness 표가 false-orphan 으로 보고. 표를 보고 axis convention 통일을 검토하는 게 룰 자체의 검증이기도 함.
+- **PowerSequencingTier classified 와 PowerCatalog hit 은 같은 lower-bound 한계 공유** — 둘 다 카드의 vars *Power suffix 또는 id-derived PascalCasePower 매칭에 의존. BARRICADE 처럼 vars 비어있는 카드는 PowerCatalog 에 BarricadePower 등록돼 있어도 hit/classified 둘 다 못 잡음.
+- **Target 분포 / Orb ChannelCount-based reach** 는 catalog 에 `target` / `ChannelCount` 필드가 없어서 정적 측정 불가. 런타임 reflection 만 가능.
+- **Intent / Playstyle / Role priority / Enemy state 매칭** 은 모두 런타임 enemy state 의존 — 정적 측정 영역 밖.
 
-향후 작업 후보: DecisionLog ring buffer (32 entry) 파싱으로 *실제 활성된* synergy 룰 카운트 (현 metric 은 상한선).
+향후 작업 후보: DecisionLog ring buffer (32 entry) 파싱으로 *실제 활성된* synergy 룰 + ordering tier + target 분기 카운트 (현 metric 은 상한선).
