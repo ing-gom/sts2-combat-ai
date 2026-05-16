@@ -12,6 +12,24 @@ internal static class EnemyTurnSimulator
 {
     public static int PredictPlayerDmg(SimState s)
     {
+        // v0.5 — IntangiblePower on the player caps every incoming hit at 1.
+        // Short-circuit: total threat = sum of enemy hit counts − block. Skips the
+        // whole per-enemy Vulnerable/Weak chain because none of it matters when each
+        // hit lands as exactly 1 damage. Without this, the planner over-defends on
+        // Apparition / WraithForm turns where damage is effectively negligible.
+        if (s.PlayerIntangible > 0)
+        {
+            int hits = 0;
+            foreach (var e in s.Enemies)
+            {
+                if (!e.IsAlive) continue;
+                if (e.PoisonAmount > 0 && e.PoisonAmount >= e.Hp) continue;
+                if (e.HasAttackIntent || e.HasDeathBlowIntent)
+                    hits += Math.Max(1, e.IntentRepeats);
+            }
+            return Math.Max(0, hits - s.PlayerBlock);
+        }
+
         int total = 0;
         // v0.5 — incoming damage is amplified ×1.5 if the player is Vulnerable.
         // PredictPlayerDmg used to skip this multiplier entirely, so the threat
