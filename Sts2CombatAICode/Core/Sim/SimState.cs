@@ -25,6 +25,14 @@ internal sealed record SimState
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
+    /// <summary>
+    /// v0.5 — IntangiblePower stacks on the player. While > 0, each incoming hit
+    /// is capped at 1 damage (regardless of source). PredictPlayerDmg honors this
+    /// so threat estimation correctly drops on Intangible turns (Apparition,
+    /// WraithForm) — without it, the planner would over-defend during a turn
+    /// where the player is effectively invulnerable.
+    /// </summary>
+    public int PlayerIntangible { get; init; }
 
     // v0.2.9 — pile sizes for Draw card valuation.
     // We don't need card identities (privacy + complexity); raw counts let the
