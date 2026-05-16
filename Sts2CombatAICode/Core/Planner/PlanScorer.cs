@@ -125,12 +125,25 @@ internal static class PlanScorer
             var (powerOrbBonus, powerOrbDetail) = EvaluateOrbEffects(card, state);
             if (powerOrbBonus != 0) details.Add(powerOrbDetail);
 
+            // v0.5 — Tier-based ordering for multi-Power hands. Setup > Scaling >
+            // Defensive > Tempo > SelfHarm; Defensive jumps the queue under threat.
+            int powerCardsInHand = state.Hand.Count(c =>
+                !c.Played && c.IsPower && c.IsPlayable);
+            var tier = PowerSequencingTier.Classify(card);
+            int tierOrdering = PowerSequencingTier.OrderingBonus(tier, powerCardsInHand);
+            var (tierCond, tierDetail) = PowerSequencingTier.ConditionalBonus(card, tier, state, w);
+            if (tier != SequencingTier.Unknown)
+                details.Add(tierOrdering != 0 ? $"tier={tier}+{tierOrdering}" : $"tier={tier}");
+            if (!string.IsNullOrEmpty(tierDetail)) details.Add(tierDetail);
+
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
-            int total = baseBonus + effect + costTie + energyBonus + fightCtx + powerOrbBonus + buildBonus;
+            int total = baseBonus + effect + costTie + energyBonus + fightCtx
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus;
             return new ScoreBreakdown(total, "Power",
-                Base: baseBonus + costTie, Effect: effect + energyBonus + fightCtx + buildBonus,
+                Base: baseBonus + costTie,
+                Effect: effect + energyBonus + fightCtx + tierOrdering + tierCond + buildBonus,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
