@@ -70,7 +70,28 @@ internal static class ActionPlanner
         // on a worthless first move.
         var weights = PlanScorerWeights.For(PlaystyleState.Current);
         if (bestPlan != null && bestFirstScore < weights.MinPlayScore)
+        {
+            // v0.5 — 0-cost exemption. The floor exists to stop us spending ENERGY on a
+            // weak play. A 0-cost card spends no energy, so any positive-score play is
+            // strictly net positive — leaving it in hand wastes it at end-of-turn.
+            //   • If best plan is itself a 0-cost positive play, take it.
+            //   • If best plan is a paid card below floor, search the candidates for the
+            //     best 0-cost positive alternative and play that instead.
+            if (bestPlan.Value.Card.Cost == 0 && bestFirstScore > 0)
+                return bestPlan;
+            SimCard? freeCard = null;
+            int freeIdx = -1;
+            int freeScore = 0;
+            foreach (var (c, t) in candidates)
+            {
+                if (c.Cost != 0) continue;
+                int s = PlanScorer.Score(c, t, state);
+                if (s > freeScore) { freeScore = s; freeCard = c; freeIdx = t; }
+            }
+            if (freeCard != null)
+                return new PlanStep(freeCard, freeIdx, freeScore, Reason(freeCard));
             return null;
+        }
 
         return bestPlan;
     }
