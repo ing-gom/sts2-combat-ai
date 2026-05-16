@@ -66,6 +66,14 @@ internal sealed record SimCard
     /// </summary>
     public bool IsInnate { get; init; }
 
+    /// <summary>
+    /// True when this card is exhausted on play (Exhaust keyword in catalog).
+    /// Used by the simulator to decide whether the played card joins the
+    /// discard pile (non-exhaust) or leaves the deck entirely (exhaust) —
+    /// matters for Draw-card scoring in the depth-2 lookahead.
+    /// </summary>
+    public bool IsExhaust { get; init; }
+
     public bool IsAttack => Kind == CardType.Attack;
     public bool IsSkill => Kind == CardType.Skill;
     public bool IsPower => Kind == CardType.Power;
