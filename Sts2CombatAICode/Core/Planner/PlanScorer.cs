@@ -441,10 +441,16 @@ internal static class PlanScorer
             int atkEnergyBonus = EvaluateEnergyGain(card, state, w);
             if (atkEnergyBonus != 0) details.Add($"energyCtx={atkEnergyBonus}");
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus;
+            // v0.5 — attack cards can also have draw (DrawCardPower in PowerApps,
+            // Mind Blast / cycle-attack hybrids). Same pattern: EvaluateDrawCard
+            // returns 0 for non-draw cards, so this is a no-op for plain attacks.
+            int atkDrawBonus = EvaluateDrawCard(card, state, w);
+            if (atkDrawBonus != 0) details.Add($"drawCtx={atkDrawBonus}");
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
-                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus,
                 TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
