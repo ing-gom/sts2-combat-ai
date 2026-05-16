@@ -38,9 +38,13 @@ internal static class ActionPlanner
         int bestFirstScore = int.MinValue;
         LastCandidates.Clear();
 
+        var planWeights = PlanScorerWeights.For(PlaystyleState.Current);
         foreach (var (card, targetIdx) in candidates)
         {
-            int firstScore = PlanScorer.Score(card, targetIdx, state);
+            // v0.5 — play-order biases (Retain defer / Ethereal play-now) live here, not
+            // in PlanScorer.Score, so that discard/exhaust selectors see unbiased values.
+            int firstScore = PlanScorer.Score(card, targetIdx, state)
+                           + PlanScorer.PlayOrderBias(card, state, planWeights);
 
             // Simulate playing this card; find best card to follow.
             int secondScore = 0;
@@ -50,7 +54,8 @@ internal static class ActionPlanner
                 var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
                 foreach (var nextCand in EnumerateCandidates(nextState))
                 {
-                    int s = PlanScorer.Score(nextCand.card, nextCand.targetIdx, nextState);
+                    int s = PlanScorer.Score(nextCand.card, nextCand.targetIdx, nextState)
+                          + PlanScorer.PlayOrderBias(nextCand.card, nextState, planWeights);
                     if (s > secondScore || bestNextId == null)
                     {
                         secondScore = s;
@@ -80,8 +85,7 @@ internal static class ActionPlanner
         // "Stop playing" floor: judge on the *first-card score* (the actual card we'd play),
         // not the lookahead total — a high-score follow-up shouldn't keep us spending energy
         // on a worthless first move.
-        var weights = PlanScorerWeights.For(PlaystyleState.Current);
-        if (bestPlan != null && bestFirstScore < weights.MinPlayScore)
+        if (bestPlan != null && bestFirstScore < planWeights.MinPlayScore)
         {
             // v0.5 — 0-cost exemption. The floor exists to stop us spending ENERGY on a
             // weak play. A 0-cost card spends no energy, so any positive-score play is
@@ -97,7 +101,8 @@ internal static class ActionPlanner
             foreach (var (c, t) in candidates)
             {
                 if (c.Cost != 0) continue;
-                int s = PlanScorer.Score(c, t, state);
+                int s = PlanScorer.Score(c, t, state)
+                      + PlanScorer.PlayOrderBias(c, state, planWeights);
                 if (s > freeScore) { freeScore = s; freeCard = c; freeIdx = t; }
             }
             if (freeCard != null)
