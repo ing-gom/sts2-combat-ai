@@ -378,10 +378,35 @@ internal static class PlanScorer
             var (atkEffBonus, atkEffDetail) = EffectSynergy.Compute(card, targetIdx, state);
             if (atkEffBonus != 0) details.Add(atkEffDetail);
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkAmpBonus + atkEffBonus;
+            // v0.5 — Survival urgency: non-lethal attacks should defer to defense
+            // when the player is about to die. Lethal kills bypass this naturally
+            // via RealLethalKillBonus (+5000) which dwarfs the penalty.
+            int survivalAtkPenalty = 0;
+            {
+                var urg = EnemyTurnSimulator.GetSurvivalUrgency(state);
+                if (urg == SurvivalUrgency.Fatal || urg == SurvivalUrgency.Heavy)
+                {
+                    bool isLethalSingle = !isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count
+                                         && state.Enemies[targetIdx].IsAlive
+                                         && effectiveTotal >= state.Enemies[targetIdx].EffectiveHp;
+                    bool isLethalAoe = isAoe && state.Enemies.Where(e => e.IsAlive).All(e =>
+                    {
+                        int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
+                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                        return perHit * System.Math.Max(1, card.Hits) >= e.EffectiveHp;
+                    });
+                    if (!isLethalSingle && !isLethalAoe)
+                    {
+                        survivalAtkPenalty = urg == SurvivalUrgency.Fatal ? -1200 : -400;
+                        details.Add($"survival{urg}_nonLethal={survivalAtkPenalty}");
+                    }
+                }
+            }
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus, Effect: effect + attached + buildBonus + atkAmpBonus + atkEffBonus,
-                TargetBonus: targetBonus + wastedPenalty, ThreatBonus: 0,
+                TargetBonus: targetBonus + wastedPenalty + survivalAtkPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
 
@@ -493,9 +518,27 @@ internal static class PlanScorer
             var (skillEffBonus, skillEffDetail) = EffectSynergy.Compute(card, -1, state);
             if (skillEffBonus != 0) details.Add(skillEffDetail);
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus;
+            // v0.5 — Survival urgency for pure-setup skills (no block, no energy gain,
+            // no draw). Inflame / Limit Break style cards should defer when the player
+            // is about to die. Block / energy / draw skills are exempt — they're the
+            // survival response or feed it.
+            int survivalSkillPenalty = 0;
+            if (card.Block == 0 && !card.IsEnergyGainCard && !card.IsDrawCard)
+            {
+                var urgency = EnemyTurnSimulator.GetSurvivalUrgency(state);
+                survivalSkillPenalty = urgency switch
+                {
+                    SurvivalUrgency.Fatal    => -900,
+                    SurvivalUrgency.Heavy    => -350,
+                    _ => 0,
+                };
+                if (survivalSkillPenalty != 0)
+                    details.Add($"survival{urgency}={survivalSkillPenalty}");
+            }
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty;
             return new ScoreBreakdown(total, "Skill",
-                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus + skillAmpBonus + skillEffBonus,
+                Base: baseBonus, Effect: effect + powerEffect + energyBonus + drawBonus + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty,
                 TargetBonus: 0, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }

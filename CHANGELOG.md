@@ -69,6 +69,26 @@ Power 카드는 skip (PowerSequencingTier 가 처리).
 
 `PlanScorer.cs` Attack / Skill 분기에 `EffectSynergy.Compute` hook 추가. Score breakdown details 에 `vulnAmpTgt=+450,dmgAmp(atk*3)=+210` 같이 노출.
 
+### Survival urgency — cross-type 상황 인식
+
+기존엔 `BlockUnderThreatBonus +2000` 가 *block 카드*만 잡고 있어서 fatal/heavy threat 상황에서도 DemonForm / EchoForm 같은 강한 power 가 Defend 를 압도 → 사망. `EnemyTurnSimulator.GetSurvivalUrgency(state) → {None, Moderate, Heavy, Fatal}` 도입 + 모든 타입에 상황 페널티.
+
+- **Power 카드 (Setup/Scaling/Tempo tier)** — `PowerSequencingTier.ConditionalBonus`:
+  - Fatal (leak ≥ HP) → -2200
+  - Heavy (leak ≥ HP × 0.5) → -900
+  - Moderate (leak ≥ HP × 0.2) → -250
+  - Defensive tier 와 SelfHarm tier 는 면제 (Defensive 는 *survival 응답* 그 자체, SelfHarm 은 이미 음수).
+- **Skill 카드 (non-block, non-energy/draw)** — `PlanScorer.cs` Skill 분기:
+  - Fatal → -900, Heavy → -350. Inflame / Limit Break / Cleanse 같은 pure setup 만 영향. Block / energy-gain / draw skill 은 면제 (survival 의 일부).
+- **Attack 카드 (non-lethal)** — `PlanScorer.cs` Attack 분기:
+  - Fatal + non-lethal (single-target OR all-AOE-lethal 둘 다 아님) → -1200
+  - Heavy + non-lethal → -400
+  - Lethal kill 은 `RealLethalKillBonus +5000` 가 페널티를 압도 → 자연히 면제.
+
+**버그 시나리오 검증** (Player 5 HP, leak 8, hand [DemonForm 3코, Defend 1코, Strike 1코]):
+- Before: DemonForm ≈ 3000 vs Defend ≈ 2250 → DemonForm plays → 사망
+- After: DemonForm = 3000 − 2200 = 800, Defend = 2250 + neutralize 1200 = 3450, Strike = 900 − 1200 = -300 → Defend plays → 생존 ✓
+
 ## v0.4.0 (2026-05-16)
 
 **Project rename + architecture split — Vakuu 종속 컨셉을 범용 Combat AI 로 재정렬.**

@@ -78,4 +78,39 @@ internal static class EnemyTurnSimulator
     /// </summary>
     public static int TotalAliveEnemyHp(SimState s) =>
         s.Enemies.Where(e => e.IsAlive).Sum(e => e.Hp + e.Block);
+
+    /// <summary>
+    /// Survival urgency = how badly the player needs to defend this turn. Driven by
+    /// predicted leak (PredictPlayerDmg already subtracts current block) over current
+    /// HP. Used by planner to suppress non-defensive plays when survival is at stake.
+    ///
+    ///   Fatal     leak ≥ HP            → die this turn without intervention
+    ///   Heavy     leak ≥ HP × 0.5      → lose half HP, set up future Fatal
+    ///   Moderate  leak ≥ HP × 0.2      → notable but recoverable
+    ///   None      everything else
+    /// </summary>
+    public static SurvivalUrgency GetSurvivalUrgency(SimState s)
+    {
+        if (s.PlayerHp <= 0) return SurvivalUrgency.None;
+        if (AllInert(s)) return SurvivalUrgency.None;
+        int leak = PredictPlayerDmg(s);
+        if (leak <= 0) return SurvivalUrgency.None;
+        if (leak >= s.PlayerHp) return SurvivalUrgency.Fatal;
+        double ratio = (double)leak / s.PlayerHp;
+        if (ratio >= 0.5) return SurvivalUrgency.Heavy;
+        if (ratio >= 0.2) return SurvivalUrgency.Moderate;
+        return SurvivalUrgency.None;
+    }
+}
+
+/// <summary>
+/// Threat severity expressed as an ordered enum so callers branch on tiers rather
+/// than re-implementing the threshold math. Higher = more urgent.
+/// </summary>
+internal enum SurvivalUrgency
+{
+    None     = 0,
+    Moderate = 1,
+    Heavy    = 2,
+    Fatal    = 3,
 }
