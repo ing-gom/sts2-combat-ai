@@ -247,36 +247,23 @@ internal static class PlanScorer
             if (isAoe)
             {
                 // v0.5 — Per-enemy AOE damage with each target's own Vulnerable, Intangible
-                // (DamageCapPerHit) and HardenedShellRemaining cap applied. The previous bulk
-                // `effectivePerHit × Hits × aliveCount` used the wrong-target Vulnerable
-                // (always false for AOE) and ignored caps entirely, so AOE was over-valued
-                // against Intangible/HardToKill enemies and under-valued against vulnerable.
+                // (DamageCapPerHit) and HardenedShellRemaining cap applied via StatusMath
+                // helpers. Previous bulk `effectivePerHit × Hits × aliveCount` used the
+                // wrong-target Vulnerable (always false for AOE) and ignored caps entirely.
                 int aggregatedDmg = 0;
                 int capsHit = 0, shellHit = 0;
-                int aoeMultiplier = System.Math.Max(1, card.Hits);
                 for (int i = 0; i < state.Enemies.Count; i++)
                 {
                     var e = state.Enemies[i];
                     if (!e.IsAlive) continue;
-                    int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
+                    int rawPer = StatusMath.EffectiveAttackDmg(card.Damage,
                         state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
-                    if (e.DamageCapPerHit > 0 && perHit > e.DamageCapPerHit)
-                    {
-                        perHit = e.DamageCapPerHit;
-                        capsHit++;
-                    }
-                    int perEnemyTotal = perHit * aoeMultiplier;
-                    if (e.HardenedShellRemaining > 0 && perEnemyTotal > e.HardenedShellRemaining)
-                    {
-                        perEnemyTotal = e.HardenedShellRemaining;
-                        shellHit++;
-                    }
-                    else if (perHit > 0 && e.Powers.ContainsKey("HardenedShellPower"))
-                    {
-                        // Shell exists but budget spent — every hit on this enemy 0 dmg.
-                        perEnemyTotal = 0;
-                        shellHit++;
-                    }
+                    int perEnemyTotal = StatusMath.EffectivePerEnemyTotal(
+                        card.Damage, card.Hits, state.PlayerStrength, e, playerIsWeak);
+                    if (rawPer > 0 && e.DamageCapPerHit > 0 && rawPer > e.DamageCapPerHit) capsHit++;
+                    if ((e.HardenedShellRemaining > 0 && rawPer * System.Math.Max(1, card.Hits) > e.HardenedShellRemaining)
+                        || (rawPer > 0 && e.HardenedShellRemaining == 0
+                            && e.Powers.ContainsKey("HardenedShellPower"))) shellHit++;
                     aggregatedDmg += perEnemyTotal;
                 }
                 effect = aggregatedDmg * w.DamagePerPointBonus;
@@ -348,27 +335,12 @@ internal static class PlanScorer
             {
                 var aoeParts = new List<string>();
                 int totalAliveBlock = 0, totalAliveDmg = 0, aliveTargets = 0;
-                int aoeHitMultiplier = System.Math.Max(1, card.Hits);
                 for (int i = 0; i < state.Enemies.Count; i++)
                 {
                     if (!state.Enemies[i].IsAlive) continue;
                     var ei = state.Enemies[i];
-                    bool eVuln = ei.VulnerableAmount > 0;
-                    int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
-                        state.PlayerStrength, eVuln, playerIsWeak);
-                    // v0.5 — per-enemy IntangiblePower cap. Was missing here, so a
-                    // lethal range check or wasted-AOE check would over-credit AOE
-                    // damage against Intangible enemies (Cathedral, shielded phases).
-                    if (ei.DamageCapPerHit > 0 && perHit > ei.DamageCapPerHit)
-                        perHit = ei.DamageCapPerHit;
-                    int perEnemyDmg = perHit * aoeHitMultiplier;
-                    // v0.5 — per-enemy HardenedShell budget. If shell exists but is
-                    // already depleted this turn, every further hit lands 0.
-                    if (ei.HardenedShellRemaining > 0 && perEnemyDmg > ei.HardenedShellRemaining)
-                        perEnemyDmg = ei.HardenedShellRemaining;
-                    else if (perHit > 0 && ei.HardenedShellRemaining == 0
-                             && ei.Powers.ContainsKey("HardenedShellPower"))
-                        perEnemyDmg = 0;
+                    int perEnemyDmg = StatusMath.EffectivePerEnemyTotal(
+                        card.Damage, card.Hits, state.PlayerStrength, ei, playerIsWeak);
                     var (b, d) = ScoreAttackTarget(card, i, state, w, perEnemyDmg);
                     targetBonus += b;
                     totalAliveBlock += ei.Block;
