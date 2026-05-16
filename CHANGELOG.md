@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.5.0 (2026-05-16)
+
+**Power-card sequencing tier — 같은 손 안 power 카드 간 우선순위.**
+
+PowerCatalog 가 답하는 "이 버프는 fight 전체에서 얼마나 가치 있나" 와는 직교한 새 layer.
+같은 손에 여러 power 카드가 있을 때 어느 것을 먼저 plays 할지 결정.
+
+### `PowerSequencingTier.cs` 신규
+
+각 power 를 5 tier 중 하나로 분류 — Setup / Scaling / Defensive / Tempo / SelfHarm:
+
+- **Setup** (Strength, Dex, Focus, Accuracy, Vigor) — 같은 턴에 *뒤따라 plays 될 카드들의 가치를 곱해주는* 버프. 먼저 깔리지 않으면 multiplier 가 낭비됨.
+- **Scaling** (DemonForm, EchoForm, ReaperForm, MachineLearning, Juggernaut, Mayhem, Corruption, Poison/NoxiousFumes, Ritual, Hunger, BeaconOfHope 등) — 장기 fight 에서 turn 마다 누적되는 permanents.
+- **Defensive** (Barricade, Intangible, Buffer, Plated Armor, Thorns, FlameBarrier, Blur, FeelNoPain, Artifact, Regen 등) — block / 피해 mitigation. Threat 없으면 의미 없음.
+- **Tempo** (EnergyNextTurn, DrawCardsNextTurn, FreeAttack/Skill/Power) — 같은 턴 시너지 없음. defer 가능.
+- **SelfHarm** (NoDraw, NoBlock, Confused, MindRot 등) — 회피.
+
+### `OrderingBonus` — 같은 손 ≥2 power 카드일 때만
+
+50–200점 nudge — Setup +200, Scaling +150, Defensive +100, Tempo +50, SelfHarm -300. PowerCatalog 절대값 보존, 동률 깨는 정도.
+
+### `ConditionalBonus` — 상황 인식 보정
+
+- **Setup**: Focus + 손에 남은 orb 카드 수 (×80), Accuracy + 남은 attack 수 (×30), Vigor + 남은 attack 0 → -250. Setup 인데 수혜자 0 → -300. (Strength/Dex 기존 HandSynergy 와 중복 회피.)
+- **Defensive**: leak (predicted dmg − current block) > 0 → +leak×40 (max +800). 모든 적 inert / 위협 미만 → -200. 위협 있을 때 Setup 위로 점프.
+- **Scaling**: 적 1마리 + 남은 HP ≤ 25 → -300 (broad fightCtx 가 못 잡는 boundary).
+- **Tempo**: 총 적 HP ≤ 15 → -400 (이번 턴 끝날 fight 에 next-turn 자원은 무가치).
+
+### Integration
+
+`PlanScorer.BreakdownInternal` 의 power 분기에 통합. score breakdown details 에 `tier=Setup+200,focusOrbSyn=+240` 같은 형태로 노출. 기존 catalog / synergy / fight-context 로직은 그대로.
+
 ## v0.4.0 (2026-05-16)
 
 **Project rename + architecture split — Vakuu 종속 컨셉을 범용 Combat AI 로 재정렬.**
