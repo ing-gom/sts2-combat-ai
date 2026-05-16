@@ -96,6 +96,49 @@ internal static class PowerCatalog
         { "SkittishPower",            -200 },
         { "ShrinkPower",              -300 },
         { "EntropyPower",             -300 },
+
+        // ─── Coverage pass v0.103.2 — S/A tier cards previously default ─────
+        // Values are first-pass: anchored to similar registered powers + the
+        // S+/S/A/B/C/D bands above. Adjust during review.
+        //
+        // Ironclad
+        { "CrueltyPower",             600 },  // S — Vuln-target damage +25%
+        { "UnmovablePower",           600 },  // S — first block card / turn doubled
+        { "CrimsonMantlePower",       500 },  // A — +8 block / 1 HP per turn
+        { "DarkEmbracePower",         500 },  // A — draw on exhaust
+        { "InfernoPower",             500 },  // A — AoE 6 on HP loss
+        { "TankPower",                250 },  // A — multiplayer tank role
+        // Defect
+        { "CoolantPower",             400 },  // A — block per orb type
+        { "SpinnerPower",             400 },  // A — free Frost / turn
+        { "ThunderPower",             500 },  // A — +6 on Lightning evoke
+        // Necrobinder
+        { "CallOfTheVoidPower",       600 },  // S — per-turn draw with Volatile tag
+        { "DemesnePower",             550 },  // S — Volatile, turn-start payoff
+        { "LethalityPower",           500 },  // S — Volatile, first attack/turn +50%
+        { "NeurosurgePower",          550 },  // S
+        { "PagestormPower",           500 },  // S — draw on Volatile draw
+        { "SleightOfFleshPower",      600 },  // S — 9 dmg per debuff applied
+        { "CountdownPower",           500 },  // A — +6 Doom per turn
+        { "DevourLifePower",          400 },  // A — summon per Soul use
+        { "HauntPower",               500 },  // A — 6 HP loss per Soul use
+        { "ShroudPower",              350 },  // A — +2 block per Doom apply
+        { "SpiritOfAshPower",         450 },  // A — +4 block per Volatile play
+        { "ForbiddenGrimoirePower",   250 },  // A — out-of-combat deck thin
+        // Regent
+        { "ChildOfTheStarsPower",     500 },  // S — block per Star consumed
+        { "TheSealedThronePower",     700 },  // S — Star on every card play
+        { "VoidFormPower",            700 },  // S — Volatile, 2 free plays/turn (turn-ending)
+        { "HammerTimePower",          400 },  // A — party Forge
+        // Shared
+        { "FastenPower",              500 },  // S — Skill block +5
+        { "AutomationPower",          500 },  // A — energy per 10 cards drawn
+        // Silent
+        { "SneakyPower",              300 },  // S — multiplayer block on ally attack
+        { "ToolsOfTheTradePower",     500 },  // S — draw 1 discard 1 per turn
+        { "TrackingPower",            600 },  // S — Weak amplifier (2x dmg on Weak)
+        { "WellLaidPlansPower",       400 },  // S — retain 1 per turn
+        { "InfiniteBladesPower",      500 },  // A — free Shiv per turn
     };
 
     public static readonly IReadOnlyDictionary<string, int> EnemyDebuff = new Dictionary<string, int>
