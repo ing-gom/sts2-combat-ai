@@ -183,7 +183,7 @@ internal static class AnalyticalSimulator
                 int artifactLeft = enemy.ArtifactAmount;
                 foreach (var (powerName, amount) in card.PowerApps)
                 {
-                    if (!IsTrackedDebuff(powerName)) continue;
+                    if (!IsEnemyDebuff(powerName)) continue;
                     if (artifactLeft > 0)
                     {
                         // One Artifact charge intercepts the entire application.
@@ -283,7 +283,7 @@ internal static class AnalyticalSimulator
                     int artifactLeft = enemy.ArtifactAmount;
                     foreach (var (powerName, amount) in card.PowerApps)
                     {
-                        if (!IsTrackedDebuff(powerName)) continue;
+                        if (!IsEnemyDebuff(powerName)) continue;
                         if (artifactLeft > 0)
                         {
                             artifactLeft--;
@@ -474,13 +474,20 @@ internal static class AnalyticalSimulator
     }
 
     /// <summary>
-    /// Set of debuff PowerApps the sim propagates on enemies — these are also the
-    /// ones Artifact intercepts (one charge per application).
+    /// Set of enemy-debuff PowerApps the sim recognizes for Artifact consumption.
+    /// Artifact intercepts every debuff application regardless of whether we have
+    /// a dedicated SimEnemy field for it (the propagation switch below only updates
+    /// fields when we track them; powers like Hex / DarkShackles still consume an
+    /// Artifact charge but aren't carried forward into nextState).
     /// </summary>
-    private static bool IsTrackedDebuff(string powerName) => powerName switch
+    private static bool IsEnemyDebuff(string powerName) => powerName switch
     {
         "VulnerablePower" or "WeakPower" or "FrailPower"
-        or "PoisonPower" or "ConstrictPower" or "BurnPower" => true,
+        or "PoisonPower" or "ConstrictPower" or "BurnPower"
+        or "HexPower" or "DarkShacklesPower" or "PiercingWailPower"
+        or "DampenPower" or "EnfeeblingTouchPower" or "ShackedPotionPower"
+        or "ShacklingPotionPower" or "ConfusedPower" or "RupturePower"
+        or "NoxiousFumesPower" => true,
         _ => false,
     };
 
