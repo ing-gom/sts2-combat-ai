@@ -5,6 +5,32 @@
 **카드 사용순서 정확도 향상 — 시뮬레이터/스코어러 정합성 정리.** 게임 로직은 동일하지만 plan
 이 실제 in-game 결과와 더 가까워지도록 다수의 sim/scoring 버그 수정 + 누락된 효과 보강.
 
+### v0.5 추가 패스 (Iter 44-60)
+- **Negative Focus** 도 honor — clamp 위치를 input 대신 output (per-tick 0 floor) 로.
+- **Orb evoke (Lightning/Dark/Glass)** 가 Intangible / HardenedShell cap 적용. 이전엔 sim 의
+  DamageWeakest/DamageAll 이 캡 없이 데미지 → corpse follow-up 계획.
+- **Lethal-range hand projection** 도 Intangible / Shell budget 트래킹 — 못 죽일 적에 lethal
+  bonus 가 잘못 fire 되는 문제.
+- **FreeAttack/Skill/PowerPower** 카운터 SimState 에 트래킹 + sim 에서 consume + EnumerateCandidates
+  가 비싼 카드를 free play 로 통과시킴.
+- **Player IntangiblePower** 가 PredictPlayerDmg 에서 incoming hit 을 1/hit 으로 cap. 이전엔
+  Apparition 후에도 over-defend.
+- **Metallicize / PlatedArmor** end-of-turn block 이 threat 계산에 반영 (불필요한 defend 회피).
+- **Thorns 데미지가 PlayerHp 에 반영** — multi-hit attack vs thorny enemy 의 cumulative HP burn
+  을 depth-2 가 인식.
+- **DoT-lethal threshold** 가 Poison + Constrict 합산 (둘 다 pre-attack tick).
+- **Artifact 가 entire debuff application 차단** (canonical STS) — 이전엔 stack-by-stack 으로
+  부분 차감하여 partial debuff 가 잘못 land 한 것처럼 계산.
+- **OrbCardCatalog** 의 ORB_PRODUCER fallback 이 ORB_EVOKE 카드는 skip (Shatter 가 phantom
+  channelCount=1 받아서 BuildSynergy 가 producer 로 오인하던 문제).
+- **EvokeValue / PassiveValue 가 PlayerFocus 반영** — Defect 후반 scaling 가시화.
+- **EnergizedPower** 즉시 에너지 게인으로 처리 (sim 적용 + EvaluateEnergyGain unlock 로직).
+- **Skim 류 (energy gain + draw)** 가 hand-empty filter 통과 — 자기 자신의 draw 가 follow-up 생성.
+- **Draw card 가 played 후 discard 에 들어가는 순서** 수정 (draw 가 먼저, discard pile bump 가
+  그 다음 — 갓 play 한 카드를 같은 turn 에 다시 draw 하는 anomaly 방지).
+- **Sim 의 BuildSynergy** producer/consumer 판정이 axes 대신 ChannelCount/EvokeCount 로 (Dualcast/
+  Quadcast 가 full slot 에서 -300 penalty 받던 700-point swing fix).
+
 ### Play-order biases (신규)
 - **Retain** 카드는 다른 plays 가 남아있을 때 우선순위 ↓ (defer). 마지막 선택지일 때는 정상 점수.
 - **Ethereal** 카드는 turn-end exhaust 회피를 위한 소폭 boost (play-now).
