@@ -133,7 +133,12 @@ internal static class ActionPlanner
         {
             if (!card.IsPlayable) continue;        // Unplayable (curse/status/conditional)
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
-            if (card.Cost > state.PlayerEnergy) continue;
+            // v0.5 — Free*Power lets us play expensive cards over the energy budget.
+            bool freeCovers =
+                (card.IsAttack && state.PlayerFreeAttacks > 0) ||
+                (card.IsSkill && state.PlayerFreeSkills > 0) ||
+                (card.IsPower && state.PlayerFreePowers > 0);
+            if (!freeCovers && card.Cost > state.PlayerEnergy) continue;
             // Note: star-cost cards are filtered by CanPlay() already if no stars; we trust it.
 
             // Energy-gain card is pointless if there's nothing left to spend the gained energy on.

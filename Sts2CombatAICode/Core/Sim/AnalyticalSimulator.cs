@@ -30,8 +30,25 @@ internal static class AnalyticalSimulator
     {
         var next = state.DeepClone();
 
-        // 1. Spend energy, then add any energy gain from the card (Adrenaline, etc.)
-        int energy = System.Math.Max(0, next.PlayerEnergy - card.Cost);
+        // 1. Spend energy unless a Free*Power counter covers this card's type.
+        // v0.5 — Free counters decrement here so subsequent depth-2 cards see the
+        // updated count and don't double-consume the same free play.
+        int newFreeAttacks = next.PlayerFreeAttacks;
+        int newFreeSkills = next.PlayerFreeSkills;
+        int newFreePowers = next.PlayerFreePowers;
+        bool freeApplied =
+            (card.IsAttack && newFreeAttacks > 0) ||
+            (card.IsSkill && newFreeSkills > 0) ||
+            (card.IsPower && newFreePowers > 0);
+        int energy = freeApplied
+            ? next.PlayerEnergy
+            : System.Math.Max(0, next.PlayerEnergy - card.Cost);
+        if (freeApplied)
+        {
+            if (card.IsAttack) newFreeAttacks--;
+            else if (card.IsSkill) newFreeSkills--;
+            else if (card.IsPower) newFreePowers--;
+        }
         if (card.EnergyGain > 0) energy += card.EnergyGain;
 
         // 2. Remove the played card from hand. DeepClone produced new references for every
@@ -72,6 +89,12 @@ internal static class AnalyticalSimulator
                     case "FocusPower":
                     case "TemporaryFocusPower":
                         newPlayerFocus += amount; break;
+                    // v0.5 — Free*Power propagation. A Power card that grants
+                    // FreeAttackPower (or similar) needs to update the counter so the
+                    // very next attack lookahead sees the free play available.
+                    case "FreeAttackPower": newFreeAttacks += amount; break;
+                    case "FreeSkillPower":  newFreeSkills  += amount; break;
+                    case "FreePowerPower":  newFreePowers  += amount; break;
                     // Other powers (Inflame style) don't directly affect future card scoring
                     // in v0.2.5 — handled by per-power valuation in scorer.
                 }
@@ -197,6 +220,9 @@ internal static class AnalyticalSimulator
                         case "FocusPower":
                         case "TemporaryFocusPower":
                             newPlayerFocus += amount; break;
+                        case "FreeAttackPower": newFreeAttacks += amount; break;
+                        case "FreeSkillPower":  newFreeSkills  += amount; break;
+                        case "FreePowerPower":  newFreePowers  += amount; break;
                     }
                 }
             }
@@ -341,6 +367,9 @@ internal static class AnalyticalSimulator
             PlayerDexterity = newPlayerDex,
             PlayerFocus = newPlayerFocus,
             PlayerBlock = newPlayerBlock,
+            PlayerFreeAttacks = newFreeAttacks,
+            PlayerFreeSkills = newFreeSkills,
+            PlayerFreePowers = newFreePowers,
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,

@@ -37,6 +37,9 @@ internal static class StateSnapshotter
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
             int playerFocus = CombatReflection.GetPowerAmount(creature, "FocusPower");
+            int playerFreeAttacks = CombatReflection.GetPowerAmount(creature, "FreeAttackPower");
+            int playerFreeSkills = CombatReflection.GetPowerAmount(creature, "FreeSkillPower");
+            int playerFreePowers = CombatReflection.GetPowerAmount(creature, "FreePowerPower");
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
 
             int orbCount = 0, orbCapacity = 0;
@@ -163,6 +166,9 @@ internal static class StateSnapshotter
                 OrbQueue = orbQueue,
                 OrbEvokeValues = orbEvokeValues,
                 PlayerFocus = playerFocus,
+                PlayerFreeAttacks = playerFreeAttacks,
+                PlayerFreeSkills = playerFreeSkills,
+                PlayerFreePowers = playerFreePowers,
             };
         }
         catch (System.Exception ex)
