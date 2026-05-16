@@ -725,15 +725,29 @@ internal static class PlanScorer
             total += channelTotal;
             parts.Add($"channel({card.ChannelKind.ShortTag()}×{card.ChannelCount})+{channelTotal}");
 
+            // v0.5 — when channeling into a full slot the head orb is kicked AND evoked.
+            // Multi-channel cards (Glacier 2 Frost, ConsumingShadow 2 Dark, Refract 2 Glass)
+            // kick one orb per channel until the queue drains below capacity. Walk the queue
+            // in the same order the simulator does so the value matches what actually fires.
             if (state.PlayerOrbCapacity > 0
                 && state.OrbQueue.Count >= state.PlayerOrbCapacity
                 && state.OrbQueue.Count > 0)
             {
-                var head = state.OrbQueue[0];
-                int darkAcc = state.OrbEvokeValues.Count > 0 ? state.OrbEvokeValues[0] : 6;
-                int kickedEvoke = OrbValueCatalog.EvokeValue(head, aliveEnemies, darkAcc);
-                total += kickedEvoke;
-                parts.Add($"kicks({head.ShortTag()})+{kickedEvoke}");
+                int kickedTotal = 0;
+                int kickIdx = 0;
+                for (int i = 0; i < card.ChannelCount && kickIdx < state.OrbQueue.Count; i++)
+                {
+                    var kicked = state.OrbQueue[kickIdx];
+                    int kickedVal = kickIdx < state.OrbEvokeValues.Count
+                        ? state.OrbEvokeValues[kickIdx] : 6;
+                    kickedTotal += OrbValueCatalog.EvokeValue(kicked, aliveEnemies, kickedVal);
+                    kickIdx++;
+                }
+                if (kickedTotal != 0)
+                {
+                    total += kickedTotal;
+                    parts.Add($"kicks×{kickIdx}+{kickedTotal}");
+                }
             }
         }
 
