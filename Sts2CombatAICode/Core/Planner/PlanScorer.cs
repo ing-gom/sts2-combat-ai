@@ -661,13 +661,26 @@ internal static class PlanScorer
             int handAttackDmg = 0;
             bool playerWeakForCalc = state.PlayerWeak > 0;
             int energyForCalc = state.PlayerEnergy;
-            // Greedy: sum effective damage of cheap-enough attack cards in hand.
+            // v0.5 — track HardenedShell budget across the projected attack chain so
+            // multi-card lethal-range estimates don't double-spend the shell. The
+            // budget is a per-turn total: each card chips into a shared pool, and a
+            // depleted pool zeros out subsequent attacks.
+            int shellBudget = target.HardenedShellRemaining;
+            bool hasShell = shellBudget > 0 || target.Powers.ContainsKey("HardenedShellPower");
+            // Greedy: sum effective damage of cheap-enough attack cards in hand,
+            // each capped by per-hit Intangible and the running shell budget.
             foreach (var c in state.Hand.OrderBy(x => x.Cost))
             {
                 if (!c.IsPlayable || !c.IsAttack || c.Cost > energyForCalc) continue;
-                int per = StatusMath.EffectiveAttackDmg(c.Damage,
-                    state.PlayerStrength, target.VulnerableAmount > 0, playerWeakForCalc);
-                handAttackDmg += per * System.Math.Max(1, c.Hits);
+                int perHit = StatusMath.EffectivePerHitCapped(
+                    c.Damage, state.PlayerStrength, target, playerWeakForCalc);
+                int cardTotal = perHit * System.Math.Max(1, c.Hits);
+                if (hasShell)
+                {
+                    if (cardTotal > shellBudget) cardTotal = shellBudget;
+                    shellBudget = System.Math.Max(0, shellBudget - cardTotal);
+                }
+                handAttackDmg += cardTotal;
                 energyForCalc -= c.Cost;
                 if (energyForCalc <= 0) break;
             }
