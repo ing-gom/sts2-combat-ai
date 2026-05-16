@@ -41,27 +41,24 @@ internal static class PlanScorer
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current));
 
     public static ScoreBreakdown Breakdown(SimCard card, int targetIdx, SimState state, PlanScorerWeights w)
-        => AdjustBreakdownForPlayOrder(
-            AdjustBreakdownForEnchant(BreakdownInternal(card, targetIdx, state, w), card),
-            card, state, w);
+        => AdjustBreakdownForEnchant(BreakdownInternal(card, targetIdx, state, w), card);
 
     /// <summary>
-    /// Apply Retain / Ethereal play-order biases. These don't change a card's *value*,
-    /// only its preferred sequencing within the turn:
-    ///   • Retain — small per-other-playable penalty so a retainable card waits until
-    ///     no non-retain alternative remains. When retain is the only useful play,
-    ///     the penalty is 0 and the card plays normally.
+    /// Play-order biases for Retain / Ethereal. Kept OUT of <see cref="Score"/> /
+    /// <see cref="Breakdown"/> so that selector-context callers (discard/exhaust
+    /// prompts, reward selection) see the unbiased card value — otherwise the
+    /// retain defer-penalty would make retain cards look "worst" and the smart
+    /// selector would discard them preferentially, the opposite of what we want.
+    ///
+    /// Used only by <see cref="ActionPlanner"/> for first-card / depth-2 scoring.
+    ///   • Retain — small per-other-playable penalty so a retainable card waits
+    ///     until no non-retain alternative remains.
     ///   • Ethereal — flat bonus so a card that would otherwise exhaust unplayed
     ///     wins close-call comparisons against equal-scored non-ethereal cards.
-    /// Magnitudes are intentionally small (≤ ~100) so they break ties without
-    /// overriding clear PowerCatalog / damage / block winners.
     /// </summary>
-    private static ScoreBreakdown AdjustBreakdownForPlayOrder(
-        ScoreBreakdown bd, SimCard card, SimState state, PlanScorerWeights w)
+    public static int PlayOrderBias(SimCard card, SimState state, PlanScorerWeights w)
     {
         int delta = 0;
-        string? tag = null;
-
         if (card.IsRetain)
         {
             int otherPlayable = 0;
@@ -69,29 +66,16 @@ internal static class PlanScorer
             {
                 if (ReferenceEquals(c, card) || c.Played) continue;
                 if (!c.IsPlayable || c.IsCurseOrStatus) continue;
-                if (c.IsRetain) continue;          // other retains have the same defer urge
+                if (c.IsRetain) continue;          // other retains share the same defer urge
                 if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;
                 otherPlayable++;
             }
             if (otherPlayable > 0)
-            {
-                int penalty = -w.RetainDeferPenaltyPerAlternative * otherPlayable;
-                delta += penalty;
-                tag = $"retainDefer({otherPlayable}){penalty}";
-            }
+                delta -= w.RetainDeferPenaltyPerAlternative * otherPlayable;
         }
-
         if (card.IsEthereal)
-        {
             delta += w.EtherealPlayNowBonus;
-            tag = tag == null
-                ? $"ethereal+{w.EtherealPlayNowBonus}"
-                : $"{tag},ethereal+{w.EtherealPlayNowBonus}";
-        }
-
-        if (delta == 0) return bd;
-        var details = string.IsNullOrEmpty(bd.Details) ? tag! : $"{bd.Details},{tag}";
-        return bd with { Total = bd.Total + delta, Details = details };
+        return delta;
     }
 
     /// <summary>
