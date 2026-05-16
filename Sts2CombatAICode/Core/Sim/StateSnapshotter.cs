@@ -383,9 +383,17 @@ internal static class StateSnapshotter
                 ench = $"★[{shortId}]";
             }
         }
+        // v0.5 — keyword flags relevant to play-order decisions. R=retain (defers
+        // until other plays exhausted), E=ethereal (must play this turn or exhaust),
+        // I=innate (opener marker). Suffix only when at least one is set.
+        var flags = (c.IsRetain ? "R" : "")
+                  + (c.IsEthereal ? "E" : "")
+                  + (c.IsInnate ? "I" : "")
+                  + (c.IsPlayable ? "" : "X"); // X = currently unplayable
+        var flagsTag = flags.Length > 0 ? $"|{flags}" : "";
         return string.IsNullOrEmpty(detail)
-            ? $"{c.Id}{ench}({prefix}{c.Cost})"
-            : $"{c.Id}{ench}({prefix}{c.Cost}/{detail})";
+            ? $"{c.Id}{ench}({prefix}{c.Cost}{flagsTag})"
+            : $"{c.Id}{ench}({prefix}{c.Cost}/{detail}{flagsTag})";
     }
 
     private static string ShortPowerName(string fullName)
