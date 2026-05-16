@@ -73,7 +73,13 @@ internal static class ActionPlanner
 
             int total = firstScore + secondScore;
             LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total, bestNextId));
-            if (total > bestTotal)
+            // v0.5 — tie-break on first-card score so identical totals (e.g., A first=1000
+            // second=200 vs B first=600 second=600) prefer the candidate with higher
+            // immediate value. Resolves the case where iteration order alone determined
+            // the winner of equal-total candidates.
+            bool wins = total > bestTotal
+                     || (total == bestTotal && firstScore > bestFirstScore);
+            if (wins)
             {
                 bestTotal = total;
                 bestFirstScore = firstScore;
