@@ -720,35 +720,37 @@ internal static class PlanScorer
             parts.Add($"evoke({head.ShortTag()}×{card.EvokeCount})+{evokeTotal}");
         }
 
-        if (card.ChannelCount > 0 && card.ChannelKind != OrbKind.Unknown)
+        if (card.ChannelCount > 0 && card.ChannelKind != OrbKind.Unknown
+            && state.PlayerOrbCapacity > 0)
         {
             int perChannel = OrbValueCatalog.PassiveValue(card.ChannelKind, state, aliveEnemies);
             int channelTotal = perChannel * card.ChannelCount;
             total += channelTotal;
             parts.Add($"channel({card.ChannelKind.ShortTag()}×{card.ChannelCount})+{channelTotal}");
 
-            // v0.5 — when channeling into a full slot the head orb is kicked AND evoked.
-            // Multi-channel cards (Glacier 2 Frost, ConsumingShadow 2 Dark, Refract 2 Glass)
-            // kick one orb per channel until the queue drains below capacity. Walk the queue
-            // in the same order the simulator does so the value matches what actually fires.
-            if (state.PlayerOrbCapacity > 0
-                && state.OrbQueue.Count >= state.PlayerOrbCapacity
-                && state.OrbQueue.Count > 0)
+            // v0.5 — auto-evoke (kick) accounting. A channel triggers a kick iff the queue
+            // is already at capacity at the moment of that channel. Multi-channel cards
+            // (Glacier 2 Frost, ConsumingShadow 2 Dark, Refract 2 Glass) can FILL a partial
+            // queue and then start kicking. Correct kick count = overflow:
+            //   kicks = max(0, initialQueueSize + ChannelCount − Capacity)
+            // The previous formulation gated kicks behind "queue already at cap", missing
+            // the partial-queue case (e.g., Defect at 2/3 channels 2 → 1 kick on channel #2).
+            int kicks = System.Math.Max(0,
+                state.OrbQueue.Count + card.ChannelCount - state.PlayerOrbCapacity);
+            if (kicks > 0)
             {
                 int kickedTotal = 0;
-                int kickIdx = 0;
-                for (int i = 0; i < card.ChannelCount && kickIdx < state.OrbQueue.Count; i++)
+                for (int kickIdx = 0; kickIdx < kicks && kickIdx < state.OrbQueue.Count; kickIdx++)
                 {
                     var kicked = state.OrbQueue[kickIdx];
                     int kickedVal = kickIdx < state.OrbEvokeValues.Count
                         ? state.OrbEvokeValues[kickIdx] : 6;
                     kickedTotal += OrbValueCatalog.EvokeValue(kicked, aliveEnemies, kickedVal);
-                    kickIdx++;
                 }
                 if (kickedTotal != 0)
                 {
                     total += kickedTotal;
-                    parts.Add($"kicks×{kickIdx}+{kickedTotal}");
+                    parts.Add($"kicks×{kicks}+{kickedTotal}");
                 }
             }
         }
