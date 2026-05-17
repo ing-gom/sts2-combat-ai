@@ -130,6 +130,13 @@ internal sealed class PlanScorerWeights
     // doesn't pull the planner off a real defensive play.
     public int EtherealPlayNowBonus = 120;
 
+    // v0.6 — turn-finishing lethal mode. When greedy-picked attacks cover
+    // total alive enemy HP this turn, non-Attack cards become dead weight.
+    // Penalty must be larger than the biggest competing Power score (Power
+    // tier-S+ at PowerCardBonus=1000 + DemonFormPower=1200 + tier=Setup+200
+    // + Setup beneficiary bonus ≈ 2400+) so attacks reliably win.
+    public int LethalModeNonAttackPenalty = -3000;
+
     public static readonly PlanScorerWeights Defensive = new()
     {
         // 극단 방어 — lethal 도 우선순위 낮음, 무조건 hp 보존

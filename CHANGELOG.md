@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.6.0 (2026-05-17)
+
+**Lethal-this-turn 감지 + SkillSequencingTier 신규 추가.**
+
+`docs/card_play_order_framework.md` 의 High-impact gap 1 (lethal mode) 와
+Medium-impact gap 4 (Skill 순서 tier) 구현. 두 변경은 audit metric 에는
+영향 없음 (PowerCatalog 항목 변동 없음) — 실제 *런타임 결정* 의 정확도
+향상이 목적.
+
+### `PlanScorer.cs` — `IsLethalThisTurn(SimState)`
+
+턴 시작 시 hand 의 공격 카드를 damage-per-energy 순으로 greedy 선택하고
+각 적의 Vuln / 자기 Weak / damage cap / HardenedShellRemaining 을 반영한
+유효 데미지 합산. 합 ≥ 살아있는 적 HP 총합이면 lethal turn.
+
+이때 Power / Skill 카드는 `LethalModeNonAttackPenalty = -3000` 적용 →
+공격이 안정적으로 score 비교에서 이김. "마지막 턴에 DemonForm 발동하는"
+미스플레이 방지.
+
+한계 (의도적 단순화, false-positive 회피 방향):
+- 단일 타겟 공격은 가장 Vulnerable 한 적 기준 데미지 추정
+- Body Slam / Calculated* / Repeat 스케일은 base damage 만 계산 → false-negative 가능 (안전)
+- 같은 턴 Setup Power 로 늘어날 Strength 는 반영 안 함 (현재 상태만 보고 판단)
+
+### `SkillSequencingTier.cs` — 신규
+
+`PowerSequencingTier` 의 Skill 버전. 5 tier:
+
+| Tier | OrderingBonus (≥2 Skills) | 분류 |
+|---|---:|---|
+| Setup | +100 | Vuln/Weak 부여 (`VulnerablePower`/`WeakPower` PowerApps 또는 `VULN`/`WEAK` axis) |
+| Cantrip | +60 | 드로우 / 에너지 생성 |
+| Defensive | 0 | self-block (기존 BlockUnderThreatBonus 가 처리) |
+| Utility | 0 | 그 외 |
+| Unknown | 0 | non-Skill |
+
+ConditionalBonus:
+- Setup 인데 hand 에 공격 없음 → −200 (`setupNoAtk`)
+- Cantrip 인데 hand 9장 이상 → −150 (`cantripFull`)
+
+Magnitude 는 Power tier (200/150/100) 의 절반. Skill 은 이미
+state-dependent scoring (block-under-threat / draw quality / energy
+context / survival urgency) 이 강해서 tier 보너스는 tie-breaker 역할.
+
+### `PlanScorerWeights.cs`
+
+- `LethalModeNonAttackPenalty = -3000` 신규 weight. Power tier-S+ 의
+  최대 점수보다 크게 잡아 안정적인 공격 선택 보장.
+
 ## v0.5.1 (2026-05-16)
 
 **Draw 카드 depth-2 lookahead 정확도 향상 — 덱 내용 기반 평균 카드로 placeholder 교체.**
