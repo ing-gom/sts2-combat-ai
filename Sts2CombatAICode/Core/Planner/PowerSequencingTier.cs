@@ -121,6 +121,122 @@ internal static class PowerSequencingTier
             { "SkittishPower",            SequencingTier.SelfHarm },
             { "ShrinkPower",              SequencingTier.SelfHarm },
             { "EntropyPower",             SequencingTier.SelfHarm },
+
+            // ─── Coverage pass v0.103.2 — S/A tier cards previously Unknown ─────
+            // Setup (multiplies same-turn plays — play before consumers)
+            { "CrueltyPower",             SequencingTier.Setup },     // Vuln amp
+            { "LethalityPower",           SequencingTier.Setup },     // first attack/turn +50%
+            { "TrackingPower",            SequencingTier.Setup },     // Weak amp
+            { "FastenPower",              SequencingTier.Setup },     // +5 block to Skills
+
+            // Scaling (long-fight permanents — play early)
+            { "UnmovablePower",           SequencingTier.Scaling },
+            { "DarkEmbracePower",         SequencingTier.Scaling },
+            { "InfernoPower",             SequencingTier.Scaling },
+            { "ThunderPower",             SequencingTier.Scaling },
+            { "PagestormPower",           SequencingTier.Scaling },
+            { "SleightOfFleshPower",      SequencingTier.Scaling },
+            { "CountdownPower",           SequencingTier.Scaling },
+            { "DevourLifePower",          SequencingTier.Scaling },
+            { "HauntPower",               SequencingTier.Scaling },
+            { "ChildOfTheStarsPower",     SequencingTier.Scaling },
+            { "TheSealedThronePower",     SequencingTier.Scaling },
+            { "HammerTimePower",          SequencingTier.Scaling },
+            { "AutomationPower",          SequencingTier.Scaling },
+            { "NeurosurgePower",          SequencingTier.Scaling },
+
+            // Defensive (block / mitigation permanents — threat-aware priority)
+            { "CrimsonMantlePower",       SequencingTier.Defensive },
+            { "CoolantPower",             SequencingTier.Defensive },
+            { "SpinnerPower",             SequencingTier.Defensive },
+            { "ShroudPower",              SequencingTier.Defensive },
+            { "SpiritOfAshPower",         SequencingTier.Defensive },
+            { "TankPower",                SequencingTier.Defensive },
+            { "SneakyPower",              SequencingTier.Defensive },
+
+            // Tempo (energy / draw / free-cost — defer when no current-turn use)
+            { "VoidFormPower",            SequencingTier.Tempo },
+            { "CallOfTheVoidPower",       SequencingTier.Tempo },
+            { "DemesnePower",             SequencingTier.Tempo },
+            { "ToolsOfTheTradePower",     SequencingTier.Tempo },
+            { "WellLaidPlansPower",       SequencingTier.Tempo },
+            { "InfiniteBladesPower",      SequencingTier.Tempo },
+            { "ForbiddenGrimoirePower",   SequencingTier.Tempo },     // out-of-combat reward — defer
+
+            // ─── Coverage pass v0.103.2 — B/C tier ──────────────────────────────
+            // Shared (Plating block carryover — also classifies STONE_ARMOR / ETERNAL_ARMOR)
+            { "PlatingPower",             SequencingTier.Defensive },
+
+            // B tier — Setup (multiplies same-turn plays)
+            { "PhantomBladesPower",       SequencingTier.Setup },     // first Shiv +9 dmg
+
+            // B tier — Scaling (long-fight permanents)
+            { "CapacitorPower",           SequencingTier.Scaling },
+            { "IterationPower",           SequencingTier.Scaling },
+            { "SmokestackPower",          SequencingTier.Scaling },
+            { "StormPower",               SequencingTier.Scaling },
+            { "SubroutinePower",          SequencingTier.Scaling },
+            { "TrashToTreasurePower",     SequencingTier.Scaling },
+            { "StampedePower",            SequencingTier.Scaling },
+            { "ViciousPower",             SequencingTier.Scaling },
+            { "BlackHolePower",           SequencingTier.Scaling },
+            { "GenesisPower",             SequencingTier.Scaling },
+            { "OrbitPower",               SequencingTier.Scaling },
+            { "PaleBlueDotPower",         SequencingTier.Scaling },
+            { "TyrannyPower",             SequencingTier.Scaling },
+            { "PanachePower",             SequencingTier.Scaling },
+            { "PrepTimePower",            SequencingTier.Scaling },
+            { "AccelerantPower",          SequencingTier.Scaling },
+
+            // B tier — Defensive
+            // (none — block-granting B-tier Powers covered via PlatingPower)
+
+            // B tier — Tempo (energy/draw/free-cost)
+            { "CreativeAiPower",          SequencingTier.Tempo },
+            { "AggressionPower",          SequencingTier.Tempo },
+            { "PyrePower",                SequencingTier.Tempo },
+            { "SentryModePower",          SequencingTier.Tempo },
+            { "RoyaltiesPower",           SequencingTier.Tempo },     // out-of-combat — defer
+            { "HelloWorldPower",          SequencingTier.Tempo },
+
+            // C tier — Scaling
+            { "HailstormPower",           SequencingTier.Scaling },
+            { "CalcifyPower",             SequencingTier.Scaling },
+            { "NecroMasteryPower",        SequencingTier.Scaling },
+            { "ArsenalPower",             SequencingTier.Scaling },
+            { "FurnacePower",             SequencingTier.Scaling },
+            { "SeekingEdgePower",         SequencingTier.Scaling },
+            { "SwordSagePower",           SequencingTier.Scaling },
+            { "RollingBoulderPower",      SequencingTier.Scaling },
+            { "EnvenomPower",             SequencingTier.Scaling },
+            { "MasterPlannerPower",       SequencingTier.Scaling },
+
+            // C tier — Defensive
+            { "ParryPower",               SequencingTier.Defensive },
+            { "PillarOfCreationPower",    SequencingTier.Defensive },
+
+            // C tier — Tempo
+            { "DrumOfBattlePower",        SequencingTier.Tempo },
+            { "SpectrumShiftPower",       SequencingTier.Tempo },
+            { "StratagemPower",           SequencingTier.Tempo },
+            { "FanOfKnivesPower",         SequencingTier.Tempo },     // 4-Shiv burst
+
+            // ─── Coverage pass v0.103.2 — D tier ────────────────────────────────
+            // Scaling (long-fight passives)
+            { "ConsumingShadowPower",     SequencingTier.Scaling },
+            { "LoopPower",                SequencingTier.Scaling },
+            { "HellraiserPower",          SequencingTier.Scaling },
+            { "JugglingPower",            SequencingTier.Scaling },
+            { "CalamityPower",            SequencingTier.Scaling },
+            { "OutbreakPower",            SequencingTier.Scaling },
+            { "SerpentFormPower",         SequencingTier.Scaling },
+            { "SpeedsterPower",           SequencingTier.Scaling },
+
+            // Defensive (mitigation via debuff)
+            { "MonarchsGazePower",        SequencingTier.Defensive },
+
+            // Tempo (deck cycling)
+            { "NostalgiaPower",           SequencingTier.Tempo },
         };
 
     /// <summary>

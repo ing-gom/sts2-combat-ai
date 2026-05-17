@@ -125,10 +125,40 @@ internal sealed class PlanScorerWeights
     // non-retain play remains in hand. 60 × N alternatives gives a clear "play
     // those first" signal without overriding lethal / threat-bonus situations.
     public int RetainDeferPenaltyPerAlternative = 60;
-    // Ethereal: small flat bonus to ensure we don't lose a borderline-value
-    // ethereal to end-of-turn exhaust. Magnitude < BlockNeutralizeBonus so it
-    // doesn't pull the planner off a real defensive play.
-    public int EtherealPlayNowBonus = 120;
+    // Ethereal: card exhausts at end of turn if not played. v0.6 raised the
+    // base bonus from 120 (a token nudge) to 500 — Ethereal cards have real
+    // value (200-1500 score), and the cost of not playing them is the full
+    // card value lost. 500 keeps Ethereal Attack/Skill above marginal
+    // alternatives without overpowering threat-aware defensive plays.
+    public int EtherealPlayNowBonus = 500;
+    // v0.6 — Ethereal Power-card extra. Powers tend to be the highest-value
+    // Ethereal cards (VoidForm 700, Demesne 550, EchoForm 1500). 800 ensures
+    // Ethereal Powers beat moderate alternatives, while still losing to
+    // Block-under-threat or Burst-window plays when those genuinely matter.
+    public int EtherealPowerPlayNowBonus = 800;
+
+    // v0.6 — turn-finishing lethal mode. When greedy-picked attacks cover
+    // total alive enemy HP this turn, non-Attack cards become dead weight.
+    // Penalty must be larger than the biggest competing Power score (Power
+    // tier-S+ at PowerCardBonus=1000 + DemonFormPower=1200 + tier=Setup+200
+    // + Setup beneficiary bonus ≈ 2400+) so attacks reliably win.
+    public int LethalModeNonAttackPenalty = -3000;
+
+    // v0.6.2 — Status / Curse pollution expected-cost for fetch cards.
+    // Applied as `- pollution_prob × FetchPollutionExpectedCost`. The cost
+    // represents the score gap between "best card pulled" (already credited
+    // in fetch card's base value) and "junk card pulled" (Wound / Slime /
+    // Curse — adds ~0 or negative value to hand). 700 reflects ~1 dead
+    // card slot + opportunity cost of the play.
+    public int FetchPollutionExpectedCost = 700;
+
+    // v0.6.2 — Energy monopoly penalty. Per-skipped-card cost when the
+    // current card consumes all remaining energy and other playable cards
+    // would have fit alongside a cheaper alternative. Conservative magnitude
+    // — depth-2 lookahead already captures most multi-play scenarios; this
+    // is a tie-breaker not a full curve-fit solver.
+    public int EnergyMonopolyPenaltyPerSkipped = 25;
+    public int EnergyMonopolyPenaltyCap = 100;
 
     public static readonly PlanScorerWeights Defensive = new()
     {
