@@ -27,6 +27,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Windows defaults stdout/stderr to the OEM codepage (cp949 on Korean locale),
+# which crashes any non-ASCII print() — e.g., the em-dash in this script. The
+# parent repo's version-bump skill invokes us from arbitrary shells, so make
+# stdio resilient at the source instead of forcing every caller to set
+# PYTHONIOENCODING.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure") and (_stream.encoding or "").lower() != "utf-8":
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SOURCE = REPO_ROOT.parent / "sts2-card-advisor-dev" / "scripts" / "cards_catalog.json"
