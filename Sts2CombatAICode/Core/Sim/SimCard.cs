@@ -74,6 +74,15 @@ internal sealed record SimCard
     /// </summary>
     public bool IsExhaust { get; init; }
 
+    /// <summary>
+    /// True when this card fetches / discovers a random card from the draw or
+    /// discard pile (Anointed, Apotheosis, Echo of Fallen, etc. — catalog
+    /// `fetch_trigger`). Drives status / curse pollution penalty scoring:
+    /// fetch cards become weaker when the pile contains junk that could be
+    /// pulled.
+    /// </summary>
+    public bool IsFetchTrigger { get; init; }
+
     public bool IsAttack => Kind == CardType.Attack;
     public bool IsSkill => Kind == CardType.Skill;
     public bool IsPower => Kind == CardType.Power;

@@ -1,5 +1,285 @@
 # Changelog
 
+## v0.6.4 (2026-05-17)
+
+**Runtime infrastructure Phase B + C — parser + analyzer.**
+
+C# 변경 없음 — Python 스크립트 2개로 Phase A (v0.6.3) 의 NDJSON 출력을
+소비해 분석 리포트 생성.
+
+### `scripts/parse_decision_log.py` (신규, ~200 LOC) — Phase B
+
+NDJSON 파일 디렉토리 → 정규화된 record JSON.
+
+- 입력: `--logs <dir>` (default: `~/.local/share/Sts2/Sts2CombatAI/decision_log/`)
+- 출력: `--out <path>` (records JSON) 또는 `--summary` (stdout)
+- `--since YYYY-MM-DD` 필터
+- `breakdown` 문자열에서 KV pair 추출 (`name=int` / `dmg{N}` / `tier=Name+N`)
+- `enemy_hp_after` 는 같은 combat 내 다음 decision 의 `enemy_hp_before` 로 채움
+- 외부 의존성 없음 (pure stdlib)
+
+Schema 출력 (per record): combat_id, ts, character, playstyle, turn, step,
+card_id, card_kind, target, score, enemy_hp_before/after, player_hp_before,
+player_block_before, lethal_active, fetch_card, combo_links, reason,
+breakdown_raw, breakdown_kv, breakdown_other.
+
+### `scripts/analyze_decisions.py` (신규, ~400 LOC) — Phase C
+
+records JSON → markdown 리포트. 10 metric 계산:
+
+1. **Synergy activation rate** — 16 룰별 fire 빈도 (build_pair, hand_synergy,
+   vuln_amp, weak_amp, damage_amp, block_amp, block_payoff, hp_loss,
+   amplifier, power_tier, skill_tier, combo, override, lethal_mode,
+   fetch_pollution, energy_monopoly)
+2. **Lethal precision/recall** — `lethal_active` 가 fight-end 와 얼마나 매칭
+3. **PowerCatalog runtime hit rate** — `*Power(N)=M` 패턴 매칭 (정적 lower-bound 보정)
+4. **Combo fire rate** — 3+ / 4+ link 체인 빈도
+5. **Fetch pollution** — `fetchPoll` key 적용된 fetch 카드 plays
+6. **Setup-before-beneficiary** — Setup tier 가 공격 전에 발동하는 비율
+7. **Energy curve** — 턴당 평균 plays, p50/p90
+8. **Decision diversity** — 캐릭터별 unique cards, Top-10 share
+9. **Per-tier play distribution** (`--catalog` 옵션 시) — S/A/B/C/D 사용 분포
+10. **Score vs HP outcome** — 평균 score 와 HP loss 의 Pearson r
+
+Phase D (A/B baseline) / Phase E (release diff) 는 향후 PR.
+
+### 사용 예시
+
+```bash
+# 직접 NDJSON 디렉토리 분석
+python scripts/analyze_decisions.py \
+    --logs ~/.local/share/Sts2/Sts2CombatAI/decision_log/ \
+    --catalog scripts/cards_catalog.json \
+    --out docs/runtime_metrics.md
+
+# 또는 2 단계
+python scripts/parse_decision_log.py --logs <dir> --out /tmp/records.json
+python scripts/analyze_decisions.py --records /tmp/records.json --out docs/runtime_metrics.md
+```
+
+### Phase A/B/C 통합 데이터 흐름
+
+```
+in-game → DecisionLog (ring buffer 32 entries) → DecisionLogPersister
+  → {user_data}/Sts2CombatAI/decision_log/*.ndjson
+  → parse_decision_log.py → normalized records
+  → analyze_decisions.py → docs/runtime_metrics.md
+```
+
+## v0.6.3 (2026-05-17)
+
+**Runtime analysis infrastructure — Phase A (DecisionLog persistence).**
+
+`docs/runtime_analysis_infra_plan.md` 의 첫 단계. **평가 룰 변경 없음** —
+pure observability. 매 전투 종료 시 in-memory `DecisionLog` ring buffer
+를 disk 의 NDJSON 파일로 flush 해 후속 Phase B (parser) 와 Phase C
+(analyzer) 의 입력 데이터 확보.
+
+### `DecisionLog.cs` — Entry 확장 + Snapshot/Clear helper
+
+Entry 에 8 신규 필드 (runtime context):
+- `Turn` — `combatState.RoundNumber`
+- `EnemyHpBefore` — 살아있는 적 HP 합
+- `PlayerHpBefore` / `PlayerBlockBefore`
+- `LethalActive` (bool) — breakdown 에 `lethalMode=` 포함 여부
+- `IsFetchCard` (bool) — card.IsFetchTrigger
+- `ComboLinks` (int) — `combo(Nlink,...)` 의 N 추출
+- `Character` — `player.Creature.GetType().Name`
+
+`DecisionLog.Snapshot()` / `Clear()` 추가 — persister 가 lock 없이 안전하게
+read-and-clear 할 수 있도록.
+
+### `DecisionLogPersister.cs` (신규)
+
+- `Install()` — MainFile 가 mod startup 시 호출. `{user_data}/Sts2CombatAI/decision_log/`
+  디렉토리 생성
+- `FlushIfPending(character, floor, combatId)` — ring buffer 를 NDJSON
+  파일로 write, buffer clear, rotation 적용
+- 파일명: `{yyyyMMdd_HHmmss}_F{floor:D2}_{character}_{combatId}.ndjson`
+- Rotation: 최신 200개만 유지 (~20MB cap)
+- 직접 작성한 minimal JSON 직렬화 (Newtonsoft / System.Text.Json 의존 없음)
+- `Enabled` 플래그로 런타임 토글 가능 (향후 ModConfig 연동 지점)
+
+### `VakuuExecutor.cs` — 호출부 통합
+
+- 매 결정 record 시 새 필드 모두 채움 (BreakdownDetails substring 검색으로
+  LethalActive / ComboLinks 추출 — score path 에 새 dependency 추가 안 함)
+- 전투 종료 감지 시 (`IsOverOrEnding || allEnemiesDead`) `FlushIfPending`
+  호출. Best-effort — 깔끔한 종료 (보스 처치 / 사망) 는 잡지만 게임 종료
+  / mid-combat 종료는 미수집 가능 (Phase D 의 Harmony 패치로 보완 예정)
+
+### `MainFile.cs` — Install hook
+
+`PlaystylePersistence.Install()` 다음 줄에 `DecisionLogPersister.Install()`.
+
+### NDJSON schema (per line)
+
+```json
+{"ts":"2026-05-17T10:23:45.123Z","step":1,"turn":2,
+ "playstyle":"Balanced","character":"Vakuu","card_id":"CARD.BASH",
+ "target":"JawWorm","score":850,
+ "enemy_hp_before":44,"player_hp_before":68,"player_block_before":0,
+ "lethal_active":false,"fetch_card":false,"combo_links":3,
+ "reason":"Attack","snapshot":"...","breakdown":"..."}
+```
+
+Phase B (parser) 가 이 schema 를 그대로 normalize 해 `combat_id`,
+`turn`, `synergy_axes`, `breakdown_kv` 등으로 분해.
+
+## v0.6.2 (2026-05-17)
+
+**Status pollution + combo recognition + energy monopoly — Medium/Low
+impact gaps (gap 5/6/7 of framework doc).**
+
+세 신규 평가 룰. 모두 작은 magnitude 로 적용해 기존 큰 score 결정 (lethal,
+threat, raw damage) 을 뒤집지 않고 tie-breaking + 디버그 가시성 강화.
+
+### `EvaluateFetchPollution` (PlanScorer.cs) — Status / Curse pollution
+
+`fetch_trigger` 카드 (Anointed / Echo of Fallen 등) 가 draw/discard pile 의
+status/curse 비율에 비례해 점수 감점. junk 비율 0% 면 영향 X, 30% 면
+−210, 50% 면 −350.
+
+```csharp
+penalty = -(pollution_prob × FetchPollutionExpectedCost)  // 700
+```
+
+영향 카드: 카탈로그의 `fetch_trigger: true` 카드. 오염된 deck (Time Eater /
+Necronomicurse 후) 에서 안전성 향상. 깨끗한 deck 에서 영향 X.
+
+필수 인프라:
+- `SimCard.IsFetchTrigger` 신규 (`StateSnapshotter` 가 catalog 에서 propagate)
+- DrawPile / DiscardPile 의 IsCurseOrStatus 카운트 사용 (v0.5.1 의 pile
+  snapshot 활용)
+
+### `ComboRecognition.cs` (신규) — 멀티-링크 시너지 체인 감지
+
+손패에 3+ 연결된 시너지 체인 (Producer↔Amplifier, Setup→Beneficiary,
+Vuln/Weak→Amplifier) 발견 시 작은 보너스. 주된 가치: **디버그 가시성**
+— `DecisionLog` 에 "combo(4link, Inflame→Bash→Cruelty→Strike)+150" 같은
+시그널 노출.
+
+```csharp
+bonus = min(MaxChainBonus(250), (link_count - 2) × PerLinkBonus(50))
+```
+
+Edge model (axis-suffix + power-application 기반):
+- `X_PRODUCER` ↔ `X_AMPLIFIER` / `X_CONSUMER`
+- Power 의 StrengthPower/DexterityPower → Attack/Skill beneficiary
+- VulnerablePower/WeakPower → 같은 손패의 `VULN_AMPLIFIER`/`WEAK_AMPLIFIER`
+
+### `EvaluateEnergyMonopoly` (PlanScorer.cs) — 에너지 단점 페널티
+
+고비용 카드가 손패의 다른 playable 카드를 스킵하게 만들 때 작은 페널티.
+
+```csharp
+if (card.Cost == state.PlayerEnergy && skipped_playables > 0)
+    penalty = -min(EnergyMonopolyPenaltyCap(100),
+                   skipped × EnergyMonopolyPenaltyPerSkipped(25))
+```
+
+Free attack 우대 효과. depth-2 lookahead 가 이미 70~80% 처리하지만
+3+ 카드 조합 시 lookahead 한계 보완.
+
+## v0.6.1 (2026-05-17)
+
+**a-2 (multi-hit-attack ordering) + a-3 (휘발성 처리) 보강.**
+
+`docs/card_play_order_framework.md` 의 High-impact gap 2, 3 구현. 모두
+weight 조정 / type-aware bonus 로 처리 — 새 룰 모듈 도입 없이 기존
+HandSynergy / PlayOrderBias 의 magnitude 만 재보정.
+
+### `HandSynergy.cs` — Vuln 시너지 magnitude 보정
+
+`VulnerableSynergyPerHit` **40 → 100**. 분석상 Vuln 의 *실제* 1-hit 가치
+≈ 0.5 × avg_dmg(5) × DamagePerPointBonus(50) = **125**. 기존 40 은 약
+1/3 수준의 under-calibration → Bash + 멀티힛 손패 조합에서 Bash 가
+Twin Strike 보다 score 낮아 멀티힛이 먼저 (Vuln 미적용) 발동하는
+mis-ordering 발생. 100 으로 올려 손패의 멀티힛/공격 카드 수가 클수록
+Bash 가 우선 발동되도록.
+
+Strength / Dex / Weak weight 는 그대로 — 분석상 이미 적정 calibration.
+
+### `PlanScorerWeights.cs` + `PlanScorer.PlayOrderBias` — 휘발성 (Ethereal) 보너스 상향
+
+`EtherealPlayNowBonus` **120 → 500**, 신규 `EtherealPowerPlayNowBonus = 800`.
+
+배경: 카탈로그의 ETHEREAL_SELF axis 카드 18장 (휘발성, 해당 턴 미사용 시
+손패에서 exhaust) 의 카드 가치는 200~1500 (특히 Power: VoidForm 700,
+Demesne 550, EchoForm 1500). 기존 +120 보너스는 "안 쓰면 0" 의 trade-off
+대비 너무 작아 Block-under-threat / 다른 Power 등 high-score 대안에
+밀려 휘발성 카드가 헛되이 exhaust 되는 케이스 발생.
+
+새 처리:
+- Ethereal Power: **+800** (가치 큰 Power 가 무리 없이 다른 대안 이김)
+- Ethereal Attack/Skill: **+500** (200~600 가치 대 종합 balanced)
+- Curse/Status: 영향 없음 (auto-rejected 영역)
+
+PlayOrderBias 에 type 분기:
+```csharp
+delta += card.IsPower ? w.EtherealPowerPlayNowBonus : w.EtherealPlayNowBonus;
+```
+
+기존 LethalMode 페널티 (-3000) 가 우선 — lethal turn 에서는 휘발성 Power
+도 무시하고 공격 선택 (정상).
+
+### 영향 카드 (catalog 의 ethereal:true 18장)
+
+Power: APPARITION, DEFY, DEMESNE, ECHO_FORM, ENFEEBLING_TOUCH, LETHALITY,
+PARSE, SEANCE, VOID_FORM  
+Attack: DEFILE, DYING_STAR, FEAR, SWEEPING_GAZE  
+Skill: APPARITION, DEFY, ENFEEBLING_TOUCH, PARSE, SEANCE (Skill side)  
+Curse/Status (영향 없음): ASCENDERS_BANE, CLUMSY, FOLLY, DAZED, VOID
+
+## v0.6.0 (2026-05-17)
+
+**Lethal-this-turn 감지 + SkillSequencingTier 신규 추가.**
+
+`docs/card_play_order_framework.md` 의 High-impact gap 1 (lethal mode) 와
+Medium-impact gap 4 (Skill 순서 tier) 구현. 두 변경은 audit metric 에는
+영향 없음 (PowerCatalog 항목 변동 없음) — 실제 *런타임 결정* 의 정확도
+향상이 목적.
+
+### `PlanScorer.cs` — `IsLethalThisTurn(SimState)`
+
+턴 시작 시 hand 의 공격 카드를 damage-per-energy 순으로 greedy 선택하고
+각 적의 Vuln / 자기 Weak / damage cap / HardenedShellRemaining 을 반영한
+유효 데미지 합산. 합 ≥ 살아있는 적 HP 총합이면 lethal turn.
+
+이때 Power / Skill 카드는 `LethalModeNonAttackPenalty = -3000` 적용 →
+공격이 안정적으로 score 비교에서 이김. "마지막 턴에 DemonForm 발동하는"
+미스플레이 방지.
+
+한계 (의도적 단순화, false-positive 회피 방향):
+- 단일 타겟 공격은 가장 Vulnerable 한 적 기준 데미지 추정
+- Body Slam / Calculated* / Repeat 스케일은 base damage 만 계산 → false-negative 가능 (안전)
+- 같은 턴 Setup Power 로 늘어날 Strength 는 반영 안 함 (현재 상태만 보고 판단)
+
+### `SkillSequencingTier.cs` — 신규
+
+`PowerSequencingTier` 의 Skill 버전. 5 tier:
+
+| Tier | OrderingBonus (≥2 Skills) | 분류 |
+|---|---:|---|
+| Setup | +100 | Vuln/Weak 부여 (`VulnerablePower`/`WeakPower` PowerApps 또는 `VULN`/`WEAK` axis) |
+| Cantrip | +60 | 드로우 / 에너지 생성 |
+| Defensive | 0 | self-block (기존 BlockUnderThreatBonus 가 처리) |
+| Utility | 0 | 그 외 |
+| Unknown | 0 | non-Skill |
+
+ConditionalBonus:
+- Setup 인데 hand 에 공격 없음 → −200 (`setupNoAtk`)
+- Cantrip 인데 hand 9장 이상 → −150 (`cantripFull`)
+
+Magnitude 는 Power tier (200/150/100) 의 절반. Skill 은 이미
+state-dependent scoring (block-under-threat / draw quality / energy
+context / survival urgency) 이 강해서 tier 보너스는 tie-breaker 역할.
+
+### `PlanScorerWeights.cs`
+
+- `LethalModeNonAttackPenalty = -3000` 신규 weight. Power tier-S+ 의
+  최대 점수보다 크게 잡아 안정적인 공격 선택 보장.
+
 ## v0.5.1 (2026-05-16)
 
 **Draw 카드 depth-2 lookahead 정확도 향상 — 덱 내용 기반 평균 카드로 placeholder 교체.**

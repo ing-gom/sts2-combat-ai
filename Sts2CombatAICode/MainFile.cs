@@ -30,6 +30,12 @@ public partial class MainFile : Node
 
             // Persist playstyle selection across restarts (user_data file).
             Sts2CombatAI.Runtime.PlaystylePersistence.Install();
+
+            // v0.6.3 — install DecisionLog persistence sink. Writes one NDJSON file
+            // per combat to {user_data}/Sts2CombatAI/decision_log/. Used by
+            // scripts/parse_decision_log.py for offline analysis (Phase B/C of the
+            // runtime infra plan — see docs/runtime_analysis_infra_plan.md).
+            Sts2CombatAI.Diagnostics.DecisionLogPersister.Install();
             // Hook playstyle changes (Cycle/Set) to auto-save.
             var existingLog = Sts2CombatAI.Planner.PlaystyleState.LogCallback;
             Sts2CombatAI.Planner.PlaystyleState.LogCallback = msg =>

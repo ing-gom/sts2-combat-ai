@@ -74,7 +74,13 @@ internal static class PlanScorer
                 delta -= w.RetainDeferPenaltyPerAlternative * otherPlayable;
         }
         if (card.IsEthereal)
-            delta += w.EtherealPlayNowBonus;
+        {
+            // v0.6 — type-aware Ethereal play-now bonus. Powers have higher
+            // intrinsic value (and longer-tail benefit once played), so they
+            // get the higher bonus. Curses/Status cards are filtered out
+            // earlier; the bonus on them is irrelevant.
+            delta += card.IsPower ? w.EtherealPowerPlayNowBonus : w.EtherealPlayNowBonus;
+        }
         return delta;
     }
 
@@ -122,6 +128,34 @@ internal static class PlanScorer
         double threat = EnemyTurnSimulator.ThreatRatio(state);
         double threshold = EnemyTurnSimulator.NextTurnThreatAmplified(state)
             ? w.ThreatThresholdWithBuff : w.ThreatThreshold;
+
+        // v0.6 — turn-finishing lethal detection. When the hand's attacks
+        // (with current Strength + Vuln + Weak applied, energy-budget greedy
+        // pick) can kill every alive enemy this turn, non-Attack cards are
+        // heavily penalised so attacks win the score comparison.
+        bool lethalThisTurn = IsLethalThisTurn(state);
+
+        // v0.6.2 — Status / Curse pile pollution penalty for fetch cards.
+        // Anointed / Echo of Fallen / Apotheosis etc. pull a card from the
+        // draw or discard pile; if that pile is loaded with Wound / Slime /
+        // Curse, expected value of the fetch drops proportionally. 0 if not
+        // a fetch card, or if the piles are clean.
+        int fetchPollutionPenalty = EvaluateFetchPollution(card, state, w);
+
+        // v0.6.2 — Combo chain recognition. Small per-link bonus when the
+        // hand contains a 3+ link synergy chain that includes this card.
+        // Bonus is intentionally small (≤250) — individual links are already
+        // scored by BuildSynergy / HandSynergy / EffectSynergy; this is
+        // tie-breaking + DecisionLog visibility for "combo turn" detection.
+        var (comboBonus, comboDetail) = ComboRecognition.Compute(card, state);
+
+        // v0.6.2 — Energy monopoly penalty. When the current card consumes
+        // ALL remaining energy AND there are other meaningful playable
+        // cards in hand that would have fit, a small penalty captures the
+        // "this turn could have done 3 plays instead of 1" opportunity
+        // cost. Conservative magnitude (≤100) so big damage cards still
+        // win when they're genuinely the best play.
+        int monopolyPenalty = EvaluateEnergyMonopoly(card, state, w);
 
         var details = new List<string>();
 
@@ -174,11 +208,22 @@ internal static class PlanScorer
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
+
+            // v0.6 — lethal this turn: every non-Attack is dead weight, the
+            // remaining damage closes the fight. Heavy penalty so a Power
+            // doesn't beat a winning attack on the killing-blow turn.
+            int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
+            if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
+
+            if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
+            if (comboBonus != 0) details.Add(comboDetail);
+            if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
+
             int total = baseBonus + effect + costTie + energyBonus + fightCtx
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -497,10 +542,14 @@ internal static class PlanScorer
                 }
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty;
+            if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
+            if (comboBonus != 0) details.Add(comboDetail);
+            if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
-                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: targetBonus + wastedPenalty + survivalAtkPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -666,10 +715,32 @@ internal static class PlanScorer
                     details.Add($"survival{urgency}={survivalSkillPenalty}");
             }
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty;
+            // v0.6 — Skill sequencing tier. Smaller than Power's tier
+            // ordering (Setup +100 / Cantrip +60 / others 0). Only kicks in
+            // when ≥2 Skills compete in hand.
+            int skillsInHand = state.Hand.Count(c => c.IsSkill && c.IsPlayable);
+            var skillTier = SkillSequencingTier.Classify(card);
+            int skillTierOrdering = SkillSequencingTier.OrderingBonus(skillTier, skillsInHand);
+            var (skillTierCond, skillTierDetail) = SkillSequencingTier.ConditionalBonus(card, skillTier, state);
+            if (skillTier != SkillTier.Unknown)
+                details.Add(skillTierOrdering != 0 ? $"sklTier={skillTier}+{skillTierOrdering}" : $"sklTier={skillTier}");
+            if (!string.IsNullOrEmpty(skillTierDetail)) details.Add(skillTierDetail);
+
+            // v0.6 — lethal this turn: non-Attack cards are dead weight.
+            // Energy / draw / setup-debuff skills also penalised — by
+            // definition we already have lethal damage in hand, so nothing
+            // else this turn matters.
+            int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
+            if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
+
+            if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
+            if (comboBonus != 0) details.Add(comboDetail);
+            if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
-                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
@@ -678,6 +749,150 @@ internal static class PlanScorer
     private static bool IsSelfTargetedTarget(TargetType t)
         => t == TargetType.Self || t == TargetType.AnyAlly
         || t == TargetType.AnyPlayer || t == TargetType.AllAllies;
+
+    /// <summary>
+    /// v0.6.2 — Expected-cost penalty for fetch / discover cards when the
+    /// draw and discard piles contain Curse / Status pollution. The pulled
+    /// card is unknown until SelectorMode resolves it at runtime, so the
+    /// anticipatory score should discount by the probability the pull
+    /// returns junk. 0 if not a fetch card, if piles are empty, or if there
+    /// is no pollution.
+    ///
+    /// Penalty model: pollution_prob × FetchPollutionExpectedCost. The
+    /// expected cost roughly represents the gap between "best card pulled"
+    /// (which the planner already credited) and "junk card pulled" (near
+    /// zero or negative value).
+    /// </summary>
+    private static int EvaluateFetchPollution(SimCard card, SimState state, PlanScorerWeights w)
+    {
+        if (!card.IsFetchTrigger) return 0;
+        int total = state.DrawPile.Count + state.DiscardPile.Count;
+        if (total == 0) return 0;
+
+        int junk = 0;
+        for (int i = 0; i < state.DrawPile.Count; i++)
+            if (state.DrawPile[i].IsCurseOrStatus) junk++;
+        for (int i = 0; i < state.DiscardPile.Count; i++)
+            if (state.DiscardPile[i].IsCurseOrStatus) junk++;
+
+        if (junk == 0) return 0;
+        double p = (double)junk / total;
+        return -(int)(p * w.FetchPollutionExpectedCost);
+    }
+
+    /// <summary>
+    /// v0.6.2 — Energy monopoly opportunity-cost penalty. Fires only when
+    /// the current card's cost consumes the *entire* remaining energy AND
+    /// the hand contains other meaningful playable cards that would have
+    /// fit alongside a cheaper alternative. Conservative magnitude — meant
+    /// to break ties against multi-card alternatives, not override raw
+    /// damage / threat-bonus decisions.
+    /// </summary>
+    private static int EvaluateEnergyMonopoly(SimCard card, SimState state, PlanScorerWeights w)
+    {
+        if (card.Cost <= 0) return 0;
+        int afterPlay = state.PlayerEnergy - card.Cost;
+        if (afterPlay > 0) return 0;
+
+        int skipped = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, card)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;
+            skipped++;
+        }
+        if (skipped == 0) return 0;
+
+        int penalty = -System.Math.Min(w.EnergyMonopolyPenaltyCap,
+            skipped * w.EnergyMonopolyPenaltyPerSkipped);
+        return penalty;
+    }
+
+    /// <summary>
+    /// v0.6 — Lethal-this-turn detection. Greedy-pick playable attacks in
+    /// damage-per-energy order, apply per-enemy Vulnerable / Weak self /
+    /// damage caps, sum the projected damage, and return true if it covers
+    /// every alive enemy's HP. Used to deprioritise non-Attack cards on the
+    /// closing turn of a fight.
+    ///
+    /// Limitations (intentional simplifications, biased toward false-NEGATIVE):
+    ///   • Single-target attacks use the most-Vulnerable alive enemy for
+    ///     damage estimation (over-counts when actual best target is lower
+    ///     HP but not Vuln). Conservative direction for the *boolean*
+    ///     output — over-estimating damage gives false positives, which are
+    ///     more dangerous than false negatives. We accept the rare false
+    ///     positive in exchange for catching the common lethal case.
+    ///   • Body Slam / Calculated* / Repeat-scaling attacks use stored
+    ///     base damage, not the runtime-computed value. Lethal may go
+    ///     undetected for these — false negative, safe.
+    ///   • Strength-from-Setup-this-turn not modelled (we'd need to score
+    ///     play order). Lethal detected at current Strength only.
+    /// </summary>
+    private static bool IsLethalThisTurn(SimState state)
+    {
+        int totalEnemyHp = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) totalEnemyHp += e.Hp;
+        if (totalEnemyHp <= 0) return true;
+
+        int energy = state.PlayerEnergy;
+        bool playerWeak = state.PlayerWeak > 0;
+
+        // Greedy damage-per-energy ordering. Cost 0 treated as cost 1 for
+        // the ratio so free attacks rank by raw damage.
+        var attacks = state.Hand
+            .Where(c => c.IsAttack && c.IsPlayable
+                        && c.Cost >= 0 && c.Cost <= energy)
+            .OrderByDescending(c =>
+                c.TotalDamage * 100 / System.Math.Max(1, c.Cost == 0 ? 1 : c.Cost))
+            .ToList();
+
+        int totalReachable = 0;
+        foreach (var atk in attacks)
+        {
+            if (atk.Cost > energy) continue;
+            energy -= atk.Cost;
+
+            if (atk.Target == TargetType.AllEnemies)
+            {
+                foreach (var e in state.Enemies)
+                {
+                    if (!e.IsAlive) continue;
+                    int per = StatusMath.EffectiveAttackDmg(atk.Damage,
+                        state.PlayerStrength, e.VulnerableAmount > 0, playerWeak);
+                    if (e.DamageCapPerHit > 0 && per > e.DamageCapPerHit)
+                        per = e.DamageCapPerHit;
+                    int eachTotal = per * System.Math.Max(1, atk.Hits);
+                    if (e.HardenedShellRemaining > 0
+                        && eachTotal > e.HardenedShellRemaining)
+                        eachTotal = e.HardenedShellRemaining;
+                    totalReachable += eachTotal;
+                }
+            }
+            else
+            {
+                // Pick the most-Vulnerable alive enemy for damage estimation.
+                SimEnemy? bestEnemy = null;
+                foreach (var e in state.Enemies)
+                {
+                    if (!e.IsAlive) continue;
+                    if (bestEnemy == null
+                        || (e.VulnerableAmount > 0 && bestEnemy.VulnerableAmount == 0))
+                        bestEnemy = e;
+                }
+                if (bestEnemy == null) continue;
+                int per = StatusMath.EffectiveAttackDmg(atk.Damage,
+                    state.PlayerStrength, bestEnemy.VulnerableAmount > 0, playerWeak);
+                if (bestEnemy.DamageCapPerHit > 0 && per > bestEnemy.DamageCapPerHit)
+                    per = bestEnemy.DamageCapPerHit;
+                int eachTotal = per * System.Math.Max(1, atk.Hits);
+                totalReachable += eachTotal;
+            }
+        }
+
+        return totalReachable >= totalEnemyHp;
+    }
 
     private static (int bonus, string details) ScoreAttackTarget(
         SimCard card, int targetIdx, SimState state, PlanScorerWeights w, int effectiveDamage)
