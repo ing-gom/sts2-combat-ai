@@ -135,6 +135,28 @@ internal static class PlanScorer
         // heavily penalised so attacks win the score comparison.
         bool lethalThisTurn = IsLethalThisTurn(state);
 
+        // v0.6.2 — Status / Curse pile pollution penalty for fetch cards.
+        // Anointed / Echo of Fallen / Apotheosis etc. pull a card from the
+        // draw or discard pile; if that pile is loaded with Wound / Slime /
+        // Curse, expected value of the fetch drops proportionally. 0 if not
+        // a fetch card, or if the piles are clean.
+        int fetchPollutionPenalty = EvaluateFetchPollution(card, state, w);
+
+        // v0.6.2 — Combo chain recognition. Small per-link bonus when the
+        // hand contains a 3+ link synergy chain that includes this card.
+        // Bonus is intentionally small (≤250) — individual links are already
+        // scored by BuildSynergy / HandSynergy / EffectSynergy; this is
+        // tie-breaking + DecisionLog visibility for "combo turn" detection.
+        var (comboBonus, comboDetail) = ComboRecognition.Compute(card, state);
+
+        // v0.6.2 — Energy monopoly penalty. When the current card consumes
+        // ALL remaining energy AND there are other meaningful playable
+        // cards in hand that would have fit, a small penalty captures the
+        // "this turn could have done 3 plays instead of 1" opportunity
+        // cost. Conservative magnitude (≤100) so big damage cards still
+        // win when they're genuinely the best play.
+        int monopolyPenalty = EvaluateEnergyMonopoly(card, state, w);
+
         var details = new List<string>();
 
         // Build synergy applies to every non-curse card exactly once.
@@ -193,11 +215,15 @@ internal static class PlanScorer
             int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
             if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
 
+            if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
+            if (comboBonus != 0) details.Add(comboDetail);
+            if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
+
             int total = baseBonus + effect + costTie + energyBonus + fightCtx
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -516,10 +542,14 @@ internal static class PlanScorer
                 }
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty;
+            if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
+            if (comboBonus != 0) details.Add(comboDetail);
+            if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
-                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: targetBonus + wastedPenalty + survivalAtkPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -703,10 +733,14 @@ internal static class PlanScorer
             int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
             if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty;
+            if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
+            if (comboBonus != 0) details.Add(comboDetail);
+            if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
-                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
@@ -715,6 +749,65 @@ internal static class PlanScorer
     private static bool IsSelfTargetedTarget(TargetType t)
         => t == TargetType.Self || t == TargetType.AnyAlly
         || t == TargetType.AnyPlayer || t == TargetType.AllAllies;
+
+    /// <summary>
+    /// v0.6.2 — Expected-cost penalty for fetch / discover cards when the
+    /// draw and discard piles contain Curse / Status pollution. The pulled
+    /// card is unknown until SelectorMode resolves it at runtime, so the
+    /// anticipatory score should discount by the probability the pull
+    /// returns junk. 0 if not a fetch card, if piles are empty, or if there
+    /// is no pollution.
+    ///
+    /// Penalty model: pollution_prob × FetchPollutionExpectedCost. The
+    /// expected cost roughly represents the gap between "best card pulled"
+    /// (which the planner already credited) and "junk card pulled" (near
+    /// zero or negative value).
+    /// </summary>
+    private static int EvaluateFetchPollution(SimCard card, SimState state, PlanScorerWeights w)
+    {
+        if (!card.IsFetchTrigger) return 0;
+        int total = state.DrawPile.Count + state.DiscardPile.Count;
+        if (total == 0) return 0;
+
+        int junk = 0;
+        for (int i = 0; i < state.DrawPile.Count; i++)
+            if (state.DrawPile[i].IsCurseOrStatus) junk++;
+        for (int i = 0; i < state.DiscardPile.Count; i++)
+            if (state.DiscardPile[i].IsCurseOrStatus) junk++;
+
+        if (junk == 0) return 0;
+        double p = (double)junk / total;
+        return -(int)(p * w.FetchPollutionExpectedCost);
+    }
+
+    /// <summary>
+    /// v0.6.2 — Energy monopoly opportunity-cost penalty. Fires only when
+    /// the current card's cost consumes the *entire* remaining energy AND
+    /// the hand contains other meaningful playable cards that would have
+    /// fit alongside a cheaper alternative. Conservative magnitude — meant
+    /// to break ties against multi-card alternatives, not override raw
+    /// damage / threat-bonus decisions.
+    /// </summary>
+    private static int EvaluateEnergyMonopoly(SimCard card, SimState state, PlanScorerWeights w)
+    {
+        if (card.Cost <= 0) return 0;
+        int afterPlay = state.PlayerEnergy - card.Cost;
+        if (afterPlay > 0) return 0;
+
+        int skipped = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, card)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;
+            skipped++;
+        }
+        if (skipped == 0) return 0;
+
+        int penalty = -System.Math.Min(w.EnergyMonopolyPenaltyCap,
+            skipped * w.EnergyMonopolyPenaltyPerSkipped);
+        return penalty;
+    }
 
     /// <summary>
     /// v0.6 — Lethal-this-turn detection. Greedy-pick playable attacks in

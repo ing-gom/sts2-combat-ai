@@ -205,6 +205,7 @@ internal static class StateSnapshotter
             IsEthereal = catalogInfo?.Ethereal ?? false,
             IsInnate = catalogInfo?.Innate ?? false,
             IsExhaust = catalogInfo?.Exhaust ?? false,
+            IsFetchTrigger = catalogInfo?.FetchTrigger ?? false,
         };
     }
 
