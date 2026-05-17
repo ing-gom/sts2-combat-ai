@@ -209,6 +209,16 @@ internal static class PlanScorer
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
 
+            // v0.6.5 — POWER_AMPLIFIER / REPLAY axes on the Power-typed cards
+            // themselves (Subroutine, Echo Form, Mayhem, Iteration, Juggling,
+            // Loop, Nostalgia, Stampede). AmplifierSynergy was previously only
+            // called from the Attack and Skill branches, so a Power amplifier
+            // with another Power queued behind it would miss the hand-aware
+            // boost. Recursion guard (AmplifierSynergy.IsValidTarget excludes
+            // other amplifier-axis cards) prevents Power→Power amp loops.
+            var (powerAmpBonus, powerAmpDetail) = AmplifierSynergy.Compute(card, state, w);
+            if (powerAmpBonus != 0) details.Add(powerAmpDetail);
+
             // v0.6 — lethal this turn: every non-Attack is dead weight, the
             // remaining damage closes the fight. Heavy penalty so a Power
             // doesn't beat a winning attack on the killing-blow turn.
@@ -220,10 +230,10 @@ internal static class PlanScorer
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
             int total = baseBonus + effect + costTie + energyBonus + fightCtx
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
