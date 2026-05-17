@@ -144,6 +144,22 @@ internal sealed class PlanScorerWeights
     // + Setup beneficiary bonus ≈ 2400+) so attacks reliably win.
     public int LethalModeNonAttackPenalty = -3000;
 
+    // v0.6.2 — Status / Curse pollution expected-cost for fetch cards.
+    // Applied as `- pollution_prob × FetchPollutionExpectedCost`. The cost
+    // represents the score gap between "best card pulled" (already credited
+    // in fetch card's base value) and "junk card pulled" (Wound / Slime /
+    // Curse — adds ~0 or negative value to hand). 700 reflects ~1 dead
+    // card slot + opportunity cost of the play.
+    public int FetchPollutionExpectedCost = 700;
+
+    // v0.6.2 — Energy monopoly penalty. Per-skipped-card cost when the
+    // current card consumes all remaining energy and other playable cards
+    // would have fit alongside a cheaper alternative. Conservative magnitude
+    // — depth-2 lookahead already captures most multi-play scenarios; this
+    // is a tie-breaker not a full curve-fit solver.
+    public int EnergyMonopolyPenaltyPerSkipped = 25;
+    public int EnergyMonopolyPenaltyCap = 100;
+
     public static readonly PlanScorerWeights Defensive = new()
     {
         // 극단 방어 — lethal 도 우선순위 낮음, 무조건 hp 보존

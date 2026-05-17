@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.6.2 (2026-05-17)
+
+**Status pollution + combo recognition + energy monopoly — Medium/Low
+impact gaps (gap 5/6/7 of framework doc).**
+
+세 신규 평가 룰. 모두 작은 magnitude 로 적용해 기존 큰 score 결정 (lethal,
+threat, raw damage) 을 뒤집지 않고 tie-breaking + 디버그 가시성 강화.
+
+### `EvaluateFetchPollution` (PlanScorer.cs) — Status / Curse pollution
+
+`fetch_trigger` 카드 (Anointed / Echo of Fallen 등) 가 draw/discard pile 의
+status/curse 비율에 비례해 점수 감점. junk 비율 0% 면 영향 X, 30% 면
+−210, 50% 면 −350.
+
+```csharp
+penalty = -(pollution_prob × FetchPollutionExpectedCost)  // 700
+```
+
+영향 카드: 카탈로그의 `fetch_trigger: true` 카드. 오염된 deck (Time Eater /
+Necronomicurse 후) 에서 안전성 향상. 깨끗한 deck 에서 영향 X.
+
+필수 인프라:
+- `SimCard.IsFetchTrigger` 신규 (`StateSnapshotter` 가 catalog 에서 propagate)
+- DrawPile / DiscardPile 의 IsCurseOrStatus 카운트 사용 (v0.5.1 의 pile
+  snapshot 활용)
+
+### `ComboRecognition.cs` (신규) — 멀티-링크 시너지 체인 감지
+
+손패에 3+ 연결된 시너지 체인 (Producer↔Amplifier, Setup→Beneficiary,
+Vuln/Weak→Amplifier) 발견 시 작은 보너스. 주된 가치: **디버그 가시성**
+— `DecisionLog` 에 "combo(4link, Inflame→Bash→Cruelty→Strike)+150" 같은
+시그널 노출.
+
+```csharp
+bonus = min(MaxChainBonus(250), (link_count - 2) × PerLinkBonus(50))
+```
+
+Edge model (axis-suffix + power-application 기반):
+- `X_PRODUCER` ↔ `X_AMPLIFIER` / `X_CONSUMER`
+- Power 의 StrengthPower/DexterityPower → Attack/Skill beneficiary
+- VulnerablePower/WeakPower → 같은 손패의 `VULN_AMPLIFIER`/`WEAK_AMPLIFIER`
+
+### `EvaluateEnergyMonopoly` (PlanScorer.cs) — 에너지 단점 페널티
+
+고비용 카드가 손패의 다른 playable 카드를 스킵하게 만들 때 작은 페널티.
+
+```csharp
+if (card.Cost == state.PlayerEnergy && skipped_playables > 0)
+    penalty = -min(EnergyMonopolyPenaltyCap(100),
+                   skipped × EnergyMonopolyPenaltyPerSkipped(25))
+```
+
+Free attack 우대 효과. depth-2 lookahead 가 이미 70~80% 처리하지만
+3+ 카드 조합 시 lookahead 한계 보완.
+
 ## v0.6.1 (2026-05-17)
 
 **a-2 (multi-hit-attack ordering) + a-3 (휘발성 처리) 보강.**
