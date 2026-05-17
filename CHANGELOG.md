@@ -1,5 +1,65 @@
 # Changelog
 
+## v0.6.3 (2026-05-17)
+
+**Runtime analysis infrastructure — Phase A (DecisionLog persistence).**
+
+`docs/runtime_analysis_infra_plan.md` 의 첫 단계. **평가 룰 변경 없음** —
+pure observability. 매 전투 종료 시 in-memory `DecisionLog` ring buffer
+를 disk 의 NDJSON 파일로 flush 해 후속 Phase B (parser) 와 Phase C
+(analyzer) 의 입력 데이터 확보.
+
+### `DecisionLog.cs` — Entry 확장 + Snapshot/Clear helper
+
+Entry 에 8 신규 필드 (runtime context):
+- `Turn` — `combatState.RoundNumber`
+- `EnemyHpBefore` — 살아있는 적 HP 합
+- `PlayerHpBefore` / `PlayerBlockBefore`
+- `LethalActive` (bool) — breakdown 에 `lethalMode=` 포함 여부
+- `IsFetchCard` (bool) — card.IsFetchTrigger
+- `ComboLinks` (int) — `combo(Nlink,...)` 의 N 추출
+- `Character` — `player.Creature.GetType().Name`
+
+`DecisionLog.Snapshot()` / `Clear()` 추가 — persister 가 lock 없이 안전하게
+read-and-clear 할 수 있도록.
+
+### `DecisionLogPersister.cs` (신규)
+
+- `Install()` — MainFile 가 mod startup 시 호출. `{user_data}/Sts2CombatAI/decision_log/`
+  디렉토리 생성
+- `FlushIfPending(character, floor, combatId)` — ring buffer 를 NDJSON
+  파일로 write, buffer clear, rotation 적용
+- 파일명: `{yyyyMMdd_HHmmss}_F{floor:D2}_{character}_{combatId}.ndjson`
+- Rotation: 최신 200개만 유지 (~20MB cap)
+- 직접 작성한 minimal JSON 직렬화 (Newtonsoft / System.Text.Json 의존 없음)
+- `Enabled` 플래그로 런타임 토글 가능 (향후 ModConfig 연동 지점)
+
+### `VakuuExecutor.cs` — 호출부 통합
+
+- 매 결정 record 시 새 필드 모두 채움 (BreakdownDetails substring 검색으로
+  LethalActive / ComboLinks 추출 — score path 에 새 dependency 추가 안 함)
+- 전투 종료 감지 시 (`IsOverOrEnding || allEnemiesDead`) `FlushIfPending`
+  호출. Best-effort — 깔끔한 종료 (보스 처치 / 사망) 는 잡지만 게임 종료
+  / mid-combat 종료는 미수집 가능 (Phase D 의 Harmony 패치로 보완 예정)
+
+### `MainFile.cs` — Install hook
+
+`PlaystylePersistence.Install()` 다음 줄에 `DecisionLogPersister.Install()`.
+
+### NDJSON schema (per line)
+
+```json
+{"ts":"2026-05-17T10:23:45.123Z","step":1,"turn":2,
+ "playstyle":"Balanced","character":"Vakuu","card_id":"CARD.BASH",
+ "target":"JawWorm","score":850,
+ "enemy_hp_before":44,"player_hp_before":68,"player_block_before":0,
+ "lethal_active":false,"fetch_card":false,"combo_links":3,
+ "reason":"Attack","snapshot":"...","breakdown":"..."}
+```
+
+Phase B (parser) 가 이 schema 를 그대로 normalize 해 `combat_id`,
+`turn`, `synergy_axes`, `breakdown_kv` 등으로 분해.
+
 ## v0.6.2 (2026-05-17)
 
 **Status pollution + combo recognition + energy monopoly — Medium/Low

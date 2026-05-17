@@ -124,6 +124,22 @@ internal static class VakuuExecutor
                 var biasTag = playOrderBias != 0 ? $" playOrder={playOrderBias:+0;-0}" : "";
                 MainFile.Logger.Info($"[CombatAI]   breakdown: {breakdown.ToLogLine()}{biasTag}");
 
+                // v0.6.3 — runtime context fields for DecisionLogPersister. Behavioral
+                // flags parsed from breakdown.Details with substring search to avoid
+                // adding new ScoreBreakdown fields. Persister handles 0/false defaults.
+                var detailsLine = breakdown.ToLogLine();
+                int enemyHp = 0;
+                foreach (var e in snapshot.Enemies) if (e.IsAlive) enemyHp += e.Hp;
+                int comboLinks = 0;
+                int comboIdx = detailsLine.IndexOf("combo(", System.StringComparison.Ordinal);
+                if (comboIdx >= 0 && comboIdx + 6 < detailsLine.Length)
+                {
+                    int linkEnd = detailsLine.IndexOf("link", comboIdx + 6, System.StringComparison.Ordinal);
+                    if (linkEnd > comboIdx + 6)
+                        int.TryParse(detailsLine.Substring(comboIdx + 6, linkEnd - comboIdx - 6), out comboLinks);
+                }
+                bool lethalActive = detailsLine.IndexOf("lethalMode=", System.StringComparison.Ordinal) >= 0;
+
                 DecisionLog.Record(new DecisionLog.Entry
                 {
                     Timestamp = System.DateTime.Now,
@@ -134,7 +150,15 @@ internal static class VakuuExecutor
                     Score = plan.Value.Score,
                     Reason = plan.Value.Reason,
                     SnapshotSummary = StateSnapshotter.FormatForLog(snapshot),
-                    BreakdownDetails = breakdown.ToLogLine(),
+                    BreakdownDetails = detailsLine,
+                    Turn = combatState.RoundNumber,
+                    EnemyHpBefore = enemyHp,
+                    PlayerHpBefore = snapshot.PlayerHp,
+                    PlayerBlockBefore = snapshot.PlayerBlock,
+                    LethalActive = lethalActive,
+                    IsFetchCard = plan.Value.Card.IsFetchTrigger,
+                    ComboLinks = comboLinks,
+                    Character = player.Creature?.GetType().Name ?? "",
                 });
 
                 var card = plan.Value.Card.SourceRef;
@@ -201,6 +225,22 @@ internal static class VakuuExecutor
             $"[CombatAI] turn complete, {cardsPlayed} cards played, " +
             $"took {sw.ElapsedMilliseconds}ms total, " +
             $"combatEnding={CombatManager.Instance.IsOverOrEnding} allDead={allEnemiesDead}");
+
+        // v0.6.3 — flush DecisionLog ring buffer to disk when this turn ended
+        // the combat. Best-effort: a clean exit (boss kill, player ko) lands here;
+        // other combat-end paths (manual end-turn that kills via passive damage,
+        // game close mid-combat) may miss the hook. Phase A scope — Phase D will
+        // add a Harmony patch on CombatManager.End for completeness.
+        if (CombatManager.Instance.IsOverOrEnding || allEnemiesDead)
+        {
+            var character = player.Creature?.GetType().Name ?? "unknown";
+            int floor = 0;
+            try { floor = combatState.RoundNumber; } catch { /* defensive */ }
+            DecisionLogPersister.FlushIfPending(
+                character,
+                floor,
+                sw.Elapsed.Ticks.ToString());
+        }
 
         // Voice line only when invoked via the actual relic — test button stays quiet.
         // Skip the talk when combat is ending (avoids a barge into the combat-end transition).
