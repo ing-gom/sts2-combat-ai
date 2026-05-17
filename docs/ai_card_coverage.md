@@ -5,11 +5,11 @@ how much of the card pool each rule (PowerCatalog, PowerSequencingTier,
 CardOverrideCatalog, BuildSynergy, AmplifierSynergy, EffectSynergy,
 HandSynergy) explicitly handles vs falls back to generic defaults.
 
-- Master catalog: `/home/user/sts2-combat-ai/scripts/cards_catalog.json` (game v0.103.2)
-- Embedded triggers: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
-- PowerCatalog: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (151 powers registered)
-- PowerSequencingTier: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (137 powers classified)
-- Override: `/home/user/sts2-combat-ai/Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs` (13 cards)
+- Master catalog: `scripts/cards_catalog.json` (game v0.103.2)
+- Embedded triggers: `Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
+- PowerCatalog: `Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (151 powers registered)
+- PowerSequencingTier: `Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (137 powers classified)
+- Override: `Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs` (13 cards)
 
 ## Headline metrics  (577 base cards)
 
@@ -20,7 +20,7 @@ HandSynergy) explicitly handles vs falls back to generic defaults.
 | Build participation (`builds[]` non-empty) | 416 / 577 | 72.1% |
 | Override bonus applied | 13 / 577 | 2.3% |
 | Dropped (no axes/builds/keywords/trigger) | 1 / 577 | 0.2% |
-| Any synergy-rule participation (≥1 of 5 rules) | 458 / 577 | 79.4% |
+| Any synergy-rule participation (≥1 of 5 rules) | 461 / 577 | 79.9% |
 | Conditional-damage vars (`Calculated*` / `Extra*` / `Repeat`) | 66 / 577 | 11.4% |
 | Self-modifier axes (`EXHAUST/RETAIN/ETHEREAL/INNATE/UNPLAYABLE`) | 143 / 577 | 24.8% |
 | SelectorMode trigger (`upgrade_trigger` / `fetch_trigger`) | 64 / 577 | 11.1% |
@@ -117,9 +117,9 @@ runtime.
 
 | Rule | Source | Cards | % |
 |---|---|---:|---:|
-| BuildSynergy pair (Producer/Amplifier/Consumer) | `*_PRODUCER/_AMPLIFIER/_CONSUMER` axes | 224 | 38.8% |
+| BuildSynergy pair (Producer/Amplifier/Consumer) | `*_PRODUCER/_AMPLIFIER/_CONSUMER` axes | 264 | 45.8% |
 | BuildSynergy commitment | primary build tag | 370 | 64.1% |
-| AmplifierSynergy | `POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY*` / `SKILL_REPLAY` | 16 | 2.8% |
+| AmplifierSynergy | `POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY*` / `SKILL_REPLAY` | 17 | 2.9% |
 | EffectSynergy | `DAMAGE/BLOCK/VULN/WEAK_AMPLIFIER`, `BLOCK_PAYOFF`, `HP_LOSS_CONSUMER` | 28 | 4.9% |
 | HandSynergy (lower bound) | `vars` keys ∈ {Strength/Dex/Vuln/Weak Power…} | 40 | 6.9% |
 
@@ -129,39 +129,39 @@ A stem `X` triggers `BuildSynergy.Compute()` pair bonuses only when there
 is at least one `X_PRODUCER` AND at least one `X_AMPLIFIER` or `X_CONSUMER`
 card. Stems missing a side are dead pairs in the catalog.
 
-- **Complete stems** (P ≥ 1 AND (A ≥ 1 OR C ≥ 1)): **11 / 28**
-- **Orphan stems** (missing one side): **17**
+- **Complete stems** (P ≥ 1 AND (A ≥ 1 OR C ≥ 1)): **15 / 28**
+- **Orphan stems** (missing one side): **13**
 
 | Stem | Producer | Amplifier | Consumer | Status |
 |---|---:|---:|---:|---|
 | BLOCK | 0 | 7 | 0 | no producer |
 | CUNNING | 10 | 0 | 10 | complete |
 | DAMAGE | 0 | 8 | 0 | no producer |
-| DARK_ORB | 0 | 1 | 0 | no producer |
+| DARK_ORB | 4 | 1 | 0 | complete |
 | DEFEND_TYPE | 0 | 1 | 0 | no producer |
 | DOOM | 9 | 1 | 3 | complete |
 | DOOM_SELF | 1 | 0 | 0 | producer-only |
 | DRAW | 0 | 1 | 0 | no producer |
-| ENERGY | 5 | 0 | 0 | producer-only |
+| ENERGY | 18 | 0 | 0 | producer-only |
 | EXHAUST | 17 | 0 | 5 | complete |
 | FORGE | 11 | 2 | 0 | complete |
 | HP_LOSS | 0 | 0 | 3 | no producer |
-| LORDS_BLADE | 0 | 1 | 0 | no producer |
+| LORDS_BLADE | 11 | 1 | 0 | complete |
 | ORB | 35 | 2 | 1 | complete |
 | ORB_VARIETY | 0 | 3 | 0 | no producer |
 | POISON | 9 | 1 | 2 | complete |
-| POWER | 0 | 3 | 0 | no producer |
+| POWER | 0 | 4 | 0 | no producer |
 | SHIV | 4 | 2 | 1 | complete |
-| SKELETON | 12 | 0 | 5 | complete |
+| SKELETON | 12 | 1 | 5 | complete |
 | SKELETON_ATTACK | 0 | 1 | 0 | no producer |
 | SOUL | 11 | 0 | 3 | complete |
 | STAR | 23 | 0 | 1 | complete |
-| STATUS | 0 | 0 | 3 | no producer |
+| STATUS | 0 | 0 | 6 | no producer |
 | STRENGTH | 13 | 0 | 0 | producer-only |
 | STRIKE | 0 | 0 | 2 | no producer |
 | VOLATILE | 4 | 0 | 5 | complete |
-| VULN | 0 | 7 | 0 | no producer |
-| WEAK | 0 | 2 | 0 | no producer |
+| VULN | 21 | 7 | 0 | complete |
+| WEAK | 19 | 2 | 0 | complete |
 
 ## Synergy participation degree
 
@@ -171,10 +171,10 @@ Per-card count of synergy rules the card *can* feed (out of 5):
 
 | Degree | Cards | % | Interpretation |
 |---:|---:|---:|---|
-| 0 | 119 | 20.6% | no synergy hooks — evaluated as a standalone card |
-| 1 | 272 | 47.1% | single-rule (mostly build or pair) |
-| 2 | 154 | 26.7% | two-rule (build + pair, or pair + effect…) |
-| 3 | 30 | 5.2% | three-rule (high synergy density) |
+| 0 | 116 | 20.1% | no synergy hooks — evaluated as a standalone card |
+| 1 | 246 | 42.6% | single-rule (mostly build or pair) |
+| 2 | 174 | 30.2% | two-rule (build + pair, or pair + effect…) |
+| 3 | 39 | 6.8% | three-rule (high synergy density) |
 | 4 | 2 | 0.3% | four-rule (very dense) |
 | 5 | 0 | 0.0% | all five |
 
@@ -233,11 +233,11 @@ real audit signal. D-tier gaps are usually safe to defer.
 |---|---:|
 | DAMAGE | 200 |
 | EXHAUST_TAG | 122 |
-| BLOCK | 101 |
+| BLOCK | 100 |
 | EXHAUST_SELF | 97 |
-| SCALING | 70 |
+| SCALING | 69 |
 | DEBUFF | 56 |
-| DRAW | 55 |
+| DRAW | 54 |
 | AOE_OTHER | 52 |
 | RANDOM | 48 |
 | ENERGY | 39 |
@@ -251,16 +251,16 @@ real audit signal. D-tier gaps are usually safe to defer.
 | STRIKE_TYPE | 23 |
 | STAR_PRODUCER | 23 |
 | REPEAT | 23 |
+| VULN_PRODUCER | 21 |
 | WEAK | 21 |
+| WEAK_PRODUCER | 19 |
 | UNLIMITED | 18 |
+| ENERGY_PRODUCER | 18 |
 | ETHEREAL_SELF | 18 |
 | EXHAUST_PRODUCER | 17 |
 | POISON | 16 |
 | CARD_GEN | 16 |
 | MINION | 14 |
-| STAR | 14 |
-| STRENGTH_PRODUCER | 13 |
-| OSTY | 13 |
 
 ## Dropped cards  (1 total, top 20)
 

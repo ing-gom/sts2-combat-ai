@@ -1,6 +1,6 @@
 {
   "version": "v0.103.2",
-  "generated_from": "scripts/cards_catalog.json",
+  "generated_from": "scripts\\cards_catalog.json",
   "card_count": 576,
   "cards": {
     "CARD.ABRASIVE": {
@@ -73,7 +73,8 @@
         "ENERGY",
         "DRAW",
         "EXHAUST_SELF",
-        "UNLIMITED"
+        "UNLIMITED",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -171,7 +172,8 @@
     },
     "CARD.ALIGNMENT": {
       "axes": [
-        "ENERGY"
+        "ENERGY",
+        "ENERGY_PRODUCER"
       ]
     },
     "CARD.ALL_FOR_ONE": {
@@ -331,7 +333,8 @@
         "VULN",
         "DAMAGE",
         "INNATE",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -473,7 +476,8 @@
       "axes": [
         "DEBUFF",
         "VULN",
-        "DAMAGE"
+        "DAMAGE",
+        "VULN_PRODUCER"
       ]
     },
     "CARD.BATTLE_TRANCE": {
@@ -505,7 +509,8 @@
         "DEBUFF",
         "VULN",
         "DAMAGE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "VULN_PRODUCER"
       ]
     },
     "CARD.BEAT_DOWN": {
@@ -518,7 +523,8 @@
       "axes": [
         "DAMAGE",
         "FORGE_PRODUCER",
-        "FORGE_AMPLIFIER"
+        "FORGE_AMPLIFIER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -580,7 +586,9 @@
         "FORGE",
         "EXHAUST_SELF",
         "FORGE_PRODUCER",
-        "UNLIMITED"
+        "UNLIMITED",
+        "ENERGY_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -684,7 +692,8 @@
     "CARD.BLOODLETTING": {
       "axes": [
         "ENERGY",
-        "HP_LOSS"
+        "HP_LOSS",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -884,7 +893,8 @@
       "axes": [
         "DEBUFF",
         "VULN",
-        "DAMAGE"
+        "DAMAGE",
+        "VULN_PRODUCER"
       ]
     },
     "CARD.BREAKTHROUGH": {
@@ -911,7 +921,8 @@
         "ENERGY",
         "DRAW",
         "HEAL",
-        "UNLIMITED"
+        "UNLIMITED",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -972,7 +983,8 @@
       "axes": [
         "BLOCK",
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -1349,7 +1361,9 @@
         "VULN",
         "WEAK",
         "DAMAGE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.COMPACT": {
@@ -1400,7 +1414,8 @@
         "DURATION",
         "FORGE",
         "FORGE_PRODUCER",
-        "LORDS_BLADE_AMPLIFIER"
+        "LORDS_BLADE_AMPLIFIER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -1415,7 +1430,8 @@
         "ORB_PRODUCER",
         "REPEAT",
         "DARK_ORB",
-        "ORB_EVOKE"
+        "ORB_EVOKE",
+        "DARK_ORB_PRODUCER"
       ],
       "builds": [
         {
@@ -1762,7 +1778,8 @@
         "WEAK",
         "DOOM",
         "AOE",
-        "AOE_DOOM"
+        "AOE_DOOM",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -1977,7 +1994,8 @@
         "ETHEREAL_SELF",
         "DEBUFF",
         "WEAK",
-        "VOLATILE_PRODUCER"
+        "VOLATILE_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -2228,7 +2246,8 @@
       "axes": [
         "DEBUFF",
         "WEAK",
-        "UNPLAYABLE"
+        "UNPLAYABLE",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.DRAIN_POWER": {
@@ -2596,7 +2615,8 @@
         "BLOCK",
         "DEBUFF",
         "VULN",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -2636,7 +2656,9 @@
         "VULN",
         "WEAK",
         "DAMAGE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -2681,7 +2703,8 @@
         "DEBUFF",
         "VULN",
         "VOLATILE_PRODUCER",
-        "DAMAGE"
+        "DAMAGE",
+        "VULN_PRODUCER"
       ],
       "ethereal": true
     },
@@ -2927,7 +2950,6 @@
     "CARD.FOCUSED_STRIKE": {
       "axes": [
         "DAMAGE",
-        "SCALING",
         "FOCUS",
         "STRIKE_TYPE"
       ],
@@ -3026,7 +3048,8 @@
         "EXHAUST_TAG",
         "ENERGY",
         "DRAW",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -3047,7 +3070,8 @@
     "CARD.FURNACE": {
       "axes": [
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -3068,7 +3092,9 @@
         "VULN",
         "WEAK",
         "DAMAGE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.GANG_UP": {
@@ -3232,7 +3258,8 @@
         "DEBUFF",
         "WEAK",
         "DAMAGE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.GRAND_FINALE": {
@@ -3580,7 +3607,8 @@
         "VULN",
         "OSTY",
         "AOE",
-        "AOE_DEBUFF"
+        "AOE_DEBUFF",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -3874,8 +3902,8 @@
     },
     "CARD.ITERATION": {
       "axes": [
-        "DRAW",
-        "REPLAY"
+        "REPLAY",
+        "STATUS_CONSUMER"
       ],
       "builds": [
         {
@@ -4022,7 +4050,9 @@
         "DEBUFF",
         "VULN",
         "WEAK",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -4108,7 +4138,8 @@
         "BLOCK",
         "AOE_OTHER",
         "DEBUFF",
-        "WEAK"
+        "WEAK",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -4178,7 +4209,8 @@
         "ENERGY",
         "RETAIN_SELF",
         "EXHAUST_SELF",
-        "RETAIN"
+        "RETAIN",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -4223,7 +4255,9 @@
         "WEAK",
         "RANDOM",
         "DURATION",
-        "DAMAGE"
+        "DAMAGE",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -4256,7 +4290,8 @@
         "DEBUFF",
         "WEAK",
         "EXHAUST_SELF",
-        "X_COST"
+        "X_COST",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -4401,7 +4436,9 @@
         "DAMAGE",
         "AOE",
         "AOE_DEBUFF",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -4730,7 +4767,8 @@
         "DEBUFF",
         "WEAK",
         "DAMAGE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.NEUTRON_AEGIS": {
@@ -4837,7 +4875,9 @@
         "WEAK",
         "ORB_PRODUCER",
         "DAMAGE",
-        "DARK_ORB"
+        "DARK_ORB",
+        "DARK_ORB_PRODUCER",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.OBLIVION": {
@@ -4859,7 +4899,8 @@
         "DRAW",
         "HP_LOSS",
         "EXHAUST_SELF",
-        "STACKABLE"
+        "STACKABLE",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -5314,7 +5355,8 @@
       "axes": [
         "EXHAUST_TAG",
         "ENERGY",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -5443,7 +5485,9 @@
         "DEBUFF",
         "VULN",
         "WEAK",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -5525,7 +5569,8 @@
         "LIGHTNING_ORB",
         "FROST_ORB",
         "DARK_ORB",
-        "MULTI_ORB"
+        "MULTI_ORB",
+        "DARK_ORB_PRODUCER"
       ],
       "builds": [
         {
@@ -5660,7 +5705,8 @@
       "axes": [
         "ENERGY",
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -5769,7 +5815,8 @@
         "ENERGY",
         "RETAIN_SELF",
         "RETAIN",
-        "ABSENT_CONDITIONAL"
+        "ABSENT_CONDITIONAL",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -6065,7 +6112,8 @@
       "axes": [
         "AOE_OTHER",
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -6168,7 +6216,8 @@
       "axes": [
         "BLOCK",
         "ORB_PRODUCER",
-        "DARK_ORB"
+        "DARK_ORB",
+        "DARK_ORB_PRODUCER"
       ],
       "builds": [
         {
@@ -6277,7 +6326,9 @@
         "VULN",
         "WEAK",
         "EXHAUST_SELF",
-        "AOE"
+        "AOE",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ],
       "builds": [
         {
@@ -6421,7 +6472,7 @@
       "axes": [
         "AOE_OTHER",
         "AOE_DAMAGE",
-        "BLOCK"
+        "STATUS_CONSUMER"
       ],
       "builds": [
         {
@@ -6663,7 +6714,8 @@
       "axes": [
         "DRAW",
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -6717,14 +6769,16 @@
       "axes": [
         "DEBUFF",
         "VULN",
-        "DAMAGE"
+        "DAMAGE",
+        "VULN_PRODUCER"
       ]
     },
     "CARD.SQUEEZE": {
       "axes": [
         "DAMAGE",
         "OSTY",
-        "SKELETON_ATTACK_AMPLIFIER"
+        "SKELETON_ATTACK_AMPLIFIER",
+        "SKELETON_AMPLIFIER"
       ],
       "builds": [
         {
@@ -6819,7 +6873,8 @@
     "CARD.STORM": {
       "axes": [
         "ORB_PRODUCER",
-        "LIGHTNING_ORB"
+        "LIGHTNING_ORB",
+        "POWER_AMPLIFIER"
       ]
     },
     "CARD.STORM_OF_STEEL": {
@@ -6898,14 +6953,16 @@
       "axes": [
         "DEBUFF",
         "WEAK",
-        "DAMAGE"
+        "DAMAGE",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.SUMMON_FORTH": {
       "axes": [
         "FORGE",
         "FORGE_PRODUCER",
-        "LORDS_BLADE_ACCESS"
+        "LORDS_BLADE_ACCESS",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -6925,7 +6982,8 @@
       "axes": [
         "EXHAUST_TAG",
         "ENERGY",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -6959,7 +7017,8 @@
         "WEAK",
         "DAMAGE",
         "INNATE",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "WEAK_PRODUCER"
       ],
       "innate": true
     },
@@ -7106,7 +7165,8 @@
       "axes": [
         "BLOCK",
         "DEBUFF",
-        "VULN"
+        "VULN",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -7237,7 +7297,8 @@
     "CARD.THE_SMITH": {
       "axes": [
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
@@ -7306,7 +7367,8 @@
         "VULN",
         "DAMAGE",
         "AOE",
-        "AOE_DEBUFF"
+        "AOE_DEBUFF",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -7412,7 +7474,8 @@
     "CARD.TRASH_TO_TREASURE": {
       "axes": [
         "ORB_PRODUCER",
-        "RANDOM"
+        "RANDOM",
+        "STATUS_CONSUMER"
       ],
       "fetch_trigger": true
     },
@@ -7421,7 +7484,8 @@
         "EXHAUST_TAG",
         "DEBUFF",
         "VULN",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -7455,7 +7519,8 @@
     },
     "CARD.TURBO": {
       "axes": [
-        "ENERGY"
+        "ENERGY",
+        "ENERGY_PRODUCER"
       ]
     },
     "CARD.TWIN_STRIKE": {
@@ -7570,7 +7635,9 @@
         "DEBUFF",
         "VULN",
         "WEAK",
-        "DAMAGE"
+        "DAMAGE",
+        "VULN_PRODUCER",
+        "WEAK_PRODUCER"
       ]
     },
     "CARD.UPROAR": {
@@ -7617,7 +7684,8 @@
         "DRAW",
         "DEBUFF",
         "VULN",
-        "VULN_APPLY_TRIGGER"
+        "VULN_APPLY_TRIGGER",
+        "VULN_PRODUCER"
       ],
       "builds": [
         {
@@ -7765,7 +7833,8 @@
       "axes": [
         "EXHAUST_TAG",
         "ENERGY",
-        "EXHAUST_SELF"
+        "EXHAUST_SELF",
+        "ENERGY_PRODUCER"
       ],
       "builds": [
         {
@@ -7802,7 +7871,8 @@
       "axes": [
         "DAMAGE",
         "FORGE",
-        "FORGE_PRODUCER"
+        "FORGE_PRODUCER",
+        "LORDS_BLADE_PRODUCER"
       ],
       "builds": [
         {
