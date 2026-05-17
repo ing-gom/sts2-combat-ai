@@ -136,17 +136,26 @@ def load_inputs(args: argparse.Namespace):
     override_ids = {cid.upper() for cid in OVERRIDE_ID_RE.findall(override_src)}
     tier_map: dict[str, str] = {pw: tier for pw, tier in TIER_RE.findall(tier_src)}
 
+    # Paths are reported relative to the repo root so the audit doc is stable
+    # across developer machines / cloud agents. Absolute paths leaked into
+    # docs/ai_card_coverage.md and produced noisy diffs (Linux vs Windows).
+    def _rel(p: Path) -> str:
+        try:
+            return p.resolve().relative_to(root).as_posix()
+        except ValueError:
+            return p.as_posix()
+
     return {
         "catalog": catalog,
         "triggers": triggers,
         "power_names": power_names,
         "override_ids": override_ids,
         "tier_map": tier_map,
-        "catalog_path": catalog_path,
-        "triggers_path": triggers_path,
-        "power_path": power_path,
-        "override_path": override_path,
-        "tier_path": tier_path,
+        "catalog_path": _rel(catalog_path),
+        "triggers_path": _rel(triggers_path),
+        "power_path": _rel(power_path),
+        "override_path": _rel(override_path),
+        "tier_path": _rel(tier_path),
     }
 
 
