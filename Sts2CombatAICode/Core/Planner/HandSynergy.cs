@@ -22,7 +22,12 @@ internal static class HandSynergy
 {
     private const int StrengthSynergyPerAttack = 50;     // damage point ≈ DamagePerPointBonus
     private const int DexteritySynergyPerSkill = 30;     // block point
-    private const int VulnerableSynergyPerHit  = 40;     // per OUR hit (Vuln × +50% per hit)
+    private const int VulnerableSynergyPerHit  = 100;    // v0.6 — up from 40. True per-hit
+                                                          // value ≈ 0.5 × avg_dmg(5) × DamagePerPointBonus(50)
+                                                          // = 125. Old 40 systematically under-priced
+                                                          // Vuln-appliers vs raw-damage multi-hit
+                                                          // attacks, causing Twin-Strike-before-Bash
+                                                          // mis-orderings.
     private const int WeakSavingsPerHpPoint    = 30;     // score per HP of enemy damage prevented
     private const int WeakSavingsTurnCap       = 2;      // future turns to count
 

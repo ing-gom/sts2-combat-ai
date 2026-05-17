@@ -74,7 +74,13 @@ internal static class PlanScorer
                 delta -= w.RetainDeferPenaltyPerAlternative * otherPlayable;
         }
         if (card.IsEthereal)
-            delta += w.EtherealPlayNowBonus;
+        {
+            // v0.6 — type-aware Ethereal play-now bonus. Powers have higher
+            // intrinsic value (and longer-tail benefit once played), so they
+            // get the higher bonus. Curses/Status cards are filtered out
+            // earlier; the bonus on them is irrelevant.
+            delta += card.IsPower ? w.EtherealPowerPlayNowBonus : w.EtherealPlayNowBonus;
+        }
         return delta;
     }
 

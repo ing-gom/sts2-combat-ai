@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.6.1 (2026-05-17)
+
+**a-2 (multi-hit-attack ordering) + a-3 (휘발성 처리) 보강.**
+
+`docs/card_play_order_framework.md` 의 High-impact gap 2, 3 구현. 모두
+weight 조정 / type-aware bonus 로 처리 — 새 룰 모듈 도입 없이 기존
+HandSynergy / PlayOrderBias 의 magnitude 만 재보정.
+
+### `HandSynergy.cs` — Vuln 시너지 magnitude 보정
+
+`VulnerableSynergyPerHit` **40 → 100**. 분석상 Vuln 의 *실제* 1-hit 가치
+≈ 0.5 × avg_dmg(5) × DamagePerPointBonus(50) = **125**. 기존 40 은 약
+1/3 수준의 under-calibration → Bash + 멀티힛 손패 조합에서 Bash 가
+Twin Strike 보다 score 낮아 멀티힛이 먼저 (Vuln 미적용) 발동하는
+mis-ordering 발생. 100 으로 올려 손패의 멀티힛/공격 카드 수가 클수록
+Bash 가 우선 발동되도록.
+
+Strength / Dex / Weak weight 는 그대로 — 분석상 이미 적정 calibration.
+
+### `PlanScorerWeights.cs` + `PlanScorer.PlayOrderBias` — 휘발성 (Ethereal) 보너스 상향
+
+`EtherealPlayNowBonus` **120 → 500**, 신규 `EtherealPowerPlayNowBonus = 800`.
+
+배경: 카탈로그의 ETHEREAL_SELF axis 카드 18장 (휘발성, 해당 턴 미사용 시
+손패에서 exhaust) 의 카드 가치는 200~1500 (특히 Power: VoidForm 700,
+Demesne 550, EchoForm 1500). 기존 +120 보너스는 "안 쓰면 0" 의 trade-off
+대비 너무 작아 Block-under-threat / 다른 Power 등 high-score 대안에
+밀려 휘발성 카드가 헛되이 exhaust 되는 케이스 발생.
+
+새 처리:
+- Ethereal Power: **+800** (가치 큰 Power 가 무리 없이 다른 대안 이김)
+- Ethereal Attack/Skill: **+500** (200~600 가치 대 종합 balanced)
+- Curse/Status: 영향 없음 (auto-rejected 영역)
+
+PlayOrderBias 에 type 분기:
+```csharp
+delta += card.IsPower ? w.EtherealPowerPlayNowBonus : w.EtherealPlayNowBonus;
+```
+
+기존 LethalMode 페널티 (-3000) 가 우선 — lethal turn 에서는 휘발성 Power
+도 무시하고 공격 선택 (정상).
+
+### 영향 카드 (catalog 의 ethereal:true 18장)
+
+Power: APPARITION, DEFY, DEMESNE, ECHO_FORM, ENFEEBLING_TOUCH, LETHALITY,
+PARSE, SEANCE, VOID_FORM  
+Attack: DEFILE, DYING_STAR, FEAR, SWEEPING_GAZE  
+Skill: APPARITION, DEFY, ENFEEBLING_TOUCH, PARSE, SEANCE (Skill side)  
+Curse/Status (영향 없음): ASCENDERS_BANE, CLUMSY, FOLLY, DAZED, VOID
+
 ## v0.6.0 (2026-05-17)
 
 **Lethal-this-turn 감지 + SkillSequencingTier 신규 추가.**
