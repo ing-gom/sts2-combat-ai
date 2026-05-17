@@ -1,5 +1,62 @@
 # Changelog
 
+## v0.6.5 (2026-05-17)
+
+**Power-typed amplifier 카드 hand-aware 보너스 — AmplifierSynergy 를
+Power 브랜치에서도 호출.**
+
+### 배경
+
+`AmplifierSynergy.cs` 는 POWER_AMPLIFIER / REPLAY / ATTACK_REPLAY /
+SKILL_REPLAY 축의 카드가 같은 손패의 best target 점수의 50% 를 추가
+점수로 받는 룰. 그런데 호출이 Attack/Skill 브랜치에만 있어서, 카드 자체가
+**Power 타입인 amplifier** (8장) 가 hand-aware 보너스 못 받는 gap 발생.
+
+### 영향 카드 (8장)
+
+| 카드 | Tier | Axis | 기존 PowerCatalog |
+|---|---|---|---:|
+| `CARD.SUBROUTINE` | B | POWER_AMPLIFIER | 500 |
+| `CARD.ECHO_FORM` | S | REPLAY | 1500 |
+| `CARD.MAYHEM` | C | REPLAY | 500 |
+| `CARD.ITERATION` | B | REPLAY | 350 |
+| `CARD.JUGGLING` | D | REPLAY | 300 |
+| `CARD.LOOP` | D | REPLAY | 350 |
+| `CARD.NOSTALGIA` | D | REPLAY | 250 |
+| `CARD.STAMPEDE` | B | ATTACK_REPLAY_RANDOM | 350 |
+
+### 변경
+
+`PlanScorer.cs` Power 브랜치에 `AmplifierSynergy.Compute(card, state, w)`
+호출 추가. tierOrdering / tierCond / buildBonus 다음, lethalPenalty 직전
+위치. Total / Effect 합산에 `powerAmpBonus` 포함.
+
+```csharp
+var (powerAmpBonus, powerAmpDetail) = AmplifierSynergy.Compute(card, state, w);
+if (powerAmpBonus != 0) details.Add(powerAmpDetail);
+```
+
+### 시뮬레이션 예시
+
+손패: SUBROUTINE + DEMON_FORM + 2 attacks
+
+- **이전**: Subroutine 1650, DemonForm 2350 → DemonForm 먼저 (Subroutine 의
+  에너지 효과 다음 Power 에 못 적용)
+- **이후**: Subroutine 1650 + (DemonForm × 0.5 = ~1175) = **2825**, DemonForm
+  2350 → **Subroutine 먼저** ✓
+
+### Recursion 안전성
+
+`AmplifierSynergy.IsValidTarget` 의 `!HasAmplifierAxis(c)` 체크가 Power→
+Power-amplifier 무한 루프 방지. 두 amplifier (예: DemonForm + Mayhem 둘 다
+REPLAY) 가 서로 target 하지 않음 — 의도된 보수적 설계.
+
+### 미해결 gap
+
+**`CARD.STORM`** description 은 "파워 카드 사용 시 전기 영창" 인데
+catalog axes 가 `ORB_PRODUCER, LIGHTNING_ORB` 뿐 — **POWER_AMPLIFIER axis
+누락**. 부모 repo 의 axis-tagger 작업 영역 (이 repo 에서 직접 못 고침).
+
 ## v0.6.4 (2026-05-17)
 
 **Runtime infrastructure Phase B + C — parser + analyzer.**
