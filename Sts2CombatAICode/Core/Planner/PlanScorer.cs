@@ -123,6 +123,12 @@ internal static class PlanScorer
         double threshold = EnemyTurnSimulator.NextTurnThreatAmplified(state)
             ? w.ThreatThresholdWithBuff : w.ThreatThreshold;
 
+        // v0.6 — turn-finishing lethal detection. When the hand's attacks
+        // (with current Strength + Vuln + Weak applied, energy-budget greedy
+        // pick) can kill every alive enemy this turn, non-Attack cards are
+        // heavily penalised so attacks win the score comparison.
+        bool lethalThisTurn = IsLethalThisTurn(state);
+
         var details = new List<string>();
 
         // Build synergy applies to every non-curse card exactly once.
@@ -174,11 +180,18 @@ internal static class PlanScorer
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
             if (overrideBonus != 0) details.Add($"override={overrideBonus}");
             buildBonus += overrideBonus;
+
+            // v0.6 — lethal this turn: every non-Attack is dead weight, the
+            // remaining damage closes the fight. Heavy penalty so a Power
+            // doesn't beat a winning attack on the killing-blow turn.
+            int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
+            if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
+
             int total = baseBonus + effect + costTie + energyBonus + fightCtx
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + lethalPenalty,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -666,10 +679,28 @@ internal static class PlanScorer
                     details.Add($"survival{urgency}={survivalSkillPenalty}");
             }
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty;
+            // v0.6 — Skill sequencing tier. Smaller than Power's tier
+            // ordering (Setup +100 / Cantrip +60 / others 0). Only kicks in
+            // when ≥2 Skills compete in hand.
+            int skillsInHand = state.Hand.Count(c => c.IsSkill && c.IsPlayable);
+            var skillTier = SkillSequencingTier.Classify(card);
+            int skillTierOrdering = SkillSequencingTier.OrderingBonus(skillTier, skillsInHand);
+            var (skillTierCond, skillTierDetail) = SkillSequencingTier.ConditionalBonus(card, skillTier, state);
+            if (skillTier != SkillTier.Unknown)
+                details.Add(skillTierOrdering != 0 ? $"sklTier={skillTier}+{skillTierOrdering}" : $"sklTier={skillTier}");
+            if (!string.IsNullOrEmpty(skillTierDetail)) details.Add(skillTierDetail);
+
+            // v0.6 — lethal this turn: non-Attack cards are dead weight.
+            // Energy / draw / setup-debuff skills also penalised — by
+            // definition we already have lethal damage in hand, so nothing
+            // else this turn matters.
+            int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
+            if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty;
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
-                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty,
                 TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
@@ -678,6 +709,91 @@ internal static class PlanScorer
     private static bool IsSelfTargetedTarget(TargetType t)
         => t == TargetType.Self || t == TargetType.AnyAlly
         || t == TargetType.AnyPlayer || t == TargetType.AllAllies;
+
+    /// <summary>
+    /// v0.6 — Lethal-this-turn detection. Greedy-pick playable attacks in
+    /// damage-per-energy order, apply per-enemy Vulnerable / Weak self /
+    /// damage caps, sum the projected damage, and return true if it covers
+    /// every alive enemy's HP. Used to deprioritise non-Attack cards on the
+    /// closing turn of a fight.
+    ///
+    /// Limitations (intentional simplifications, biased toward false-NEGATIVE):
+    ///   • Single-target attacks use the most-Vulnerable alive enemy for
+    ///     damage estimation (over-counts when actual best target is lower
+    ///     HP but not Vuln). Conservative direction for the *boolean*
+    ///     output — over-estimating damage gives false positives, which are
+    ///     more dangerous than false negatives. We accept the rare false
+    ///     positive in exchange for catching the common lethal case.
+    ///   • Body Slam / Calculated* / Repeat-scaling attacks use stored
+    ///     base damage, not the runtime-computed value. Lethal may go
+    ///     undetected for these — false negative, safe.
+    ///   • Strength-from-Setup-this-turn not modelled (we'd need to score
+    ///     play order). Lethal detected at current Strength only.
+    /// </summary>
+    private static bool IsLethalThisTurn(SimState state)
+    {
+        int totalEnemyHp = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) totalEnemyHp += e.Hp;
+        if (totalEnemyHp <= 0) return true;
+
+        int energy = state.PlayerEnergy;
+        bool playerWeak = state.PlayerWeak > 0;
+
+        // Greedy damage-per-energy ordering. Cost 0 treated as cost 1 for
+        // the ratio so free attacks rank by raw damage.
+        var attacks = state.Hand
+            .Where(c => c.IsAttack && c.IsPlayable
+                        && c.Cost >= 0 && c.Cost <= energy)
+            .OrderByDescending(c =>
+                c.TotalDamage * 100 / System.Math.Max(1, c.Cost == 0 ? 1 : c.Cost))
+            .ToList();
+
+        int totalReachable = 0;
+        foreach (var atk in attacks)
+        {
+            if (atk.Cost > energy) continue;
+            energy -= atk.Cost;
+
+            if (atk.Target == TargetType.AllEnemies)
+            {
+                foreach (var e in state.Enemies)
+                {
+                    if (!e.IsAlive) continue;
+                    int per = StatusMath.EffectiveAttackDmg(atk.Damage,
+                        state.PlayerStrength, e.VulnerableAmount > 0, playerWeak);
+                    if (e.DamageCapPerHit > 0 && per > e.DamageCapPerHit)
+                        per = e.DamageCapPerHit;
+                    int eachTotal = per * System.Math.Max(1, atk.Hits);
+                    if (e.HardenedShellRemaining > 0
+                        && eachTotal > e.HardenedShellRemaining)
+                        eachTotal = e.HardenedShellRemaining;
+                    totalReachable += eachTotal;
+                }
+            }
+            else
+            {
+                // Pick the most-Vulnerable alive enemy for damage estimation.
+                SimEnemy? bestEnemy = null;
+                foreach (var e in state.Enemies)
+                {
+                    if (!e.IsAlive) continue;
+                    if (bestEnemy == null
+                        || (e.VulnerableAmount > 0 && bestEnemy.VulnerableAmount == 0))
+                        bestEnemy = e;
+                }
+                if (bestEnemy == null) continue;
+                int per = StatusMath.EffectiveAttackDmg(atk.Damage,
+                    state.PlayerStrength, bestEnemy.VulnerableAmount > 0, playerWeak);
+                if (bestEnemy.DamageCapPerHit > 0 && per > bestEnemy.DamageCapPerHit)
+                    per = bestEnemy.DamageCapPerHit;
+                int eachTotal = per * System.Math.Max(1, atk.Hits);
+                totalReachable += eachTotal;
+            }
+        }
+
+        return totalReachable >= totalEnemyHp;
+    }
 
     private static (int bonus, string details) ScoreAttackTarget(
         SimCard card, int targetIdx, SimState state, PlanScorerWeights w, int effectiveDamage)
