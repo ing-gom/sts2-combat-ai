@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.6.4 (2026-05-17)
+
+**Runtime infrastructure Phase B + C — parser + analyzer.**
+
+C# 변경 없음 — Python 스크립트 2개로 Phase A (v0.6.3) 의 NDJSON 출력을
+소비해 분석 리포트 생성.
+
+### `scripts/parse_decision_log.py` (신규, ~200 LOC) — Phase B
+
+NDJSON 파일 디렉토리 → 정규화된 record JSON.
+
+- 입력: `--logs <dir>` (default: `~/.local/share/Sts2/Sts2CombatAI/decision_log/`)
+- 출력: `--out <path>` (records JSON) 또는 `--summary` (stdout)
+- `--since YYYY-MM-DD` 필터
+- `breakdown` 문자열에서 KV pair 추출 (`name=int` / `dmg{N}` / `tier=Name+N`)
+- `enemy_hp_after` 는 같은 combat 내 다음 decision 의 `enemy_hp_before` 로 채움
+- 외부 의존성 없음 (pure stdlib)
+
+Schema 출력 (per record): combat_id, ts, character, playstyle, turn, step,
+card_id, card_kind, target, score, enemy_hp_before/after, player_hp_before,
+player_block_before, lethal_active, fetch_card, combo_links, reason,
+breakdown_raw, breakdown_kv, breakdown_other.
+
+### `scripts/analyze_decisions.py` (신규, ~400 LOC) — Phase C
+
+records JSON → markdown 리포트. 10 metric 계산:
+
+1. **Synergy activation rate** — 16 룰별 fire 빈도 (build_pair, hand_synergy,
+   vuln_amp, weak_amp, damage_amp, block_amp, block_payoff, hp_loss,
+   amplifier, power_tier, skill_tier, combo, override, lethal_mode,
+   fetch_pollution, energy_monopoly)
+2. **Lethal precision/recall** — `lethal_active` 가 fight-end 와 얼마나 매칭
+3. **PowerCatalog runtime hit rate** — `*Power(N)=M` 패턴 매칭 (정적 lower-bound 보정)
+4. **Combo fire rate** — 3+ / 4+ link 체인 빈도
+5. **Fetch pollution** — `fetchPoll` key 적용된 fetch 카드 plays
+6. **Setup-before-beneficiary** — Setup tier 가 공격 전에 발동하는 비율
+7. **Energy curve** — 턴당 평균 plays, p50/p90
+8. **Decision diversity** — 캐릭터별 unique cards, Top-10 share
+9. **Per-tier play distribution** (`--catalog` 옵션 시) — S/A/B/C/D 사용 분포
+10. **Score vs HP outcome** — 평균 score 와 HP loss 의 Pearson r
+
+Phase D (A/B baseline) / Phase E (release diff) 는 향후 PR.
+
+### 사용 예시
+
+```bash
+# 직접 NDJSON 디렉토리 분석
+python scripts/analyze_decisions.py \
+    --logs ~/.local/share/Sts2/Sts2CombatAI/decision_log/ \
+    --catalog scripts/cards_catalog.json \
+    --out docs/runtime_metrics.md
+
+# 또는 2 단계
+python scripts/parse_decision_log.py --logs <dir> --out /tmp/records.json
+python scripts/analyze_decisions.py --records /tmp/records.json --out docs/runtime_metrics.md
+```
+
+### Phase A/B/C 통합 데이터 흐름
+
+```
+in-game → DecisionLog (ring buffer 32 entries) → DecisionLogPersister
+  → {user_data}/Sts2CombatAI/decision_log/*.ndjson
+  → parse_decision_log.py → normalized records
+  → analyze_decisions.py → docs/runtime_metrics.md
+```
+
 ## v0.6.3 (2026-05-17)
 
 **Runtime analysis infrastructure — Phase A (DecisionLog persistence).**
