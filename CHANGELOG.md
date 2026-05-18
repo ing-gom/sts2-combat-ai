@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.7.67 (2026-05-19)
+
+**Archetype magnitude audit — Forge 30, Summon 6 misprice.**
+
+### 사용자 요청
+
+"특정 아키 타입에 대한 부분이 정확하게 측정되지 않는 부분"
+
+### 진단 — 129 카드 audit 결과
+
+CardEffectSummary 의 추적 fields:
+`Damage / Block / Hits / EnergyGain / DrawCount / HealAmount / HpLossAmount / MaxHp / StrengthDownAmount`
+
+vars 에는 있지만 CardEffectSummary 에 **추적 안 되는** archetype-specific:
+- **Forge** (Regent) — 9+ cards
+- **Summon** (Necrobinder skeleton) — 5+ cards
+- **Stars** (Regent) — 일부 카드
+- **OrbSlots** (Defect)
+- **BlockOnExhaust** (Necrobinder)
+
+### 수정 — 3 high-impact handlers
+
+**THE_SMITH** (Regent A 1c): Forge 30 = 단일 카드 최대 Forge stack
+- Blade 없음: -400 penalty
+- Blade 있음: `30 × bladePlays × 50 / 12` (cap 1800)
+
+**AFTERLIFE** (Necrobinder A 1c): Summon 6 + EXHAUST_SELF
+- `6 × 150 + consumers × 60` (cap 1500)
+- SKELETON_CONSUMER 또는 OSTY 카드 보유 시 추가 보너스
+
+**LEGION_OF_BONE** (Necrobinder A 2c): 동일 mechanism, 2-cost
+- AFTERLIFE 와 동일 평가 (코스트 정합 의문 — 멀티플레이어용)
+
+### 남은 후보 (lower impact)
+
+| 카드 | vars | 처리 |
+|---|---|---|
+| GLOW | Stars 1 | STAR_PRODUCER axis 충분 |
+| BULK_UP | OrbSlots 1 | PowerApps (Str/Dex) 충분 |
+| SPIRIT_OF_ASH | BlockOnExhaust 4 | VOLATILE_CONSUMER axis 부분 |
+| THE_BOMB | (CalculatedDoom?) | DOOM AOE 별도 처리됨 |
+
+---
+
 ## v0.7.66 (2026-05-19)
 
 **SUMMON_FORTH (대령하라) 가치 평가 추가.**
