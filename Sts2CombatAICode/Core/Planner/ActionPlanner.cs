@@ -184,7 +184,16 @@ internal static class ActionPlanner
             }
             if (freeCard != null)
                 return new PlanStep(freeCard, freeIdx, freeScore, Reason(freeCard));
-            return null;
+
+            // v0.7.40 — Last-resort: if the best paid card has SOME positive
+            // value (above 0 but below the 80 floor), prefer playing it over
+            // forfeiting the turn. The floor's purpose is to suppress clearly-
+            // bad plays; mildly-positive plays should still execute so the AI
+            // doesn't surface "stop with cards usable" to the user.
+            if (bestFirstScore > 0)
+                return bestPlan;
+
+            return null;  // genuinely no positive play
         }
 
         return bestPlan;
