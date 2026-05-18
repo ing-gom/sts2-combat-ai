@@ -110,6 +110,11 @@ internal static class VakuuExecutor
                         $"deck={tp.DeckSize} cardsPerTurn={tp.EstimatedCardsPerTurn} cycle={tp.TurnsPerCycle}turns");
                     MainFile.Logger.Info(
                         $"[CombatAI]   core: atk=[{atk}] def=[{def}] cyc=[{cyc}]");
+                    // v0.7.57 — Survival race projection
+                    var proj = Sts2CombatAI.Planner.SurvivalProjection.Compute(snapshot, tp);
+                    MainFile.Logger.Info(
+                        $"[CombatAI]   race: {proj.Race} ttd={proj.TurnsToDeath} ttk={proj.TurnsToKill} " +
+                        $"hpLoss/turn={proj.NetHpLossPerTurn} dmg/turn={proj.NetDamagePerTurn}");
                 }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
