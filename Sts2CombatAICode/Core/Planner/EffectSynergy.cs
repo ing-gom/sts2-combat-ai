@@ -158,6 +158,15 @@ internal static class EffectSynergy
         else if (card.Id == "CARD.ADAPTIVE_STRIKE")
             ApplyAdaptiveStrikeChain(card, state, ref b, parts);
 
+        // v0.7.17 — S-tier 1-path coverage: card-id specific mechanics that
+        // the axis dispatchers don't capture. Pure direct-stat scoring under-
+        // values these because their value comes from a state-dependent
+        // post-attack effect.
+        if (card.Id == "CARD.ALL_FOR_ONE")
+            ApplyAllForOneRecall(card, state, ref b, parts);
+        else if (card.Id == "CARD.PINPOINT")
+            ApplyPinpointEnergyRefund(card, state, ref b, parts);
+
         // Cost-enabler: UNRELENTING (next Attack 0-cost), SYNTHESIS (next Power
         // 0-cost), POUNCE (next Skill 0-cost). Combat-wide enablers (CORRUPTION,
         // ENLIGHTENMENT, BULLET_TIME) are Powers/Skills covered elsewhere.
@@ -1534,6 +1543,56 @@ internal static class EffectSynergy
         int bonus = (int)(freeCopyValue * Discount);
         b += bonus;
         parts.Add($"adaptiveCopy(freeVal={freeCopyValue}x{Discount})=+{bonus}");
+    }
+
+    /// <summary>
+    /// v0.7.17 — ALL_FOR_ONE (S, Defect): "Deal 10 damage. Bring ALL 0-cost
+    /// cards from discard pile to hand." Hand refill mechanism — high value
+    /// when discard has accumulated free 0-cost plays. Empty discard ≈ +60
+    /// baseline (small positive for the recall potential next turn).
+    ///
+    /// Sum EstimateCardPower over discard 0-cost non-curse cards (in-hand
+    /// value, since they'll be played at cost 0 = free). Cap at +1200 so a
+    /// massive discard pile doesn't dominate scoring beyond hand-cap reality.
+    /// </summary>
+    private static void ApplyAllForOneRecall(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int total = 0, count = 0;
+        foreach (var c in state.DiscardPile)
+        {
+            if (c.Cost != 0) continue;
+            if (c.IsCurseOrStatus) continue;
+            total += EstimateCardPower(c, state, freeUse: false);
+            count++;
+        }
+        if (count == 0)
+        {
+            b += 60;
+            parts.Add("allForOneEmpty=+60");
+            return;
+        }
+        int v = total;
+        const int Cap = 1200;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"allForOneRecall(count={count},sum={total})=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.17 — PINPOINT (S, Silent): "Deal 15 damage. For each Skill used
+    /// this turn, refund 1 energy." Bonus = TurnSkillsPlayed × per-energy
+    /// value. Skills already played → already discounted (we played them);
+    /// PINPOINT after multiple Skills can fully refund itself + leftover.
+    /// </summary>
+    private static void ApplyPinpointEnergyRefund(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int skills = state.TurnSkillsPlayed;
+        if (skills <= 0) return;
+        // Energy refund: use the in-hand energy weight (60). Refund mid-turn
+        // is like gaining cost-free plays equal to refunded energy.
+        int v = skills * EffectScoringWeights.EnergyInHand;
+        b += v;
+        parts.Add($"pinpointRefund(skills={skills}x{EffectScoringWeights.EnergyInHand})=+{v}");
     }
 
     private static void ApplyNextCardCostEnabler(SimCard self, SimState state, ref int b, List<string> parts)
