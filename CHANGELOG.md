@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.7.56 (2026-05-18)
+
+**DeckThroughput 확장: 순환 지표 + 코어 cycler.**
+
+### 새 metric
+
+- **DeckSize**: non-curse 카드 총수 (모든 piles)
+- **EstimatedCardsPerTurn**: 5 (base draw) + Σ extra-draw 가중 + Σ energy-gain 가중
+- **TurnsPerCycle**: deckSize / cardsPerTurn — deck 전체 순환에 필요한 턴수
+- **CoreCyclers**: top-3 cycle-contribution 카드
+
+### Cycle score 계산
+
+각 카드의 cycle 기여도:
+```
+cycleScore = (DrawCount × 1.5 + EnergyGain × 2.0 + EXHAUST_SELF × 0.3) / cost
+```
+
+순서:
+1. DrawCount 가중치 1.5 (직접 draw)
+2. EnergyGain 2.0 (extra play = 1 effective draw)
+3. EXHAUST_SELF 0.3 (deck shrink → 미래 cycle 빠름)
+4. cost 로 나눠 per-energy 효율
+
+### PlanScorer 통합
+
+Core cycler 카드 play 시 **+48 보너스** (Core attacker/defender 의 60%).
+- Cyclers 가 deck 의 carry 는 아니지만 build 활성화 → 우선 플레이
+
+### VakuuExecutor 로그 확장
+
+```
+[CombatAI]   throughput: dpt=18 bpt=12 dmgCov=2.40 blkCov=1.33 
+              deck=22 cardsPerTurn=7 cycle=3turns
+[CombatAI]   core: atk=[KINGLY_PUNCH,STRIKE,FALLING_STAR] 
+              def=[BULWARK,DEFEND] cyc=[POMMEL_STRIKE,ACROBATICS,ADRENALINE]
+```
+
+### 활용
+
+- **cycle=3turns**: deck 빠르게 순환 → coreAtk 자주 보임
+- **cycle=8turns**: 느림. core 카드 못 본 채 전투 끝날 수도
+- **cyc=[]**: 순환 동력 부재 → cycler 카드 추가 권장
+
+---
+
 ## v0.7.55 (2026-05-18)
 
 **DeckThroughput — DPT/BPT 지표 + 코어카드 식별.**
