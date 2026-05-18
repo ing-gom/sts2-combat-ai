@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.7.31 (2026-05-18)
+
+**Cross-character impact Powers — 5 handlers.**
+
+| Power | Char | Tier | Scaling factor |
+|---|---|---|---|
+| PyrePower | Ironclad | B | (turns − 1) × EnergyValue |
+| InfernoPower | Ironclad | A | HP_LOSS × alive × 6 × 50 |
+| AutomationPower | Shared | A | (turns × 5 / 10) × EnergyValue |
+| OutbreakPower | Silent | D | (POISON × turns / 4 / 3) × alive × 11 |
+| PaleBlueDotPower | Regent | B | turns × draw-rate × PerDrawValue |
+
+Gates:
+- Inferno: HP_LOSS 카드 또는 적 없으면 baseline 차감
+- Outbreak: POISON_PRODUCER 또는 적 없으면 baseline 차감
+
+### v0.7.27~v0.7.31 묶음 결과
+
+| 버전 | 묶음 | dynamic coverage |
+|---|---|---:|
+| v0.7.26 | per-turn baseline | 13 |
+| v0.7.27 | Shiv stem (Silent) | 18 |
+| v0.7.28 | Star stem (Regent) | 23 |
+| v0.7.29 | Forge stem (Regent) | 28 |
+| v0.7.30 | Doom/Volatile (Necrobinder) | 33 |
+| **v0.7.31** | **cross-character 잔여** | **38** |
+
+**최종**: 112 unique STS2 Powers 중 **38 (34%) dynamic delta + 8 추가 layer
+(activation penalty + forward sim) = 46 (41%) non-flat coverage**.
+
+남은 ~66 powers 는 두 부류:
+1. State-independent 영구 버프 (Inflame/BulkUp/Footwork 등) — flat 으로 충분
+2. 하위 tier 또는 niche 메커니즘 — 추가 작업 가능 (Coolant/Capacitor/Loop/
+   Hailstorm/Iteration/SmokeStack/Friendship/Caltrops/Juggernaut 등)
+
+---
+
 ## v0.7.30 (2026-05-18)
 
 **Doom / Volatile stem — 5 handlers (Necrobinder).**
