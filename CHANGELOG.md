@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.7.33 (2026-05-18)
+
+**HP-loss aware survival check — 현재 턴 정밀화 Phase 1.**
+
+### 배경
+
+기존 `EnemyTurnSimulator.GetSurvivalUrgency` 는 enemy intent → 현재 block
+계산만. 카드 자체의 self-damage (Spite/Inferno trigger/Doom self) 는
+별도 평가가 없어 self-induced death 위험 무시.
+
+예: HP 8 + incoming 4 = leak 4 (Moderate). 그 상태에서 HP_LOSS 4 카드 play
+하면 effHp 4 → effLeak 4 = Fatal. 기존 모델은 이 추가 위험 못 봄.
+
+### 변경
+
+1. `GetEffectiveUrgency(state, extraHpLoss)` 헬퍼 추가
+   - card.HpLossAmount 만큼 effHp 줄여서 urgency 재산정
+2. `ComputeSelfDamagePenalty(card, state, lethalThisTurn)` 헬퍼 추가
+   - 카드가 urgency tier 를 올리면 jump 크기 비례 페널티
+   - Fatal 로 promote → -1000 × jump
+   - Heavy 로 promote → -300 × jump
+   - lethalThisTurn 면 무시 (combat 종료)
+3. Attack / Skill / Power 세 branch 의 survival check 에 wiring
+
+### 효과 예시
+
+| 상황 | 이전 | v0.7.33 |
+|---|---:|---:|
+| HP 12 + incoming 4 (None) → HP_LOSS 4 (effHp 8, leak 4 → Moderate) | 0 | -300 |
+| HP 8 + incoming 4 (Moderate) → HP_LOSS 4 (effHp 4, leak 4 → Fatal) | 0 | -2000 (2 jumps) |
+| HP 8 + incoming 6 (Heavy) → HP_LOSS 0 (변화 없음) | 0 | 0 |
+| HP 4 + lethal-this-turn → HP_LOSS 3 | 0 | 0 (lethal bypass) |
+
+---
+
 ## v0.7.32 (2026-05-18)
 
 **Defect orb stem — 7 handlers.**
