@@ -1,5 +1,57 @@
 # Changelog
 
+## v0.7.25 (2026-05-18)
+
+**Weak scoring — non-attack-intent coverage + dynamic turn cap.**
+
+### 배경
+
+v0.7.24 까지 `ComputeWeakSavings` 의 2가지 한계:
+
+1. **Non-attack-intent 적 무시**: enemy.HasAttackIntent 만 통과. Buff/heal/defend
+   중인 적은 Weak 가치 0 계산. 하지만 Weak stack 은 1턴/소멸이라 다음 턴 공격
+   intent 일 때 여전히 유효.
+2. **턴 cap 2 고정**: 4-stack Weak 같은 high-stack power 의 long-fight 가치
+   불완전 평가. 1턴 lethal 상황에서도 cap=2 면 over-estimate.
+
+### 변경
+
+```csharp
+// Cap by min(stacks, RemainingTurnsEstimator, hardCap=4)
+int turnCap = min(weakStacks, min(remainingTurns, WeakSavingsTurnCap));
+
+foreach (var e in state.Enemies) {
+    bool currentTurnAttacks = e.HasAttackIntent
+                            || (e.HasDeathBlowIntent && e.IntentDamage > 0);
+    bool futureIntentAttack = !currentTurnAttacks
+                            && (e.HasBuffIntent || e.HasDebuffIntent
+                                || e.HasHealIntent || e.HasDefendIntent
+                                || e.HasSummonIntent || e.HasStatusIntent);
+    if (!currentTurnAttacks && !futureIntentAttack) continue;
+
+    // perHit/hits: 현재 attack intent 면 실측, 아니면 baseline 8×1
+    // effectiveTurns: 첫 턴이 lapse 인 future-intent 의 경우 -1
+    // contribution: future-intent 의 경우 1/2 (불확실성)
+}
+```
+
+### 결과
+
+`scripts/_inspect_v0_7_25.py` (9 시나리오):
+
+| 시나리오 | 점수 | 변화 |
+|---|---:|---|
+| multi-hit (8×4) attacker, Weak 2 | 480 | 변화 없음 |
+| multi-hit attacker, **Weak 4** | **960** | cap=4 적용, 2× |
+| BIG single-hit (40×1), Weak 2 | 600 | 변화 없음 |
+| **Buff 중 (Weak 2)** | **30** | 0 → 30 (다음 턴 공격 반영) |
+| Buff 중 (Weak 1, 완전 lapse) | 0 | 0 (정답) |
+| Defend 중 (Weak 3) | 60 | 0 → 60 |
+| **1턴 lethal, Weak 3** | **240** | cap=1 적용으로 자연 down-scale |
+| Inert (stun) | 0 | 0 (정답) |
+
+---
+
 ## v0.7.24 (2026-05-18)
 
 **Future attack potential scaling for Vulnerable.**
