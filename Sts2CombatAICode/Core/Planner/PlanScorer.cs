@@ -148,6 +148,15 @@ internal static class PlanScorer
         // scored by BuildSynergy / HandSynergy / EffectSynergy; this is
         // tie-breaking + DecisionLog visibility for "combo turn" detection.
         var (comboBonus, comboDetail) = ComboRecognition.Compute(card, state);
+        // v0.7.38 — Explicit known-pair recipe bonus on top of the generic chain.
+        int comboPairBonus = ComboRecognition.ExplicitPairBonus(card, state);
+        if (comboPairBonus != 0)
+        {
+            comboBonus += comboPairBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"pairBonus+{comboPairBonus}"
+                : $"{comboDetail},pairBonus+{comboPairBonus}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable
