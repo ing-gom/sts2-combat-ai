@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.7.46 (2026-05-18)
+
+**Discard / Sly stem audit (Batch 1/7 of skill systematic review).**
+
+7 cards 검증:
+- ACROBATICS, CALCULATED_GAMBLE, HIDDEN_DAGGERS, PREPARED (existing CUNNING_CONSUMER)
+- SURVIVOR (existing)
+- STORM_OF_STEEL, SHADOW_STEP (개별 handler 추가)
+
+### CUNNING_CONSUMER 개선
+
+기존: `Math.Min(slyInHand, 3) × 110` (flat)
+v0.7.46:
+- **Per-card discard count**: ACROBATICS=1, HIDDEN_DAGGERS=2,
+  CALCULATED_GAMBLE/SHADOW_STEP/STORM_OF_STEEL=hand size
+- **Per-Sly EstimateCardPower**: TACTICIAN(S, gain 1 energy ~500) >>
+  HAND_TRICK(C, ~250). 평균값으로 cap.
+- **Discard-all 의 경우 discount 0.6 → 0.9** (Sly 보장 trigger)
+
+### STORM_OF_STEEL (Silent, D, 1c)
+
+전체 hand discard + Shiv+ × discarded count. 새 handler:
+- `discardable × 75 (Shiv 가치) - handAvg × 0.5 × count (trash cost)`
+- 양수 net 일 때만 +bonus
+
+### SHADOW_STEP (Silent, D, 1c)
+
+전체 hand discard → 다음 턴 모든 카드 damage 2x. 큰 setup. 새 handler:
+- Deck atk mean × 3 attacks/turn × 50 (extra damage from doubling)
+- Cap 1200
+
+---
+
 ## v0.7.45 (2026-05-18)
 
 **PROLONG (연장) block-carryover handler + PHOTON_CUT top-deck 개선.**

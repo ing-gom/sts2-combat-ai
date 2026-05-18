@@ -257,6 +257,12 @@ internal static class EffectSynergy
         // BLOCK axis alone doesn't see this since card.Block == 0.
         else if (card.Id == "CARD.PROLONG")
             ApplyProlongCarryover(card, state, ref b, parts);
+        // v0.7.46 — Discard-all skills with extra payoffs the CUNNING handler
+        // doesn't capture (Shiv generation, next-turn damage doubling).
+        else if (card.Id == "CARD.STORM_OF_STEEL")
+            ApplyStormOfSteelShivs(card, state, ref b, parts);
+        else if (card.Id == "CARD.SHADOW_STEP")
+            ApplyShadowStepDoubleDmg(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -683,33 +689,65 @@ internal static class EffectSynergy
         }
     }
 
+    /// <summary>
+    /// v0.7.46 — Per-card-id discard count for CUNNING_CONSUMER skills.
+    /// Most consumers discard 1; CALCULATED_GAMBLE/SHADOW_STEP/STORM_OF_STEEL
+    /// discard ENTIRE hand. Returns the upper bound to size the Sly trigger
+    /// pool — clamped by actual hand size at trigger time.
+    /// </summary>
+    private static int CunningDiscardCount(SimCard self, SimState state)
+    {
+        switch (self.Id)
+        {
+            case "CARD.CALCULATED_GAMBLE":
+            case "CARD.SHADOW_STEP":
+            case "CARD.STORM_OF_STEEL":
+                return state.Hand.Count;  // up to entire hand
+            case "CARD.HIDDEN_DAGGERS":
+                return 2;
+            // ACROBATICS, PREPARED, SURVIVOR, others: discard 1
+            default:
+                return 1;
+        }
+    }
+
     private static void ApplyCunningConsumer(SimCard self, SimState state, ref int b, List<string> parts)
     {
-        // Count Sly cards remaining in hand (excluding the consumer itself —
-        // most consumers don't carry the CUNNING raw axis themselves, but be
-        // defensive in case axis tagging overlaps).
-        int slyInHand = 0;
+        // v0.7.46 — Use per-card discard count + per-Sly-card EstimateCardPower
+        // instead of flat 110. Captures TACTICIAN (gain 1 energy ≈ 500) vs
+        // HAND_TRICK (situational utility) correctly.
+        int discardCount = CunningDiscardCount(self, state);
+
+        // Collect Sly card values in hand, sorted descending — the discard
+        // randomly picks any hand card, so worst-case the Sly cards end up
+        // discarded first; we use the top-K by value as upper bound.
+        var slyValues = new List<int>();
         foreach (var c in state.Hand)
         {
             if (ReferenceEquals(c, self)) continue;
-            if (c.IsSly && c.IsPlayable) slyInHand++;
+            if (!c.IsSly || !c.IsPlayable) continue;
+            slyValues.Add(EstimateCardPower(c, state, freeUse: true));
         }
 
         bool producerInHand = state.Hand.Any(c =>
             !ReferenceEquals(c, self) && c.IsPlayable
             && (c.Axes.Contains("CUNNING_PRODUCER") || c.Axes.Contains("CUNNING")));
 
-        if (slyInHand > 0)
+        if (slyValues.Count > 0)
         {
-            // Each Sly card in hand has a chance to be auto-played on discard.
-            // Force-discard cards (Acrobatics: discard 1; Calculated Gamble:
-            // discard hand) vary in how many they discard, but the heuristic
-            // assumes at least 1 discard — bonus per Sly cap at 3 (most
-            // consumers discard 1-3 cards).
-            int effective = System.Math.Min(slyInHand, 3);
-            int v = effective * 110;
+            slyValues.Sort((x, y) => y.CompareTo(x));
+            // Number of Sly cards likely triggered = min(slyInHand, discardCount).
+            // Discount per trigger by 0.6 — random discard might not hit a Sly
+            // card. CALCULATED_GAMBLE (discard ALL) hits every Sly = no discount.
+            int triggered = System.Math.Min(slyValues.Count, discardCount);
+            bool guaranteed = discardCount >= state.Hand.Count - 1;  // discard most/all
+            double discount = guaranteed ? 0.9 : 0.6;
+            int v = 0;
+            for (int i = 0; i < triggered; i++) v += (int)(slyValues[i] * discount);
+            const int Cap = 1500;
+            if (v > Cap) v = Cap;
             b += v;
-            parts.Add($"slyInHand({slyInHand})=+{v}");
+            parts.Add($"slyTrigger(n={triggered}/{slyValues.Count},x{discount})=+{v}");
         }
         else if (producerInHand)
         {
@@ -2995,6 +3033,85 @@ internal static class EffectSynergy
         int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
         b += v;
         parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.46 — STORM_OF_STEEL (Silent, D, 1c): discard entire hand, add 1
+    /// Shiv+ per discarded card. Net = trade hand → Shiv burst.
+    /// </summary>
+    private static void ApplyStormOfSteelShivs(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int discardable = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            discardable++;
+        }
+        if (discardable == 0)
+        {
+            b -= 100;
+            parts.Add("stormOfSteelEmpty=-100");
+            return;
+        }
+        // Shiv+ ≈ 6 dmg × random target. Per-Shiv value ~ 6 × 50 ÷ 4 (4 for
+        // calibration — random target / not guaranteed best target).
+        const int PerShivValue = 75;
+        int v = discardable * PerShivValue;
+        // Penalty for trashing hand cards (lose their direct value). Subtract
+        // ~half the average hand-card value as cost.
+        int handValueSum = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            handValueSum += EstimateCardPower(c, state, freeUse: false);
+        }
+        int trashCost = handValueSum / (2 * System.Math.Max(1, discardable));  // average / 2
+        int net = v - trashCost * discardable;
+        const int Cap = 800;
+        if (net > Cap) net = Cap;
+        if (net < -300) net = -300;
+        b += net;
+        parts.Add($"stormOfSteel(discard{discardable}x{PerShivValue}-trash{trashCost*discardable}={net})");
+    }
+
+    /// <summary>
+    /// v0.7.46 — SHADOW_STEP (Silent, D, 1c): discard entire hand. **Next
+    /// turn, all card damage is doubled.** Massive setup card.
+    /// </summary>
+    private static void ApplyShadowStepDoubleDmg(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Next-turn double-damage value = projected next-turn attack damage × 1.0
+        // (the extra +100% over the baseline). Use deck attack mean × 3 attacks/turn.
+        int totalAtkDmg = 0, atkCount = 0;
+        foreach (var c in state.DrawPile)
+        {
+            if (!c.IsAttack || c.IsCurseOrStatus) continue;
+            totalAtkDmg += c.TotalDamage;
+            atkCount++;
+        }
+        foreach (var c in state.DiscardPile)
+        {
+            if (!c.IsAttack || c.IsCurseOrStatus) continue;
+            totalAtkDmg += c.TotalDamage;
+            atkCount++;
+        }
+        if (atkCount == 0)
+        {
+            b -= 100;
+            parts.Add("shadowStepNoAttacks=-100");
+            return;
+        }
+        int avgDmg = totalAtkDmg / atkCount;
+        // ~3 attacks next turn × avg × 50 (DmgPoint). This is the EXTRA damage
+        // from doubling — not the total — so it's 1× avg per attack.
+        const int AttacksPerTurn = 3;
+        int v = avgDmg * AttacksPerTurn * 50 / 10;  // calibration /10
+        const int Cap = 1200;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"shadowStep(avgAtk{avgDmg}x{AttacksPerTurn}x2={v})");
     }
 
     /// <summary>
