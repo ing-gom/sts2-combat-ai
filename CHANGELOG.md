@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.7.64 (2026-05-19)
+
+**Fix: RANDOM-target attack 의 단일적 상황 = deterministic.**
+
+### 버그
+
+v0.7.63 의 `CardVariance.Classify` 가 RANDOM-target attack (VOLLEY,
+RICOCHET 등) 을 항상 Medium variance 로 분류. 실제로는:
+- **단일 적 (alive == 1)**: 모든 hit 가 같은 적에게 → deterministic
+- **다중 적 (alive ≥ 2)**: hits 분산 → variance 존재
+
+→ 단일적 lethal 상황에서 VOLLEY 등 RANDOM-attack 가 부당하게 -50 penalty.
+
+### 수정
+
+`Classify(card, state)` 신규 — SimState 받아 alive enemy count 검사:
+- `aliveEnemies <= 1` → Level.None (deterministic)
+- `aliveEnemies >= 2` → Level.Medium (variance 존재)
+
+### 영향 예시
+
+**단일 적 25 HP, Cleanup phase**:
+- VOLLEY (X-cost random 10×3): 이전 -50 → 이제 **0** (모든 hit 같은 적)
+- KINGLY_PUNCH 22 dmg: 0 (변화 없음)
+- 결과: VOLLEY (30 dmg) > KINGLY_PUNCH (22) — 정상
+
+**3 적 multi-hit 상황**:
+- VOLLEY: -50 유지 (variance 존재)
+- KINGLY_PUNCH 22: 0
+- 결과: 결정적 카드 우위 — 정상
+
+---
+
 ## v0.7.63 (2026-05-19)
 
 **CardVariance — 신뢰도 tag + critical-situation 페널티.**
