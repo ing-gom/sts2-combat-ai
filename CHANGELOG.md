@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.7.75 (2026-05-19)
+
+**Filter diagnostic — "no playable card" 원인 진단 로그.**
+
+### 사용자 보고
+
+스크린샷 + 로그: energy 1 + DEFEND/GLOW/FOREGONE in hand + 적 attack 예정
+→ "no playable card, stopping" 발생. v0.7.72 hotfix + v0.7.73-74 적용 후에도
+재현. 원인 미상.
+
+### 변경
+
+`ActionPlanner.PlanNextStep` 가 candidates empty + hand 비지 않음 시,
+**각 카드의 filter 이유** 명시 로그:
+
+```
+[CombatAI] candidates EMPTY despite hand: 
+  CARD.DEFEND_REGENT(reason1) 
+  CARD.GLOW(reason2) 
+  CARD.FOREGONE_CONCLUSION(reason3) 
+```
+
+`WhyFiltered(c, state)` 헬퍼 — EnumerateCandidates 의 각 filter 분기를
+명시 string 으로 반환:
+- `!IsPlayable` — snapshot CanPlay 가 false
+- `cost{N}>energy{M}` — energy 부족
+- `curse/status`, `orbEvokeNoOrb`, `starX+0stars`, `energyGain-noOtherCard`
+- `OK?` — 모든 filter 통과한 카드 (있으면 안 되는 case)
+
+### 진단 후
+
+다음 게임에서 같은 bug 재현 시 로그 라인 보고 정확한 filter 원인 식별.
+이후 fix 가능 (v0.7.76).
+
+---
+
 ## v0.7.74 (2026-05-19)
 
 **Next-turn star producers — HIDDEN_CACHE / CONVERGENCE.**
