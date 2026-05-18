@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.7.32 (2026-05-18)
+
+**Defect orb stem — 7 handlers.**
+
+| Power | Tier | Scaling factor |
+|---|---|---|
+| CapacitorPower | B | orb-saturation × turns × PerOrbValue |
+| CoolantPower | A | turns × FrostOrbs × BlockPerFrost |
+| SpinnerPower | A | turns × FrostOrbValue |
+| ThunderPower | A | projected Lightning evokes × 6 dmg × 50 |
+| LoopPower | D | turns × PassiveBonusPerTurn |
+| ConsumingShadowPower | D | turns × NetPerTurn + DarkOrb bonus |
+| HailstormPower | C | turns × frost-rate × alive × 6 dmg |
+
+핵심 gate: **PlayerOrbCapacity == 0** (Defect 비-활성) 시 모두 baseline 차감.
+
+### 누적 coverage (v0.7.27 ~ v0.7.32)
+
+| 버전 | 묶음 | 누계 dynamic |
+|---|---|---:|
+| v0.7.26 | per-turn baseline | 13 |
+| v0.7.27 | Shiv (Silent) | 18 |
+| v0.7.28 | Star (Regent) | 23 |
+| v0.7.29 | Forge (Regent) | 28 |
+| v0.7.30 | Doom/Volatile (Necrobinder) | 33 |
+| v0.7.31 | cross-character | 38 |
+| **v0.7.32** | **Orb (Defect)** | **45 (40%)** |
+
+---
+
 ## v0.7.31 (2026-05-18)
 
 **Cross-character impact Powers — 5 handlers.**
