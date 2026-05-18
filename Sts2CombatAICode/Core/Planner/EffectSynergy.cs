@@ -225,6 +225,23 @@ internal static class EffectSynergy
             ApplyOutbreakTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.PALE_BLUE_DOT")
             ApplyPaleBlueDotTickValue(card, state, ref b, parts);
+        // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
+        // queue being active (PlayerOrbCapacity > 0). Each scales with the
+        // relevant orb-color count or evoke rate.
+        else if (card.Id == "CARD.CAPACITOR")
+            ApplyCapacitorTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.COOLANT")
+            ApplyCoolantTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.SPINNER")
+            ApplySpinnerTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.THUNDER")
+            ApplyThunderTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.LOOP")
+            ApplyLoopTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.CONSUMING_SHADOW")
+            ApplyConsumingShadowTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.HAILSTORM")
+            ApplyHailstormTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -2748,6 +2765,233 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"paleBlueDotTick(drawAxis={drawAxisCards},rate={rate:F2})={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.32 — Defect orb stem Power passives ──────────────────────────────
+    //
+    // Shared gate: PlayerOrbCapacity == 0 means we're not playing Defect (or
+    // orb queue hasn't been initialized). All orb-stem Powers strip the baked
+    // baseline in that case.
+
+    /// <summary>
+    /// v0.7.32 — Helper: count orb-color presence in OrbQueue.
+    /// </summary>
+    private static int CountOrbsOfKind(SimState state, Sts2CombatAI.Sim.OrbKind kind)
+    {
+        int n = 0;
+        for (int i = 0; i < state.OrbQueue.Count; i++)
+            if (state.OrbQueue[i] == kind) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// v0.7.32 — Helper: count orb-related axis cards in hand+deck (excl. self).
+    /// </summary>
+    private static (int channels, int evokes) CountOrbCards(SimCard self, SimState state)
+    {
+        int ch = 0, ev = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.ChannelCount > 0) ch++;
+            if (c.EvokeCount > 0) ev++;
+        }
+        foreach (var c in state.DrawPile)
+        {
+            if (c.ChannelCount > 0) ch++;
+            if (c.EvokeCount > 0) ev++;
+        }
+        foreach (var c in state.DiscardPile)
+        {
+            if (c.ChannelCount > 0) ch++;
+            if (c.EvokeCount > 0) ev++;
+        }
+        return (ch, ev);
+    }
+
+    private static bool IsOrbActive(SimState state) => state.PlayerOrbCapacity > 0;
+
+    /// <summary>
+    /// v0.7.32 — CapacitorPower (Defect, B): +2 orb slots. Value depends on
+    /// channel saturation rate × turns. More slots = less orb overflow waste.
+    /// </summary>
+    private static void ApplyCapacitorTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 600;
+        int baked = PowerCatalog.LookupSelfBuff("CapacitorPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"capacitorNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        var (channels, _) = CountOrbCards(self, state);
+        // Saturation = orbs / capacity; high saturation means overflow risk
+        double saturation = state.PlayerOrbCount / (double)System.Math.Max(1, state.PlayerOrbCapacity);
+        // Extra slot value = saved overflow × turns × per-orb-value
+        const int PerOrbValue = 120;
+        int tick = (saturation > 0.6 ? turns * 2 : turns) * PerOrbValue + channels * 40;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"capacitorTick(sat={saturation:F2},channels={channels})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.32 — CoolantPower (Defect, A): +N block per Frost orb on a trigger.
+    /// Value scales with Frost orb count × turns × 30.
+    /// </summary>
+    private static void ApplyCoolantTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("CoolantPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"coolantNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int frostNow = CountOrbsOfKind(state, OrbKind.Frost);
+        // Steady state: 1-2 Frost orbs maintained, +block per trigger
+        int projFrost = System.Math.Max(frostNow, 1);
+        const int BlockPerFrost = 4;
+        int tick = turns * projFrost * BlockPerFrost * 30 / 4;  // /4 since not every turn
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"coolantTick(frost={frostNow},turns={turns})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.32 — SpinnerPower (Defect, A): free Frost orb / turn. Tick = turns
+    /// × FrostOrbValue. Frost orb evoke value ~ 5 block.
+    /// </summary>
+    private static void ApplySpinnerTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 900;
+        int baked = PowerCatalog.LookupSelfBuff("SpinnerPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"spinnerNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        const int FrostOrbValue = 180;  // ~2 passive + 5 evoke block × 30
+        int tick = turns * FrostOrbValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"spinnerTick(turns={turns}x{FrostOrbValue})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.32 — ThunderPower (Defect, A): +6 dmg on Lightning evoke.
+    /// Value = projected Lightning evokes × 6 × DamagePerPoint.
+    /// </summary>
+    private static void ApplyThunderTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 800;
+        int baked = PowerCatalog.LookupSelfBuff("ThunderPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"thunderNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int lightning = CountOrbsOfKind(state, OrbKind.Lightning);
+        var (_, evokes) = CountOrbCards(self, state);
+        if (lightning == 0 && evokes == 0)
+        {
+            b -= baked;
+            parts.Add($"thunderNoLightningPath=-{baked}");
+            return;
+        }
+
+        // Projected lightning evokes over combat = 1 per ~3 turns base + evoke producers
+        int projEvokes = (turns / 3) + System.Math.Min(evokes, 3);
+        int tick = projEvokes * 6 * 50;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"thunderTick(lightning={lightning},evokes~{projEvokes})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.32 — LoopPower (Defect, D): rightmost orb passive triggers 2x per
+    /// turn. Value depends on orb-queue content × turns. With Frost/Lightning
+    /// at the rightmost slot, the doubled passive ticks add up.
+    /// </summary>
+    private static void ApplyLoopTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 500;
+        int baked = PowerCatalog.LookupSelfBuff("LoopPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"loopNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        // Average orb passive value ~40 per turn; doubled rightmost = +40/turn
+        const int PassiveBonusPerTurn = 40;
+        int orbsHeld = state.OrbQueue.Count;
+        if (orbsHeld == 0)
+        {
+            // Useless if no orbs are typically held — strip half baseline.
+            b -= baked / 2;
+            parts.Add($"loopNoOrbsHeld=-{baked/2}");
+            return;
+        }
+        int tick = turns * PassiveBonusPerTurn;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"loopTick(orbs={orbsHeld},turns={turns})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.32 — ConsumingShadowPower (Defect, D): channels 2 Dark / turn,
+    /// evokes leftmost. Net = 2 Dark per turn − 1 evoke (often Dark itself).
+    /// Heavy Dark-archetype play.
+    /// </summary>
+    private static void ApplyConsumingShadowTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("ConsumingShadowPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"consumingShadowNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int darkOrbs = CountOrbsOfKind(state, OrbKind.Dark);
+        // Dark orb scaling value — 2 channels + 1 evoke per turn, conservative 250 net
+        const int NetPerTurn = 250;
+        int tick = turns * NetPerTurn + darkOrbs * 30;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"consumingShadowTick(dark={darkOrbs},turns={turns})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.32 — HailstormPower (Defect, C): turn-end AOE 6 if Frost held.
+    /// </summary>
+    private static void ApplyHailstormTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("HailstormPower");
+        if (!IsOrbActive(state)) { b -= baked; parts.Add($"hailstormNoOrb=-{baked}"); return; }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0) return;
+
+        int frostNow = CountOrbsOfKind(state, OrbKind.Frost);
+        // Trigger rate: 70% of turns Frost present in steady state
+        double frostRate = frostNow > 0 ? 0.85 : 0.5;
+        int tick = (int)(turns * frostRate * aliveCount * 6 * 50 / 10);
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"hailstormTick(frost={frostNow},alive={aliveCount},rate={frostRate:F2})={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────
