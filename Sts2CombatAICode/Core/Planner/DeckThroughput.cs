@@ -54,8 +54,16 @@ internal static class DeckThroughput
         public readonly HashSet<string> CoreAttackers;  // card ids
         public readonly HashSet<string> CoreDefenders;  // card ids
 
+        // v0.7.56 — Cycling metrics
+        public readonly int DeckSize;                // non-curse cards across all piles
+        public readonly int EstimatedCardsPerTurn;   // 5 draw + extra-draws + energy-gain plays
+        public readonly int TurnsPerCycle;           // deckSize / cardsPerTurn (1+)
+        public readonly HashSet<string> CoreCyclers; // top-3 cards driving cycling
+
         public Profile(int dpt, int bpt, int totalD, int totalB,
-                       HashSet<string> attackers, HashSet<string> defenders)
+                       HashSet<string> attackers, HashSet<string> defenders,
+                       int deckSize, int cardsPerTurn, int turnsPerCycle,
+                       HashSet<string> cyclers)
         {
             AvgDamagePerTurn = dpt;
             AvgBlockPerTurn = bpt;
@@ -63,6 +71,10 @@ internal static class DeckThroughput
             TotalDeckBlock = totalB;
             CoreAttackers = attackers;
             CoreDefenders = defenders;
+            DeckSize = deckSize;
+            EstimatedCardsPerTurn = cardsPerTurn;
+            TurnsPerCycle = turnsPerCycle;
+            CoreCyclers = cyclers;
         }
     }
 
@@ -75,33 +87,60 @@ internal static class DeckThroughput
         // Per-card (id, damage_total, block_total, per_energy_dmg, per_energy_blk)
         var attackContribs = new List<(string id, int dmg, double perEnergy)>();
         var blockContribs = new List<(string id, int block, double perEnergy)>();
+        var cycleContribs = new List<(string id, double cycleScore)>();
         int totalDamage = 0, totalBlock = 0;
+        int extraDrawSum = 0, energyGainSum = 0;
 
-        ScanPile(state.Hand, state, attackContribs, blockContribs, ref totalDamage, ref totalBlock);
-        ScanPile(state.DrawPile, state, attackContribs, blockContribs, ref totalDamage, ref totalBlock);
-        ScanPile(state.DiscardPile, state, attackContribs, blockContribs, ref totalDamage, ref totalBlock);
+        ScanPile(state.Hand, state, attackContribs, blockContribs, cycleContribs,
+                 ref totalDamage, ref totalBlock, ref extraDrawSum, ref energyGainSum);
+        ScanPile(state.DrawPile, state, attackContribs, blockContribs, cycleContribs,
+                 ref totalDamage, ref totalBlock, ref extraDrawSum, ref energyGainSum);
+        ScanPile(state.DiscardPile, state, attackContribs, blockContribs, cycleContribs,
+                 ref totalDamage, ref totalBlock, ref extraDrawSum, ref energyGainSum);
 
-        // Average per-turn: total / max(1, totalCards / PlaysPerTurn)
         int totalCards = state.Hand.Count + state.DrawPile.Count + state.DiscardPile.Count;
-        // Expected card cycles per turn ≈ PlaysPerTurn. Average per turn ≈ total / (cards / PlaysPerTurn).
-        int cyclesPerTurn = System.Math.Max(1, totalCards / PlaysPerTurn);
-        // Simpler: dpt = totalDamage * PlaysPerTurn / totalCards
         int dpt = totalCards > 0 ? totalDamage * PlaysPerTurn / totalCards : 0;
         int bpt = totalCards > 0 ? totalBlock * PlaysPerTurn / totalCards : 0;
 
-        // Core cards: top-K by per-energy efficiency.
+        // v0.7.56 — Cycling metrics. Default hand draw is 5 per turn. Extra
+        // draw / energy-gain cards in the deck cycle the deck faster.
+        //   cardsPerTurn = baseDraw(5) + drawProbability × extraDrawSum
+        //                + energyGainProbability × extraPlays
+        // Probability ≈ playsPerTurn / totalCards (chance we draw THIS card
+        // each turn). For simplicity, just sum-weighted by /totalCards.
+        const int BaseDraw = 5;
+        int cardsPerTurn = BaseDraw;
+        if (totalCards > 0)
+        {
+            // Extra draws likely realized per turn: how many of the extra-draw
+            // cards we cycle through × their draw amount.
+            cardsPerTurn += extraDrawSum * PlaysPerTurn / totalCards;
+            // Energy-gain effectively adds plays (each extra energy ≈ 1 more card played).
+            cardsPerTurn += energyGainSum * PlaysPerTurn / totalCards;
+        }
+        int turnsPerCycle = cardsPerTurn > 0
+            ? System.Math.Max(1, totalCards / cardsPerTurn)
+            : 99;
+
+        // Core cards by category.
         var coreAttackers = new HashSet<string>(
             attackContribs.OrderByDescending(x => x.perEnergy).Take(CoreCardCount).Select(x => x.id));
         var coreDefenders = new HashSet<string>(
             blockContribs.OrderByDescending(x => x.perEnergy).Take(CoreCardCount).Select(x => x.id));
+        var coreCyclers = new HashSet<string>(
+            cycleContribs.OrderByDescending(x => x.cycleScore).Take(CoreCardCount)
+                          .Where(x => x.cycleScore > 0).Select(x => x.id));
 
-        return new Profile(dpt, bpt, totalDamage, totalBlock, coreAttackers, coreDefenders);
+        return new Profile(dpt, bpt, totalDamage, totalBlock, coreAttackers, coreDefenders,
+                            totalCards, cardsPerTurn, turnsPerCycle, coreCyclers);
     }
 
     private static void ScanPile(IReadOnlyList<SimCard> pile, SimState state,
                                   List<(string, int, double)> attackContribs,
                                   List<(string, int, double)> blockContribs,
-                                  ref int totalDmg, ref int totalBlk)
+                                  List<(string, double)> cycleContribs,
+                                  ref int totalDmg, ref int totalBlk,
+                                  ref int extraDrawSum, ref int energyGainSum)
     {
         foreach (var c in pile)
         {
@@ -112,7 +151,6 @@ internal static class DeckThroughput
             if (c.IsAttack && c.TotalDamage > 0)
             {
                 int dmg = c.TotalDamage;
-                // X-cost attacks: use energy as proxy multiplier.
                 if (c.Axes.Contains("X_COST"))
                     dmg = c.Damage * System.Math.Max(1, state.PlayerEnergy);
                 totalDmg += dmg;
@@ -126,6 +164,30 @@ internal static class DeckThroughput
                 double per = blk / (double)costForEff;
                 blockContribs.Add((c.Id, blk, per));
             }
+
+            // v0.7.56 — Cycling contribution. Card cycles deck via:
+            //   • DrawCount: directly pulls more cards
+            //   • EnergyGain: enables more plays this turn (effective draw)
+            //   • EXHAUST_SELF: shrinks deck size for faster future cycles
+            // Cycle score = weighted sum, normalized per-energy.
+            double cycleScore = 0;
+            if (c.DrawCount > 0)
+            {
+                extraDrawSum += c.DrawCount;
+                cycleScore += c.DrawCount * 1.5;
+            }
+            if (c.EnergyGain > 0)
+            {
+                energyGainSum += c.EnergyGain;
+                cycleScore += c.EnergyGain * 2.0;  // each energy ≈ 1 extra play
+            }
+            // Self-exhaust shrinks deck — small one-time cycling benefit.
+            if (c.Axes.Contains("EXHAUST_SELF") && c.IsPlayable)
+                cycleScore += 0.3;
+            // Penalize cost — efficient cyclers preferred.
+            cycleScore /= costForEff;
+            if (cycleScore > 0)
+                cycleContribs.Add((c.Id, cycleScore));
         }
     }
 
@@ -139,6 +201,10 @@ internal static class DeckThroughput
         if (card.Id == null) return 0;
         if (card.IsAttack && profile.CoreAttackers.Contains(card.Id)) return CoreCardBonus;
         if (card.Block > 0 && profile.CoreDefenders.Contains(card.Id)) return CoreCardBonus;
+        // v0.7.56 — Cyclers get a smaller bonus. They don't carry the kill
+        // directly, but they enable the build (e.g. an attack-heavy deck
+        // benefits from playing the draw card first to access more attacks).
+        if (profile.CoreCyclers.Contains(card.Id)) return CoreCardBonus * 6 / 10;
         return 0;
     }
 
