@@ -1,25 +1,27 @@
 # Sts2CombatAI
 
-**Slay the Spire 2 의 전투 의사결정을 자동화하는 범용 AI 코어.**
-카드/타겟 시퀀스를 평가해 예상 HP 손실을 최소화하는 planner + simulator + scorer 묶음.
+**A general-purpose combat-decision AI core for Slay the Spire 2.**
+A planner + simulator + scorer bundle that evaluates card/target sequences and
+picks the one that minimizes expected HP loss.
 
-코어 자체는 trigger-agnostic — 어떤 *모드* 가 어느 시점에 호출하든 동일한 판단 로직을 돌린다.
-현재 제공되는 모드는 한 가지: **Vakuu** (Whispering Earring 의 vanilla auto-play 를 코어 AI 로 교체).
+The core itself is trigger-agnostic — whichever *mode* invokes it (and whenever),
+the same decision logic runs. One mode ships today: **Vakuu**, which replaces
+the Whispering Earring relic's vanilla auto-play with the core AI.
 
-## 아키텍처
+## Architecture
 
 ```
 Sts2CombatAICode/
 ├── MainFile.cs                — Harmony entrypoint, mode wiring
-├── Core/                      — 모드와 무관한 의사결정 엔진
+├── Core/                      — mode-agnostic decision engine
 │   ├── Planner/               (ActionPlanner, PlanScorer, Playstyle, ...)
 │   ├── Sim/                   (SimState, AnalyticalSimulator, StateSnapshotter, ...)
 │   ├── Reflection/            (CardReflection, CombatReflection, ...)
 │   ├── Data/                  (CardCatalog + embedded card_triggers.json)
-│   ├── Diagnostics/           (DecisionLog ring buffer)
+│   ├── Diagnostics/           (DecisionLog ring buffer + NDJSON persister)
 │   └── Runtime/               (PlaystylePersistence)
 └── Modes/
-    └── Vakuu/                 — Vakuu mode: Core 를 호출하는 runtime driver
+    └── Vakuu/                 — Vakuu mode: runtime driver that calls Core
         ├── WhisperingEarringPlannerPatch.cs
         ├── VakuuExecutor.cs
         ├── VakuuCardSelectorPatches.cs
@@ -27,58 +29,84 @@ Sts2CombatAICode/
         └── TestButtonPoller.cs
 ```
 
-새 모드를 추가하려면: `Modes/<NewMode>/` 아래에 trigger Harmony patch + executor 를 만들고
-`Core` 의 `ActionPlanner.PlanNextStep(snapshot)` 를 호출하면 끝. Core 는 건드릴 필요 없음.
+To add a new mode: drop `Modes/<NewMode>/` with a trigger Harmony patch and an
+executor, then call `Core`'s `ActionPlanner.PlanNextStep(snapshot)`. Core stays
+untouched.
 
-## Core — 의사결정 엔진
+## Core — the decision engine
 
-### 카드 인식 (모든 캐릭터 100% coverage)
-- **576 카드** catalog 자동 read (`Core/Data/card_triggers.json` embedded)
-- **14 빌드** 자동 분류 (독 / 광역 / 성장 / 소멸 / 골골이 / 별 / ...)
-- **17 enemy intent** 분류 (Attack/Buff/Heal/Summon/DeathBlow/Defend/Debuff/Stun/...)
-- **65+ Power priority catalog** (EchoForm/Barricade/Strength/Vulnerable/Poison ...)
-- 카드 ID 하드코딩 **0** — 게임 패치 시 catalog 만 재추출
+### Card recognition (100% coverage across all characters)
+- **576-card catalog** read automatically (`Core/Data/card_triggers.json`, embedded)
+- **14 build archetypes** auto-classified (poison / AOE / scaling / exhaust /
+  HP-loss / star / ...)
+- **17 enemy intent** categories (Attack / Buff / Heal / Summon / DeathBlow /
+  Defend / Debuff / Stun / ...)
+- **65+ Power priority catalog** (EchoForm / Barricade / Strength / Vulnerable /
+  Poison ...)
+- **Zero hardcoded card IDs** — only the catalog needs to be re-extracted after
+  a game patch.
 
-### 의사결정 영역
-- **카드 효과 정확값**: Damage / Block / Hits / PowerApps via DynamicVars + PreviewValue (multiplier-aware)
-- **Status modifier**: (base + Strength) × Vulnerable × Weak / (base + Dex) × Frail
-- **적 상태 인식**: Vulnerable/Strength/Frail/Artifact/Ritual/Poison stack → target priority 차등
-- **Per-hit / per-turn cap**: IntangiblePower(=1) / HardToKill / HardenedShellRemaining 별 데미지 클램프 (단일 + AOE 모두)
-- **에너지 낭비 회피**: damage ≤ target.Block → penalty
-- **Energy gain 카드**: 부족할 때만 우선 (Adrenaline 콤보 인식, EnergyNextTurnPower 별도 처리)
-- **Draw 카드**: hand 의 best score 가 낮을 때 (수혈 가치)
-- **Build synergy**: Producer + Amplifier/Consumer 페어 + 같은 build 카드 갯수
-- **Defect orb**: 슬롯 채워짐 / 비어있음에 따라 Producer/Consumer 차등, channel-into-full kick 정확 카운트, **Focus** 가 모든 evoke/passive 에 적용
-- **Threat estimate**: 플레이어 Vulnerable(×1.5) + 적 Weak(×0.75) + Poison-lethal 적군 제외
-- **Play-order bias**: Retain → 다른 plays 우선 후 defer / Ethereal → turn-end exhaust 회피 / 0-cost → MinPlayScore floor 우회
-- **Forward simulator**: 카드 plays 시뮬레이션 (EnergyGain / DrawCount / Damage / Block / Power 적용 + Intangible/Shell cap + 디버프 propagation + Artifact 흡수 + discard 증가)
-- **Depth-2 lookahead**: 첫 카드 후 best second card 시뮬레이션해서 평가, tie-break 은 first-card 점수 우선
+### What the scorer considers
+- **Exact card values**: Damage / Block / Hits / PowerApps via DynamicVars +
+  PreviewValue (multiplier-aware).
+- **Status modifiers**: `(base + Strength) × Vulnerable × Weak` for damage,
+  `(base + Dex) × Frail` for block.
+- **Enemy state awareness**: Vulnerable / Strength / Frail / Artifact / Ritual /
+  Poison stacks → differential target priority.
+- **Per-hit / per-turn caps**: IntangiblePower (= 1) / HardToKill /
+  HardenedShellRemaining damage clamps (single-target and AOE alike).
+- **Energy-waste avoidance**: damage ≤ target.Block → penalty.
+- **Energy gain cards**: prioritized only when short on energy (Adrenaline combo
+  recognized, EnergyNextTurnPower handled separately).
+- **Draw cards**: prioritized when the best hand score is low ("transfusion"
+  value).
+- **Build synergy**: Producer + Amplifier/Consumer pairing + count of same-build
+  cards in hand.
+- **Defect orb routing**: Producer/Consumer differentiated by slot
+  fill/empty state, exact channel-into-full kick counting, and **Focus** applied
+  to every evoke/passive.
+- **Threat estimation**: player Vulnerable (×1.5) + enemy Weak (×0.75) +
+  poison-lethal enemies excluded.
+- **Play-order bias**: Retain → defer after other plays. Ethereal → avoid
+  turn-end exhaust. 0-cost → bypass MinPlayScore floor.
+- **Forward simulator**: simulates card plays (EnergyGain / DrawCount / Damage /
+  Block / Power application + Intangible/Shell cap + debuff propagation +
+  Artifact absorption + discard pile growth).
+- **Depth-2 lookahead**: after the first card, simulates the best second card
+  and scores the pair; tiebreak favors the first-card score.
 
-### 4가지 Playstyle (영구 저장)
-End Turn 버튼 옆 **Style** 버튼으로 cycle:
-- **Defensive** — block 1500, 위협 임계 0.2, attack 약화
+### Four Playstyles (persisted)
+A **Style** button next to End Turn cycles through:
+- **Defensive** — block 1500, threat threshold 0.2, attacks weakened
 - **Balanced** — default
-- **Aggressive** — attack +350, block 약화, threshold 0.55
-- **Killer** — block 0, lethal range 6000, attack 압도
+- **Aggressive** — attack +350, block weakened, threshold 0.55
+- **Killer** — block 0, lethal range 6000, attack dominates
 
-선택한 Style 은 `{user_data}/Sts2CombatAI/playstyle.json` 에 자동 저장 → 게임 재시작 후 유지.
+The selected style is saved to `{user_data}/Sts2CombatAI/playstyle.json` and
+restored across game restarts.
 
 ## Mode: Vakuu
 
-Whispering Earring (Ancient 유물) 의 효과 — *"Vakuu plays your first turn for you"*. 그러나 [decompile](../research/baku_decompile/WhisperingEarring.cs) 으로 확인한 vanilla 동작:
+The Whispering Earring (Ancient relic) effect — *"Vakuu plays your first turn
+for you"*. The vanilla behavior, confirmed via
+[decompile](../research/baku_decompile/WhisperingEarring.cs):
 
 ```csharp
 CardModel card = pile.Cards.FirstOrDefault(c => c.CanPlay());
 ```
 
-→ **그냥 hand 의 첫 playable 카드** 를 13장까지 plays. 전략 0.
+→ it just plays **the first playable card** in hand, up to 13 times. No strategy
+at all.
 
-이 모드는 그 hook (`WhisperingEarring.BeforePlayPhaseStartLate`) 을 가로채 Core AI 로 위임한다.
-구성:
-- `WhisperingEarringPlannerPatch` — 게임의 Vakuu 발동을 Harmony Prefix 로 가로채서 `VakuuExecutor` 로 위임
-- `VakuuExecutor` — 13-step loop: snapshot → Core planner → AutoPlay → 반복
-- `VakuuCardSelectorPatches` — Vakuu 의 mid-play card prompt (discard/exhaust/upgrade) 를 Core scorer 로 응답
-- `VakuuTestButtonPatch` + `TestButtonPoller` — End Turn 옆 **Vakuu Play** 디버그 버튼 (relic 없이 매 턴 호출)
+This mode hijacks that hook (`WhisperingEarring.BeforePlayPhaseStartLate`) and
+delegates to the Core AI instead. Components:
+- `WhisperingEarringPlannerPatch` — Harmony Prefix that intercepts the game's
+  Vakuu trigger and forwards to `VakuuExecutor`
+- `VakuuExecutor` — 13-step loop: snapshot → Core planner → AutoPlay → repeat
+- `VakuuCardSelectorPatches` — answers Vakuu's mid-play card prompts (discard /
+  exhaust / upgrade) using the Core scorer
+- `VakuuTestButtonPatch` + `TestButtonPoller` — a **Vakuu Play** debug button
+  next to End Turn (lets you invoke the AI every turn, no relic required)
 
 ## Installation
 
@@ -88,17 +116,19 @@ SlayTheSpire2/mods/Sts2CombatAI/
 └── Sts2CombatAI.json
 ```
 
-게임 내 Mods 메뉴에서 enabled 확인.
+Enable the mod from the in-game Mods menu.
 
 ## Logs
 
-게임 로그 위치: `%APPDATA%\Godot\app_userdata\SlayTheSpire2\logs\` 최신 `.log`
+Game log location: `%APPDATA%\Godot\app_userdata\SlayTheSpire2\logs\` — newest
+`.log` file.
 
-`[CombatAI]` prefix 라인이 매 step 의 결정 + score breakdown 출력:
+Lines prefixed with `[CombatAI]` print the decision plus the score breakdown
+for every step:
 
 ```
 [CombatAI] starting plan (style=Balanced)
-[CombatAI] step 1 snapshot: player[hp=80 block=0 energy=3] 
+[CombatAI] step 1 snapshot: player[hp=80 block=0 energy=3]
   hand=[Strike(A1/d6),Inflame(P1/Stre:2),...] enemies=[Acolyte(...)]
 [CombatAI] step 1 → CARD.INFLAME@self (score=2207 reason=power(StrengthPower:2))
 [CombatAI]   breakdown: Power base=1007 effect=1200 target=0 threat=0
@@ -106,64 +136,72 @@ SlayTheSpire2/mods/Sts2CombatAI/
 [CombatAI] turn complete, 3 cards played, took 24ms total
 ```
 
-## 빌드 (개발자)
+For deeper offline analysis, every combat is also dumped as NDJSON to
+`{user_data}/Sts2CombatAI/decision_log/`. Parse it with
+`scripts/parse_decision_log.py`.
+
+## Build (developers)
 
 ```bash
 dotnet build
 ```
 
-자동으로 `{STS2 install}/mods/Sts2CombatAI/` 에 dll + json 복사.
+This copies `Sts2CombatAI.dll` + `Sts2CombatAI.json` to
+`{STS2 install}/mods/Sts2CombatAI/` automatically.
 
-## 테스트 실행
+## Running tests
+
+The test project lives at the repo root and is still named `Sts2VakuuPlus.Tests`
+for historical reasons (the mod was renamed; the test runner was not).
 
 ```bash
-cd Sts2CombatAI.Tests
-dotnet run
+dotnet run --project ../Sts2VakuuPlus.Tests
 ```
 
-70 unit tests — 모든 의사결정 룰 회귀 방지 검증.
+72 unit tests covering the decision rules — a regression net for every scoring
+change.
 
-## Catalog 갱신 (게임 패치 후)
+## Refreshing the catalog (after a game patch)
 
 ```bash
-# 1. Sts2CardAdvisor 의 headless-sync 로 cards_catalog.json 재생성
-# 2. 우리 mod 용 작은 catalog 추출
+# 1. Regenerate cards_catalog.json via Sts2CardAdvisor's headless-sync
+# 2. Extract this mod's small catalog
 python scripts/extract_card_triggers.py
-# 3. mod 재빌드
+# 3. Rebuild
 dotnet build
 ```
 
-## 실행 흐름 (Vakuu mode 기준)
+## Execution flow (Vakuu mode)
 
 ```
-Whispering Earring 또는 Vakuu Play 버튼 trigger
+Whispering Earring trigger -OR- the Vakuu Play debug button
        ↓
-Modes/Vakuu/VakuuExecutor.RunPlannedTurn  ← 매 step 13회 loop
+Modes/Vakuu/VakuuExecutor.RunPlannedTurn  ← loops up to 13 steps
        ↓
 Core/Sim/StateSnapshotter.Capture (Live → SimState)
-       ├─ Player HP/Block/Energy/Strength/Dex/Stars
+       ├─ Player HP / Block / Energy / Strength / Dex / Stars
        ├─ Hand (cards via CardReflection.GetEffectSummary — DynamicVars + PreviewValue)
-       ├─ Enemies (HP/Block/Vulnerable/Strength/Weak/Frail/Artifact/Poison/...)
-       ├─ Pile sizes (Draw/Discard)
-       └─ Orb slots (Defect 만)
+       ├─ Enemies (HP / Block / Vulnerable / Strength / Weak / Frail / Artifact / Poison / ...)
+       ├─ Pile sizes (Draw / Discard)
+       └─ Orb slots (Defect only)
        ↓
 Core/Planner/ActionPlanner.PlanNextStep (depth-2 lookahead)
-       ├─ EnumerateCandidates (CanPlay + 에너지 budget)
+       ├─ EnumerateCandidates (CanPlay + energy budget)
        ├─ for each candidate: PlanScorer.Score
        ├─ AnalyticalSimulator.ApplyCardPlay → next state
        └─ best second card → first + second total
        ↓
-Core/Planner/PlanScorer (145+ 룰)
+Core/Planner/PlanScorer (145+ rules)
        ├─ Card type baseline
        ├─ PowerCatalog (65+ self/enemy split + stack curve)
        ├─ Modifier-aware damage (Strength × Vulnerable × Weak)
-       ├─ Target priority (Boss/Minion/Lethal/Intent/Buff state)
+       ├─ Target priority (Boss / Minion / Lethal / Intent / Buff state)
        ├─ Build synergy (Producer + Amplifier/Consumer)
        ├─ Hand synergy + Card override catalog
-       ├─ Waste avoidance + Energy/Draw/Power context
-       └─ Smart selector mode (Burn/Boost)
+       ├─ Waste avoidance + Energy / Draw / Power context
+       └─ Smart selector mode (Burn / Boost)
        ↓
-CardCmd.AutoPlay (game-engine 실제 plays)
+CardCmd.AutoPlay (the game engine actually plays the card)
        ↓
 Core/Diagnostics/DecisionLog.Record (ring buffer, 32 entries)
 ```
