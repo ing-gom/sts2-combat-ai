@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.7.38 (2026-05-18)
+
+**Explicit hand-sequence recipes — known pair bonuses.**
+
+기존 `ComboRecognition.Compute` 는 axis-stem 기반 generic edge detection.
+archetype-specific 강력 시너지 (DEMON_FORM + HEAVY_BLADE 등) 가
+generic 50/link 로는 약한 신호.
+
+### 변경
+
+`ComboRecognition.ExplicitPairBonus(card, state)` 신규 — 30+ 명시 pair table.
+양쪽 모두 hand 에 있고 playable 이면 fixed bonus (100-400) 가산.
+
+PlanScorer 가 `comboBonus` 에 합산. 기존 generic chain 위에 stack.
+
+### 대표 recipes
+
+| pair | bonus |
+|---|---:|
+| INFLAME + WHIRLWIND | 250 |
+| LIMIT_BREAK + HEAVY_BLADE | 400 |
+| BASH + HEAVY_BLADE | 200 |
+| DEMON_FORM + SEVER_SOUL | 250 |
+| THE_SEALED_THRONE + STARDUST | 300 |
+| SUBROUTINE + CREATIVE_AI | 220 |
+| COUNTDOWN + REAPER_FORM | 250 |
+
+---
+
 ## v0.7.37 (2026-05-18)
 
 **Self-harm trigger preview — InfernoPower / RupturePower.**
