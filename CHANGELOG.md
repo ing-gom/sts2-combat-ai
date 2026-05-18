@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.27 (2026-05-18)
+
+**Shiv stem Power passives — 5 handlers (Silent archetype).**
+
+| Power | Tier | Scaling factor |
+|---|---|---|
+| AccuracyPower | A | projected Shivs × +N stack × DamagePerPoint |
+| PhantomBladesPower | A | turns × (first-Shiv +9 + Retain savings) |
+| FanOfKnivesPower | C | (alive enemies − 1) × projected Shivs × ShivDmg |
+| MasterPlannerPower | C | turns × skill-ratio × discards × free-play-value |
+| InfiniteBladesPower | A | turns × ShivValue + consumer-presence bonus |
+
+**예외 처리**:
+- PhantomBlades: Shiv 없는 deck → entire baseline 차감 (party 멤버 비-Silent)
+- FanOfKnives: 단일 적 → entire baseline 차감 (extra hit = 0)
+- MasterPlanner: 스킬 없는 deck → entire baseline 차감
+
+---
+
 ## v0.7.26 (2026-05-18)
 
 **Per-turn Power passive dynamic delta — 8 handlers added.**
