@@ -283,6 +283,19 @@ internal static class EffectSynergy
             ApplyBrandHpExhaustStr(card, state, ref b, parts);
         else if (card.Id == "CARD.STOKE")
             ApplyStokeExhaustGenerate(card, state, ref b, parts);
+        // v0.7.50 — Conditional / Heal / multi-turn skill audit (batch 5/7).
+        else if (card.Id == "CARD.BATTLE_TRANCE")
+            ApplyBattleTranceTradeoff(card, state, ref b, parts);
+        else if (card.Id == "CARD.BORROWED_TIME")
+            ApplyBorrowedTimeRamp(card, state, ref b, parts);
+        else if (card.Id == "CARD.NOT_YET")
+            ApplyNotYetHeal(card, state, ref b, parts);
+        else if (card.Id == "CARD.PANIC_BUTTON")
+            ApplyPanicButtonEmergency(card, state, ref b, parts);
+        else if (card.Id == "CARD.THE_BOMB")
+            ApplyTheBombDelayed(card, state, ref b, parts);
+        else if (card.Id == "CARD.TORIC_TOUGHNESS")
+            ApplyToricToughnessMultiTurn(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -3077,6 +3090,127 @@ internal static class EffectSynergy
         int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
         b += v;
         parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.50 — BATTLE_TRANCE (Ironclad, S, 0c): Draw 3, can't draw more
+    /// this turn. Big upside, but blocks subsequent draw cards.
+    /// </summary>
+    private static void ApplyBattleTranceTradeoff(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Draw 3 base value ≈ 3 × 200 = 600.
+        const int DrawValue = 600;
+        // Penalty: any unplayable-yet draw cards in hand become dead.
+        int deadDraw = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsDrawCard) deadDraw++;
+        }
+        int penalty = deadDraw * 200;
+        int v = DrawValue - penalty;
+        if (v < 100) v = 100;
+        b += v;
+        parts.Add($"battleTrance(draw{DrawValue}-deadDraw{penalty}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.50 — BORROWED_TIME (Necrobinder, A, 1c): Gain 4 energy. This turn,
+    /// cards cost +1. Net: massive ramp if hand has many low-cost cards.
+    /// </summary>
+    private static void ApplyBorrowedTimeRamp(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Net energy: +4 - (cards we'll play this turn × +1 cost).
+        // We typically play 3-4 cards/turn. Net = +4 - 3.5 = +0.5 effective.
+        // But the surge enables a BIG play (e.g. 4-cost card) that wouldn't fit.
+        // Score this as +1 energy lifecycle (500) when many low-cost cards in hand.
+        int playableLow = 0;  // cost 0-1 cards
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            if (c.Cost <= 1) playableLow++;
+        }
+        // The +1 cost penalty stings less when many 0-cost cards (those become 1c).
+        // Best case: hand has 4+ low-cost. Net ~ +500.
+        int v = playableLow >= 3 ? 500 : 200;
+        b += v;
+        parts.Add($"borrowedTime(lowCost{playableLow}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.50 — NOT_YET (Necrobinder, S, 2c): Heal 10 HP. Exhaust.
+    /// Value depends on HP urgency.
+    /// </summary>
+    private static void ApplyNotYetHeal(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Each HP healed ≈ 30 score (BlockPerPointBonus equivalent).
+        // Critical HP: HP × 60 (double value when low).
+        int heal = 10;
+        int maxHeal = System.Math.Min(heal, System.Math.Max(0, 100 - state.PlayerHp));  // assume max 100
+        double hpFrac = state.PlayerHp / 100.0;
+        int perHp = hpFrac < 0.3 ? 60 : 30;
+        int v = maxHeal * perHp;
+        b += v;
+        parts.Add($"notYet(heal{maxHeal}*{perHp}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.50 — PANIC_BUTTON (Silent, S, 0c): block 30 + 2 turn no-block.
+    /// Emergency: huge block now, dead for 2 turns.
+    /// </summary>
+    private static void ApplyPanicButtonEmergency(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Block 30 = 30 × 30 = 900 baseline. Penalty for 2-turn no-block.
+        // Block 30 is good if incoming is big AND we can't block enough otherwise.
+        int incoming = EnemyTurnSimulator.PredictPlayerDmg(state);
+        // Effective block delta = min(30, incoming) — beyond incoming is wasted.
+        int effBlock = System.Math.Min(30, incoming + 5);
+        int v = effBlock * 30 - 400;  // -400 for 2-turn block lockout
+        if (v < 0) v = 0;
+        b += v;
+        parts.Add($"panicButton(eff{effBlock}-lockout400={v})");
+    }
+
+    /// <summary>
+    /// v0.7.50 — THE_BOMB (Shared, B, 2c): 3 turns later, AOE 40 dmg.
+    /// Long delayed payoff.
+    /// </summary>
+    private static void ApplyTheBombDelayed(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        if (turns < 3)
+        {
+            // Combat ends before payoff. Waste.
+            b -= 300;
+            parts.Add("theBombShortFight=-300");
+            return;
+        }
+        int aliveCount = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0) return;
+        // 40 dmg × alive × 50 / 10 calibration
+        int v = 40 * aliveCount * 50 / 10;
+        const int Cap = 1500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"theBomb(40x{aliveCount}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.50 — TORIC_TOUGHNESS (Regent, B, 2c): block 5 + next 2 turns
+    /// turn-start block 5. Multi-turn block.
+    /// </summary>
+    private static void ApplyToricToughnessMultiTurn(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        // 5 block now + 5 × min(2, turns-1) future block.
+        int futureBlock = 5 * System.Math.Min(2, System.Math.Max(0, turns - 1));
+        // Base 5 block already scored by BLOCK axis. This handler adds future
+        // block delta.
+        int v = futureBlock * 30;  // 30 = BlockPerPointBonus
+        b += v;
+        parts.Add($"toricToughness(future{futureBlock}block={v})");
     }
 
     /// <summary>
