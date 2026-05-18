@@ -263,6 +263,12 @@ internal static class EffectSynergy
             ApplyStormOfSteelShivs(card, state, ref b, parts);
         else if (card.Id == "CARD.SHADOW_STEP")
             ApplyShadowStepDoubleDmg(card, state, ref b, parts);
+        // v0.7.65 — Skill-attack linkage cards with unique mechanics not
+        // captured by generic axis scoring.
+        else if (card.Id == "CARD.EXPOSE")
+            ApplyExposeStripArtifact(card, state, ref b, parts);
+        else if (card.Id == "CARD.CONQUEROR")
+            ApplyConquerorBladeDouble(card, state, ref b, parts);
         // v0.7.48 — Retain skill specific mechanics (batch 3/7).
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
@@ -3499,6 +3505,70 @@ internal static class EffectSynergy
         int v2 = exhausts * 250;
         b += v2;
         parts.Add($"purity(exhaust{exhausts}x250)=+{v2}");
+    }
+
+    /// <summary>
+    /// v0.7.65 — EXPOSE (Regent, A, 0c): "Remove all artifact and block from
+    /// target enemy. Apply Vulnerable 2. Exhaust."
+    ///
+    /// Generic VULN_PRODUCER axis credits the Vuln. The artifact-strip and
+    /// block-strip effects — primary reason this card exists — go unscored.
+    /// Both are huge value vs specific enemies (Awakened One, Hexaghost
+    /// in shielded state, etc.).
+    /// </summary>
+    private static void ApplyExposeStripArtifact(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Find target enemy's artifact + block. For Vakuu auto-play the
+        // target choice happens at execution; we score the most useful
+        // alive target as proxy.
+        int bestArtifact = 0, bestBlock = 0;
+        foreach (var e in state.Enemies)
+        {
+            if (!e.IsAlive) continue;
+            if (e.ArtifactAmount > bestArtifact) bestArtifact = e.ArtifactAmount;
+            if (e.Block > bestBlock) bestBlock = e.Block;
+        }
+        // Each artifact charge = ~150 (would otherwise block one debuff apply).
+        // Each block point = ~30 (saves that much damage delivery).
+        int v = bestArtifact * 150 + bestBlock * 30;
+        if (v == 0)
+        {
+            // No artifact / no block on any enemy — Exhaust cost without payoff.
+            // Vuln value still credited by axis; this handler just adds 0.
+            return;
+        }
+        const int Cap = 1200;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"expose(artifact{bestArtifact}+block{bestBlock}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.65 — CONQUEROR (Regent, D, 1c): "Forge 3. This turn, target enemy
+    /// takes 2× damage from Lord's Blade." Forge 3 is covered by axis;
+    /// the 2× damage doubler — the main payoff — is mostly missed.
+    ///
+    /// Value scales with whether we have a Lord's Blade play queued THIS
+    /// turn (otherwise the 2× window expires unused).
+    /// </summary>
+    private static void ApplyConquerorBladeDouble(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.SovereignBladeCount == 0)
+        {
+            // No active Blade — Forge stacks but 2× has no target this turn.
+            b -= 100;
+            parts.Add("conquerorNoBlade=-100");
+            return;
+        }
+        // Find a Lord's Blade play queued this turn (LORDS_BLADE_AMPLIFIER or
+        // LORDS_BLADE_PRODUCER cards typically trigger blade plays).
+        // Proxy: estimate avg Blade damage and double half of it.
+        int estimatedBladeDmg = 18 + state.PlayerStrength * 3;  // baseline blade damage
+        int v = estimatedBladeDmg * 50 / 10;  // half of doubled (we get +N not +2N effective)
+        const int Cap = 800;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"conquerorBlade2x(estDmg={estimatedBladeDmg}={v})");
     }
 
     /// <summary>
