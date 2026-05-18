@@ -118,4 +118,8 @@ internal sealed record SimCard
 
     // v0.7.8 — self-damage cost (BLOODLETTING/OFFERING/HEMOKINESIS etc.).
     public int HpLossAmount => Effect.HpLossAmount;
+
+    // v0.7.71 — Regent star resource: gain on play / cost to play.
+    public int StarsGain => Effect.StarsGain;
+    public int StarCost => Effect.StarCost;
 }

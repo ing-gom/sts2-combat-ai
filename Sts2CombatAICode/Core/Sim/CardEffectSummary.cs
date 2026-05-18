@@ -51,6 +51,21 @@ internal sealed record CardEffectSummary
     /// </summary>
     public int HpLossAmount { get; init; }
 
+    /// <summary>
+    /// v0.7.71 — Stars gained on play (DynamicVar "Stars": GLOW 1, VENERATE 2,
+    /// ROYAL_GAMBLE 9, etc.). Player Regent star resource. The simulator
+    /// applies this so depth-2 lookahead correctly unlocks star-cost cards
+    /// (FALLING_STAR star_cost 2, DEVASTATE 4, etc.).
+    /// </summary>
+    public int StarsGain { get; init; }
+
+    /// <summary>
+    /// v0.7.71 — Star cost requirement to play (star_cost field). 0 for
+    /// most cards. Star-cost cards (FALLING_STAR=2, COMET=5 etc.) are
+    /// filtered from candidates when PlayerStars &lt; this value.
+    /// </summary>
+    public int StarCost { get; init; }
+
     public int TotalDamage => Damage * Hits;
 
     /// <summary>True if playing this card eventually grants energy (now or next turn).</summary>
