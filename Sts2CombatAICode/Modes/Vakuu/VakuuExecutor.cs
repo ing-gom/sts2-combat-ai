@@ -60,6 +60,12 @@ internal static class VakuuExecutor
         int cardsPlayed = 0;
         bool hitLimit = false;
 
+        // v0.7.41 — Capture turn-start HP so the turn-end summary entry can
+        // log this turn's net HP change (damage taken = start − end).
+        int turnStartPlayerHp = 0;
+        try { turnStartPlayerHp = (int)(CombatReflection.CreatureHpField?.GetValue(player.Creature) ?? 0); }
+        catch { }
+
         relicForVfx?.Flash();
         MainFile.Logger.Info($"[CombatAI] starting plan (style={PlaystyleState.Current})");
 
@@ -196,18 +202,34 @@ internal static class VakuuExecutor
                 stepWatch.Stop();
                 // Post-play diagnostics: did the kill resolve, is combat ending?
                 int aliveAfter = combatState.HittableEnemies.Count(e => e.IsAlive);
+                int aliveBefore = snapshot.Enemies.Count(e => e.IsAlive);
                 // Also dump live enemy HP/block so we can detect cases where damage was
                 // expected but absorbed by an invisible mechanism (Buffer/Intangible/etc.).
+                int enemyHpAfterSum = 0;
                 var hpSummary = string.Join(",",
                     combatState.HittableEnemies.Select(e => {
                         int chp = (int)(CombatReflection.CreatureHpField?.GetValue(e) ?? 0);
                         int cbl = (int)(CombatReflection.CreatureBlockField?.GetValue(e) ?? 0);
+                        if (e.IsAlive) enemyHpAfterSum += chp;
                         return $"{e.GetType().Name}({chp}/b{cbl})";
                     }));
                 MainFile.Logger.Info(
                     $"[CombatAI] step {step + 1} post-play: " +
                     $"enemiesAlive={aliveAfter} combatEnding={CombatManager.Instance.IsOverOrEnding} " +
                     $"hp=[{hpSummary}] ({stepWatch.ElapsedMilliseconds}ms)");
+
+                // v0.7.41 — Capture post-play state so DecisionLog records the
+                // outcome alongside the prediction. Live reflection rather than
+                // a full snapshot so we don't pay the snapshotter cost every step.
+                int playerHpAfter = (int)(CombatReflection.CreatureHpField?.GetValue(player.Creature) ?? 0);
+                int playerBlockAfter = (int)(CombatReflection.CreatureBlockField?.GetValue(player.Creature) ?? 0);
+                int damageDealt = enemyHp - enemyHpAfterSum;  // pre-step total minus post-step total
+                int selfDamage = snapshot.PlayerHp - playerHpAfter;
+                bool killedEnemy = aliveAfter < aliveBefore;
+                DecisionLog.UpdateLastOutcome(
+                    playerHpAfter, playerBlockAfter,
+                    enemyHpAfterSum, damageDealt,
+                    selfDamage, killedEnemy);
             }
             hitLimit = (cardsPlayed >= 13);
 
@@ -221,6 +243,50 @@ internal static class VakuuExecutor
 
         sw.Stop();
         bool allEnemiesDead = combatState.HittableEnemies.All(e => !e.IsAlive);
+
+        // v0.7.41 — Turn-end summary entry. Records the result of THIS player
+        // turn after all card plays. Enemy-turn incoming damage will land
+        // between this entry and the next turn's first entry, so analyzers
+        // can compute it from consecutive entries.
+        try
+        {
+            int turnEndPlayerHp = (int)(CombatReflection.CreatureHpField?.GetValue(player.Creature) ?? 0);
+            int turnEndPlayerBlock = (int)(CombatReflection.CreatureBlockField?.GetValue(player.Creature) ?? 0);
+            int turnEndEnemyHpSum = 0;
+            foreach (var e in combatState.HittableEnemies)
+            {
+                if (!e.IsAlive) continue;
+                int chp = (int)(CombatReflection.CreatureHpField?.GetValue(e) ?? 0);
+                turnEndEnemyHpSum += chp;
+            }
+            DecisionLog.Record(new DecisionLog.Entry
+            {
+                Timestamp = System.DateTime.Now,
+                Step = cardsPlayed + 1,
+                Playstyle = PlaystyleState.Current.ToString(),
+                CardId = "<TURN_END>",
+                TargetName = "",
+                Score = 0,
+                Reason = "turn-end-summary",
+                SnapshotSummary = "",
+                BreakdownDetails = "",
+                Turn = combatState.RoundNumber,
+                EnemyHpBefore = turnEndEnemyHpSum,
+                PlayerHpBefore = turnEndPlayerHp,
+                PlayerBlockBefore = turnEndPlayerBlock,
+                LethalActive = false,
+                IsFetchCard = false,
+                ComboLinks = 0,
+                Character = player.Creature?.GetType().Name ?? "",
+                IsTurnEnd = true,
+                TurnHpStart = turnStartPlayerHp,
+                TurnHpEnd = turnEndPlayerHp,
+                TurnDamageTaken = System.Math.Max(0, turnStartPlayerHp - turnEndPlayerHp),
+                TurnCardsPlayed = cardsPlayed,
+            });
+        }
+        catch { /* defensive */ }
+
         MainFile.Logger.Info(
             $"[CombatAI] turn complete, {cardsPlayed} cards played, " +
             $"took {sw.ElapsedMilliseconds}ms total, " +

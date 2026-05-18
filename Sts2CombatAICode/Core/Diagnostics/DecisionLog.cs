@@ -40,6 +40,27 @@ internal static class DecisionLog
         public bool IsFetchCard { get; init; }
         public int ComboLinks { get; init; }
         public string Character { get; init; } = "";
+
+        // v0.7.41 — Outcome tracking. Captured AFTER the card is played, so
+        // we can compare AI prediction (Score / Reason) with actual result.
+        // Mutable (set, not init) so VakuuExecutor can update post-play.
+        public int PlayerHpAfter { get; set; }
+        public int PlayerBlockAfter { get; set; }
+        public int EnemyHpAfterTotal { get; set; }
+        // Damage dealt by THIS card play = EnemyHpBefore (total) - EnemyHpAfter.
+        public int DamageDealt { get; set; }
+        // HP loss FROM THIS CARD PLAY (HP_LOSS_SELF, Thorns reflect, etc.).
+        // Excludes enemy-turn damage; that's recorded at TurnEnd.
+        public int SelfDamage { get; set; }
+        // True if this play killed an enemy (any enemy went from alive → dead).
+        public bool KilledEnemy { get; set; }
+        // v0.7.41 — TurnEnd marker. When true, this entry summarizes the turn
+        // result (post-enemy-turn) rather than a card play. CardId="<TURN_END>".
+        public bool IsTurnEnd { get; set; }
+        public int TurnHpStart { get; set; }
+        public int TurnHpEnd { get; set; }
+        public int TurnDamageTaken { get; set; }
+        public int TurnCardsPlayed { get; set; }
     }
 
     public static void Record(Entry e)
@@ -48,6 +69,32 @@ internal static class DecisionLog
         {
             _entries.AddLast(e);
             while (_entries.Count > Capacity) _entries.RemoveFirst();
+        }
+    }
+
+    /// <summary>
+    /// v0.7.41 — Update the last-recorded entry's post-play outcome fields.
+    /// Called by VakuuExecutor after CardCmd.AutoPlay completes, so the
+    /// entry records both prediction (pre) and reality (post) for the same
+    /// card play.
+    /// </summary>
+    public static void UpdateLastOutcome(int playerHpAfter, int playerBlockAfter,
+                                          int enemyHpAfterTotal, int damageDealt,
+                                          int selfDamage, bool killedEnemy)
+    {
+        lock (_lock)
+        {
+            var last = _entries.Last;
+            if (last == null) return;
+            var e = last.Value;
+            // Don't overwrite a TurnEnd entry — that has different semantics.
+            if (e.IsTurnEnd) return;
+            e.PlayerHpAfter = playerHpAfter;
+            e.PlayerBlockAfter = playerBlockAfter;
+            e.EnemyHpAfterTotal = enemyHpAfterTotal;
+            e.DamageDealt = damageDealt;
+            e.SelfDamage = selfDamage;
+            e.KilledEnemy = killedEnemy;
         }
     }
 
