@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.7.69 (2026-05-19)
+
+**Exhaust 카드 audit — 사용자 요청.**
+
+123 exhaust-related 카드 scan. 6 high-impact 미처리 specific handler:
+
+| 카드 | Tier | 효과 |
+|---|---|---|
+| **FEEL_NO_PAIN** | B Power | exhaust 마다 +3 block (deck exhaust source × turns) |
+| **PACTS_END** | S Attack | AOE 17, exhaust≥3 gating |
+| **CHILL** | S Skill | 적당 1 Frost channel (orb 활성 필수) |
+| **ALCHEMIZE** | S Skill | 무작위 potion (+280) |
+| **BURNING_PACT** | S Skill | curse 보유 시 +250 (cleanse) |
+| **EVIL_EYE** | B Skill | 조건부 +8 block (exhaust source 필수) |
+
+기존 처리 충분 (수정 없음): CALCULATED_GAMBLE, PURITY, APOTHEOSIS, BRAND,
+STOKE, AFTERLIFE, DARK_EMBRACE, FIEND_FIRE (EXHAUST_BURST axis), 등.
+
+---
+
 ## v0.7.68 (2026-05-19)
 
 **Comprehensive archetype magnitude audit — Summon / Forge / Stars / OrbSlots.**
