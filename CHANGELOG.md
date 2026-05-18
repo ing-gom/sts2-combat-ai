@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.7.58 (2026-05-18)
+
+**DeckQuality — 덱 구조 진단 + per-card 보정.**
+
+### Metric
+
+- `TotalCards / CurseStatusCount / PollutionRatio`
+- `Cost0/1/2/3+/X` 분포 + `AvgCost`
+- `Attacks/Skills/Powers` mix
+- `Health`: Healthy / Bloated / Polluted / Heavy / Light / Imbalanced
+
+### Health 분류 기준
+
+| Health | 조건 |
+|---|---|
+| **Polluted** | curses > 15% |
+| **Bloated** | total > 35 |
+| **Heavy** | avgCost > 1.7 |
+| **Light** | avgCost < 0.8 (≥15장) |
+| **Imbalanced** | attack > 75% 또는 skill > 85% |
+| Healthy | else |
+
+### Per-card 보정 (QualityBonus)
+
+| Health | 보너스 카드 |
+|---|---|
+| Polluted | DRAW +60, EXHAUST_TARGET +50, PILE_TO_HAND +40 |
+| Heavy | EnergyGain +80, Cost 0 +20 |
+| Bloated | DRAW +40, EXHAUST_SELF +30 |
+| Light | Cost ≥ 2 +40 |
+| Healthy | 0 |
+
+### VakuuExecutor 로그
+
+```
+[CombatAI]   quality: deck=22 curses=2(9%) cost[0/1/2/3+/X]=4/10/5/2/1 
+              avg=1.2 mix[A/S/P]=12/8/2 health=Healthy
+```
+
+### 용도
+
+- AI: deck 상태 따라 cycler/exhaust/energy 가치 dynamic
+- User: deck-building 시 health 지표 (Polluted/Bloated 면 curse 제거 / deck 축소 우선)
+
+---
+
 ## v0.7.57 (2026-05-18)
 
 **SurvivalProjection — turns-to-death vs turns-to-kill race.**
