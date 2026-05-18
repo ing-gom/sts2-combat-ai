@@ -878,6 +878,41 @@ internal static class PlanScorer
                 else if (hpFrac >= 0.10) thornsPenalty = thornsPenalty * 15 / 10;
                 if (thornsPenalty != oldPenalty)
                     details.Add($"THORNS_HP({hpFrac:F2})x{thornsPenalty/(double)oldPenalty:F1}");
+
+                // v0.7.70 — Block-alternative bias. If hand has a meaningful
+                // block card AND we're NOT delivering lethal AND the trade
+                // (attack value vs self HP loss) is unfavorable, add a
+                // stacking penalty to push the AI toward defense.
+                if (!lethalThisTurn)
+                {
+                    bool hasGoodBlockAlternative = false;
+                    foreach (var c in state.Hand)
+                    {
+                        if (ReferenceEquals(c, card)) continue;
+                        if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+                        // Block ≥ 5 considered meaningful
+                        if (c.Block >= 5 && c.Cost <= state.PlayerEnergy)
+                        {
+                            hasGoodBlockAlternative = true;
+                            break;
+                        }
+                    }
+                    // Skip penalty if the attack alone is lethal vs target (single-target case
+                    // already handled by lethalThisTurn detection; this catches "would kill
+                    // enemy on next play after this attack" scenarios — approximate via
+                    // total damage being close to target HP).
+                    if (hasGoodBlockAlternative && targetIdx >= 0 && targetIdx < state.Enemies.Count)
+                    {
+                        var t = state.Enemies[targetIdx];
+                        bool nearKill = effectiveTotal >= t.EffectiveHp * 7 / 10;
+                        if (!nearKill)
+                        {
+                            int blockBias = -150;
+                            thornsPenalty += blockBias;
+                            details.Add($"THORNS_BLOCK_AVAIL={blockBias}");
+                        }
+                    }
+                }
             }
 
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
