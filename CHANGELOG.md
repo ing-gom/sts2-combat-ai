@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.7.43 (2026-05-18)
+
+**DECISIONS_DECISIONS (어려운 결정) REPEAT 가치 추가.**
+
+기존 처리: DRAW axis (3-5 draw) + EXHAUST_SELF + UNLIMITED 만. **REPEAT
+부분 ("스킬 1장 선택 3번 plays") 가치 무시** → 6-star Rare 가 평범한
+draw 카드로 misprice.
+
+### 변경
+
+`ApplyDecisionsDecisionsRepeat(card, state)` 신규:
+- 현재 hand 의 best Skill (EstimateCardPower 최고치) 산정
+- `bonus = bestSkillValue × 3 × 0.7` (3 repeats, 30% 할인)
+- 할인 사유: chosen skill 자기 소멸 가능성, drawn skill 이 더 좋을 수도, 일부 skill 은 3-stack 가치 cap (per-turn buff)
+- Hand 에 skill 없을 시 baseline 150 (fresh draw 가 메울 수도)
+
+### 예시
+
+| Hand 의 best skill | bonus |
+|---|---:|
+| BULWARK (16 block, ~480 score) | +1008 |
+| DEFEND (5 block, ~150 score) | +315 |
+| Powerful buff skill (~600 score) | +1260 |
+| 일반 skill 없음 (only attacks/powers) | +150 (baseline) |
+
+---
+
 ## v0.7.42 (2026-05-18)
 
 **Bug fix: STARDUST (우주 먼지) 증발.**
