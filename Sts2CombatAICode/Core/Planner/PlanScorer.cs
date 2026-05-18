@@ -184,6 +184,19 @@ internal static class PlanScorer
                 ? $"ctx{ctxBonus:+0;-0}"
                 : $"{comboDetail},ctx{ctxBonus:+0;-0}";
         }
+        // v0.7.54 — Win-condition phase inference. Classify the combat
+        // into Standard / LethalThisTurn / LethalSoon / Sustain / Survival
+        // and add a strategic per-card bias. Modest magnitudes (50-180);
+        // existing lethal/survival penalties dominate when those trigger.
+        var phase = WinConditionInference.Classify(state);
+        int phaseBonus = WinConditionInference.PhaseBonus(card, phase);
+        if (phaseBonus != 0)
+        {
+            comboBonus += phaseBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"phase({phase}){phaseBonus:+0;-0}"
+                : $"{comboDetail},phase({phase}){phaseBonus:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable
