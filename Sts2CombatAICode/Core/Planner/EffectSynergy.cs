@@ -282,6 +282,34 @@ internal static class EffectSynergy
             ApplySkeletonSummon6(card, state, ref b, parts, cost: 1);
         else if (card.Id == "CARD.LEGION_OF_BONE")
             ApplySkeletonSummon6(card, state, ref b, parts, cost: 2);
+        // v0.7.68 — Comprehensive archetype-magnitude handlers for Summon /
+        // Forge / Stars / OrbSlots vars across all unhandled cards.
+        else if (card.Id == "CARD.CLEANSE")           ApplySkeletonSummonN(card, state, ref b, parts, 3);
+        else if (card.Id == "CARD.INVOKE")            ApplySkeletonSummonN(card, state, ref b, parts, 2);
+        else if (card.Id == "CARD.BODYGUARD")         ApplySkeletonSummonN(card, state, ref b, parts, 5);
+        else if (card.Id == "CARD.NECRO_MASTERY")     ApplySkeletonSummonN(card, state, ref b, parts, 5);
+        else if (card.Id == "CARD.PULL_AGGRO")        ApplySkeletonSummonN(card, state, ref b, parts, 4);
+        else if (card.Id == "CARD.SPUR")              ApplySkeletonSummonN(card, state, ref b, parts, 3);
+        else if (card.Id == "CARD.REANIMATE")         ApplySkeletonSummonN(card, state, ref b, parts, 20);
+        // Forge generic — Blade required for value
+        else if (card.Id == "CARD.REFINE_BLADE")      ApplyForgeGeneric(card, state, ref b, parts, 9);
+        else if (card.Id == "CARD.SPOILS_OF_BATTLE")  ApplyForgeGeneric(card, state, ref b, parts, 5);
+        else if (card.Id == "CARD.WROUGHT_IN_WAR")    ApplyForgeGeneric(card, state, ref b, parts, 7);
+        else if (card.Id == "CARD.BIG_BANG")          ApplyBigBangCombo(card, state, ref b, parts);
+        else if (card.Id == "CARD.BULWARK")           ApplyForgeGeneric(card, state, ref b, parts, 10);
+        // Stars producers
+        else if (card.Id == "CARD.GLOW")              ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "CARD.GATHER_LIGHT")      ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "CARD.HIDDEN_CACHE")      ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "CARD.RADIATE")           ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "CARD.VENERATE")          ApplyStarsGain(card, state, ref b, parts, 2);
+        else if (card.Id == "CARD.SHINING_STRIKE")    ApplyStarsGain(card, state, ref b, parts, 2);
+        else if (card.Id == "CARD.SOLAR_STRIKE")      ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "CARD.KNOCKOUT_BLOW")     ApplyStarsGain(card, state, ref b, parts, 5);
+        else if (card.Id == "CARD.CONVERGENCE")       ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "CARD.ROYAL_GAMBLE")      ApplyStarsGain(card, state, ref b, parts, 9);
+        // OrbSlots
+        else if (card.Id == "CARD.BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
         // v0.7.48 — Retain skill specific mechanics (batch 3/7).
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
@@ -3518,6 +3546,121 @@ internal static class EffectSynergy
         int v2 = exhausts * 250;
         b += v2;
         parts.Add($"purity(exhaust{exhausts}x250)=+{v2}");
+    }
+
+    /// <summary>
+    /// v0.7.68 — Generic Skeleton Summon-N handler. Variants of AFTERLIFE /
+    /// LEGION_OF_BONE / CLEANSE / INVOKE / BODYGUARD / NECRO_MASTERY /
+    /// PULL_AGGRO / SPUR / REANIMATE. Per-skeleton value scaled by deck
+    /// SKELETON_CONSUMER / OSTY presence.
+    /// </summary>
+    private static void ApplySkeletonSummonN(SimCard self, SimState state, ref int b, List<string> parts, int summonCount)
+    {
+        int perSkeleton = 130;  // slightly lower per-skeleton than the original 150 to
+                                 // avoid over-pricing REANIMATE's 20 summon
+        int consumers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && (c.Axes.Contains("SKELETON_CONSUMER")
+                                    || c.Axes.Contains("SKELETON_AMPLIFIER")
+                                    || c.Axes.Contains("OSTY")))
+                consumers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("SKELETON_CONSUMER")
+                                    || c.Axes.Contains("SKELETON_AMPLIFIER")
+                                    || c.Axes.Contains("OSTY")))
+                consumers++;
+        // Diminishing returns for huge summon counts (REANIMATE 20) — board
+        // can't usefully hold 20 skeletons simultaneously.
+        int effectiveSummon = summonCount <= 6 ? summonCount : 6 + (summonCount - 6) / 3;
+        int v = effectiveSummon * perSkeleton + consumers * 60;
+        const int Cap = 1800;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"skeletonSummonN({summonCount}eff{effectiveSummon}x{perSkeleton}+cons{consumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.68 — Generic Forge-N handler. Gated on Blade presence (no Blade =
+    /// penalty proportional to forge amount). Per-Forge value × projected
+    /// Blade plays this combat.
+    /// </summary>
+    private static void ApplyForgeGeneric(SimCard self, SimState state, ref int b, List<string> parts, int forgeAmount)
+    {
+        if (state.SovereignBladeCount == 0)
+        {
+            int penalty = -50 - forgeAmount * 10;  // bigger forge → bigger penalty when wasted
+            if (penalty < -500) penalty = -500;
+            b += penalty;
+            parts.Add($"forgeNoBlade(Forge{forgeAmount})={penalty}");
+            return;
+        }
+        int turns = RemainingTurnsEstimator.From(state);
+        int projectedBladePlays = System.Math.Min(4, System.Math.Max(1, turns / 2));
+        int v = forgeAmount * projectedBladePlays * 50 / 12;
+        const int Cap = 1500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"forgeGeneric(F{forgeAmount}x{projectedBladePlays}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.68 — Generic Star gain handler. Star value depends on STAR_CONSUMER
+    /// presence (no consumers = star wasted).
+    /// </summary>
+    private static void ApplyStarsGain(SimCard self, SimState state, ref int b, List<string> parts, int starsGained)
+    {
+        int consumers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+
+        int perStar = consumers > 0 ? 150 : 40;  // big drop without sink
+        int v = starsGained * perStar;
+        const int Cap = 1000;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"starsGain(S{starsGained}x{perStar},cons{consumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.68 — BIG_BANG (S 0c): Forge 5 + Stars 1 combo card.
+    /// </summary>
+    private static void ApplyBigBangCombo(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Treat as both Forge 5 and Stars 1 contribution.
+        ApplyForgeGeneric(self, state, ref b, parts, 5);
+        ApplyStarsGain(self, state, ref b, parts, 1);
+    }
+
+    /// <summary>
+    /// v0.7.68 — BULK_UP (Defect A 2c): -1 OrbSlot + Str 2 + Dex 2.
+    /// PowerApps catch the buffs; this layer adds the orb-slot penalty
+    /// (lose 1 slot is bad in mid/late game, neutral early).
+    /// </summary>
+    private static void ApplyBulkUpOrbSlots(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Penalty for losing orb slot — only bites if Defect is actively
+        // managing orbs. If empty queue, slot loss is neutral.
+        if (state.PlayerOrbCapacity == 0)
+        {
+            // Not Defect / no orb system — penalty is meaningless
+            return;
+        }
+        int filled = state.PlayerOrbCount;
+        int newCap = state.PlayerOrbCapacity - 1;
+        // If we're already over the new cap, an orb gets kicked out.
+        int kickedPenalty = filled > newCap ? -200 : -50;
+        b += kickedPenalty;
+        parts.Add($"bulkUpOrbSlot({filled}>{newCap}={kickedPenalty})");
     }
 
     /// <summary>
