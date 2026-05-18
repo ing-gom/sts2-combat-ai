@@ -273,6 +273,16 @@ internal static class EffectSynergy
             ApplyRestlessnessConditional(card, state, ref b, parts);
         else if (card.Id == "CARD.PURITY")
             ApplyPurityHandClean(card, state, ref b, parts);
+        // v0.7.49 — Scaling-stem skills (batch 4/7). Upgrade / strength growth /
+        // long-tail value mechanics not captured by SCALING axis alone.
+        else if (card.Id == "CARD.APOTHEOSIS")
+            ApplyApotheosisUpgradeAll(card, state, ref b, parts);
+        else if (card.Id == "CARD.DOMINATE")
+            ApplyDominateVulnStrike(card, state, ref b, parts);
+        else if (card.Id == "CARD.BRAND")
+            ApplyBrandHpExhaustStr(card, state, ref b, parts);
+        else if (card.Id == "CARD.STOKE")
+            ApplyStokeExhaustGenerate(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -3067,6 +3077,125 @@ internal static class EffectSynergy
         int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
         b += v;
         parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.49 — APOTHEOSIS (Shared, A, 2c): "Upgrade ALL cards in deck.
+    /// Exhaust." Massive long-fight value — every future draw is upgraded.
+    /// Per-card upgrade ~50-150 value. Cap at remaining-turns × 3 cards/turn.
+    /// </summary>
+    private static void ApplyApotheosisUpgradeAll(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Count non-upgraded cards in piles (excluding self).
+        int upgradable = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) continue;
+            upgradable++;
+        }
+        foreach (var c in state.DrawPile) if (!c.IsCurseOrStatus) upgradable++;
+        foreach (var c in state.DiscardPile) if (!c.IsCurseOrStatus) upgradable++;
+        if (upgradable == 0) return;
+
+        int turns = RemainingTurnsEstimator.From(state);
+        // Each upgrade ~80 value (avg). Realized only as cards drawn over
+        // remaining turns × ~4 cards/turn.
+        int expectedRealized = System.Math.Min(upgradable, turns * 4);
+        const int PerUpgrade = 80;
+        const int Cap = 1500;
+        int v = System.Math.Min(Cap, expectedRealized * PerUpgrade);
+        b += v;
+        parts.Add($"apotheosis(upg{upgradable}/realized{expectedRealized}x{PerUpgrade}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.49 — DOMINATE (Ironclad, S, 1c): Apply Vulnerable 1 to all enemies +
+    /// every Strike in deck gains +1 damage permanently. Exhaust.
+    /// </summary>
+    private static void ApplyDominateVulnStrike(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Count Strikes in deck (id contains STRIKE).
+        int strikes = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Id != null && c.Id.Contains("STRIKE")) strikes++;
+        }
+        foreach (var c in state.DrawPile) if (c.Id != null && c.Id.Contains("STRIKE")) strikes++;
+        foreach (var c in state.DiscardPile) if (c.Id != null && c.Id.Contains("STRIKE")) strikes++;
+
+        int turns = RemainingTurnsEstimator.From(state);
+        // Vuln 1 on all alive enemies = ~350 value.
+        int aliveAttackers = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive && !e.IsInert) aliveAttackers++;
+        int vulnPart = aliveAttackers * 350;
+        // Strike scaling: each +1 dmg × expected Strike plays this combat (
+        // strikes × turns × 0.5 — half cycle per turn).
+        int strikePlays = strikes * turns / 2;
+        int strikePart = strikePlays * 50;  // +1 dmg × DamagePerPoint
+        const int Cap = 2000;
+        int v = System.Math.Min(Cap, vulnPart + strikePart);
+        b += v;
+        parts.Add($"dominate(vuln{vulnPart}+strike{strikes}x{turns}/2={v})");
+    }
+
+    /// <summary>
+    /// v0.7.49 — BRAND (Ironclad, A, 0c): Lose 1 HP, exhaust 1 card, gain +1
+    /// Strength permanent. HP_LOSS_SELF + EXHAUST_TARGET + STR.
+    /// </summary>
+    private static void ApplyBrandHpExhaustStr(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Strength +1 permanent ≈ 400 lifetime value (3 attacks/turn × turns).
+        int turns = RemainingTurnsEstimator.From(state);
+        int strValue = turns * 3 * 50;  // 1 str × 3 attacks × DmgPoint, no /10 since lifetime
+        // Exhaust target: useful when trashing curses; otherwise neutral.
+        int curseInHand = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) curseInHand++;
+        }
+        int exhaustValue = curseInHand > 0 ? 200 : 50;
+        // HP loss penalty handled separately by HP_LOSS axis + survival.
+        const int Cap = 1200;
+        int v = System.Math.Min(Cap, strValue + exhaustValue);
+        b += v;
+        parts.Add($"brand(str{strValue}+exh{exhaustValue}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.49 — STOKE (Ironclad, B, 1c): Exhaust ALL hand cards. Add 1
+    /// upgraded random card per exhausted card to hand.
+    /// </summary>
+    private static void ApplyStokeExhaustGenerate(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int exhausted = 0;
+        int handValueSum = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            exhausted++;
+            handValueSum += EstimateCardPower(c, state, freeUse: false);
+        }
+        if (exhausted == 0)
+        {
+            b -= 100;
+            parts.Add("stokeEmpty=-100");
+            return;
+        }
+        // Per-exhausted: gain a random upgraded card. Random upgraded ~ 200.
+        const int PerExhaust = 200;
+        // Trash cost: half the hand value lost.
+        int trashCost = handValueSum / 2;
+        int v = exhausted * PerExhaust - trashCost;
+        const int Cap = 800;
+        if (v > Cap) v = Cap;
+        if (v < -200) v = -200;
+        b += v;
+        parts.Add($"stoke(exh{exhausted}x{PerExhaust}-trash{trashCost}={v})");
     }
 
     /// <summary>
