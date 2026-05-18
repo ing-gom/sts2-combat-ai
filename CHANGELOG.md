@@ -1,5 +1,64 @@
 # Changelog
 
+## v0.7.26 (2026-05-18)
+
+**Per-turn Power passive dynamic delta — 8 handlers added.**
+
+### 배경
+
+`EffectSynergy` 의 power-passive 동적 delta 가 MAYHEM/STAMPEDE/CALAMITY/
+HELLRAISER/JUGGLING 5종 외 미커버. **매 턴 / 트리거 기반 Power** 들은
+PowerCatalog flat 값만 받아 deck-state 와 무관 동일 점수.
+
+특히 다음 8종이 deck 구성에 강하게 의존하면서 dynamic 처리 없음:
+DarkEmbrace, Vicious, Accelerant, Envenom, Subroutine, PrepTime, Storm,
+ToolsOfTheTrade.
+
+### 변경
+
+기존 MAYHEM delta pattern (`delta = clamp(state_derived - baked, -baked, Cap)`)
+8종 추가. CardId dispatch 확장 + 각 handler 작성.
+
+```csharp
+else if (card.Id == "CARD.DARK_EMBRACE")  ApplyDarkEmbraceTickValue(...);
+else if (card.Id == "CARD.VICIOUS")        ApplyViciousTickValue(...);
+else if (card.Id == "CARD.ACCELERANT")     ApplyAccelerantTickValue(...);
+else if (card.Id == "CARD.ENVENOM")        ApplyEnvenomTickValue(...);
+else if (card.Id == "CARD.SUBROUTINE")     ApplySubroutineTickValue(...);
+else if (card.Id == "CARD.PREP_TIME")      ApplyPrepTimeTickValue(...);
+else if (card.Id == "CARD.STORM")          ApplyStormTickValue(...);
+else if (card.Id == "CARD.TOOLS_OF_THE_TRADE") ApplyToolsOfTheTradeTickValue(...);
+```
+
+### 결과 — `scripts/_inspect_v0_7_26.py`
+
+| Handler | deck 구성 | delta |
+|---|---|---:|
+| DarkEmbrace | exhaust 5+8 / 5턴 | **+900** (cap) |
+| DarkEmbrace | exhaust 없음 | **-500** (baseline 차감) |
+| Vicious | VULN_PRODUCER 2+4 | +680 |
+| Vicious | Vuln 없음 | -400 |
+| Envenom | attack 4+12 | +800 |
+| Subroutine | Power 4+6 (Defect 가속) | **+1500** (cap) |
+| Subroutine | Power 0 | -500 |
+| PrepTime | 8턴 fight | +600 |
+| PrepTime | 1턴 lethal | -300 (baked > tick) |
+| Tools | 8턴 fight | +1200 |
+| Storm | Power 4+6 | +270 |
+| Accelerant | Poison-producer 3+5 | +460 |
+
+### 커버리지 향상
+
+| | v0.7.25 | v0.7.26 |
+|---|---:|---:|
+| Power passive dynamic delta | 5 | **13** |
+| Power passive 정적 (PowerCatalog only) | ~40+ | ~32+ |
+
+다음 후보: ChildOfTheStars, Storm, OrbitPower, BlackHole, Pyre, HelloWorld,
+RollingBoulder, PaleBlueDot, Outbreak, PhantomBlades, Capacitor, MonarchsGaze.
+
+---
+
 ## v0.7.25 (2026-05-18)
 
 **Weak scoring — non-attack-intent coverage + dynamic turn cap.**
