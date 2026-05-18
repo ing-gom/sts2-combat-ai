@@ -267,12 +267,18 @@ internal static class PlanScorer
             int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
             if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
 
+            // v0.7.33 — Self-damage penalty (Power cards rarely carry HP loss,
+            // but DOOM_SELF Powers and a few Necrobinder Powers do).
+            int selfDmgPowerPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn);
+            if (selfDmgPowerPenalty != 0)
+                details.Add($"selfDmg={selfDmgPowerPenalty}");
+
             if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
             int total = baseBonus + effect + costTie + energyBonus + fightCtx
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
                 Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -753,9 +759,12 @@ internal static class PlanScorer
             // v0.5 — Survival urgency: non-lethal attacks should defer to defense
             // when the player is about to die. Lethal kills bypass naturally via
             // RealLethalKillBonus (+5000) which dwarfs the penalty.
+            // v0.7.33 — Effective urgency accounts for card.HpLossAmount: a
+            // Spite/Inferno-trigger attack on a low-HP turn can self-promote
+            // the situation from Heavy to Fatal.
             int survivalAtkPenalty = 0;
             {
-                var urg = EnemyTurnSimulator.GetSurvivalUrgency(state);
+                var urg = GetEffectiveUrgency(state, card.HpLossAmount);
                 if (urg == SurvivalUrgency.Fatal || urg == SurvivalUrgency.Heavy)
                 {
                     bool isLethalSingle = !isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count
@@ -775,6 +784,11 @@ internal static class PlanScorer
                 }
             }
 
+            // v0.7.33 — Additional penalty for self-damage that promotes urgency.
+            int selfDmgAtkPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn);
+            if (selfDmgAtkPenalty != 0)
+                details.Add($"selfDmg={selfDmgAtkPenalty}");
+
             if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
@@ -791,7 +805,7 @@ internal static class PlanScorer
                 details.Add($"lethalSetup={lethalSetupPenalty}");
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty;
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
                 Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -961,10 +975,11 @@ internal static class PlanScorer
             // no draw). Inflame / Limit Break style cards should defer when the player
             // is about to die. Block / energy / draw skills are exempt — they're the
             // survival response or feed it.
+            // v0.7.33 — Effective urgency includes the skill's own HP loss.
             int survivalSkillPenalty = 0;
             if (card.Block == 0 && !card.IsEnergyGainCard && !card.IsDrawCard)
             {
-                var urgency = EnemyTurnSimulator.GetSurvivalUrgency(state);
+                var urgency = GetEffectiveUrgency(state, card.HpLossAmount);
                 survivalSkillPenalty = urgency switch
                 {
                     SurvivalUrgency.Fatal    => -900,
@@ -974,6 +989,12 @@ internal static class PlanScorer
                 if (survivalSkillPenalty != 0)
                     details.Add($"survival{urgency}={survivalSkillPenalty}");
             }
+
+            // v0.7.33 — Self-damage penalty for skills that worsen survivability
+            // (e.g. HP_LOSS axis skills used for archetype payoffs).
+            int selfDmgSkillPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn: false);
+            if (selfDmgSkillPenalty != 0)
+                details.Add($"selfDmg={selfDmgSkillPenalty}");
 
             // v0.6 — Skill sequencing tier. Smaller than Power's tier
             // ordering (Setup +100 / Cantrip +60 / others 0). Only kicks in
@@ -997,7 +1018,7 @@ internal static class PlanScorer
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
                 Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -1737,6 +1758,56 @@ internal static class PlanScorer
             || powerName == "DarkShacklesPower";  // -Str only this turn — still
                                                   // requires enemy hits us OR our
                                                   // attack vs them, scale loosely
+    }
+
+    /// <summary>
+    /// v0.7.33 — Survival urgency accounting for the card's self-damage. When a
+    /// card with HpLossAmount > 0 is being scored, the effective post-play HP
+    /// is reduced, which can promote the situation from Moderate to Heavy or
+    /// from Heavy to Fatal. Pure observation of current state — no future-sim.
+    /// </summary>
+    private static SurvivalUrgency GetEffectiveUrgency(SimState state, int extraHpLoss)
+    {
+        if (extraHpLoss <= 0)
+            return EnemyTurnSimulator.GetSurvivalUrgency(state);
+
+        if (state.PlayerHp <= 0) return SurvivalUrgency.None;
+        if (EnemyTurnSimulator.AllInert(state)) return SurvivalUrgency.None;
+
+        int effHp = System.Math.Max(0, state.PlayerHp - extraHpLoss);
+        if (effHp <= 0) return SurvivalUrgency.Fatal;  // card itself kills us
+
+        int leak = EnemyTurnSimulator.PredictPlayerDmg(state);
+        if (leak <= 0) return SurvivalUrgency.None;
+        if (leak >= effHp) return SurvivalUrgency.Fatal;
+        double ratio = leak / (double)effHp;
+        if (ratio >= 0.5) return SurvivalUrgency.Heavy;
+        if (ratio >= 0.2) return SurvivalUrgency.Moderate;
+        return SurvivalUrgency.None;
+    }
+
+    /// <summary>
+    /// v0.7.33 — Heavy penalty for cards whose self-damage would self-kill or
+    /// turn a survivable turn fatal. Returns 0 when the card is HpLoss-free.
+    /// Doesn't apply when the card delivers a real-lethal kill this turn (the
+    /// kill bonus dwarfs and the combat ends before HP can matter).
+    /// </summary>
+    private static int ComputeSelfDamagePenalty(SimCard card, SimState state, bool lethalThisTurn)
+    {
+        int hpLoss = card.HpLossAmount;
+        if (hpLoss <= 0) return 0;
+        if (lethalThisTurn) return 0;  // we kill them first; HP loss doesn't matter
+
+        // Self-kill: card alone reduces HP to ≤ 0 (Spite-edge cases, low-HP states).
+        if (hpLoss >= state.PlayerHp) return -2000;
+
+        var baseUrg = EnemyTurnSimulator.GetSurvivalUrgency(state);
+        var effUrg = GetEffectiveUrgency(state, hpLoss);
+        if (effUrg <= baseUrg) return 0;  // didn't worsen the situation
+
+        // Urgency rose. Penalty scales with the jump.
+        int jump = (int)effUrg - (int)baseUrg;
+        return effUrg == SurvivalUrgency.Fatal ? -1000 * jump : -300 * jump;
     }
 
     /// <summary>
