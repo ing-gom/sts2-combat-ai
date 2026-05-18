@@ -185,6 +185,19 @@ internal static class EffectSynergy
             ApplyChildOfTheStarsTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.THE_SEALED_THRONE")
             ApplyTheSealedThroneTickValue(card, state, ref b, parts);
+        // v0.7.29 — Forge stem Power passives (Regent, Lord's Blade archetype).
+        // Forge = upgrade the SovereignBlade. Powers either auto-forge per turn
+        // or scale with each Lord's Blade play.
+        else if (card.Id == "CARD.FURNACE")
+            ApplyFurnaceTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.HAMMER_TIME")
+            ApplyHammerTimeTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.SEEKING_EDGE")
+            ApplySeekingEdgeTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.SWORD_SAGE")
+            ApplySwordSageTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.PARRY")
+            ApplyParryTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -2152,6 +2165,192 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"sealedThroneTick(stars~{usableStars},cons={cons})={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.29 — Forge stem Power passives (Regent, Lord's Blade) ────────────
+    //
+    // Forge = upgrade SovereignBlade. Two types of Powers:
+    //   • Auto-forge per turn: Furnace, SeekingEdge
+    //   • Per-LordsBlade-play scaling: HammerTime, Parry, SwordSage
+    // Common gate: requires SovereignBladeCount > 0 OR LORDS_BLADE_AMPLIFIER
+    // axis cards in deck (otherwise dead weight).
+
+    /// <summary>
+    /// v0.7.29 — Helper: detect Lord's Blade axis presence + count.
+    /// </summary>
+    private static (int producers, int amplifiers) CountForgeStem(SimCard self, SimState state)
+    {
+        int prod = 0, amp = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("LORDS_BLADE_AMPLIFIER")) amp++;
+            if (c.Axes.Contains("FORGE_AMPLIFIER")) prod++;
+        }
+        foreach (var c in state.DrawPile)
+        {
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("LORDS_BLADE_AMPLIFIER")) amp++;
+            if (c.Axes.Contains("FORGE_AMPLIFIER")) prod++;
+        }
+        foreach (var c in state.DiscardPile)
+        {
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("LORDS_BLADE_AMPLIFIER")) amp++;
+            if (c.Axes.Contains("FORGE_AMPLIFIER")) prod++;
+        }
+        return (prod, amp);
+    }
+
+    /// <summary>
+    /// v0.7.29 — FurnacePower (Regent, C): Forge 4 at turn start. Scales with
+    /// SovereignBladeCount > 0 (need an active Blade) × turns.
+    /// </summary>
+    private static void ApplyFurnaceTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerForgeValue = 100;   // 4 Forge ≈ +N attack on next Blade play
+        const int Cap = 500;
+        int baked = PowerCatalog.LookupSelfBuff("FurnacePower");
+
+        if (state.SovereignBladeCount == 0)
+        {
+            b -= baked;
+            parts.Add($"furnaceNoBlade=-{baked}");
+            return;
+        }
+
+        int tick = turns * PerForgeValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"furnaceTick(blade={state.SovereignBladeCount},turns={turns})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.29 — HammerTimePower (Regent, A): Forge propagates to party. Value
+    /// depends on FORGE_AMPLIFIER chain + blade presence. Single-player mode
+    /// gets minimal value; multiplayer scales.
+    /// </summary>
+    private static void ApplyHammerTimeTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerPartyForgeValue = 120;
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("HammerTimePower");
+
+        if (state.SovereignBladeCount == 0)
+        {
+            b -= baked;
+            parts.Add($"hammerTimeNoBlade=-{baked}");
+            return;
+        }
+
+        var (prod, amp) = CountForgeStem(self, state);
+        // Forge events per turn ≈ amplifier plays per turn
+        double forgeEventsPerTurn = (amp + prod) > 0 ? 1.0 : 0.5;
+        int tick = (int)(turns * forgeEventsPerTurn * PerPartyForgeValue);
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"hammerTimeTick(turns={turns},forgeRate={forgeEventsPerTurn:F2})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.29 — SeekingEdgePower (Regent, C): Forge 7 + Lord's Blade gains AOE
+    /// toggle. Big mid-fight ramp; requires blade present.
+    /// </summary>
+    private static void ApplySeekingEdgeTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerForge = 150;
+        const int Cap = 600;
+        int baked = PowerCatalog.LookupSelfBuff("SeekingEdgePower");
+
+        if (state.SovereignBladeCount == 0)
+        {
+            b -= baked;
+            parts.Add($"seekingEdgeNoBlade=-{baked}");
+            return;
+        }
+
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) aliveCount++;
+        // AOE toggle is the value-add: extra hits per Blade play vs more enemies.
+        int aoeBonus = aliveCount > 1 ? (aliveCount - 1) * 80 : 0;
+        int tick = turns * PerForge + aoeBonus;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"seekingEdgeTick(turns={turns},alive={aliveCount},aoe+={aoeBonus})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.29 — SwordSagePower (Regent, C): Lord's Blade gains +1 hit.
+    /// Per-Blade-play bonus. Scales with hand + deck LORDS_BLADE_AMPLIFIER /
+    /// blade plays expected.
+    /// </summary>
+    private static void ApplySwordSageTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerExtraHit = 100;
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("SwordSagePower");
+
+        if (state.SovereignBladeCount == 0)
+        {
+            b -= baked;
+            parts.Add($"swordSageNoBlade=-{baked}");
+            return;
+        }
+
+        var (prod, amp) = CountForgeStem(self, state);
+        // Blade plays per combat ≈ amp + ~1/turn natural Blade use
+        int projBladePlays = amp + turns;
+        int tick = projBladePlays * PerExtraHit;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"swordSageTick(bladePlays~{projBladePlays})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.29 — ParryPower (Regent, C): +10 block per Lord's Blade play.
+    /// Hand + deck LORDS_BLADE plays × 10 block × 30.
+    /// </summary>
+    private static void ApplyParryTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int BlockPerBlade = 10;
+        const int Cap = 800;
+        int baked = PowerCatalog.LookupSelfBuff("ParryPower");
+
+        if (state.SovereignBladeCount == 0)
+        {
+            b -= baked;
+            parts.Add($"parryNoBlade=-{baked}");
+            return;
+        }
+
+        var (prod, amp) = CountForgeStem(self, state);
+        int projBladePlays = amp + turns;
+        int tick = projBladePlays * BlockPerBlade * 30;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"parryTick(bladePlays~{projBladePlays}x{BlockPerBlade}block)={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────
