@@ -159,6 +159,19 @@ internal static class EffectSynergy
             ApplyStormTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.TOOLS_OF_THE_TRADE")
             ApplyToolsOfTheTradeTickValue(card, state, ref b, parts);
+        // v0.7.27 — Shiv stem Power passives (Silent-focused but party-shared).
+        // All five hinge on the Shiv production rate AND the alive enemy count;
+        // pure baked value miss-prices them in low-Shiv and AOE contexts.
+        else if (card.Id == "CARD.ACCURACY")
+            ApplyAccuracyTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.PHANTOM_BLADES")
+            ApplyPhantomBladesTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.FAN_OF_KNIVES")
+            ApplyFanOfKnivesTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.MASTER_PLANNER")
+            ApplyMasterPlannerTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.INFINITE_BLADES")
+            ApplyInfiniteBladesTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -1721,6 +1734,214 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"toolsTick(turns={turns}x{NetPerTurn}={tick},baked={baked})={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.27 — Shiv stem Power passives ────────────────────────────────────
+    //
+    // Shiv archetype share three signals: ShivInPiles (token count), in-hand/
+    // deck SHIV_PRODUCER count (future Shiv generation), aliveEnemyCount (for
+    // FanOfKnives AOE conversion). Each handler reads the relevant subset and
+    // projects ticks over the remaining combat.
+
+    /// <summary>
+    /// v0.7.27 — Helper: count SHIV_PRODUCER axis cards across the relevant
+    /// piles, excluding the Power card itself. Used by every Shiv-stem handler.
+    /// </summary>
+    private static (int hand, int deck) CountShivProducers(SimCard self, SimState state)
+    {
+        int hand = 0, deck = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("SHIV_PRODUCER")) hand++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("SHIV_PRODUCER")) deck++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && c.Axes.Contains("SHIV_PRODUCER")) deck++;
+        return (hand, deck);
+    }
+
+    /// <summary>
+    /// v0.7.27 — AccuracyPower (Silent, A): Shivs deal +N extra damage. Value =
+    /// stacks × (projected Shiv plays) × DamagePerPointBonus. Projects Shivs
+    /// from current ShivInPiles + future generation by SHIV_PRODUCER cards.
+    /// </summary>
+    private static void ApplyAccuracyTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int Cap = 1000;
+        int baked = PowerCatalog.LookupSelfBuff("AccuracyPower");
+
+        var (hp, dp) = CountShivProducers(self, state);
+        // Future Shivs = current token count + future producer plays × ~3 shivs/play (avg)
+        int projShivs = state.ShivInPiles + (hp + (dp * turns) / 4) * 3;
+        // Each Shiv hit gains +N (default amount = 4); value = damage × 50 (DamagePerPointBonus)
+        int amountPerStack = 4;  // canonical AccuracyPower stack value
+        int tick = projShivs * amountPerStack * EffectScoringWeights.DamageInHand / 10;
+        // /10 because EstimateCardPower returns absolute-ish values; calibrate down
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"accuracyTick(shivs={state.ShivInPiles}+prod{hp}+deck{dp}~{projShivs})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.27 — PhantomBladesPower (Silent, A): all Shivs gain Retain + first
+    /// Shiv each turn +9 dmg. Two value streams:
+    ///   • +9 × per-turn first-Shiv: turns × 9 × 50
+    ///   • Retain saves Shivs from end-of-turn discard: shiv-in-hand × ~draw-value
+    /// </summary>
+    private static void ApplyPhantomBladesTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int Cap = 1000;
+        int baked = PowerCatalog.LookupSelfBuff("PhantomBladesPower");
+
+        var (hp, dp) = CountShivProducers(self, state);
+        bool hasAnyShivPath = state.ShivInPiles > 0 || hp + dp > 0;
+        if (!hasAnyShivPath)
+        {
+            // Shiv-less deck (party member playing without Silent or no Shiv
+            // generators) — Power is dead weight.
+            b -= baked;
+            parts.Add($"phantomBladesNoShiv=-{baked}");
+            return;
+        }
+
+        // Per-turn first Shiv +9 dmg payoff; needs at least 1 Shiv per turn
+        // (proxy: any producer in hand or pile means likely a Shiv each turn).
+        const double FirstShivTurnRate = 0.75;
+        int firstShivBonus = (int)(turns * 9 * 50 * FirstShivTurnRate);
+        // Retain value: roughly per-turn 1 saved Shiv card = 200 (per-Shiv draw)
+        const int RetainPerTurn = 200;
+        int retainBonus = (int)(turns * RetainPerTurn * FirstShivTurnRate);
+        int tick = firstShivBonus + retainBonus;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"phantomBladesTick(turns={turns},firstShiv={firstShivBonus}+retain={retainBonus})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.27 — FanOfKnivesPower (Silent, C): Shivs target all enemies
+    /// permanently. AOE conversion value scales with aliveEnemyCount − 1 (the
+    /// extra hits gained). Useless vs single enemy; massive in 3-enemy minion
+    /// waves.
+    /// </summary>
+    private static void ApplyFanOfKnivesTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int Cap = 1000;
+        int baked = PowerCatalog.LookupSelfBuff("FanOfKnivesPower");
+
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) aliveCount++;
+        if (aliveCount <= 1)
+        {
+            // Single-target fights — Power equals 0 extra hits.
+            b -= baked;
+            parts.Add($"fanOfKnivesSingle=-{baked}");
+            return;
+        }
+
+        var (hp, dp) = CountShivProducers(self, state);
+        int projShivs = state.ShivInPiles + (hp + (dp * turns) / 4) * 3;
+        // Each future Shiv now hits (aliveCount - 1) additional targets;
+        // each hit ~3-4 dmg × DamagePerPointBonus.
+        const int ShivDmg = 4;
+        int extraHits = projShivs * (aliveCount - 1);
+        int tick = extraHits * ShivDmg * 50 / 10;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"fanOfKnivesTick(alive={aliveCount},shivs~{projShivs},extraHits={extraHits})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.27 — MasterPlannerPower (Silent, C): all Skill cards gain Sly
+    /// (auto-play on discard). Value = (turns × skills-in-hand × discard-rate)
+    /// × free-play-value. Sly only helps if cards get discarded — needs a
+    /// discard mechanism (hand-overflow / Calculated Gamble / end-of-turn
+    /// without Retain). For now estimate discard rate via end-of-turn typical
+    /// 1 card discard, multiplied by skill ratio.
+    /// </summary>
+    private static void ApplyMasterPlannerTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int Cap = 600;
+        int baked = PowerCatalog.LookupSelfBuff("MasterPlannerPower");
+
+        int totalCards = state.Hand.Count + state.DrawPile.Count + state.DiscardPile.Count;
+        int totalSkills = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsSkill && !c.IsCurseOrStatus) totalSkills++;
+        }
+        foreach (var c in state.DrawPile) if (c.IsSkill && !c.IsCurseOrStatus) totalSkills++;
+        foreach (var c in state.DiscardPile) if (c.IsSkill && !c.IsCurseOrStatus) totalSkills++;
+        if (totalSkills == 0 || totalCards == 0)
+        {
+            b -= baked;
+            parts.Add($"masterPlannerNoSkills=-{baked}");
+            return;
+        }
+
+        double skillRatio = totalSkills / (double)totalCards;
+        // End-of-turn discard ~= excess hand over (drawn cards − played cards).
+        // Conservative: ~0.5 discards/turn on average.
+        const double DiscardsPerTurn = 0.5;
+        const int FreePlayValue = 200;  // average skill effective value when auto-played
+        int tick = (int)(turns * DiscardsPerTurn * skillRatio * FreePlayValue);
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"masterPlannerTick(skillRatio={skillRatio:F2},turns={turns})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.27 — InfiniteBladesPower (Silent, A): turn-start +1 Shiv to hand.
+    /// Tick = turns × ShivValue. Shiv value depends on consumers in deck
+    /// (KNIFE_TRAP / FINISHER / etc. amplify) — use base Shiv value with a
+    /// small consumer-presence bonus.
+    /// </summary>
+    private static void ApplyInfiniteBladesTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int BaseShivValue = 250;   // 4 dmg attack + free-play premium
+        const int Cap = 1100;
+        int baked = PowerCatalog.LookupSelfBuff("InfiniteBladesPower");
+
+        // Consumer-presence bonus
+        int consumers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("SHIV_CONSUMER") || c.Axes.Contains("SHIV_AMPLIFIER")) consumers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("SHIV_CONSUMER") || c.Axes.Contains("SHIV_AMPLIFIER")))
+                consumers++;
+        int consumerBonus = consumers > 0 ? consumers * 80 : 0;
+
+        int tick = turns * BaseShivValue + consumerBonus * turns / 5;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"infiniteBladesTick(turns={turns}x{BaseShivValue}={turns*BaseShivValue},consumers={consumers})={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────
