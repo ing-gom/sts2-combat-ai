@@ -650,6 +650,46 @@ internal static class AnalyticalSimulator
         // cards survive via Ethereal exhaust / Retain (Phase 2a simplification).
         var newHand = nextHand;
 
+        // v0.7.16 — AGGRESSION turn-start hand addition. The Power recalls a
+        // random Attack from the discard pile (upgraded for one turn) per
+        // stack. Synthesize the recalled card as an "average attack" from the
+        // discard with a +30% damage boost approximating the temporary upgrade.
+        if (state.PlayerPowers != null
+            && state.PlayerPowers.TryGetValue("AggressionPower", out var aggStacks)
+            && aggStacks > 0
+            && state.DiscardPile.Count > 0)
+        {
+            int totalDmg = 0, count = 0;
+            int totalCost = 0;
+            foreach (var c in state.DiscardPile)
+            {
+                if (!c.IsAttack || c.IsCurseOrStatus) continue;
+                totalDmg += c.Damage * System.Math.Max(1, c.Hits);
+                totalCost += System.Math.Max(0, c.Cost);
+                count++;
+            }
+            if (count > 0)
+            {
+                int avgDmg = (int)(totalDmg / (double)count * 1.3); // +30% upgrade
+                int avgCost = System.Math.Max(0, totalCost / count);
+                var recalled = new SimCard
+                {
+                    Id = "<aggression-recall>",
+                    Cost = avgCost,
+                    Kind = CardType.Attack,
+                    Target = TargetType.AnyEnemy,
+                    SourceRef = null,
+                    Effect = new CardEffectSummary
+                    {
+                        Damage = avgDmg,
+                        Hits = 1,
+                    },
+                    IsPlayable = true,
+                };
+                for (int i = 0; i < aggStacks; i++) newHand.Add(recalled);
+            }
+        }
+
         int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - newHand.Count);
         int newDiscardPileSize = 0;
 
@@ -658,10 +698,10 @@ internal static class AnalyticalSimulator
         // draw). Both modeled as free-use damage from the synthetic average
         // draw card landing on the weakest alive enemy.
         //
-        // AGGRESSION is deliberately NOT simulated here — its turn-start
-        // effect is "random Attack from discard → hand". With our synthetic
-        // average-card hand model the addition isn't distinguishable; its
-        // value is already credited via the v0.7.4 EffectSynergy bonus.
+        // v0.7.16 — AGGRESSION 의 hand-addition 효과는 위쪽 newHand 빌드 직후
+        // 처리됨 (discard pile 의 평균 attack +30% upgrade 를 합성해 nextHand
+        // 에 추가). MAYHEM/STAMPEDE 와 달리 enemy 데미지가 아닌 next-turn
+        // hand 옵션 증가 — 별도 코드 경로.
         int mayhemStacks = 0, stampedeStacks = 0;
         if (state.PlayerPowers != null)
         {
