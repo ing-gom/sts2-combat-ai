@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.50 (2026-05-18)
+
+**Conditional / Heal / Multi-turn skill audit (Batch 5/7) — 6 handlers.**
+
+30 DURATION/CONDITIONAL/HEAL 검사 후 top 6 specific gap 처리:
+
+- **BATTLE_TRANCE** (S, 0c): draw 3 + no-more-draw. `600 - deadDraw × 200`
+- **BORROWED_TIME** (A, 1c): +4 energy + cards cost +1. low-cost ≥3: +500, else +200
+- **NOT_YET** (S, 2c): heal 10. HP < 30% 면 60/HP, else 30/HP
+- **PANIC_BUTTON** (S, 0c): block 30 emergency + 2턴 lockout. `effBlock × 30 - 400`
+- **THE_BOMB** (B, 2c): 3턴 delay → AOE 40. turns < 3 면 -300, else `40 × alive × 5`
+- **TORIC_TOUGHNESS** (B, 2c): block 5 now + 5/turn × 2. future block × 30
+
+기존 axis 충분 (PIERCING_WAIL/SHADOWMELD/ENFEEBLING_TOUCH 등 ~24개):
+- DURATION buff/debuff axes 처리
+- CARD_GEN free-play 처리 (DISCOVERY/DISTRACTION/INFERNAL_BLADE 등)
+
+---
+
 ## v0.7.49 (2026-05-18)
 
 **Scaling/Upgrade stem audit (Batch 4/7).**
