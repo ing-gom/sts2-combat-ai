@@ -54,6 +54,11 @@ internal static class DecisionLog
         public int SelfDamage { get; set; }
         // True if this play killed an enemy (any enemy went from alive → dead).
         public bool KilledEnemy { get; set; }
+        // v0.7.62 — Opportunity-cost diagnostics. Top alternatives and the
+        // score gap to the chosen card. Shows whether the decision was
+        // strong (large advantage) or close-call (small advantage).
+        public string AlternativeCards { get; set; } = "";  // "STRIKE@0=600(-120),DEFEND@-1=480(-240)"
+        public int RunnerUpDelta { get; set; }              // chosen - runner-up
         // v0.7.41 — TurnEnd marker. When true, this entry summarizes the turn
         // result (post-enemy-turn) rather than a card play. CardId="<TURN_END>".
         public bool IsTurnEnd { get; set; }

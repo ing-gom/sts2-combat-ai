@@ -136,6 +136,9 @@ internal static class DecisionLogPersister
         AppendInt(sb, "turn_hp_end", e.TurnHpEnd); sb.Append(',');
         AppendInt(sb, "turn_damage_taken", e.TurnDamageTaken); sb.Append(',');
         AppendInt(sb, "turn_cards_played", e.TurnCardsPlayed); sb.Append(',');
+        // v0.7.62 — Opportunity cost
+        Append(sb, "alternatives", e.AlternativeCards); sb.Append(',');
+        AppendInt(sb, "runner_up_delta", e.RunnerUpDelta); sb.Append(',');
         Append(sb, "snapshot", e.SnapshotSummary); sb.Append(',');
         Append(sb, "breakdown", e.BreakdownDetails);
         sb.Append('}');
