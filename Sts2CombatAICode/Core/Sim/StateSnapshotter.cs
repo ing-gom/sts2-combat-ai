@@ -36,6 +36,8 @@ internal static class StateSnapshotter
 
             int playerStr = CombatReflection.GetPowerAmount(creature, "StrengthPower");
             int playerDex = CombatReflection.GetPowerAmount(creature, "DexterityPower");
+            // v0.7.82 — VigorPower: next attack +N damage, then consumed.
+            int playerVigor = CombatReflection.GetPowerAmount(creature, "VigorPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -266,6 +268,7 @@ internal static class StateSnapshotter
                 CharacterId = characterId,
                 PlayerStrength = playerStr,
                 PlayerDexterity = playerDex,
+                PlayerVigor = playerVigor,
                 PlayerVulnerable = playerVuln,
                 PlayerWeak = playerWeak,
                 PlayerFrail = playerFrail,

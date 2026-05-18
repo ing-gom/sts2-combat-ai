@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.7.82 (2026-05-19)
+
+**Vigor (활력) 메커니즘 구현 — 데미지 적용 + 소비.**
+
+### 이전 상태
+
+`PowerCatalog`/`HandSynergy` 가 VigorPower 의 **획득 가치** 만 추정 (350/스택,
+공격이 손에 있으면 +50/스택). 하지만:
+- `StatusMath.EffectiveAttackDmg` = `(base + Strength) × Vuln × Weak` — Vigor 무시.
+- `AnalyticalSimulator.ApplyCardPlay` 의 self-buff switch 에 `VigorPower` 없음.
+- `SimState` 에 `PlayerVigor` 필드 없음 → depth-N lookahead 가 Vigor 추적 불가.
+- 공격 후 Vigor 소비 로직 없음.
+
+결과: TERRAFORMING + 공격 시퀀스, PrepTimePower turn-start Vigor 4 시나리오 등에서
+lethal 윈도우 누락 가능.
+
+### 변경
+
+1. **`SimState.PlayerVigor`** 신설 (`int`, init).
+2. **`StateSnapshotter`** — VigorPower stack 을 snapshot 시점에 읽어 PlayerVigor 에
+   주입.
+3. **`StatusMath.EffectiveAttackDmg` / `EffectivePerHitCapped` / `EffectivePerEnemyTotal`**
+   에 `attackerVigor` 파라미터 추가. 기존 시그너처는 `Vigor=0` 으로 위임하는
+   compat overload 로 유지.
+4. **`AnalyticalSimulator.ApplyCardPlay`**:
+   - Power/Skill 의 self-apply switch 에 `case "VigorPower": newPlayerVigor += amount;` 추가.
+   - 공격 데미지 계산에 `newPlayerVigor` 전달.
+   - 공격 resolve 직후 `newPlayerVigor = 0` (단발 소비).
+5. **`PlanScorer`** 의 공격 평가 콜 9곳에 `state.PlayerVigor` 전달
+   (single-target / AOE / random multi-hit / lethal AOE 체크).
+6. **`IsLethalThisTurn`** 그리디 체인 추정기에 `vigorRemaining` 변수 도입 — 첫
+   공격에만 Vigor 적용, 나머지는 0.
+
+### 메커니즘 가정
+
+STS canonical: "your next attack deals additional damage equal to Vigor".
+멀티-히트 카드 (Twin Strike 등) 의 경우 Vigor 는 카드 베이스 데미지에 더해진
+값으로 모든 히트에 per-hit 보너스로 적용 후, 카드 resolve 시 소비. AOE 도
+같은 규칙 (한 카드 resolve = Vigor 1회 소비).
+
+### 후속 검토 대상
+
+`EffectSynergy` 의 `card.Id == "CARD.X"` 하드코딩 핸들러들 (v0.7.81 의 prefix
+버그로 모두 dead code) — 별도 sweep 필요.
+
+---
+
 ## v0.7.81 (2026-05-19)
 
 **근본 원인 발견 — `Id.Entry` 에 `CARD.` prefix 가 없음. dict 키 형식 수정.**

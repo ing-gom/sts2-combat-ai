@@ -7,8 +7,11 @@ namespace Sts2CombatAI.Sim;
 /// decimals but planner ordering only needs integer ranks, so float ops are fine.
 ///
 /// Damage:
-///   final = floor((base + attackerStrength) × (defenderVulnerable ? 1.5 : 1.0)
-///                                          × (attackerWeak ? 0.75 : 1.0))
+///   final = floor((base + attackerStrength + attackerVigor) × (defenderVulnerable ? 1.5 : 1.0)
+///                                                         × (attackerWeak ? 0.75 : 1.0))
+///   (Vigor applies to the FIRST attack only this turn — caller is responsible for
+///   passing 0 for non-first attacks. EffectivePerEnemyTotal applies Vigor only on
+///   the first hit; subsequent hits within the same multi-hit card use Strength only.)
 /// Block:
 ///   final = floor((base + defenderDexterity) × (defenderFrail ? 0.75 : 1.0))
 /// </summary>
@@ -18,15 +21,22 @@ internal static class StatusMath
     public const double WeakMult = 0.75;
     public const double FrailMult = 0.75;
 
+    // v0.7.82 — Vigor-aware overload. Adds attackerVigor to the additive part
+    // (same step as Strength). 0-arg legacy overload preserved below for callers
+    // that don't track Vigor.
     public static int EffectiveAttackDmg(int baseDamage, int attackerStrength,
-        bool defenderVulnerable, bool attackerWeak)
+        int attackerVigor, bool defenderVulnerable, bool attackerWeak)
     {
         if (baseDamage <= 0) return 0;
-        double v = baseDamage + attackerStrength;
+        double v = baseDamage + attackerStrength + attackerVigor;
         if (defenderVulnerable) v *= VulnerableMult;
         if (attackerWeak) v *= WeakMult;
         return Math.Max(0, (int)Math.Floor(v));
     }
+
+    public static int EffectiveAttackDmg(int baseDamage, int attackerStrength,
+        bool defenderVulnerable, bool attackerWeak)
+        => EffectiveAttackDmg(baseDamage, attackerStrength, 0, defenderVulnerable, attackerWeak);
 
     public static int EffectiveBlock(int baseBlock, int defenderDexterity, bool defenderFrail)
     {
@@ -39,26 +49,36 @@ internal static class StatusMath
     /// <summary>
     /// Per-hit attack damage clamped by the target's IntangiblePower / HardToKill
     /// cap (<see cref="SimEnemy.DamageCapPerHit"/>). 0 cap means uncapped.
+    /// v0.7.82 — Vigor parameter. Caller passes 0 for non-first-attack contexts.
     /// </summary>
-    public static int EffectivePerHitCapped(int baseDamage, int attackerStrength,
+    public static int EffectivePerHitCapped(int baseDamage, int attackerStrength, int attackerVigor,
         SimEnemy target, bool attackerWeak)
     {
-        int per = EffectiveAttackDmg(baseDamage, attackerStrength,
+        int per = EffectiveAttackDmg(baseDamage, attackerStrength, attackerVigor,
             target.VulnerableAmount > 0, attackerWeak);
         if (target.DamageCapPerHit > 0 && per > target.DamageCapPerHit)
             per = target.DamageCapPerHit;
         return per;
     }
 
+    public static int EffectivePerHitCapped(int baseDamage, int attackerStrength,
+        SimEnemy target, bool attackerWeak)
+        => EffectivePerHitCapped(baseDamage, attackerStrength, 0, target, attackerWeak);
+
     /// <summary>
     /// Per-target total attack damage: hits × per-hit (after Intangible cap), then
     /// clamped by HardenedShellRemaining. If the target has HardenedShellPower but
     /// the budget is fully spent (Remaining == 0), returns 0.
+    /// v0.7.82 — Vigor is added to base damage on play (STS canonical: "your next
+    /// attack deals additional damage equal to Vigor"). It applies to every hit of
+    /// the card as a per-hit bonus, then consumed when the card resolves. Multi-card
+    /// estimators (IsLethalThisTurn) must pass Vigor=0 for subsequent attacks.
     /// </summary>
     public static int EffectivePerEnemyTotal(int baseDamage, int hits, int attackerStrength,
-        SimEnemy target, bool attackerWeak)
+        int attackerVigor, SimEnemy target, bool attackerWeak)
     {
-        int perHit = EffectivePerHitCapped(baseDamage, attackerStrength, target, attackerWeak);
+        int perHit = EffectivePerHitCapped(baseDamage, attackerStrength, attackerVigor,
+            target, attackerWeak);
         int hitsClamped = Math.Max(1, hits);
         int total = perHit * hitsClamped;
         if (target.HardenedShellRemaining > 0)
@@ -72,4 +92,8 @@ internal static class StatusMath
         }
         return total;
     }
+
+    public static int EffectivePerEnemyTotal(int baseDamage, int hits, int attackerStrength,
+        SimEnemy target, bool attackerWeak)
+        => EffectivePerEnemyTotal(baseDamage, hits, attackerStrength, 0, target, attackerWeak);
 }
