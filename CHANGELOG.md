@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.7.36 (2026-05-18)
+
+**적 passive (PlatedArmor / Metallicize / Regen) RemainingTurns 통합.**
+
+### 배경
+
+`RemainingTurnsEstimator` 가 적의 effective HP 만 보고, **매 턴 자동 회복**
+효과 무시. 결과:
+- PlatedArmor 4 적: 매 턴 우리 damage 4 흡수 → 실제 fight 더 길어짐
+- Regen 적: 매 턴 HP 회복 → 사실상 우리 DPT 감소
+
+이 정보는 게임이 보여주는 결정론적 효과 (visible state). 미래시 아님.
+
+### 변경
+
+`RemainingTurnsEstimator.From()` 에 두 항목 추가:
+
+```csharp
+int enemyAutoBlock = Σ(PlatedArmor + Metallicize) per alive enemy
+int enemyRegen    = Σ(RegenPower) per alive enemy
+netDpt = max(0, playerDpt - enemyAutoBlock - enemyRegen)
+totalDpt = netDpt + dot
+estimate = effectiveEnemyHp / totalDpt
+```
+
+Helpers 노출: `EnemyAutoBlock(e)`, `EnemyRegen(e)` — 다른 consumer 도 사용 가능.
+
+### 영향
+
+| 시나리오 | 이전 turns | v0.7.36 turns |
+|---|---:|---:|
+| Boss HP 200, 우리 DPT 30 | 6 | 6 (변화 없음) |
+| Boss HP 200, DPT 30, PlatedArmor 5 | 6 | **8** (DPT 25 적용) |
+| Boss HP 200, DPT 30, Regen 5 + PlatedArmor 5 | 6 | **10** (DPT 20) |
+| Boss HP 200, DPT 30, PlatedArmor 25+ (Barricade boss) | 6 | **10 (cap)** |
+
+RemainingTurns 증가는 propagation 통해 모든 turns-based handler 의 가치 증폭
+(MAYHEM/STAMPEDE/PYRE/POWER-TICK 등).
+
+---
+
 ## v0.7.35 (2026-05-18)
 
 **Player-side DoT 통합 → survival check.**
