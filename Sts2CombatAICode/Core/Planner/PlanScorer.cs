@@ -716,6 +716,9 @@ internal static class PlanScorer
             // v0.7.34 — Also accumulate thornsDamage (raw HP) for the survival
             // check below: a multi-hit attack into thorns can self-promote
             // urgency from Heavy to Fatal.
+            // v0.7.40 — Scale penalty by HP fraction. 1 HP loss matters more
+            // at HP 10 than at HP 80 — flat -100/point under-penalised low-HP
+            // thorns plays, letting AI attack instead of defending.
             int thornsPenalty = 0;
             int thornsDamage = 0;  // raw HP cost from this attack's thorns reflects
             int hits = System.Math.Max(1, card.Hits);
@@ -738,6 +741,18 @@ internal static class PlanScorer
                     thornsDamage = thorns * hits;
                     details.Add($"THORNS{thornsPenalty}");
                 }
+            }
+            // v0.7.40 — HP-fraction multiplier. Compounds with the flat penalty.
+            if (thornsDamage > 0)
+            {
+                int playerHp = System.Math.Max(1, state.PlayerHp);
+                double hpFrac = thornsDamage / (double)playerHp;
+                int oldPenalty = thornsPenalty;
+                if (hpFrac >= 0.5)       thornsPenalty = thornsPenalty * 3;
+                else if (hpFrac >= 0.25) thornsPenalty = thornsPenalty * 2;
+                else if (hpFrac >= 0.10) thornsPenalty = thornsPenalty * 15 / 10;
+                if (thornsPenalty != oldPenalty)
+                    details.Add($"THORNS_HP({hpFrac:F2})x{thornsPenalty/(double)oldPenalty:F1}");
             }
 
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
