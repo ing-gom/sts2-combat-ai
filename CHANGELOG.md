@@ -1,5 +1,90 @@
 # Changelog
 
+## v0.7.20 (2026-05-18)
+
+**BuildSynergy: role_needs.json 기반 cross-axis lookup.**
+
+### 배경
+
+기존 `BuildSynergy.Compute` 는 suffix-only 매칭으로 pair-stem 만 인식:
+- `POISON_PRODUCER ↔ POISON_AMPLIFIER` → +250
+- `POISON_PRODUCER ↔ POISON_CONSUMER` → +200
+
+cross-mod audit 에서 CardAdvisor 의 `role_needs.json` 은 **283 cross-axis
+hooks** 를 추가로 가지고 있음을 발견 (POISON_PRODUCER → DRAW w=0.8,
+FORGE_PRODUCER → BLOCK w=1.2 등). 이 패스에서 CombatAI 가 같은 데이터
+참조하도록 통합.
+
+### 변경
+
+#### EmbeddedResource 추가
+- `Sts2CombatAICode/Core/Data/role_needs.json` (CardAdvisor 의 142 axes
+  복사본) → csproj `EmbeddedResource` 로 패킹
+- 단일 출처: `Sts2CardAdvisorCode/Data/role_needs.json`. 갱신 시 CombatAI
+  복사본도 sync 필요 (현재 manual `cp`, 향후 build-time auto-sync 후속).
+
+#### 신규 로더 `AxisSynergyLookup.cs`
+- `NeedsFor(axis)` → `IReadOnlyList<RoleNeed>` (PoolMeans 패턴 미러)
+- `RoleNeed` struct: `Role / Weight / RequiresWith / MutexGroup` (CardAdvisor
+  의 AxisSynergyCatalog 와 동일 schema)
+- `_*` prefixed keys 필터링 (주석)
+
+#### `BuildSynergy.Compute` 재작성
+
+기존 suffix-only 분기 → role_needs lookup. 보너스 계산:
+
+```
+for ax in card.Axes:
+    needs = AxisSynergyLookup.NeedsFor(ax)
+    for need in needs:
+        if need.RequiresWith and not hand_contains(need.RequiresWith): continue
+        if not hand_contains(need.Role): continue
+        if need.MutexGroup: mutex_best[group] = max(mutex_best, weight)
+        else: per_axis_bonus += int(weight * WeightToScore)
+    per_axis_bonus += sum(mutex_best.Values) * WeightToScore
+    bonus += min(per_axis_bonus, PerAxisBonusCap)
+```
+
+상수:
+- **WeightToScore = 100** (role_needs w=2.5 ↔ 기존 ProducerWithAmplifierBonus 250)
+- **PerAxisBonusCap = 400** (multi-hook 축 (FORGE_PRODUCER 5개 hooks 등) 의
+  점수 폭주 방지)
+- **`requires_with`** AND-condition, **`mutex_group`** within-group top-weight
+  매칭 — CardAdvisor 와 동일 의미
+
+### 검증 (`scripts/_inspect_build_synergy_cross_axis.py`)
+
+```
+Legacy: POISON_PRODUCER + POISON_AMPLIFIER → 250 (unchanged)
+NEW: POISON_PRODUCER + DRAW (no amp)       → 80   (cross-axis)
+Combo 5 hooks                              → 400 (CAPPED 780)
+FORGE_PRODUCER all hooks                   → 400 (CAPPED 990)
+CUNNING_PRODUCER + DRAW                    → 100 (cross-axis)
+SKELETON_PRODUCER + MINION + SKELETON_AMPLIFIER → 300
+```
+
+기존 점수 보존 + 새 cross-axis hooks 활성화. cap 이 multi-hook 폭주 방지.
+
+### 영향 시나리오
+
+| 손 구성 | 이전 | 이후 |
+|---|---|---|
+| Bash + Strike | 0 | 0 (no role_needs match) |
+| Bash + Poison + Catalyst (POISON_PRODUCER + AMP) | 250 | 250 |
+| Bash + Poison + Acrobatics (POISON_PRODUCER + DRAW) | **0** | **+80** |
+| Forge + Glacial Strike + Bash (FORGE_PRODUCER + BLOCK + DAMAGE) | 0 | **+240** |
+| Skeleton + Captain (SKELETON_PRODUCER + MINION) | 0 | **+150** |
+
+CombatAI 의 hand-aware 평가가 CardAdvisor 의 deck-building 추천과 같은
+synergy 데이터 사용 → 양쪽 mod 평가 정합화 완성.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_build_synergy_cross_axis.py`: 7 시나리오 모두
+  예상치.
+- 양방향 score 정합화 (Legacy pair-stem score 보존 + 새 hooks 가산).
+
 ## v0.7.19 (2026-05-18)
 
 **B-tier 1-path coverage — 9 mechanic 핸들러.**
