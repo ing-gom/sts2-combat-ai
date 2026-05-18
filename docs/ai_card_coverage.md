@@ -5,7 +5,7 @@ how much of the card pool each rule (PowerCatalog, PowerSequencingTier,
 CardOverrideCatalog, BuildSynergy, AmplifierSynergy, EffectSynergy,
 HandSynergy) explicitly handles vs falls back to generic defaults.
 
-- Master catalog: `scripts/cards_catalog.json` (game v0.103.2)
+- Master catalog: `../scripts/cards_catalog.json` (game v0.103.2)
 - Embedded triggers: `Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
 - PowerCatalog: `Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (151 powers registered)
 - PowerSequencingTier: `Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (137 powers classified)

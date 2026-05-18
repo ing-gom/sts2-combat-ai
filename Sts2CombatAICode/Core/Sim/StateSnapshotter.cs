@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -108,8 +110,10 @@ internal static class StateSnapshotter
             // v0.5.1 — also capture pile contents so the simulator can model expected draws.
             var drawPileRaw = PileType.Draw.GetPile(player)?.Cards;
             var discardPileRaw = PileType.Discard.GetPile(player)?.Cards;
+            var exhaustPileRaw = PileType.Exhaust.GetPile(player)?.Cards;
             int drawPileSize = drawPileRaw?.Count ?? 0;
             int discardPileSize = discardPileRaw?.Count ?? 0;
+            int exhaustPileSize = exhaustPileRaw?.Count ?? 0;
 
             var hand = new List<SimCard>();
             var handPile = PileType.Hand.GetPile(player);
@@ -118,6 +122,119 @@ internal static class StateSnapshotter
                 foreach (var card in handPile.Cards)
                     hand.Add(BuildSimCard(card, requirePlayability: true));
             }
+
+            // v0.6.7 — Token / pile-based mechanic counters. Walk hand + draw +
+            // discard + exhaust counting Soul, Shiv, SovereignBlade instances.
+            // Type-name matching avoids hardcoding card ID format and survives
+            // localization. Exhaust pile is included for SovereignBlade since
+            // exhausted blades still count toward Lord's Blade scaling.
+            int soulInPiles = 0;
+            int shivInPiles = 0;
+            int sovereignBladeCount = 0;
+            CountTokenCards(handPile?.Cards, ref soulInPiles, ref shivInPiles, ref sovereignBladeCount);
+            CountTokenCards(drawPileRaw,     ref soulInPiles, ref shivInPiles, ref sovereignBladeCount);
+            CountTokenCards(discardPileRaw,  ref soulInPiles, ref shivInPiles, ref sovereignBladeCount);
+            CountTokenCards(exhaustPileRaw,  ref soulInPiles, ref shivInPiles, ref sovereignBladeCount);
+
+            // Skeleton (Osty) ally count — alive monsters of class Osty owned by player.
+            int skeletonCount = 0;
+            var allies = new List<SimAlly>();
+            try
+            {
+                foreach (var ally in cs.Allies)
+                {
+                    if (ally == null || !ally.IsAlive) continue;
+                    var monster = ally.Monster;
+                    if (monster == null) continue;
+                    string cls = monster.GetType().Name;
+                    if (cls == "Osty") skeletonCount++;
+
+                    // v0.7.11 — capture ally combat stats for damage contribution
+                    int allyHp = (int)(CombatReflection.CreatureHpField?.GetValue(ally) ?? 0);
+                    int allyBlock = (int)(CombatReflection.CreatureBlockField?.GetValue(ally) ?? 0);
+                    int allyIntentDmg = 0, allyIntentRepeats = 1;
+                    bool allyHasAttack = false;
+                    try
+                    {
+                        var nextMove = monster.NextMove;
+                        if (nextMove?.Intents != null)
+                        {
+                            foreach (var intent in nextMove.Intents)
+                            {
+                                if (intent == null) continue;
+                                var kind = CombatReflection.Classify(intent);
+                                if (kind == IntentKind.Attack || kind == IntentKind.DeathBlow)
+                                {
+                                    int d = CombatReflection.GetAttackIntentDamage(intent);
+                                    int r = CombatReflection.GetAttackIntentRepeats(intent);
+                                    if (r <= 0) r = 1;
+                                    allyIntentDmg += d;
+                                    allyIntentRepeats = System.Math.Max(allyIntentRepeats, r);
+                                    allyHasAttack = true;
+                                }
+                            }
+                        }
+                    }
+                    catch { /* intent extraction is best-effort */ }
+
+                    allies.Add(new SimAlly
+                    {
+                        Hp = allyHp,
+                        Block = allyBlock,
+                        IntentDamage = allyIntentDmg,
+                        IntentRepeats = System.Math.Max(1, allyIntentRepeats),
+                        HasAttackIntent = allyHasAttack,
+                        ClassName = cls,
+                        SourceRef = ally,
+                    });
+                }
+            }
+            catch { }
+
+            // v0.6.8 — Turn / combat history counters. Walk CombatHistory.Entries
+            // once, accumulating:
+            //   • TurnAttacksPlayed / TurnSkillsPlayed — same-turn finished card
+            //     plays of the corresponding type, owned by THIS player.
+            //   • CombatPlayerHpLossEvents — DamageReceived events on player
+            //     creature with UnblockedDamage > 0. Mirrors TEAR_ASUNDER's
+            //     in-game multiplier logic.
+            // Reflection-free — uses the public CombatManager.Instance.History API.
+            // v0.7.2 — Player character entry id (e.g. "IRONCLAD"). Read once
+            // from player.Character.Id.Entry; surfaced on SimState so PoolMeans
+            // can look up the right character's static pool distribution.
+            // Wrapped in try / catch because mid-transition states can null the
+            // Character ref — empty string falls through to flat-magnitude path.
+            string characterId = string.Empty;
+            try { characterId = player.Character?.Id.Entry ?? string.Empty; }
+            catch { }
+
+            int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            try
+            {
+                var history = CombatManager.Instance.History;
+                if (history != null)
+                {
+                    foreach (var entry in history.Entries)
+                    {
+                        if (entry is CardPlayFinishedEntry cpe)
+                        {
+                            if (cpe.RoundNumber != cs.RoundNumber) continue;
+                            if (cpe.CurrentSide != cs.CurrentSide) continue;
+                            // Owner check — only count this player's plays in multiplayer.
+                            if (cpe.CardPlay?.Card?.Owner != player) continue;
+                            var type = cpe.CardPlay.Card.Type;
+                            if (type == CardType.Attack) turnAttacksPlayed++;
+                            else if (type == CardType.Skill) turnSkillsPlayed++;
+                        }
+                        else if (entry is DamageReceivedEntry dre)
+                        {
+                            if (dre.Receiver != creature) continue;
+                            if (dre.Result.UnblockedDamage > 0) combatHpLossEvents++;
+                        }
+                    }
+                }
+            }
+            catch { /* counters stay 0 — defensive */ }
 
             // v0.5.1 — Pile cards skip the CanPlay() check (irrelevant outside hand)
             // but reuse the same builder so Effect / Cost / Kind are consistent with
@@ -136,6 +253,7 @@ internal static class StateSnapshotter
                 PlayerEnergy = energy,
                 Enemies = enemies,
                 Hand = hand,
+                CharacterId = characterId,
                 PlayerStrength = playerStr,
                 PlayerDexterity = playerDex,
                 PlayerVulnerable = playerVuln,
@@ -156,6 +274,15 @@ internal static class StateSnapshotter
                 PlayerFreeAttacks = playerFreeAttacks,
                 PlayerFreeSkills = playerFreeSkills,
                 PlayerFreePowers = playerFreePowers,
+                SoulInPiles = soulInPiles,
+                ShivInPiles = shivInPiles,
+                SkeletonCount = skeletonCount,
+                Allies = allies,
+                ExhaustPileSize = exhaustPileSize,
+                SovereignBladeCount = sovereignBladeCount,
+                TurnAttacksPlayed = turnAttacksPlayed,
+                TurnSkillsPlayed = turnSkillsPlayed,
+                CombatPlayerHpLossEvents = combatHpLossEvents,
             };
         }
         catch (System.Exception ex)
@@ -190,6 +317,18 @@ internal static class StateSnapshotter
             ChannelCount = orbMeta.ChannelCount,
             ChannelKind = orbMeta.ChannelKind,
         };
+        // v0.6.7 — Sly detection. Raw `CUNNING` axis (no _PRODUCER/_CONSUMER
+        // suffix) on a Silent card aligns 1:1 with CardKeyword.Sly in the
+        // current catalog. The runtime keyword check would be more authoritative
+        // (covers GiveSingleTurnSly temp-Sly cards) but card.Keywords isn't a
+        // public stable property — stick with the axis proxy until we need
+        // temp-Sly precision.
+        bool isSly = false;
+        for (int i = 0; i < axes.Count; i++)
+        {
+            if (axes[i] == "CUNNING") { isSly = true; break; }
+        }
+
         return new SimCard
         {
             Id = id,
@@ -206,7 +345,32 @@ internal static class StateSnapshotter
             IsInnate = catalogInfo?.Innate ?? false,
             IsExhaust = catalogInfo?.Exhaust ?? false,
             IsFetchTrigger = catalogInfo?.FetchTrigger ?? false,
+            IsSly = isSly,
         };
+    }
+
+    /// <summary>
+    /// v0.6.7 — Walk a card pile counting Soul / Shiv / SovereignBlade instances
+    /// for SimState.{SoulInPiles, ShivInPiles, SovereignBladeCount}. Uses runtime
+    /// class-name matching against the game's CardModel subclasses (Soul, Shiv,
+    /// SovereignBlade in MegaCrit.Sts2.Core.Models.Cards). Catalog ID matching
+    /// would also work but is more brittle to localization / id format changes.
+    /// </summary>
+    private static void CountTokenCards(
+        System.Collections.Generic.IReadOnlyList<CardModel>? pile,
+        ref int soul, ref int shiv, ref int sovereign)
+    {
+        if (pile == null) return;
+        foreach (var card in pile)
+        {
+            if (card == null) continue;
+            switch (card.GetType().Name)
+            {
+                case "Soul":           soul++; break;
+                case "Shiv":           shiv++; break;
+                case "SovereignBlade": sovereign++; break;
+            }
+        }
     }
 
     private static bool WasSpawnedThisTurn(object? monster)
@@ -410,6 +574,16 @@ internal static class StateSnapshotter
         if (s.PlayerFreeAttacks > 0) statusBits.Add($"FreeA:{s.PlayerFreeAttacks}");
         if (s.PlayerFreeSkills > 0)  statusBits.Add($"FreeS:{s.PlayerFreeSkills}");
         if (s.PlayerFreePowers > 0)  statusBits.Add($"FreeP:{s.PlayerFreePowers}");
+        // v0.6.7 — mechanic stacks (silent when empty)
+        if (s.SoulInPiles > 0)       statusBits.Add($"Soul:{s.SoulInPiles}");
+        if (s.ShivInPiles > 0)       statusBits.Add($"Shiv:{s.ShivInPiles}");
+        if (s.SkeletonCount > 0)     statusBits.Add($"Osty:{s.SkeletonCount}");
+        if (s.ExhaustPileSize > 0)   statusBits.Add($"Exh:{s.ExhaustPileSize}");
+        if (s.SovereignBladeCount > 0) statusBits.Add($"Blade:{s.SovereignBladeCount}");
+        // v0.6.8 — turn / combat counters (silent when 0)
+        if (s.TurnAttacksPlayed > 0)   statusBits.Add($"AtkT:{s.TurnAttacksPlayed}");
+        if (s.TurnSkillsPlayed > 0)    statusBits.Add($"SklT:{s.TurnSkillsPlayed}");
+        if (s.CombatPlayerHpLossEvents > 0) statusBits.Add($"HpLost:{s.CombatPlayerHpLossEvents}");
         var statusTag = statusBits.Count > 0 ? $" status=[{string.Join(",", statusBits)}]" : "";
         return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag}{statusTag} hand=[{hand}] enemies=[{enemies}]";
     }

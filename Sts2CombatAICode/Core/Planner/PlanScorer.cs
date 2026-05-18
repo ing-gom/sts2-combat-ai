@@ -183,6 +183,34 @@ internal static class PlanScorer
                     details.Add($"  +syn={syn}");
                 }
             }
+
+            // v0.7.7 — Id-derived PowerCatalog fallback. Power cards apply
+            // their named Power class via OnPlay, but the application is
+            // expressed as a PowerCmd.Apply<XPower>() call rather than a
+            // PowerVar<T> in DynamicVars for ~24 cards (BARRICADE, REAPER_FORM,
+            // UNMOVABLE, TRACKING, THE_SEALED_THRONE, MAYHEM, AGGRESSION etc.).
+            // Those cards have empty PowerApps at runtime even though
+            // PowerCatalog knows their canonical value. Derive the power name
+            // from card.Id (CARD.MAYHEM -> MayhemPower) and credit it once.
+            if (card.PowerApps.Count == 0)
+            {
+                string derived = IdToPowerName(card.Id);
+                if (!string.IsNullOrEmpty(derived))
+                {
+                    int self = PowerCatalog.LookupSelfBuff(derived);
+                    int enemy = PowerCatalog.LookupEnemyDebuff(derived);
+                    int pick = System.Math.Max(self, enemy);
+                    // Skip the heuristic-default 200 — that fires when neither
+                    // dict has the name, providing no real coverage; we'd be
+                    // crediting a guess. Anything explicit (positive or negative)
+                    // gets credited.
+                    if (pick != PowerCatalog.DefaultValue)
+                    {
+                        effect += pick;
+                        details.Add($"idDerived({Short(derived)})={pick}");
+                    }
+                }
+            }
             // v0.2.6 — Energy gain context: low energy + expensive cards waiting → urgent.
             int energyBonus = EvaluateEnergyGain(card, state, w);
             if (energyBonus != 0) details.Add($"energyCtx={energyBonus}");
@@ -258,6 +286,19 @@ internal static class PlanScorer
             int effectivePerHit = StatusMath.EffectiveAttackDmg(card.Damage,
                 state.PlayerStrength, targetIsVulnerable, playerIsWeak);
 
+            // v0.6.7 — Variable-damage hit-count override. Card.Hits comes from
+            // RepeatVar / CalculatedHits and defaults to 1, but several attacks
+            // scale at play time on hand size or remaining energy:
+            //   • EXHAUST_BURST (FIEND_FIRE): per-card damage × hand size
+            //   • X_COST (SKEWER, WHIRLWIND, VOLLEY, ERADICATE): damage × X
+            //     where X is the energy actually spent (all remaining).
+            // Without this adjustment FIEND_FIRE [S] scores as a 7-damage hit
+            // instead of 7 × hand.Count, severely underrating the card.
+            int variableHits = EstimateVariableHits(card, state);
+            int effHits = System.Math.Max(System.Math.Max(1, card.Hits), variableHits);
+            if (variableHits > card.Hits)
+                details.Add($"varHits({card.Hits}→{variableHits})");
+
             // v0.4 — per-hit damage cap from IntangiblePower (=1) or HardToKillPower (=Amount).
             // Clamp single-target effective per-hit; multi-hit cards still get value because they
             // chip away cap times Hits times instead of one huge hit being wasted.
@@ -270,7 +311,7 @@ internal static class PlanScorer
                     effectivePerHit = capTarget.DamageCapPerHit;
                 }
             }
-            int effectiveTotal = effectivePerHit * System.Math.Max(1, card.Hits);
+            int effectiveTotal = effectivePerHit * effHits;
 
             // v0.4 — HardenedShellPower turn-cap: enemy ignores damage past Remaining for this
             // turn. Clamp the card's effective total to the remaining budget; if remaining is 0,
@@ -294,6 +335,16 @@ internal static class PlanScorer
                 }
             }
 
+            // v0.7.0 — Random multi-hit detection. Cards with TargetType.RandomEnemy
+            // pick a NEW random alive opponent for *each* hit (game source:
+            // `AttackCommand.TargetingRandomOpponents` re-rolls per hit via
+            // `Rng.CombatTargets.NextItem`). Existing single-target scoring
+            // assumes all hits land on the planner-picked enemy, which both
+            // over-credits LETHAL bonuses (3×3 vs HP4 enemy is 50% lethal, not
+            // 100%) and skips chip damage on other enemies. Probability model
+            // below handles both.
+            bool isRandom = card.Target == TargetType.RandomEnemy;
+
             int effect;
             string dmgLabel;
             if (isAoe)
@@ -311,16 +362,17 @@ internal static class PlanScorer
                     int rawPer = StatusMath.EffectiveAttackDmg(card.Damage,
                         state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
                     int perEnemyTotal = StatusMath.EffectivePerEnemyTotal(
-                        card.Damage, card.Hits, state.PlayerStrength, e, playerIsWeak);
+                        card.Damage, effHits, state.PlayerStrength, e, playerIsWeak);
                     if (rawPer > 0 && e.DamageCapPerHit > 0 && rawPer > e.DamageCapPerHit) capsHit++;
-                    if ((e.HardenedShellRemaining > 0 && rawPer * System.Math.Max(1, card.Hits) > e.HardenedShellRemaining)
+                    if ((e.HardenedShellRemaining > 0 && rawPer * effHits > e.HardenedShellRemaining)
                         || (rawPer > 0 && e.HardenedShellRemaining == 0
                             && e.Powers.ContainsKey("HardenedShellPower"))) shellHit++;
                     aggregatedDmg += perEnemyTotal;
                 }
                 effect = aggregatedDmg * w.DamagePerPointBonus;
-                dmgLabel = aggregatedDmg != card.TotalDamage * System.Math.Max(1, aliveCount)
-                    ? $"eff{aggregatedDmg}(base{card.TotalDamage}×{aliveCount})"
+                int baseTotalForLabel = card.Damage * effHits * System.Math.Max(1, aliveCount);
+                dmgLabel = aggregatedDmg != baseTotalForLabel
+                    ? $"eff{aggregatedDmg}(base{card.Damage}×{effHits}×{aliveCount})"
                     : $"dmg{aggregatedDmg}";
                 var clampTags = (capsHit > 0 ? $",cap×{capsHit}" : "")
                               + (shellHit > 0 ? $",shell×{shellHit}" : "");
@@ -328,11 +380,67 @@ internal static class PlanScorer
                     ? $"{dmgLabel}*{w.DamagePerPointBonus}*aoe{aliveCount}={effect}{clampTags}"
                     : $"{dmgLabel}*{w.DamagePerPointBonus}={effect}{clampTags}");
             }
+            else if (isRandom)
+            {
+                // v0.7.0 — Random multi-hit: each hit independently re-rolls
+                // a target. Damage scoring iterates alive enemies, distributing
+                // expected hits and clamping per-enemy damage to that enemy's
+                // EffectiveHp (overkill discount). Per-enemy clamp avoids
+                // counting damage that would have been "wasted" overkill if
+                // one enemy soaked all the hits.
+                int aggregatedDmg = 0;
+                int reachableEnemies = 0;
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (!e.IsAlive) continue;
+                    reachableEnemies++;
+                }
+                if (reachableEnemies > 0)
+                {
+                    double pHitOnEnemy = 1.0 / reachableEnemies;
+                    for (int i = 0; i < state.Enemies.Count; i++)
+                    {
+                        var e = state.Enemies[i];
+                        if (!e.IsAlive) continue;
+                        int perHitForE = StatusMath.EffectiveAttackDmg(card.Damage,
+                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                        if (e.DamageCapPerHit > 0 && perHitForE > e.DamageCapPerHit)
+                            perHitForE = e.DamageCapPerHit;
+                        if (perHitForE <= 0) continue;
+                        double expectedHits = effHits * pHitOnEnemy;
+                        int expectedDmg = (int)(expectedHits * perHitForE);
+                        // Overkill clamp per enemy.
+                        int clamped = System.Math.Min(expectedDmg, e.Hp + e.Block);
+                        aggregatedDmg += clamped;
+                    }
+                }
+                effect = aggregatedDmg * w.DamagePerPointBonus;
+                dmgLabel = $"randDmg{aggregatedDmg}(p{reachableEnemies}t,base{card.Damage}×{effHits})";
+                details.Add($"{dmgLabel}*{w.DamagePerPointBonus}={effect}");
+            }
             else
             {
-                effect = effectiveTotal * w.DamagePerPointBonus;
-                dmgLabel = effectiveTotal != card.TotalDamage
-                    ? $"eff{effectiveTotal}(base{card.TotalDamage})"
+                // v0.7.0 — Overkill discount: damage beyond what kills the target
+                // is wasted. Clamp the *damage-score* portion to target.EffectiveHp;
+                // the LETHAL bonus in ScoreAttackTarget still uses the unclamped
+                // effectiveTotal so kills still register.
+                int dmgForScoring = effectiveTotal;
+                if (targetIdx >= 0 && targetIdx < state.Enemies.Count)
+                {
+                    var t = state.Enemies[targetIdx];
+                    if (t.IsAlive)
+                    {
+                        int effHp = t.Hp + t.Block;
+                        if (effHp > 0 && dmgForScoring > effHp)
+                            dmgForScoring = effHp;
+                    }
+                }
+                effect = dmgForScoring * w.DamagePerPointBonus;
+                dmgLabel = dmgForScoring != card.TotalDamage
+                    ? (dmgForScoring < effectiveTotal
+                        ? $"eff{dmgForScoring}(cap{effectiveTotal}→hp)"
+                        : $"eff{effectiveTotal}(base{card.TotalDamage})")
                     : $"dmg{card.TotalDamage}";
                 details.Add($"{dmgLabel}*{w.DamagePerPointBonus}={effect}");
             }
@@ -385,7 +493,49 @@ internal static class PlanScorer
             int targetBonus = 0;
             string targetDetails = "";
             int wastedPenalty = 0;
-            if (isAoe)
+            if (isRandom)
+            {
+                // v0.7.0 — For each alive enemy, compute P(this card kills it)
+                // via binomial distribution over hits, then weight ScoreAttackTarget's
+                // full kill-bonus (LETHAL + intent-aware: Buff/Heal/Summon/DeathBlow
+                // disruption + state bonuses) by that probability. Single-target
+                // attacks score the planner's *picked* enemy's kill bonus
+                // unconditionally; random attacks earn only their fair share of
+                // each potential kill they could land.
+                var rndParts = new List<string>();
+                int reach = 0;
+                for (int i = 0; i < state.Enemies.Count; i++)
+                    if (state.Enemies[i].IsAlive) reach++;
+                if (reach > 0)
+                {
+                    double pHit = 1.0 / reach;
+                    for (int i = 0; i < state.Enemies.Count; i++)
+                    {
+                        var e = state.Enemies[i];
+                        if (!e.IsAlive) continue;
+                        int perHitForE = StatusMath.EffectiveAttackDmg(card.Damage,
+                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                        if (e.DamageCapPerHit > 0 && perHitForE > e.DamageCapPerHit)
+                            perHitForE = e.DamageCapPerHit;
+                        if (perHitForE <= 0) continue;
+                        int effHp = e.Hp + e.Block;
+                        int hitsNeeded = (effHp + perHitForE - 1) / perHitForE;
+                        double pLethal = BinomialAtLeast(effHits, pHit, hitsNeeded);
+                        // Always credit DefendIntent penalty (no kill needed —
+                        // even chip wastes block scaling).
+                        var (fullBonus, _) = ScoreAttackTarget(card, i, state, w, effHp);
+                        int weightedBonus = (int)(fullBonus * pLethal);
+                        if (weightedBonus != 0)
+                        {
+                            targetBonus += weightedBonus;
+                            if (pLethal >= 0.2)
+                                rndParts.Add($"e{i}:P={pLethal:F2}→{weightedBonus:+#;-#;0}");
+                        }
+                    }
+                }
+                if (rndParts.Count > 0) targetDetails = string.Join("|", rndParts);
+            }
+            else if (isAoe)
             {
                 var aoeParts = new List<string>();
                 int totalAliveBlock = 0, totalAliveDmg = 0, aliveTargets = 0;
@@ -568,14 +718,21 @@ internal static class PlanScorer
         {
             int baseBonus = w.SkillBaseBonus + cost * (w.CostMultiplier / 4);
             // v0.2.4 — effective block: (base + Dexterity) × Frail
-            int effectiveBlock = StatusMath.EffectiveBlock(card.Block,
+            // v0.6.7 — Variable-block multiplier for EXHAUST_BURST skills
+            // (SECOND_WIND: 5 block × non-attack hand cards exhausted). The card's
+            // raw Block is per-card; the realised block scales with eligible hand.
+            int blockMultiplier = EstimateBlockMultiplier(card, state);
+            int rawBlock = card.Block * System.Math.Max(1, blockMultiplier);
+            int effectiveBlock = StatusMath.EffectiveBlock(rawBlock,
                 state.PlayerDexterity, state.PlayerFrail > 0);
             int effect = effectiveBlock * w.BlockPerPointBonus;
             details.Add($"skillBase={w.SkillBaseBonus}");
+            if (blockMultiplier > 1)
+                details.Add($"varBlock(×{blockMultiplier})");
             if (card.Block > 0)
             {
                 string blockLabel = effectiveBlock != card.Block
-                    ? $"eff{effectiveBlock}(base{card.Block})"
+                    ? $"eff{effectiveBlock}(base{card.Block}×{blockMultiplier})"
                     : $"block{card.Block}";
                 details.Add($"{blockLabel}*{w.BlockPerPointBonus}={effect}");
             }
@@ -707,6 +864,14 @@ internal static class PlanScorer
             var (skillEffBonus, skillEffDetail) = EffectSynergy.Compute(card, -1, state);
             if (skillEffBonus != 0) details.Add(skillEffDetail);
 
+            // v0.6.8 — EXHAUST_BURST skills with non-Block/non-damage payoffs
+            // (EIDOLON: hand≥9 → Intangible; STOKE: gen N random cards;
+            //  PURITY: target-select up to 3 exhaust — typically curses).
+            // Hand-state-aware special-effect bonus.
+            int exhaustBurstBonus = EvaluateExhaustBurstSpecial(card, state);
+            if (exhaustBurstBonus != 0) details.Add($"exhBurstSpecial={exhaustBurstBonus}");
+            skillEffBonus += exhaustBurstBonus;
+
             // v0.5 — Survival urgency for pure-setup skills (no block, no energy gain,
             // no draw). Inflame / Limit Break style cards should defer when the player
             // is about to die. Block / energy / draw skills are exempt — they're the
@@ -754,6 +919,212 @@ internal static class PlanScorer
                 TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
+    }
+
+    /// <summary>
+    /// v0.6.7 — Estimates the effective Hits count for variable-damage attacks
+    /// at play time. Returns the larger of <see cref="SimCard.Hits"/> and the
+    /// estimate; callers default to Hits when the estimate is smaller (no
+    /// inadvertent downgrade for cards whose RepeatVar already reflects reality).
+    ///
+    /// Patterns handled:
+    ///   • EXHAUST_BURST (FIEND_FIRE): card.Damage applies once per card exhausted
+    ///     from hand. Returns <c>handPlayableCount</c> — playable cards excluding
+    ///     self that will be exhausted on play. Excludes curses/status (still
+    ///     exhausted in some cases but the per-card damage convention is for
+    ///     non-curse cards; conservative direction toward false-negative).
+    ///   • X_COST (SKEWER, WHIRLWIND, VOLLEY, ERADICATE): card consumes all
+    ///     remaining energy. Returns <see cref="SimState.PlayerEnergy"/>.
+    ///
+    /// HEAVENLY_DRILL's "×2 if X ≥ 4" doubling is intentionally omitted — the
+    /// card already scores significantly at base X.
+    /// </summary>
+    private static int EstimateVariableHits(SimCard card, SimState state)
+    {
+        if (!card.IsAttack || card.Damage <= 0) return 0;
+
+        if (card.Axes.Contains("EXHAUST_BURST"))
+        {
+            int n = 0;
+            for (int i = 0; i < state.Hand.Count; i++)
+            {
+                var c = state.Hand[i];
+                if (ReferenceEquals(c, card)) continue;
+                if (c.IsCurseOrStatus) continue;
+                n++;
+            }
+            // +1 for the card itself being exhausted counts as damage too? FIEND_FIRE
+            // exhausts THE card itself plus all other hand cards. Per the description
+            // ("deal 7 per exhausted card"), each exhausted card including self contributes.
+            // n excludes self above, so add 1.
+            return n + 1;
+        }
+
+        if (card.Axes.Contains("X_COST"))
+        {
+            // X = energy spent (X-cost cards consume all remaining energy on play).
+            // Use PlayerEnergy as the upper bound — actual X may be less if the
+            // card has a min-cost rule, but PlayerEnergy is a tight upper-bound
+            // estimate.
+            int x = System.Math.Max(1, state.PlayerEnergy);
+            // v0.6.8 — HEAVENLY_DRILL: if X ≥ 4 (threshold stored as Energy:4 var),
+            // X doubles. Per game source `if (num >= Energy) num *= 2`. Hardcoded
+            // id-check is fine — this is the only card with the threshold-double
+            // pattern in v0.103.2.
+            if (card.Id == "CARD.HEAVENLY_DRILL" && x >= 4)
+                x *= 2;
+            return x;
+        }
+
+        // v0.6.8 — TEAR_ASUNDER: hits = 1 + player HP-loss events this combat.
+        // Game source uses CalculatedVar with a multiplier closure that reads
+        // CombatHistory at OnPlay time. PreviewValue may or may not invoke it
+        // reliably during snapshot, so override here using CombatPlayerHpLossEvents
+        // captured in StateSnapshotter (same data source as the game's closure).
+        if (card.Id == "CARD.TEAR_ASUNDER")
+            return 1 + state.CombatPlayerHpLossEvents;
+
+        return 0;
+    }
+
+    /// <summary>
+    /// v0.6.7 — Estimates the block-multiplier for EXHAUST_BURST skills. SECOND_WIND
+    /// gains its declared Block value PER non-attack card exhausted from hand;
+    /// PURITY gains per card exhausted (up to 3). Returns 1 (no multiplier) when
+    /// the card isn't EXHAUST_BURST.
+    /// </summary>
+    private static int EstimateBlockMultiplier(SimCard card, SimState state)
+    {
+        if (!card.IsSkill || card.Block <= 0) return 1;
+        if (!card.Axes.Contains("EXHAUST_BURST")) return 1;
+
+        // SECOND_WIND: non-attack cards in hand → 5 block each.
+        // The exact filter is hard to detect from axes alone; default to
+        // counting non-attack non-curse hand cards (SECOND_WIND pattern).
+        int n = 0;
+        for (int i = 0; i < state.Hand.Count; i++)
+        {
+            var c = state.Hand[i];
+            if (ReferenceEquals(c, card)) continue;
+            if (c.IsCurseOrStatus) continue;
+            if (c.IsAttack) continue;   // SECOND_WIND filter
+            n++;
+        }
+        return System.Math.Max(1, n);
+    }
+
+    /// <summary>
+    /// v0.6.8 — Hand-state-aware bonus for EXHAUST_BURST Skills whose payoff
+    /// isn't directly captured by Damage or Block scoring:
+    ///
+    ///   • EIDOLON  — exhaust all hand; if exhausted ≥ 9 → IntangiblePower 1
+    ///                (1-turn invulnerability). Conditional on a near-max hand.
+    ///   • STOKE    — exhaust hand, generate N random cards (N = exhausted).
+    ///                Replacement value is roughly half average card score;
+    ///                use a flat per-card estimate.
+    ///   • PURITY   — exhaust up to 3 PLAYER-CHOSEN cards. Curses/status come
+    ///                out first; otherwise modest deck thinning.
+    ///
+    /// Card-id-gated since each effect is bespoke. Other EXHAUST_BURST skills
+    /// (SECOND_WIND block, etc.) are handled by EstimateBlockMultiplier.
+    /// </summary>
+    private static int EvaluateExhaustBurstSpecial(SimCard card, SimState state)
+    {
+        if (!card.IsSkill) return 0;
+        if (!card.Axes.Contains("EXHAUST_BURST") && card.Id != "CARD.PURITY") return 0;
+
+        switch (card.Id)
+        {
+            case "CARD.EIDOLON":
+            {
+                // Need ≥9 hand cards (including self) to fire Intangible.
+                int hand = state.Hand.Count;
+                const int threshold = 9;
+                if (hand >= threshold)
+                {
+                    // Approximate IntangiblePower 1 self-buff value. PowerCatalog
+                    // values it at ~1500 for permanent stacks; the EIDOLON version
+                    // is single-turn (Apparition-like), so scale down.
+                    return 900;
+                }
+                // Below threshold the card just exhausts the hand — heavy loss.
+                int handExhausted = System.Math.Max(0, hand - 1);
+                return -handExhausted * 60;
+            }
+
+            case "CARD.STOKE":
+            {
+                // Replaces hand with N random cards. Each generated card is worth
+                // some fraction of an average draw — modest baseline. Net value
+                // depends on what's exhausted: cheap throwaways → positive; high-
+                // value retained cards → negative. Without per-hand-card scoring
+                // here, use a small flat per-card bonus.
+                int handExhausted = System.Math.Max(0, state.Hand.Count - 1);
+                if (handExhausted == 0) return -100;          // no hand → no point
+                return handExhausted * 40;                     // ~40pt per generated card
+            }
+
+            case "CARD.PURITY":
+            {
+                // Target-selectable exhaust up to 3. Player picks curses / status
+                // first, then dead-weight cards. Score per curse/status in hand.
+                int curseCount = 0;
+                for (int i = 0; i < state.Hand.Count; i++)
+                {
+                    var c = state.Hand[i];
+                    if (ReferenceEquals(c, card)) continue;
+                    if (c.IsCurseOrStatus) curseCount++;
+                }
+                int effective = System.Math.Min(curseCount, 3);
+                if (effective > 0) return effective * 220;     // remove curse → big payoff
+                // No curse — pure deck thin. Minor positive (retains card, costs 0).
+                return 40;
+            }
+
+            // EIDOLON / STOKE / PURITY only — other EXHAUST_BURST skills (SECOND_WIND)
+            // are covered by EstimateBlockMultiplier above.
+            default:
+                return 0;
+        }
+    }
+
+    /// <summary>
+    /// v0.7.0 — `P(X ≥ k)` for `X ~ Binomial(n, p)`. Used by the random
+    /// multi-hit scorer to estimate "this card kills enemy E" probability:
+    /// `BinomialAtLeast(totalHits, 1/aliveEnemies, hitsNeededToKill)`.
+    ///
+    /// Returns 1.0 when `k ≤ 0` (no hits needed, certain) and 0.0 when `k > n`
+    /// (impossible). Hit counts in STS2 attacks are small (most cards ≤ 6
+    /// hits), so the direct CDF evaluation is fast and exact.
+    /// </summary>
+    private static double BinomialAtLeast(int n, double p, int k)
+    {
+        if (k <= 0) return 1.0;
+        if (k > n) return 0.0;
+        if (p <= 0.0) return 0.0;
+        if (p >= 1.0) return k <= n ? 1.0 : 0.0;
+        double q = 1.0 - p;
+        double cumulative = 0.0;
+        // Use C(n,i) * p^i * q^(n-i) directly. Hit counts are tiny (≤ ~10),
+        // overflow not a concern.
+        for (int i = k; i <= n; i++)
+        {
+            cumulative += BinomialCoefficient(n, i) * System.Math.Pow(p, i) * System.Math.Pow(q, n - i);
+        }
+        return cumulative;
+    }
+
+    private static long BinomialCoefficient(int n, int k)
+    {
+        if (k < 0 || k > n) return 0;
+        if (k == 0 || k == n) return 1;
+        if (k > n - k) k = n - k;
+        long result = 1;
+        for (int i = 0; i < k; i++)
+        {
+            result = result * (n - i) / (i + 1);
+        }
+        return result;
     }
 
     private static bool IsSelfTargetedTarget(TargetType t)
@@ -1242,5 +1613,32 @@ internal static class PlanScorer
         if (idx <= 0) return powerName;
         var stem = powerName.Substring(0, idx);
         return stem.Length <= 4 ? stem : stem.Substring(0, 4);
+    }
+
+    /// <summary>
+    /// v0.7.7 — Convert a card id (CARD.MAYHEM, CARD.DARK_EMBRACE,
+    /// CARD.THE_SEALED_THRONE) into its canonical Power class name
+    /// (MayhemPower, DarkEmbracePower, TheSealedThronePower). Used by the
+    /// Power-branch fallback so cards whose Power application isn't visible
+    /// via PowerVar at runtime still get a PowerCatalog credit.
+    ///
+    /// Returns empty string when the id doesn't follow the CARD.NAME format.
+    /// </summary>
+    private static string IdToPowerName(string? cardId)
+    {
+        if (string.IsNullOrEmpty(cardId)) return "";
+        int dot = cardId.IndexOf('.');
+        string body = dot >= 0 ? cardId.Substring(dot + 1) : cardId;
+        if (string.IsNullOrEmpty(body)) return "";
+        var sb = new System.Text.StringBuilder(body.Length + 5);
+        bool capitalize = true;
+        foreach (char c in body)
+        {
+            if (c == '_') { capitalize = true; continue; }
+            if (capitalize) { sb.Append(char.ToUpperInvariant(c)); capitalize = false; }
+            else { sb.Append(char.ToLowerInvariant(c)); }
+        }
+        sb.Append("Power");
+        return sb.ToString();
     }
 }
