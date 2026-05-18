@@ -30,7 +30,8 @@ internal static class EnemyTurnSimulator
                     hits += Math.Max(1, e.IntentRepeats);
             }
             int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-            return Math.Max(0, hits - intangibleBlock);
+            // v0.7.35 — Player DoT bypasses Intangible (not "hit damage").
+            return Math.Max(0, hits - intangibleBlock) + s.PlayerBurn + s.PlayerConstrict;
         }
 
         int total = 0;
@@ -68,6 +69,11 @@ internal static class EnemyTurnSimulator
         int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
         int rawLeak = Math.Max(0, total - effectivePlayerBlock);
 
+        // v0.7.35 — Player-side DoT bypasses block. Burn ticks at end of OUR
+        // turn (before enemies attack); Constrict ticks at start of enemy turn.
+        // Both are inevitable HP loss this turn, visible from current state.
+        rawLeak += s.PlayerBurn + s.PlayerConstrict;
+
         // v0.7.12 — ally split-fire absorption (Necrobinder skeletons).
         // Allies share the aggro with the player: per-leak point, the chance
         // of landing on an ally is approximately #allies / (1 + #allies),
@@ -99,7 +105,7 @@ internal static class EnemyTurnSimulator
                     hits += Math.Max(1, e.IntentRepeats);
             }
             int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-            return Math.Max(0, hits - blkIntangible);
+            return Math.Max(0, hits - blkIntangible) + s.PlayerBurn + s.PlayerConstrict;
         }
 
         int total = 0;
@@ -116,7 +122,8 @@ internal static class EnemyTurnSimulator
             total += dmg;
         }
         int blk = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-        return Math.Max(0, total - blk);
+        // v0.7.35 — Player-side DoT bypasses block (same as PredictPlayerDmg).
+        return Math.Max(0, total - blk) + s.PlayerBurn + s.PlayerConstrict;
     }
 
     /// <summary>
