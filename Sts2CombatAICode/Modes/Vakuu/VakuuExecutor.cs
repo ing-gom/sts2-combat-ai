@@ -95,6 +95,19 @@ internal static class VakuuExecutor
                 }
                 CurrentSnapshot = snapshot;
                 MainFile.Logger.Info($"[CombatAI] step {step + 1} snapshot: {StateSnapshotter.FormatForLog(snapshot)}");
+                // v0.7.80 — Star resource diagnostic. Always logs hand contents for
+                // verification (v0.7.79's conditional dropped everything when both
+                // reflection paths returned 0 — gave no signal). Now unconditional
+                // at step 1, so we can confirm v0.7.78's ThisTurnStarsGain fallback
+                // is firing.
+                if (step == 0)
+                {
+                    var starParts = new System.Collections.Generic.List<string>();
+                    foreach (var sc in snapshot.Hand)
+                        starParts.Add($"{sc.Id}(gain={sc.StarsGain},cost={sc.StarCost})");
+                    MainFile.Logger.Info(
+                        $"[CombatAI]   stars: player={snapshot.PlayerStars} hand=[{string.Join(",", starParts)}]");
+                }
                 // v0.7.55 — Deck throughput diagnostic (once per step turn-start).
                 if (step == 0)
                 {

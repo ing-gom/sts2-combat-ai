@@ -104,6 +104,73 @@ internal static class CardReflection
         return idObj?.ToString();
     }
 
+    /// <summary>
+    /// v0.7.78 — Hardcoded fallback for this-turn star gain. STS2's DynamicVar
+    /// extraction (`v.Name == "Stars"`) misses some cards (observed: VENERATE
+    /// produced 0 in reflection, causing the simulator's PlayerStars
+    /// propagation to never unlock FALLING_STAR in depth-N lookahead, so the
+    /// planner never values VENERATE→FALLING_STAR chains.
+    ///
+    /// Use catalog values (EffectSynergy hardcodes confirm authors trusted
+    /// these). NEXT-TURN gains (HIDDEN_CACHE, CONVERGENCE) excluded — those
+    /// don't unlock current-turn star cards.
+    /// </summary>
+    // v0.7.81 — Keys are unprefixed Id.Entry values ("VENERATE", not "CARD.VENERATE").
+    // v0.7.78 used "CARD." prefix and never matched anything. Verified via v0.7.80
+    // diagnostic showing sc.Id = "VENERATE". The EffectSynergy hardcoded handlers
+    // (e.g. `card.Id == "CARD.VENERATE"`) suffer the same broken-key bug — separate
+    // fix.
+    private static readonly System.Collections.Generic.Dictionary<string, int> ThisTurnStarsGain = new()
+    {
+        ["GLOW"] = 1,
+        ["GATHER_LIGHT"] = 1,
+        ["RADIATE"] = 1,
+        ["VENERATE"] = 2,
+        ["SHINING_STRIKE"] = 2,
+        ["SOLAR_STRIKE"] = 1,
+        ["KNOCKOUT_BLOW"] = 5,
+        ["ROYAL_GAMBLE"] = 9,
+    };
+
+    /// <summary>
+    /// v0.7.81 — Catalog star_cost fallback. SafeStarCost reflection returned
+    /// 0 for verified star-cost cards (FALLING_STAR diagnostic). Mirror of
+    /// ActionPlanner.StarCostByCardId — keep in sync.
+    /// </summary>
+    private static readonly System.Collections.Generic.Dictionary<string, int> StarCostByCardId = new()
+    {
+        ["CLOAK_OF_STARS"] = 1,
+        ["CRESCENT_SPEAR"] = 1,
+        ["FALLING_STAR"] = 2,
+        ["GUIDING_STAR"] = 2,
+        ["METEOR_SHOWER"] = 2,
+        ["PARTICLE_WALL"] = 2,
+        ["QUASAR"] = 2,
+        ["ALIGNMENT"] = 3,
+        ["ASTRAL_PULSE"] = 3,
+        ["DYING_STAR"] = 3,
+        ["GAMMA_BLAST"] = 3,
+        ["REFLECT"] = 3,
+        ["RESONANCE"] = 3,
+        ["THE_SEALED_THRONE"] = 3,
+        ["DEVASTATE"] = 4,
+        ["THE_SMITH"] = 4,
+        ["COMET"] = 5,
+        ["NEUTRON_AEGIS"] = 5,
+        ["ROYAL_GAMBLE"] = 5,
+        ["DECISIONS_DECISIONS"] = 6,
+        ["SEVEN_STARS"] = 7,
+    };
+
+    private static int ResolveStarCost(CardModel card)
+    {
+        int reflected = SafeStarCost(card);
+        if (reflected != 0) return reflected;
+        if (card?.Id.Entry is { } entry && StarCostByCardId.TryGetValue(entry, out int catalogCost))
+            return catalogCost;
+        return 0;
+    }
+
     public static CardEffectSummary GetEffectSummary(CardModel card)
     {
         try
@@ -296,6 +363,16 @@ internal static class CardReflection
                 }
             }
 
+            // v0.7.78 — Star-gain fallback. STS2's DynamicVar "Stars" extraction
+            // misses some cards (VENERATE etc.). Without this, the simulator's
+            // PlayerStars propagation reads 0 and depth-N lookahead can't unlock
+            // FALLING_STAR / star-cost cards via gain chains.
+            if (starsGain == 0 && card?.Id.Entry is { } cardIdEntry
+                && ThisTurnStarsGain.TryGetValue(cardIdEntry, out int catalogStars))
+            {
+                starsGain = catalogStars;
+            }
+
             return new CardEffectSummary
             {
                 Damage = damage,
@@ -311,7 +388,10 @@ internal static class CardReflection
                 HpLossAmount = hpLoss,
                 // v0.7.71 — Regent star resource
                 StarsGain = starsGain,
-                StarCost = SafeStarCost(card),
+                // v0.7.81 — SafeStarCost reflection observed returning 0 for
+                // star-cost cards (v0.7.80 diagnostic confirmed FALLING_STAR.cost=0).
+                // Use ActionPlanner's StarCostByCardId-equivalent table as fallback.
+                StarCost = ResolveStarCost(card),
             };
         }
         catch (Exception ex)

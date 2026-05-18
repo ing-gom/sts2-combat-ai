@@ -49,7 +49,10 @@ public partial class MainFile : Node
             if (Godot.Engine.GetMainLoop() is Godot.SceneTree tree)
                 Sts2CombatAI.Modes.Vakuu.TestButtonPoller.Install(tree);
             var asmVer = typeof(MainFile).Assembly.GetName().Version?.ToString() ?? "unknown";
-            Logger.Info($"[CombatAI] initialized (v{asmVer}).");
+            // v0.7.80 — manifest version marker so we can verify the live dll
+            // is the freshly-built one (asmVer is always 1.0.0.0).
+            const string ManifestVersionMarker = "v0.7.81";
+            Logger.Info($"[CombatAI] initialized (asm={asmVer}, manifest={ManifestVersionMarker}).");
         }
         catch (Exception ex)
         {
