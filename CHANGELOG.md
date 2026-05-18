@@ -1,5 +1,70 @@
 # Changelog
 
+## v0.7.17 (2026-05-18)
+
+**S-tier 1-path coverage — ALL_FOR_ONE + PINPOINT mechanic handlers.**
+
+### 배경
+
+v0.7.16 coverage audit (`scripts/_audit_full_coverage.py`) 결과 28 truly-
+uncovered 카드는 전부 Curse / Status / Quest (UNPLAYABLE 자동 skip) →
+실제 평가 누락 0. 단 1-path 카드 61장 중 S-tier 2장 (ALL_FOR_ONE / PINPOINT)
+은 direct-stat 만 평가 → 특수 메커니즘 누락.
+
+### ALL_FOR_ONE (S, Defect, Attack 2c 10d)
+
+효과: "10 데미지 + Discard pile 의 모든 0-cost 카드를 손에 가져옴".
+
+핸들러: discard 의 0-cost non-curse 카드들 EstimateCardPower 합산, cap 1200.
+
+```
+empty discard                                  -> +60 (baseline)
+3x Shiv (4d each)                              -> +660
+Strong 0-cost (Bloodletting + Offering + 3xShiv) -> +820
+Massive pile (8x 8d 0-cost)                    -> +1200 [cap]
+Mixed with 1-cost (recalls only 0-cost)        -> +440
+```
+
+### PINPOINT (S, Silent, Attack 3c 15d)
+
+효과: "15 데미지 + 이번 턴 사용한 Skill 당 +1 에너지 환급".
+
+핸들러: `TurnSkillsPlayed × EnergyInHand (60)`. SimState 의
+TurnSkillsPlayed 가 v0.6.8 부터 정확히 tracking.
+
+```
+0 skills played -> +0
+1 skill         -> +60
+3 skills        -> +180
+5 skills        -> +300
+```
+
+### 영향
+
+- ALL_FOR_ONE: 0-cost cycle 빌드 (특히 Silent Shiv / Defect Coolant 코어
+  메커니즘) 인지. discard 쌓인 후 폭발적 hand refill 가치 visible.
+- PINPOINT: skill-heavy 빌드 (Silent Sly) 와 시너지. Skill 여러 장 깐 후
+  PINPOINT 가 거의 비용 0 으로 떨어지는 가치 인지.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_all_for_one_pinpoint.py`: 6 ALL_FOR_ONE 시나리오
+  + 6 PINPOINT 시나리오 모두 예상.
+
+### 종합 Coverage — v0.7.17 후
+
+| Path 수 | 카드 | % |
+|---:|---:|---:|
+| 0 (UNPLAYABLE 만) | 28 | 4.9% |
+| 1 (direct-stat) | 59 | 10.2% |
+| 2-3 | 351 | 60.8% |
+| 4+ | 139 | 24.1% |
+
+S-tier 1-path: **0 장 남음** (ALL_FOR_ONE / PINPOINT 모두 핸들러 추가).
+A-tier 1-path 12장은 D-tier impact 작아 후순위 (개별 mechanic 매핑은 후속
+필요 시).
+
 ## v0.7.16 (2026-05-18)
 
 **AGGRESSION turn-start hand addition — Phase 4 마무리.**
