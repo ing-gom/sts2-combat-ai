@@ -191,6 +191,24 @@ internal static class VakuuExecutor
                 }
                 bool lethalActive = detailsLine.IndexOf("lethalMode=", System.StringComparison.Ordinal) >= 0;
 
+                // v0.7.62 — Opportunity cost: extract top 3 candidates with
+                // score deltas to the chosen one. Shows whether the decision
+                // was decisive (large gap) or close-call (small gap).
+                var sortedCands = ActionPlanner.LastCandidates
+                    .OrderByDescending(c => c.total)
+                    .Take(3)
+                    .ToList();
+                int chosenTotal = sortedCands.Count > 0 ? sortedCands[0].total : 0;
+                int runnerUpDelta = sortedCands.Count > 1
+                    ? chosenTotal - sortedCands[1].total
+                    : chosenTotal;
+                string altStr = string.Join(",",
+                    sortedCands.Select(c => {
+                        int delta = c.total - chosenTotal;
+                        string deltaTag = delta == 0 ? "" : $"({delta:+0;-0})";
+                        return $"{c.id}@{c.targetIdx}={c.total}{deltaTag}";
+                    }));
+
                 DecisionLog.Record(new DecisionLog.Entry
                 {
                     Timestamp = System.DateTime.Now,
@@ -210,6 +228,8 @@ internal static class VakuuExecutor
                     IsFetchCard = plan.Value.Card.IsFetchTrigger,
                     ComboLinks = comboLinks,
                     Character = player.Creature?.GetType().Name ?? "",
+                    AlternativeCards = altStr,
+                    RunnerUpDelta = runnerUpDelta,
                 });
 
                 var card = plan.Value.Card.SourceRef;
