@@ -110,6 +110,7 @@ internal static class CardReflection
         {
             int damage = 0, block = 0, hits = 1, energyGain = 0, drawCount = 0;
             int strengthDown = 0, heal = 0, maxHp = 0, hpLoss = 0;
+            int starsGain = 0;  // v0.7.71
             bool hasCalcDamage = false, hasCalcBlock = false;
             Dictionary<string, int>? powerApps = null;
 
@@ -224,6 +225,7 @@ internal static class CardReflection
                     else if (v.Name == "Heal") heal += amount;
                     else if (v.Name == "MaxHp") maxHp += amount;     // v0.6.9 — BRIGHTEST_FLAME, FEED
                     else if (v.Name == "HpLoss") hpLoss += amount;   // v0.7.8 — BLOODLETTING, OFFERING, HEMOKINESIS
+                    else if (v.Name == "Stars") starsGain += amount;  // v0.7.71 — GLOW 1, VENERATE 2, ROYAL_GAMBLE 9
                     // v0.6.8 — RAGE applies RagePower with stack = DynamicVar("Power", N).
                     // Not a PowerVar<T> in the catalog (Rage.cs uses
                     // `PowerCmd.Apply<RagePower>(creature, DynamicVars["Power"].BaseValue, ...)`)
@@ -307,6 +309,9 @@ internal static class CardReflection
                 HealAmount = heal,
                 MaxHpAmount = maxHp,
                 HpLossAmount = hpLoss,
+                // v0.7.71 — Regent star resource
+                StarsGain = starsGain,
+                StarCost = SafeStarCost(card),
             };
         }
         catch (Exception ex)
@@ -314,6 +319,37 @@ internal static class CardReflection
             LogWarn?.Invoke($"effect summary failed for {card?.Id.Entry}: {ex.Message}");
             return CardEffectSummary.Empty;
         }
+    }
+
+    /// <summary>
+    /// v0.7.71 — Pull star_cost from the live Card via reflection. Wrapped in
+    /// try/catch because the field may not exist on every card type.
+    /// </summary>
+    private static int SafeStarCost(CardModel card)
+    {
+        try
+        {
+            // Card.StarCost: per STS2 source, EnergyCost-like field
+            var prop = card?.GetType().GetProperty("StarCost",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance);
+            if (prop != null)
+            {
+                var raw = prop.GetValue(card);
+                if (raw is int i) return i;
+                if (raw != null) return System.Convert.ToInt32(raw);
+            }
+            // Fallback: field directly on Card
+            var field = card?.GetType().GetField("_starCost",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (field != null)
+            {
+                var raw = field.GetValue(card);
+                if (raw is int i) return i;
+            }
+        }
+        catch { }
+        return 0;
     }
 
     /// <summary>

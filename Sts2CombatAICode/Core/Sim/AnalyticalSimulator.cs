@@ -79,6 +79,11 @@ internal static class AnalyticalSimulator
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
         int newPlayerBlock = next.PlayerBlock;
         int newPlayerHp = next.PlayerHp;
+        // v0.7.71 — Regent star resource. Subsequent depth-N candidates need
+        // to see updated star count for star-cost cards (FALLING_STAR etc.)
+        // to unlock properly in the simulator's filter pass.
+        int newPlayerStars = next.PlayerStars + card.StarsGain - card.StarCost;
+        if (newPlayerStars < 0) newPlayerStars = 0;
         bool isAoe = card.Target == TargetType.AllEnemies;
         bool playerWeak = next.PlayerWeak > 0;
         bool playerFrail = next.PlayerFrail > 0;
@@ -439,6 +444,8 @@ internal static class AnalyticalSimulator
             PlayerFreeAttacks = newFreeAttacks,
             PlayerFreeSkills = newFreeSkills,
             PlayerFreePowers = newFreePowers,
+            // v0.7.71 — propagate updated star count for depth-N lookahead
+            PlayerStars = newPlayerStars,
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,

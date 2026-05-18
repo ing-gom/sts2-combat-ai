@@ -329,6 +329,13 @@ internal static class ActionPlanner
             if (card.Axes.Contains("STAR_X_COST") && state.PlayerStars == 0)
                 continue;
 
+            // v0.7.71 — Star-cost cards require PlayerStars >= card.StarCost.
+            // SimCard.IsPlayable is set at snapshot time; the simulator's
+            // depth-N lookahead updates PlayerStars after Star producer plays,
+            // so re-check current state.
+            if (card.StarCost > 0 && state.PlayerStars < card.StarCost)
+                continue;
+
             switch (card.Target)
             {
                 case TargetType.AnyEnemy:
