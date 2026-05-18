@@ -197,6 +197,18 @@ internal static class PlanScorer
                 ? $"phase({phase}){phaseBonus:+0;-0}"
                 : $"{comboDetail},phase({phase}){phaseBonus:+0;-0}";
         }
+        // v0.7.55 — Deck throughput core-card bonus. Highly-efficient cards
+        // (top-3 attackers / defenders by per-energy ratio) get an extra
+        // nudge so the AI prefers them over mediocre filler.
+        var throughput = DeckThroughput.Compute(state);
+        int coreBonus = DeckThroughput.CoreCardBonusFor(card, throughput);
+        if (coreBonus != 0)
+        {
+            comboBonus += coreBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"core+{coreBonus}"
+                : $"{comboDetail},core+{coreBonus}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable

@@ -95,6 +95,18 @@ internal static class VakuuExecutor
                 }
                 CurrentSnapshot = snapshot;
                 MainFile.Logger.Info($"[CombatAI] step {step + 1} snapshot: {StateSnapshotter.FormatForLog(snapshot)}");
+                // v0.7.55 — Deck throughput diagnostic (once per step turn-start).
+                if (step == 0)
+                {
+                    var tp = Sts2CombatAI.Planner.DeckThroughput.Compute(snapshot);
+                    double dmgCov = Sts2CombatAI.Planner.DeckThroughput.DamageCoverage(snapshot, tp);
+                    double blkCov = Sts2CombatAI.Planner.DeckThroughput.BlockCoverage(snapshot, tp);
+                    string atk = string.Join(",", tp.CoreAttackers);
+                    string def = string.Join(",", tp.CoreDefenders);
+                    MainFile.Logger.Info(
+                        $"[CombatAI]   throughput: dpt={tp.AvgDamagePerTurn} bpt={tp.AvgBlockPerTurn} " +
+                        $"dmgCov={dmgCov:F2} blkCov={blkCov:F2} coreAtk=[{atk}] coreDef=[{def}]");
+                }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
                 if (plan == null)
