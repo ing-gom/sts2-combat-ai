@@ -48,7 +48,8 @@ public partial class MainFile : Node
             // Harmony _Ready hook on NEndTurnButton misses.
             if (Godot.Engine.GetMainLoop() is Godot.SceneTree tree)
                 Sts2CombatAI.Modes.Vakuu.TestButtonPoller.Install(tree);
-            Logger.Info("[CombatAI] initialized (v0.5.0).");
+            var asmVer = typeof(MainFile).Assembly.GetName().Version?.ToString() ?? "unknown";
+            Logger.Info($"[CombatAI] initialized (v{asmVer}).");
         }
         catch (Exception ex)
         {
