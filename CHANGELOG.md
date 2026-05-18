@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.7.51 (2026-05-18)
+
+**Self-growing attack handlers (CLAW/MAUL/RAMPAGE).**
+
+CardReflection 이 CalculatedDamageVar 로 **현재** 데미지는 정확 계산.
+하지만 **미래 sibling 강화 가치** 는 미평가.
+
+예 — CLAW × 5장 in deck:
+- 1번째 CLAW: 3 dmg. 모든 CLAW 의 미래 데미지 +2 → 4 future plays × 2 dmg
+- 2번째 CLAW: 5 dmg. 미래 +2 → 3 plays × 2 dmg
+- ...
+- AI 는 이 누적 가치 무시
+
+### 변경
+
+`ApplySelfGrowingAttack(card, state, increasePerPlay, hitCount)` generic:
+- 같은 id 의 sibling count
+- min(siblings, turns × 2) 미래 plays
+- `bonus = plays × increase × hits × 50 / 10` (cap 800)
+
+매핑:
+- CLAW: increase=2, hits=1
+- MAUL: increase=1, hits=2 (2-hit attack)
+- RAMPAGE: self-only growth (sibling 무관), `turns/3` 미래 draws
+
+---
+
 ## v0.7.50 (2026-05-18)
 
 **Conditional / Heal / Multi-turn skill audit (Batch 5/7) — 6 handlers.**
