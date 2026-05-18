@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.7.54 (2026-05-18)
+
+**Win condition 추론 (사용자 요청 #4) — 전략 phase 분류.**
+
+이번 전투를 **명시적으로 phase 로 분류** → 카드 평가 strategic layer 추가.
+
+### 새 모듈 `WinConditionInference.cs`
+
+**5 phases**:
+1. **LethalThisTurn** — hand damage ≥ alive enemy HP. Attack-only mode.
+2. **LethalSoon** — RemainingTurns ≤ 2. Burst > setup.
+3. **Sustain** — RemainingTurns ≥ 5. Powers + scaling 최우선.
+4. **Survival** — Fatal/Heavy urgency. Block 우선.
+5. **Standard** — Default. 편향 없음.
+
+### Phase 별 카드 bias
+
+| Phase | 우대 | 페널티 |
+|---|---|---|
+| LethalThisTurn | Attack +50 | — |
+| LethalSoon | Big attack (≥12 dmg) +100 | Power -100, Scaling -60 |
+| Sustain | Power +120, Scaling/Poison/Doom/Forge +60-80 | — |
+| Survival | Big block (≥8) +180, Heal +150 | Attack -80, Power -120 |
+| Standard | — | — |
+
+기존 `survivalAtkPenalty` (Fatal -1200) / `lethalMode` (-500 non-attack)
+이 dominate 하는 케이스 외에 **gray-zone 의 결정 일관성** 향상.
+
+### 사용자 요청 #1-#4 모두 완료
+
+| Ver | 작업 | Status |
+|---|---|---|
+| v0.7.51 | Self-growing attacks (CLAW/MAUL/RAMPAGE) | ✅ |
+| v0.7.52 | Archetype detection (12 builds) | ✅ |
+| v0.7.53 | Combat-specific weighting | ✅ |
+| v0.7.54 | Win condition phase inference | ✅ |
+
+---
+
 ## v0.7.53 (2026-05-18)
 
 **Combat-specific 가중치 (사용자 요청 #3).**
