@@ -32,7 +32,12 @@ internal static class CardVariance
         High,
     }
 
-    public static Level Classify(SimCard card)
+    /// <summary>
+    /// v0.7.64 — Classify takes SimState so RANDOM-target attacks correctly
+    /// collapse to Level.None when only 1 alive enemy remains (all hits land
+    /// on the same target = deterministic damage).
+    /// </summary>
+    public static Level Classify(SimCard card, SimState state)
     {
         if (card.IsCurseOrStatus) return Level.None;
         var axes = card.Axes;
@@ -50,9 +55,19 @@ internal static class CardVariance
             || card.Id == "CARD.HIDDEN_GEM")
             return Level.High;
 
-        // Medium: random-target attacks
-        if (card.Target == TargetType.RandomEnemy) return Level.Medium;
-        if (axes.Contains("RANDOM") && card.IsAttack) return Level.Medium;
+        // Medium: random-target attacks — but only when there are 2+ alive
+        // enemies. With 1 alive enemy, every hit lands on the same target =
+        // deterministic damage.
+        bool isRandomTargetAttack = card.Target == TargetType.RandomEnemy
+                                   || (axes.Contains("RANDOM") && card.IsAttack);
+        if (isRandomTargetAttack)
+        {
+            int aliveEnemies = 0;
+            foreach (var e in state.Enemies)
+                if (e.IsAlive) aliveEnemies++;
+            if (aliveEnemies <= 1) return Level.None;  // deterministic single-target
+            return Level.Medium;
+        }
 
         // Low: X-cost (variance bounded by energy)
         if (axes.Contains("X_COST")) return Level.Low;
@@ -63,13 +78,30 @@ internal static class CardVariance
     }
 
     /// <summary>
+    /// Backward-compat overload — assumes worst case (2+ enemies). Prefer
+    /// the SimState-aware overload.
+    /// </summary>
+    public static Level Classify(SimCard card)
+    {
+        if (card.IsCurseOrStatus) return Level.None;
+        var axes = card.Axes;
+        if (axes.Contains("CARD_GEN") && axes.Contains("RANDOM")) return Level.High;
+        if (card.Target == TargetType.RandomEnemy) return Level.Medium;
+        if (axes.Contains("RANDOM") && card.IsAttack) return Level.Medium;
+        if (axes.Contains("X_COST")) return Level.Low;
+        if (axes.Contains("EXHAUST_TARGET_RANDOM")) return Level.Low;
+        return Level.None;
+    }
+
+    /// <summary>
     /// Per-card variance penalty. Applied modestly — high-variance cards
     /// stay competitive in normal play but lose ties in critical moments.
     /// </summary>
-    public static int ReliabilityPenalty(SimCard card, SurvivalProjection.Projection race,
+    public static int ReliabilityPenalty(SimCard card, SimState state,
+                                          SurvivalProjection.Projection race,
                                           CombatPlan.Stage stage)
     {
-        var level = Classify(card);
+        var level = Classify(card, state);
         if (level == Level.None) return 0;
 
         // Critical situations: lethal-soon (Tight race) or low-HP — prefer
