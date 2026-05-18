@@ -30,6 +30,27 @@ internal sealed record CardEffectSummary
     /// <summary>Kind of orb this card channels, when known (Frost/Lightning/Dark/Plasma/Glass). Unknown otherwise.</summary>
     public OrbKind ChannelKind { get; init; } = OrbKind.Unknown;
 
+    // v0.6.7 — Named DynamicVars not surfaced via DamageVar / BlockVar / PowerVar.
+    // Cards like DARK_SHACKLES / PIERCING_WAIL / ENFEEBLING_TOUCH use plain
+    // `DynamicVar("StrengthLoss", N)` and NOT_YET / SPUR use `DynamicVar("Heal", N)`.
+    // These don't fit any DamageVar/PowerVar bucket so we expose the raw amount
+    // here for EffectSynergy STRENGTH_DOWN / HEAL handlers.
+    /// <summary>Amount of enemy Strength reduction this card applies (DarkShackles 9, PiercingWail 6 AOE).</summary>
+    public int StrengthDownAmount { get; init; }
+    /// <summary>Amount of HP this card restores this turn (NotYet 10, Spur 5). 0 for permanent MaxHp-gain cards.</summary>
+    public int HealAmount { get; init; }
+    /// <summary>Amount of permanent MaxHp gain (BrightestFlame +1, Feed +3 on kill).</summary>
+    public int MaxHpAmount { get; init; }
+
+    /// <summary>
+    /// v0.7.8 — Self-damage on play (DynamicVar named "HpLoss"). Ironclad self-
+    /// harm cards expose this: BLOODLETTING 3, OFFERING 6, HEMOKINESIS 2,
+    /// BREAKTHROUGH 1, BRAND 1, DEMONIC_SHIELD 1, BLOOD_WALL 2, plus the
+    /// HAUNT Power for Necrobinder. EstimateCardPower deducts proportional
+    /// to current HP — cheap at full HP, lethal at low HP.
+    /// </summary>
+    public int HpLossAmount { get; init; }
+
     public int TotalDamage => Damage * Hits;
 
     /// <summary>True if playing this card eventually grants energy (now or next turn).</summary>

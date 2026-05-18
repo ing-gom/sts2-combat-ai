@@ -17,6 +17,24 @@ internal static class ActionPlanner
     public readonly record struct PlanStep(SimCard Card, int TargetIdx, int Score, string Reason);
 
     /// <summary>
+    /// v0.7.10 — discount applied to the next-turn opening score when projecting
+    /// multi-turn value. 0.30 = "30% of next turn's best first-card play counts
+    /// toward this turn's first-card score". Conservative because the projection
+    /// uses AdvanceTurn from after just the first card (no full-turn sim), and
+    /// next-turn draw is a synthetic average (RNG noise).
+    /// </summary>
+    private const double NextTurnDiscount = 0.30;
+
+    /// <summary>
+    /// v0.7.14 — Monte Carlo sample count for next-turn hand projection.
+    /// N=3 is a perf/variance trade-off: enough samples to spread the deck
+    /// distribution without exploding PlanScorer call count. With ~50 calls
+    /// per depth=1 lookahead, 3 samples cost +150 calls per first-card
+    /// candidate (~3x legacy when including the depth=2 main beam).
+    /// </summary>
+    private const int MonteCarloSamples = 3;
+
+    /// <summary>
     /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
     /// reveals which follow-up card the depth-2 lookahead picked as the "best second
     /// play" after this candidate — invaluable for explaining why a setup card won
@@ -46,23 +64,76 @@ internal static class ActionPlanner
             int firstScore = PlanScorer.Score(card, targetIdx, state)
                            + PlanScorer.PlayOrderBias(card, state, planWeights);
 
-            // Simulate playing this card; find best card to follow.
+            // v0.7.9 — depth=3 beam search (K=3, single-turn). Simulate playing
+            // this card, then evaluate the best 2-card continuation via top-K
+            // beam pruning. depth=3 lets the planner see 2-step combos post-
+            // this-card (Inflame → Strike → Bash, Bodyslam-after-block etc.).
+            //
+            // v0.7.10 — Phase 2a multi-turn signal: after the 1-card simulation,
+            // run AdvanceTurn to project the next-turn state (enemy intents
+            // resolve, hand redraws, energy refills) and add the best single
+            // first-card play from there as a discounted bonus. Lets the
+            // planner value Power cards / setups whose payoff is next turn,
+            // not just this one.
             int secondScore = 0;
+            int nextTurnBonus = 0;
             string? bestNextId = null;
             try
             {
                 var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
-                foreach (var nextCand in EnumerateCandidates(nextState))
-                {
-                    int s = PlanScorer.Score(nextCand.card, nextCand.targetIdx, nextState)
-                          + PlanScorer.PlayOrderBias(nextCand.card, nextState, planWeights);
-                    if (s > secondScore || bestNextId == null)
-                    {
-                        secondScore = s;
-                        bestNextId = nextCand.card.Id;
-                    }
-                }
+                secondScore = BestContinuation(nextState, depth: 2, planWeights, beamK: 3, out bestNextId);
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
+
+                // Next-turn projection — discounted because the projection
+                // assumes the rest of this turn is forfeit (we only advance
+                // from after the first card, not after the full 3-card seq).
+                //
+                // v0.7.14 — Monte Carlo over N=3 sampled next-turn hands.
+                // Replaces the single synthetic-avg AdvanceTurn call with an
+                // average across 3 actually-drawn hands so variance in the
+                // deck pool ("might draw Strikes / might draw curses") shows
+                // up in the next-turn signal instead of being smoothed away.
+                try
+                {
+                    // Seed deterministically per state so the same scoring
+                    // run reproduces. The seed mixes hand size + player HP +
+                    // a candidate-specific salt to avoid all first-card
+                    // candidates sharing identical samples.
+                    int seed = nextState.Hand.Count * 31 + nextState.PlayerHp + card.Id.GetHashCode();
+                    var rng = new System.Random(seed);
+                    int sampleTotal = 0;
+                    int sampleCount = 0;
+                    for (int s = 0; s < MonteCarloSamples; s++)
+                    {
+                        try
+                        {
+                            var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurnSampled(nextState, rng);
+                            int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: 3, out _);
+                            if (singleStep < 0) singleStep = 0;
+                            sampleTotal += singleStep;
+                            sampleCount++;
+                        }
+                        catch { /* skip sample on sim failure */ }
+                    }
+                    int nextTurnAvg = sampleCount > 0 ? sampleTotal / sampleCount : 0;
+
+                    // v0.7.15 — EchoFormPower next-turn first-card 2x play.
+                    // We only evaluate depth=1 next turn (single first card),
+                    // so any positive EchoForm stack saturates: the projected
+                    // first card plays twice → score doubles. Higher stacks
+                    // (2nd/3rd cards echoed too) would matter at depth>=2
+                    // but we don't drill that deep in the next-turn projection.
+                    double echoMultiplier = 1.0;
+                    if (nextState.PlayerPowers != null
+                        && nextState.PlayerPowers.TryGetValue("EchoFormPower", out var ef)
+                        && ef > 0)
+                    {
+                        echoMultiplier = 2.0;
+                    }
+                    nextTurnBonus = (int)(nextTurnAvg * echoMultiplier * NextTurnDiscount);
+                    if (nextTurnBonus < 0) nextTurnBonus = 0;
+                }
+                catch { /* AdvanceTurn failure → no next-turn signal */ }
             }
             catch
             {
@@ -71,7 +142,7 @@ internal static class ActionPlanner
                 bestNextId = null;
             }
 
-            int total = firstScore + secondScore;
+            int total = firstScore + secondScore + nextTurnBonus;
             LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total, bestNextId));
             // v0.5 — tie-break on first-card score so identical totals (e.g., A first=1000
             // second=200 vs B first=600 second=600) prefer the candidate with higher
@@ -125,6 +196,63 @@ internal static class ActionPlanner
         {
             yield return new PlanStep(card, targetIdx, PlanScorer.Score(card, targetIdx, state), Reason(card));
         }
+    }
+
+    /// <summary>
+    /// v0.7.9 — depth-N beam search returning the best continuation score
+    /// from <paramref name="state"/>. At each layer scores all candidates, keeps
+    /// the top <paramref name="beamK"/> by single-step score, simulates each via
+    /// AnalyticalSimulator.ApplyCardPlay, and recurses depth-1. Pure single-turn
+    /// search — no AdvanceTurn / EOT processing (Phase 1 scope).
+    ///
+    /// <paramref name="depth"/> = remaining cards to consider after this one.
+    /// depth=0 returns 0; depth=1 = single-step max; depth=2 = best 2-card
+    /// continuation; etc.
+    ///
+    /// <paramref name="firstCardId"/> exits the id of the top-scoring candidate
+    /// at this layer (for DecisionLog trace).
+    /// </summary>
+    private static int BestContinuation(SimState state, int depth, PlanScorerWeights w, int beamK, out string? firstCardId)
+    {
+        firstCardId = null;
+        if (depth <= 0) return 0;
+
+        var candidates = EnumerateCandidates(state).ToList();
+        if (candidates.Count == 0) return 0;
+
+        // Score all candidates at this layer once.
+        var scored = new List<(int Score, SimCard Card, int TargetIdx)>(candidates.Count);
+        foreach (var (card, targetIdx) in candidates)
+        {
+            int s = PlanScorer.Score(card, targetIdx, state)
+                  + PlanScorer.PlayOrderBias(card, state, w);
+            scored.Add((s, card, targetIdx));
+        }
+        // Top-K beam: keep only the best `beamK` by single-step score.
+        scored.Sort((a, b) => b.Score.CompareTo(a.Score));
+        int keep = System.Math.Min(beamK, scored.Count);
+
+        int best = int.MinValue;
+        for (int i = 0; i < keep; i++)
+        {
+            var (s, card, targetIdx) = scored[i];
+            int total = s;
+            if (depth > 1)
+            {
+                try
+                {
+                    var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
+                    total += BestContinuation(nextState, depth - 1, w, beamK, out _);
+                }
+                catch { /* sim failure: use single-step score only */ }
+            }
+            if (total > best || firstCardId == null)
+            {
+                best = total;
+                firstCardId = card.Id;
+            }
+        }
+        return best < 0 ? 0 : best;
     }
 
     private static IEnumerable<(SimCard card, int targetIdx)> EnumerateCandidates(SimState state)
