@@ -329,12 +329,16 @@ internal static class ActionPlanner
             if (card.Axes.Contains("STAR_X_COST") && state.PlayerStars == 0)
                 continue;
 
-            // v0.7.71 — Star-cost cards require PlayerStars >= card.StarCost.
-            // SimCard.IsPlayable is set at snapshot time; the simulator's
-            // depth-N lookahead updates PlayerStars after Star producer plays,
-            // so re-check current state.
-            if (card.StarCost > 0 && state.PlayerStars < card.StarCost)
-                continue;
+            // v0.7.72 — Removed v0.7.71's StarCost filter. SafeStarCost
+            // reflection returned non-zero for normal cards (likely picking
+            // up CardModel's wrapped StarCost type), filtering DEFEND/GLOW/
+            // FOREGONE_CONCLUSION etc. and causing "no playable card" stops
+            // when energy + cards were available. Star-cost cards are
+            // already correctly gated by !card.IsPlayable in the first
+            // EnumerateCandidates pass (CanPlay returns false at snapshot
+            // when stars insufficient). The chain-unlock improvement for
+            // depth-N lookahead is reverted; needs a different mechanism
+            // (re-snapshot or state-aware CanPlay) — outside this hotfix.
 
             switch (card.Target)
             {

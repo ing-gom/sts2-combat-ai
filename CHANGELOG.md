@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.7.72 (2026-05-19) — HOTFIX
+
+**CRITICAL: v0.7.71 의 StarCost filter 가 정상 카드까지 차단.**
+
+### 보고된 버그
+
+User: "energy 1 + DEFEND/GLOW/FOREGONE in hand + 적 공격 예정 + 방어 안 씀"
+
+godot.log 분석:
+```
+step 3 snapshot: player[hp=33 block=0 energy=1] 
+  hand=[DEFEND_REGENT(S1/b5),GLOW(S1),FOREGONE_CONCLUSION(S1)] 
+  enemies=[Creature(hp=9/b0 Atk6+Buff threat=Critical)]
+step 3 no playable card, stopping  ← 3장 다 1-cost + energy 1 인데!
+```
+
+### 원인
+
+v0.7.71 의 `SafeStarCost` reflection 이 CardModel 의 StarCost field 에서
+**비-zero 값** 반환 (STS2 의 wrapped type 문제). 일반 카드도
+`card.StarCost > 0` 평가 → EnumerateCandidates 에서 filtered → 빈 candidates
+→ "no playable card" 즉시 return null.
+
+### Hotfix
+
+`ActionPlanner.EnumerateCandidates` 의 v0.7.71 신규 filter 제거.
+Star-cost 카드는 `!card.IsPlayable` (snapshot CanPlay 결과) 로 충분.
+
+### v0.7.71 의 chain-unlock 개선은 revert
+
+depth-N lookahead 에서 star producer 후 FALLING_STAR unlock 평가는 다시
+못 함. 다른 mechanism 필요 (state-aware CanPlay 재호출 또는 re-snapshot).
+
+추후 v0.7.73 에서 안전한 방식으로 재구현 예정.
+
+---
+
 ## v0.7.71 (2026-05-19)
 
 **Star simulator — depth-N lookahead 의 star resource 추적.**
