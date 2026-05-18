@@ -198,6 +198,20 @@ internal static class EffectSynergy
             ApplySwordSageTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.PARRY")
             ApplyParryTickValue(card, state, ref b, parts);
+        // v0.7.30 — Doom / Volatile stem (Necrobinder). Doom = DoT-style stack
+        // on enemies (and on player for self-Doom). Volatile = Ethereal cards
+        // that auto-exhaust at turn end. Doom-based Powers scale with
+        // RemainingTurns; Volatile-based Powers scale with Ethereal count.
+        else if (card.Id == "CARD.COUNTDOWN")
+            ApplyCountdownTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.RUPTURE")
+            ApplyRuptureTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.PAGESTORM")
+            ApplyPagestormTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.LETHALITY")
+            ApplyLethalityTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.DEMESNE")
+            ApplyDemesneTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -2351,6 +2365,203 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"parryTick(bladePlays~{projBladePlays}x{BlockPerBlade}block)={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.30 — Doom / Volatile stem (Necrobinder) ──────────────────────────
+    //
+    // Doom = DoT stack on enemies (tick = DoomAmount × N at turn start). Value
+    // scales with RemainingTurns AND enemy survival. Volatile = Ethereal cards
+    // that auto-exhaust; their Powers scale with hand+deck Ethereal count.
+
+    /// <summary>
+    /// v0.7.30 — Helper: count Volatile (Ethereal) cards across piles excl. self.
+    /// </summary>
+    private static int CountVolatile(SimCard self, SimState state)
+    {
+        int n = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsEthereal) n++;
+        }
+        foreach (var c in state.DrawPile) if (c.IsEthereal) n++;
+        foreach (var c in state.DiscardPile) if (c.IsEthereal) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// v0.7.30 — Helper: count attack-intent alive enemies (Doom targets).
+    /// </summary>
+    private static int CountAliveAttackTargets(SimState state)
+    {
+        int n = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive && !e.IsInert) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// v0.7.30 — CountdownPower (Necrobinder, A): +6 Doom on a random enemy
+    /// per turn. Doom ticks DoomAmount damage per turn. Value =
+    ///   turns × (avg projected Doom × tickValue) — saturates at enemy survival.
+    /// </summary>
+    private static void ApplyCountdownTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int DoomPerTurn = 6;
+        const int Cap = 800;
+        int baked = PowerCatalog.LookupSelfBuff("CountdownPower");
+
+        int targets = CountAliveAttackTargets(state);
+        if (targets == 0)
+        {
+            b -= baked;
+            parts.Add($"countdownNoTarget=-{baked}");
+            return;
+        }
+
+        // Doom stacks compound: turn 1 = 6, turn 2 ticks 6, turn 3 ticks 12 etc.
+        // Total damage over N turns = 6×(N) + 6×(N-1) + ... = 6×N(N+1)/2
+        int totalDoomDamage = DoomPerTurn * turns * (turns + 1) / 2;
+        // Scale value: each DoT HP × DamagePerPoint(50) / 10 calibration
+        int tick = totalDoomDamage * 50 / 10;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"countdownTick(turns={turns},totalDoom={totalDoomDamage})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.30 — RupturePower (Necrobinder, A): HP loss event → +1 Strength
+    /// (permanent). Hand + deck HP_LOSS cards × StrengthValue.
+    /// </summary>
+    private static void ApplyRuptureTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int Cap = 1000;
+        int baked = PowerCatalog.LookupSelfBuff("RupturePower");
+
+        int hpLossCards = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("HP_LOSS_SELF") || c.Axes.Contains("HP_LOSS")) hpLossCards++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("HP_LOSS_SELF") || c.Axes.Contains("HP_LOSS"))) hpLossCards++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && (c.Axes.Contains("HP_LOSS_SELF") || c.Axes.Contains("HP_LOSS"))) hpLossCards++;
+
+        if (hpLossCards == 0)
+        {
+            b -= baked;
+            parts.Add($"ruptureNoHpLoss=-{baked}");
+            return;
+        }
+
+        // Each +1 Strength applies to ALL future attacks. Conservative:
+        // ~3 attacks/turn × turns × 50 dmg-bonus = strength's lifetime value.
+        const int StrengthLifetimeValue = 400;  // per +1 Str
+        // Project HP-loss triggers across combat
+        int projTriggers = System.Math.Min(hpLossCards, hpLossCards * (turns + 2) / 5);
+        int tick = projTriggers * StrengthLifetimeValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"ruptureTick(hpLossCards={hpLossCards},projTriggers={projTriggers})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.30 — PagestormPower (Necrobinder, S): draw a card when you draw
+    /// a Volatile card. Value = Volatile count × per-draw × turn-cycle.
+    /// </summary>
+    private static void ApplyPagestormTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerVolatileDraw = 200;
+        const int Cap = 1200;
+        int baked = PowerCatalog.LookupSelfBuff("PagestormPower");
+
+        int volatileCount = CountVolatile(self, state);
+        if (volatileCount == 0)
+        {
+            b -= baked;
+            parts.Add($"pagestormNoVolatile=-{baked}");
+            return;
+        }
+
+        // Volatile cards cycle: hand ones might already be drawn. Future
+        // draws over turns ≈ volatileCount × turns / total_pile_size.
+        int totalPile = state.Hand.Count + state.DrawPile.Count + state.DiscardPile.Count;
+        if (totalPile <= 0) totalPile = 1;
+        int projVolatileDraws = (volatileCount * (turns + 1) * 5) / totalPile;
+        int tick = projVolatileDraws * PerVolatileDraw;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"pagestormTick(volatile={volatileCount},projDraws={projVolatileDraws})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.30 — LethalityPower (Necrobinder, S): Volatile, first attack per
+    /// turn +50%. Value = turns × first-attack-dmg × 0.5. Volatile itself
+    /// means the Power exhausts at turn end IF NOT KEPT — but as a Power,
+    /// it's stuck onto the player, so the Volatile note really means the
+    /// card itself is Volatile (auto-exhaust after play).
+    /// </summary>
+    private static void ApplyLethalityTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int AvgFirstAttackDmg = 12;
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("LethalityPower");
+
+        // Estimate hand-attack mean to better predict first-attack value
+        int sum = 0, cnt = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsAttack || c.IsCurseOrStatus) continue;
+            sum += System.Math.Max(0, c.TotalDamage);
+            cnt++;
+        }
+        int avgDmg = cnt > 0 ? sum / cnt : AvgFirstAttackDmg;
+        // First attack each turn × turns × 0.5 amp × DamagePerPoint(50) / 10
+        int tick = turns * avgDmg * 50 / 2 / 10;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"lethalityTick(turns={turns},avgFirstAtk={avgDmg})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.30 — DemesnePower (Necrobinder, S): Volatile, turn-start payoff
+    /// (variable — typically draw or stat gain). Conservative per-turn value
+    /// scaling with turns.
+    /// </summary>
+    private static void ApplyDemesneTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int NetPerTurn = 200;
+        const int Cap = 800;
+        int baked = PowerCatalog.LookupSelfBuff("DemesnePower");
+
+        int tick = turns * NetPerTurn;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"demesneTick(turns={turns}x{NetPerTurn})={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────

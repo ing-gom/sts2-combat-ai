@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.30 (2026-05-18)
+
+**Doom / Volatile stem — 5 handlers (Necrobinder).**
+
+| Power | Tier | Scaling factor |
+|---|---|---|
+| CountdownPower | A | turns^2 (Doom compound) × 50 |
+| RupturePower | A | HP_LOSS card count × Str-lifetime-value |
+| PagestormPower | S | Volatile count × turns × per-draw / pile-size |
+| LethalityPower | S | turns × avg first attack × 0.5 amp |
+| DemesnePower | S | turns × NetPerTurn |
+
+핵심 gate:
+- Countdown: alive attack-target 없으면 baseline 차감
+- Rupture: HP_LOSS 카드 없으면 baseline 차감
+- Pagestorm: Volatile 카드 없으면 baseline 차감
+
+---
+
 ## v0.7.29 (2026-05-18)
 
 **Forge stem Power passives — 5 handlers (Regent Lord's Blade).**
