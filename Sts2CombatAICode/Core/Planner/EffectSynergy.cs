@@ -166,6 +166,16 @@ internal static class EffectSynergy
             ApplyAllForOneRecall(card, state, ref b, parts);
         else if (card.Id == "CARD.PINPOINT")
             ApplyPinpointEnergyRefund(card, state, ref b, parts);
+        else if (card.Id == "CARD.FLECHETTES")
+            ApplyFlechettesHandSkills(card, state, ref b, parts);
+        else if (card.Id == "CARD.MAKE_IT_SO")
+            ApplyMakeItSoReclaim(card, state, ref b, parts);
+        else if (card.Id == "CARD.SUNDER")
+            ApplySunderKillRefund(card, targetIdx, state, ref b, parts);
+        else if (card.Id == "CARD.TESLA_COIL")
+            ApplyTeslaCoilEvokeAll(card, state, ref b, parts);
+        else if (card.Id == "CARD.THRUMMING_HATCHET")
+            ApplyThrummingHatchetChain(card, state, ref b, parts);
 
         // Cost-enabler: UNRELENTING (next Attack 0-cost), SYNTHESIS (next Power
         // 0-cost), POUNCE (next Skill 0-cost). Combat-wide enablers (CORRUPTION,
@@ -1593,6 +1603,107 @@ internal static class EffectSynergy
         int v = skills * EffectScoringWeights.EnergyInHand;
         b += v;
         parts.Add($"pinpointRefund(skills={skills}x{EffectScoringWeights.EnergyInHand})=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.18 — FLECHETTES (A, Silent, 1c 5dmg): "Deal 5 damage per Skill
+    /// in hand". Catalog vars have CalculatedHits (PreviewValue at runtime)
+    /// but reflection may miss when preview isn't refreshed. Defensive
+    /// fallback: if card.Hits stayed at 1 (preview presumed failed), count
+    /// hand Skills directly and credit the missing hits.
+    /// </summary>
+    private static void ApplyFlechettesHandSkills(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int skillsInHand = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) continue;
+            if (c.IsSkill) skillsInHand++;
+        }
+        // Already-counted hits via CalculatedVar reflection — don't double-count.
+        int extraHits = System.Math.Max(0, skillsInHand - self.Hits);
+        if (extraHits <= 0) return;
+        int v = extraHits * 5 * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"flechettes(extraHits={extraHits}x5x{EffectScoringWeights.DamageInHand})=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.18 — MAKE_IT_SO (A, Regent, 0c 6dmg): "Deal 6 damage. If you've
+    /// played 3+ Skills this turn, return this card to your hand." Effectively
+    /// a free 6-damage replay each turn when the Skill threshold is met.
+    /// Scale linearly from 0 to full reclaim value across 0-3 TurnSkillsPlayed.
+    /// </summary>
+    private static void ApplyMakeItSoReclaim(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int skills = state.TurnSkillsPlayed;
+        if (skills <= 0) return;
+        double prob = System.Math.Min(1.0, skills / 3.0);
+        // Reclaim = next-turn (or this-turn-after-3-skills) free play of 6 dmg
+        int perPlay = 6 * EffectScoringWeights.DamageInHand;
+        int v = (int)(perPlay * prob);
+        b += v;
+        parts.Add($"makeItSoReclaim(skills={skills},prob={prob:F2})=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.18 — SUNDER (A, Defect, 3c 24dmg): "Deal 24 damage. If this kills
+    /// the target, refund 3 energy." 24 dmg + Strength is enough to kill many
+    /// mid-game enemies. Bonus = 3 × EnergyInHand (180) when the target's
+    /// effective HP (Hp + Block) is ≤ projected damage.
+    /// </summary>
+    private static void ApplySunderKillRefund(SimCard self, int targetIdx, SimState state, ref int b, List<string> parts)
+    {
+        if (targetIdx < 0 || targetIdx >= state.Enemies.Count) return;
+        var target = state.Enemies[targetIdx];
+        if (!target.IsAlive) return;
+        int projected = 24 + System.Math.Max(0, state.PlayerStrength);
+        if (state.PlayerVulnerable > 0 && target.VulnerableAmount > 0)
+            projected = (int)(projected * 1.5);
+        int effective = target.Hp + target.Block;
+        if (projected < effective) return;
+        // Kill confirmed → 3 energy refund value.
+        int v = 3 * EffectScoringWeights.EnergyInHand;
+        b += v;
+        parts.Add($"sunderKillRefund(projected={projected}vs{effective})=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.18 — TESLA_COIL (A, Defect, 0c 3dmg): "Deal 3 damage. Trigger
+    /// every orb in your queue (auto-evoke all)." Free attack with massive
+    /// orb-evoke payload. Each evoke roughly equates to ~200 score points
+    /// (averaging Lightning 8dmg, Frost 5block, Dark accumulated, Plasma 2
+    /// energy across the queue).
+    /// </summary>
+    private static void ApplyTeslaCoilEvokeAll(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int orbCount = state.OrbQueue?.Count ?? 0;
+        if (orbCount <= 0) return;
+        const int PerOrbEvokeBonus = 200;
+        int v = orbCount * PerOrbEvokeBonus;
+        b += v;
+        parts.Add($"teslaCoilEvokeAll({orbCount} orbs)=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.18 — THRUMMING_HATCHET (A, Shared, 1c 11dmg): "Deal 11 damage.
+    /// At end of turn, return this card to your hand." Effectively a permanent
+    /// 1c/11dmg play every turn the player has spare energy. Chain bonus =
+    /// (turns - 1) × per-play value × 0.5 (energy-competition discount).
+    /// </summary>
+    private static void ApplyThrummingHatchetChain(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        int futurePlays = System.Math.Max(0, turns - 1);
+        if (futurePlays <= 0) return;
+        int perPlay = 11 * EffectScoringWeights.DamageInHand + EffectScoringWeights.Cost1Bonus;
+        const double Discount = 0.5;
+        int v = (int)(futurePlays * perPlay * Discount);
+        const int Cap = 1000;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"thrummingChain(plays={futurePlays}xperPlay={perPlay}x{Discount})=+{v}");
     }
 
     private static void ApplyNextCardCostEnabler(SimCard self, SimState state, ref int b, List<string> parts)
