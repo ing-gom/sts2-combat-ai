@@ -116,7 +116,21 @@ internal static class ActionPlanner
                         catch { /* skip sample on sim failure */ }
                     }
                     int nextTurnAvg = sampleCount > 0 ? sampleTotal / sampleCount : 0;
-                    nextTurnBonus = (int)(nextTurnAvg * NextTurnDiscount);
+
+                    // v0.7.15 — EchoFormPower next-turn first-card 2x play.
+                    // We only evaluate depth=1 next turn (single first card),
+                    // so any positive EchoForm stack saturates: the projected
+                    // first card plays twice → score doubles. Higher stacks
+                    // (2nd/3rd cards echoed too) would matter at depth>=2
+                    // but we don't drill that deep in the next-turn projection.
+                    double echoMultiplier = 1.0;
+                    if (nextState.PlayerPowers != null
+                        && nextState.PlayerPowers.TryGetValue("EchoFormPower", out var ef)
+                        && ef > 0)
+                    {
+                        echoMultiplier = 2.0;
+                    }
+                    nextTurnBonus = (int)(nextTurnAvg * echoMultiplier * NextTurnDiscount);
                     if (nextTurnBonus < 0) nextTurnBonus = 0;
                 }
                 catch { /* AdvanceTurn failure → no next-turn signal */ }
