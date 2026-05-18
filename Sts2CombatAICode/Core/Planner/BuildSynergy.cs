@@ -17,10 +17,18 @@ namespace Sts2CombatAI.Planner;
 /// </summary>
 internal static class BuildSynergy
 {
-    private const int ProducerWithAmplifierBonus = 250;
-    private const int ProducerWithConsumerBonus = 200;
-    private const int AmplifierWithProducerBonus = 200;  // symmetric — amplifier rises when producer waits in hand
-    private const int ConsumerWithProducerBonus = 200;   // symmetric — consumer rises when producer waits
+    // v0.7.20 — role_needs weight calibration. weight × WeightToScore = score
+    // points. role_needs entry POISON_PRODUCER -> POISON_AMPLIFIER w=2.5
+    // maps to 250 (matches the historical ProducerWithAmplifierBonus before
+    // the cross-axis lookup was added).
+    private const int WeightToScore = 100;
+
+    // Per-stem cap so a single axis with many cross-hooks (e.g., FORGE_PRODUCER
+    // wants LORDS_BLADE_AMPLIFIER 3.0 + LORDS_BLADE_PAYOFF 2.0 + BLOCK 1.2 +
+    // DAMAGE 1.2 + ...) doesn't dominate scoring beyond the legacy
+    // Producer+Consumer 200-pt ceiling.
+    private const int PerAxisBonusCap = 400;
+
     private const int PerBuildCommitmentCard = 80; // each other card from same primary build
 
     /// <summary>
@@ -57,43 +65,55 @@ internal static class BuildSynergy
             }
         }
 
-        // Pair bonuses — both directions:
-        //   Producer + Amplifier-in-hand → Producer rises (existing).
-        //   Producer + Consumer-in-hand  → Producer rises (existing).
-        //   Amplifier + Producer-in-hand → Amplifier rises (new, symmetric).
-        //   Consumer  + Producer-in-hand → Consumer rises (new, symmetric).
-        // Producer/Amplifier match by stem (POISON_PRODUCER ↔ POISON_AMPLIFIER).
+        // v0.7.20 — role_needs.json driven cross-axis lookup. For every axis
+        // on the played card, consult AxisSynergyLookup.NeedsFor(axis) which
+        // returns weighted role-need entries imported from CardAdvisor's
+        // single source of truth. Each (role, weight) pair fires when the
+        // hand contains a card with that role/axis present.
+        //
+        // The legacy suffix-only pair matching (POISON_PRODUCER ↔ POISON_AMPLIFIER)
+        // is a subset of role_needs (those entries are listed at w=2.5 in the
+        // table). The lookup also surfaces cross-axis hooks the suffix match
+        // can't see (POISON_PRODUCER -> DRAW w=0.8, FORGE_PRODUCER -> BLOCK
+        // w=1.2, CUNNING_PRODUCER -> DRAW w=1.0 etc.).
         foreach (var ax in card.Axes)
         {
-            if (ax.EndsWith("_PRODUCER"))
-            {
-                var stem = ax.Substring(0, ax.Length - "_PRODUCER".Length);
-                bool hasAmplifier = state.Hand.Any(c =>
-                    !ReferenceEquals(c, self)
-                    && c.Axes.Contains(stem + "_AMPLIFIER"));
-                if (hasAmplifier) bonus += ProducerWithAmplifierBonus;
+            var needs = AxisSynergyLookup.NeedsFor(ax);
+            if (needs.Count == 0) continue;
 
-                bool hasConsumer = state.Hand.Any(c =>
-                    !ReferenceEquals(c, self)
-                    && c.Axes.Contains(stem + "_CONSUMER"));
-                if (hasConsumer) bonus += ProducerWithConsumerBonus;
-            }
-            else if (ax.EndsWith("_AMPLIFIER"))
+            // mutex_group: within group, only the top-weight match contributes.
+            // Track best-weight per group, separately accumulate non-grouped.
+            Dictionary<string, double>? mutexBest = null;
+            int perAxisBonus = 0;
+
+            foreach (var need in needs)
             {
-                var stem = ax.Substring(0, ax.Length - "_AMPLIFIER".Length);
-                bool hasProducer = state.Hand.Any(c =>
-                    !ReferenceEquals(c, self)
-                    && c.Axes.Contains(stem + "_PRODUCER"));
-                if (hasProducer) bonus += AmplifierWithProducerBonus;
+                // requires_with: AND-condition. Only fires when *both* the
+                // primary role AND the required-with axis are in hand.
+                if (!string.IsNullOrEmpty(need.RequiresWith)
+                    && !HandContainsAxis(state.Hand, self, need.RequiresWith))
+                    continue;
+
+                if (!HandContainsAxis(state.Hand, self, need.Role)) continue;
+
+                if (!string.IsNullOrEmpty(need.MutexGroup))
+                {
+                    mutexBest ??= new Dictionary<string, double>(StringComparer.Ordinal);
+                    if (!mutexBest.TryGetValue(need.MutexGroup!, out var prev) || need.Weight > prev)
+                        mutexBest[need.MutexGroup!] = need.Weight;
+                }
+                else
+                {
+                    perAxisBonus += (int)(need.Weight * WeightToScore);
+                }
             }
-            else if (ax.EndsWith("_CONSUMER"))
-            {
-                var stem = ax.Substring(0, ax.Length - "_CONSUMER".Length);
-                bool hasProducer = state.Hand.Any(c =>
-                    !ReferenceEquals(c, self)
-                    && c.Axes.Contains(stem + "_PRODUCER"));
-                if (hasProducer) bonus += ConsumerWithProducerBonus;
-            }
+
+            if (mutexBest != null)
+                foreach (var w in mutexBest.Values)
+                    perAxisBonus += (int)(w * WeightToScore);
+
+            if (perAxisBonus > PerAxisBonusCap) perAxisBonus = PerAxisBonusCap;
+            bonus += perAxisBonus;
         }
 
         // Build commitment: count other cards in hand sharing one of this card's primary builds.
@@ -107,5 +127,22 @@ internal static class BuildSynergy
         }
 
         return bonus;
+    }
+
+    /// <summary>
+    /// Returns true when any non-<paramref name="self"/> card in the hand
+    /// carries the named axis. Used to gate role_needs lookups: a "POISON_PRODUCER
+    /// wants DRAW" hook only contributes when at least one DRAW-axis card is
+    /// actually in hand.
+    /// </summary>
+    private static bool HandContainsAxis(IReadOnlyList<SimCard> hand, SimCard self, string axis)
+    {
+        for (int i = 0; i < hand.Count; i++)
+        {
+            var c = hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains(axis)) return true;
+        }
+        return false;
     }
 }
