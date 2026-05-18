@@ -90,6 +90,22 @@ internal sealed record SimState
     /// </summary>
     public int PlayerDoom { get; init; }
 
+    /// <summary>
+    /// v0.7.35 — Player-side DoT stacks. Visible current-state — when > 0, the
+    /// player will lose HP at turn-end / start equal to the stack count. Folded
+    /// into PredictPlayerDmg and SurvivalUrgency so the planner accounts for
+    /// inevitable HP loss before deciding to attack vs block.
+    ///
+    ///   Poison  — ticks at start of OUR turn; affects next-turn survival but
+    ///             also accounted for in this turn's decision so we don't
+    ///             attack into a state where Poison kills us next turn anyway.
+    ///   Burn    — ticks at end of OUR turn; affects this-turn survival.
+    ///   Constrict — ticks at start of enemy turn; small HP loss before block.
+    /// </summary>
+    public int PlayerPoison { get; init; }
+    public int PlayerBurn { get; init; }
+    public int PlayerConstrict { get; init; }
+
     // v0.2.13 — Defect orb queue state. Count == 0 + Capacity == 0 → not Defect; otherwise
     // ratio tells planner whether Channel (need more orbs) or Evoke (clear room) is better.
     public int PlayerOrbCount { get; init; }

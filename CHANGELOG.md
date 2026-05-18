@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.7.35 (2026-05-18)
+
+**Player-side DoT 통합 → survival check.**
+
+기존 EnemyTurnSimulator 의 leak 계산은 enemy intent damage 만. PlayerBurn /
+PlayerPoison / PlayerConstrict stack 이 있어도 무시 → 이번 턴 자해 lethal
+인식 못함.
+
+### 변경
+1. SimState 에 PlayerPoison / PlayerBurn / PlayerConstrict 필드 추가
+2. StateSnapshotter 가 player.Powers 에서 reflection 으로 추출
+3. EnemyTurnSimulator.PredictPlayerDmg / PredictRawLeak 에 DoT tick 가산
+   - DoT 는 block bypass — 항상 추가
+   - Intangible 도 bypass (hit-cap 만 적용, DoT 는 별개)
+
+### 예시
+| 상황 | 이전 | v0.7.35 |
+|---|---:|---:|
+| HP 8, block 0, incoming 4, Burn 3 | leak 4 (Moderate) | leak 7 (Heavy) |
+| HP 5, block 8, incoming 4, Constrict 2 | leak 0 (None) | leak 2 (Moderate) |
+| HP 4, block 0, incoming 0, Burn 5 | leak 0 (None) | leak 5 (Fatal) |
+
+---
+
 ## v0.7.34 (2026-05-18)
 
 **Thorns 자해를 survival check 에 통합.**
