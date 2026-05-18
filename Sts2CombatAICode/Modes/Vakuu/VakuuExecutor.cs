@@ -127,6 +127,18 @@ internal static class VakuuExecutor
                     // v0.7.60 — Deck role mix
                     var roleMix = Sts2CombatAI.Planner.CardRole.DeckMix(snapshot);
                     MainFile.Logger.Info($"[CombatAI]   roles: {roleMix}");
+                    // v0.7.61 — Finisher identification
+                    var fin = Sts2CombatAI.Planner.FinisherIdentifier.Identify(snapshot);
+                    if (fin.TopFinishers.Count > 0)
+                    {
+                        string finStr = string.Join(", ",
+                            fin.TopFinishers.Select(f =>
+                            {
+                                string loc = f.InHand ? "hand" : f.PileLocation == 1 ? "draw" : "disc";
+                                return $"{f.CardId}@{loc}={f.EstimatedDamage}";
+                            }));
+                        MainFile.Logger.Info($"[CombatAI]   finishers: [{finStr}]");
+                    }
                 }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
