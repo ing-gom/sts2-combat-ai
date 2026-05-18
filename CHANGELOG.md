@@ -1,5 +1,103 @@
 # Changelog
 
+## v0.7.21 (2026-05-18)
+
+**Combat length estimator 정교화 + CORRUPTION cost-reduction + DOOM
+self-risk handler.**
+
+### 1. RemainingTurnsEstimator 정교화
+
+기존 `enemy_hp / playerDpt` clamp [1,10] 단순 모델을 다음 세 차원으로 확장:
+
+#### Effective enemy HP
+```
+eff_hp = sum(alive enemy hp + block / 2)
+```
+적 block 의 50% 만 HP-equivalent 로 카운트 (block 은 매 턴 reset/regen 되므로
+single-hit absorption 의 평균 가치).
+
+#### DoT parallel damage stream
+```
+total_dot = sum(PoisonAmount + ConstrictAmount + DoomAmount)
+total_dpt = playerDpt + total_dot
+```
+Poison/Constrict/Doom 이 매 턴 enemy HP 차감 → playerDpt 와 합산. 자해 안 하는
+독 빌드도 컴뱃 길이 단축 인지.
+
+#### EstimatePlayerDpt 확장
+- **Strength projection** — `DemonFormPower / RitualPower / ArsenalPower` 보유 시
+  미래 Strength 성장 가산. DemonForm N → +N str/turn 누적
+- **Vulnerable multiplier** — alive enemies 의 Vuln 비율에 따라 ×1.0~1.5
+  (1 of 1 → 1.5×, 1 of 2 → 1.25×)
+- **Player Weak** — outgoing damage ×0.75 (Weak 적용)
+
+#### 효과
+시나리오별 turn estimate 변화 (`scripts/_inspect_v0_7_21.py`):
+```
+boss 250hp, no buffs                                       10
+boss 250 + DemonForm 2 (str grow)                          10 (capped)
+boss 250 + Vuln (×1.5 dmg)                                 10 (capped)
+boss 250 + Poison 10/turn (DoT)                            10 (capped)
+composite: Vuln + Poison + Str 4                            6
+```
+
+Single-buff 들은 starter-vs-boss 시나리오에선 cap (10) 에 묶여 큰 차이 안 나지만
+**stack 조합 시 6 으로 단축** — Power 패시브 가치 비례 조정 ↓.
+
+### 2. CORRUPTION / global cost-reduction
+
+`CorruptionPower` (Ironclad S+): 모든 Skill 카드 combat-wide 0-cost (+ Exhaust).
+기존: 게임에서 적용되지만 시뮬레이터는 cost 그대로 차감 → 손해 시뮬.
+
+#### 변경
+- **`ActionPlanner.EnumerateCandidates`** — `state.PlayerPowers["CorruptionPower"] > 0`
+  + `card.IsSkill` 시 energy check 우회 (`corruptionFreeSkill` flag)
+- **`AnalyticalSimulator.ApplyCardPlay`** — 같은 조건에서 energy 차감 안 함
+- per-card `FreeSkillPower` counter 와 달리 persistent (decrement 안 함)
+
+#### 효과
+CORRUPTION 활성 후:
+- 3-cost Skill (e.g., GHOSTLY_ARMOR) 도 후보로 enumerated
+- depth=3 beam 이 Skill 다수-play 시나리오 평가
+- ENLIGHTENMENT (이미 처리) 와 같은 패턴
+
+### 3. DOOM self-risk handler
+
+Necrobinder `DOOM_SELF_PRODUCER` 카드 (NEUROSURGE 등 2장) — 플레이어에게 Doom
+스택 추가. 매 턴 stack 만큼 HP 차감 (enemy Doom 와 동일 메커니즘).
+
+#### 변경
+- **`SimState.PlayerDoom`** — DoomPower stack on player
+- **`StateSnapshotter`** — `creature.Powers.DoomPower` 캡쳐
+- **`AnalyticalSimulator.AdvanceTurn`** — `newPlayerHp -= state.PlayerDoom` tick
+- **`EffectSynergy.ApplyDoomSelfRisk`** 핸들러 — DOOM_SELF_PRODUCER 축 카드
+  점수에 위험 페널티
+
+#### 페널티 공식
+```
+newDoom = currentDoom + cardDoomDelta
+projectedHpLoss = newDoom × RemainingTurnsEstimator
+if projectedHpLoss > playerHp / 2:
+    penalty = clamp(-projectedHpLoss × 5, -500, 0)
+```
+
+#### 검증
+```
+low Doom + 1 added, HP 70                      penalty=  +0
+Doom 3 + 2 added (proj 5×5=25, < 35 threshold) penalty=  +0
+Doom 5 + 2 added, HP 40 (proj 7×5=35 > 20)    penalty=-175
+Doom 9 + 2 added, HP 20 (proj 11×4=44)        penalty=-220
+```
+
+낮은 Doom 은 무시, HP 의 50% 이상 위협 시 점수 페널티. Necrobinder 자해
+빌드의 한도 인지.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_v0_7_21.py`: 7 turn-estimate 시나리오 + 5 doom-risk
+  시나리오 모두 예상치.
+
 ## v0.7.20 (2026-05-18)
 
 **BuildSynergy: role_needs.json 기반 cross-axis lookup.**

@@ -80,6 +80,16 @@ internal sealed record SimState
     // from energy. Tracked here so planner can avoid star-cost plays when empty.
     public int PlayerStars { get; init; }
 
+    /// <summary>
+    /// v0.7.21 — DoomPower stack on the player (Necrobinder self-doom).
+    /// Each turn ticks Doom × N damage to the player (mirrors enemy
+    /// DoomAmount). DOOM_SELF axis cards add stacks; high cumulative Doom
+    /// is an existential risk. Captured by StateSnapshotter from
+    /// <c>player.Powers.DoomPower</c>; 0 when not playing Necrobinder or
+    /// no Doom applied.
+    /// </summary>
+    public int PlayerDoom { get; init; }
+
     // v0.2.13 — Defect orb queue state. Count == 0 + Capacity == 0 → not Defect; otherwise
     // ratio tells planner whether Channel (need more orbs) or Evoke (clear room) is better.
     public int PlayerOrbCount { get; init; }

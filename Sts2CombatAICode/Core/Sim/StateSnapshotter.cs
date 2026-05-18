@@ -52,6 +52,7 @@ internal static class StateSnapshotter
             // Barricade, EchoForm etc.) without one field per power.
             var playerPowerDict = CombatReflection.GetAllPowers(creature);
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
+            int playerDoom = CombatReflection.GetPowerAmount(creature, "DoomPower");
 
             int orbCount = 0, orbCapacity = 0;
             var orbQueue = new List<OrbKind>();
@@ -268,6 +269,7 @@ internal static class StateSnapshotter
                 DrawPile = drawPile,
                 DiscardPile = discardPile,
                 PlayerStars = playerStars,
+                PlayerDoom = playerDoom,
                 PlayerOrbCount = orbCount,
                 PlayerOrbCapacity = orbCapacity,
                 OrbQueue = orbQueue,
