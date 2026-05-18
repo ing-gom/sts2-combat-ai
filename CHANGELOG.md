@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.45 (2026-05-18)
+
+**PROLONG (연장) block-carryover handler + PHOTON_CUT top-deck 개선.**
+
+### PROLONG (Shared, A, 0c)
+
+"다음 턴, 현재 block 만큼 추가 block. 소멸." 카드 자체 block=0 이라
+BLOCK axis 만으로는 가치 0 평가.
+
+`ApplyProlongCarryover`: `state.PlayerBlock × 30`. 적 공격 intent
+없으면 절반 discount. block 0 이면 -200 (exhaust 낭비).
+
+### PHOTON_CUT / GLIMMER
+
+기존 +100 flat → hand best card score × 0.3 (floor 100, cap 400).
+hand 에 강한 카드 있으면 top-deck 가치 비례 증가.
+
+---
+
 ## v0.7.44 (2026-05-18)
 
 **미스코어 Skill 카드 6종 handler.**
