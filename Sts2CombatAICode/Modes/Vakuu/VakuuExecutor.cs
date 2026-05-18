@@ -103,9 +103,13 @@ internal static class VakuuExecutor
                     double blkCov = Sts2CombatAI.Planner.DeckThroughput.BlockCoverage(snapshot, tp);
                     string atk = string.Join(",", tp.CoreAttackers);
                     string def = string.Join(",", tp.CoreDefenders);
+                    string cyc = string.Join(",", tp.CoreCyclers);
                     MainFile.Logger.Info(
                         $"[CombatAI]   throughput: dpt={tp.AvgDamagePerTurn} bpt={tp.AvgBlockPerTurn} " +
-                        $"dmgCov={dmgCov:F2} blkCov={blkCov:F2} coreAtk=[{atk}] coreDef=[{def}]");
+                        $"dmgCov={dmgCov:F2} blkCov={blkCov:F2} " +
+                        $"deck={tp.DeckSize} cardsPerTurn={tp.EstimatedCardsPerTurn} cycle={tp.TurnsPerCycle}turns");
+                    MainFile.Logger.Info(
+                        $"[CombatAI]   core: atk=[{atk}] def=[{def}] cyc=[{cyc}]");
                 }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
