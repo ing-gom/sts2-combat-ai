@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.7.42 (2026-05-18)
+
+**Bug fix: STARDUST (우주 먼지) 증발.**
+
+### 버그
+
+`CARD.STARDUST` 는 cost=0/star_cost=0 이지만 `STAR_X_COST` axis — 효과:
+"무작위 적에게 피해 5 × X" 여기서 **X = stars 소비 수**. PlayerStars=0
+이면 X=0 → 0회 hit → 카드만 사라지고 효과 없음.
+
+기존 `CanPlay()` 는 cost=0 이라 통과시킴 → AI 가 픽하면 증발.
+
+### Fix
+
+`ActionPlanner.EnumerateCandidates` 에 filter 추가:
+```csharp
+if (card.Axes.Contains("STAR_X_COST") && state.PlayerStars == 0)
+    continue;  // 0-star 면 결과 0, 패에 두고 다음 턴에 사용
+```
+
+### 적용 카드
+
+- CARD.STARDUST (Regent, Uncommon)
+- STAR_X_COST axis 보유 카드 전부 (catalog 검색 후 추가될 수 있음)
+
+---
+
 ## v0.7.41 (2026-05-18)
 
 **Outcome tracking — AI 의사결정의 실제 결과 기록.**
