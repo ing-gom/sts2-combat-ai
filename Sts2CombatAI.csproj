@@ -41,6 +41,7 @@
     <ItemGroup>
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/card_triggers.json" LogicalName="Sts2CombatAI.card_triggers.json" />
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/pool_means.json" LogicalName="Sts2CombatAI.pool_means.json" />
+        <EmbeddedResource Include="Sts2CombatAICode/Core/Data/role_needs.json" LogicalName="Sts2CombatAI.role_needs.json" />
     </ItemGroup>
 
     <Target Name="CheckDependencyPaths">
