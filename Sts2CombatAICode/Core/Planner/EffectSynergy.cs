@@ -308,6 +308,11 @@ internal static class EffectSynergy
         else if (card.Id == "CARD.KNOCKOUT_BLOW")     ApplyStarsGain(card, state, ref b, parts, 5);
         else if (card.Id == "CARD.CONVERGENCE")       ApplyStarsGain(card, state, ref b, parts, 1);
         else if (card.Id == "CARD.ROYAL_GAMBLE")      ApplyStarsGain(card, state, ref b, parts, 9);
+        // v0.7.74 — Next-turn star producers. Catalog vars["Stars"] captures
+        // ONLY this-turn star gain; the "다음 턴에 ★" text is encoded
+        // separately in the card class. Add delayed-star value explicitly.
+        else if (card.Id == "CARD.HIDDEN_CACHE")       ApplyHiddenCacheDelayedStars(card, state, ref b, parts);
+        else if (card.Id == "CARD.CONVERGENCE")        ApplyConvergenceNextTurn(card, state, ref b, parts);
         // OrbSlots
         else if (card.Id == "CARD.BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
         // v0.7.69 — Exhaust-related card handlers. Specific mechanics not
@@ -3702,6 +3707,68 @@ internal static class EffectSynergy
         int bonus = 8 * 30 / 2;  // half (might not actually trigger order-wise)
         b += bonus;
         parts.Add($"evilEye(conditional+8block={bonus})");
+    }
+
+    /// <summary>
+    /// v0.7.74 — HIDDEN_CACHE (Regent B, 1c): "Gain 1 star. Next turn, gain
+    /// 3 stars." Catalog vars["Stars"]=1 captures only the this-turn portion;
+    /// the +3 next-turn stars are encoded in the card class internally.
+    ///
+    /// This handler adds the delayed-star value as a forward credit.
+    /// ApplyStarsGain already handles the this-turn 1.
+    /// </summary>
+    private static void ApplyHiddenCacheDelayedStars(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Next-turn 3 stars. Use the same per-star valuation as immediate stars
+        // (consumer-presence multiplier). Discount slightly for next-turn delay.
+        int consumers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+
+        int perStar = consumers > 0 ? 120 : 30;  // slightly lower than ApplyStarsGain (delay discount)
+        const int NextTurnStars = 3;
+        int v = NextTurnStars * perStar;
+        const int Cap = 500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"hiddenCacheNext(S{NextTurnStars}x{perStar},cons{consumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.74 — CONVERGENCE (Regent S, 1c): "Next turn, gain 1 star and 1
+    /// energy. This turn, retain hand." Massive delayed value.
+    /// </summary>
+    private static void ApplyConvergenceNextTurn(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Next-turn 1 star + 1 energy. Plus retain (cards survive to next turn).
+        int handCount = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsPlayable && !c.IsCurseOrStatus) handCount++;
+        }
+        // Star value (1 star, next turn, with consumer multiplier)
+        int consumers = 0;
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+        int starValue = consumers > 0 ? 120 : 30;
+        // Energy 1 next turn = ~400 (one extra play unlock)
+        const int EnergyValue = 400;
+        // Retain bonus: each saved card = ~80 (avoids draw RNG)
+        int retainValue = handCount * 80;
+
+        int v = starValue + EnergyValue + retainValue;
+        const int Cap = 1200;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"convergenceNext(★{starValue}+⚡{EnergyValue}+retain{retainValue}={v})");
     }
 
     /// <summary>
