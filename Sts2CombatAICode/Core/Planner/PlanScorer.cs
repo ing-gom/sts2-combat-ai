@@ -498,6 +498,13 @@ internal static class PlanScorer
             if (survivalRatio < 0.15 && survivalRatio > 0) survivalRatio = 0.15;
             // Pure-kill (survivalRatio = 0) keeps 0 — debuff fully wasted.
 
+            // v0.7.24 — Future-attack-potential ratio. Vulnerable only gives
+            // value when WE attack the debuffed enemy in subsequent turns. If
+            // the remaining deck (hand-without-self + draw + discard) has no
+            // attacks, applied Vuln decays unused. ratio = attacks / total,
+            // saturated at 0.3 → 1.0 multiplier (typical attack-heavy deck).
+            double futureAttackMult = ComputeFutureAttackMultiplier(state, card);
+
             int attached = 0;
             foreach (var (powerName, amount) in card.PowerApps)
             {
@@ -507,6 +514,16 @@ internal static class PlanScorer
                 // v0.7.23 — Survival probability scaling. Future-turn debuff
                 // value is lost when target dies on this attack.
                 perEnemy = (int)(perEnemy * survivalRatio);
+                // v0.7.24 — Attack-dependent debuff scaling. Powers that only
+                // pay off when we attack (Vulnerable, Rupture) are discounted
+                // when the deck is attack-poor.
+                if (IsAttackDependentDebuff(powerName) && futureAttackMult < 1.0)
+                {
+                    int before = perEnemy;
+                    perEnemy = (int)(perEnemy * futureAttackMult);
+                    if (before != perEnemy)
+                        details.Add($"  futureAtk×{futureAttackMult:F2}");
+                }
 
                 // v0.2.9 — Artifact blocks our enemy debuffs. v0.5 — canonical STS
                 // semantics: each debuff APPLICATION consumes 1 Artifact charge and is
@@ -1702,6 +1719,60 @@ internal static class PlanScorer
         if (!hasSetupAxis) return false;
         double dpe = card.TotalDamage / (double)card.Cost;
         return dpe < 5.5;
+    }
+
+    /// <summary>
+    /// v0.7.24 — Powers whose value depends on the player landing additional
+    /// attacks on the debuffed enemy in subsequent turns. Used by the future-
+    /// attack-potential multiplier so an attack-poor deck doesn't over-value
+    /// these debuffs.
+    ///
+    /// Excluded: Weak/Frail/ShacklingPotion/Dampen/EnfeeblingTouch (enemy-
+    /// action dependent, not our attacks), Poison/Constrict/Rupture (DoT —
+    /// triggers without our attacks), Hex/Confused/PiercingWail (other paths).
+    /// </summary>
+    private static bool IsAttackDependentDebuff(string powerName)
+    {
+        return powerName == "VulnerablePower"
+            || powerName == "DarkShacklesPower";  // -Str only this turn — still
+                                                  // requires enemy hits us OR our
+                                                  // attack vs them, scale loosely
+    }
+
+    /// <summary>
+    /// v0.7.24 — Compute the future-attack-potential multiplier for attack-
+    /// dependent debuffs. Counts attacks in (hand-without-self + draw +
+    /// discard) and saturates at 0.3 ratio → 1.0 multiplier.
+    ///
+    /// 0% attacks → 0.0 mult (Vuln fully wasted — pure skill deck like
+    ///   Hexaghost shutout).
+    /// 15% attacks → 0.5 mult.
+    /// 30%+ attacks → 1.0 mult (full debuff value).
+    /// </summary>
+    private static double ComputeFutureAttackMultiplier(SimState state, SimCard self)
+    {
+        int total = 0, attacks = 0;
+        for (int i = 0; i < state.Hand.Count; i++)
+        {
+            var c = state.Hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            total++;
+            if (c.IsAttack) attacks++;
+        }
+        for (int i = 0; i < state.DrawPile.Count; i++)
+        {
+            total++;
+            if (state.DrawPile[i].IsAttack) attacks++;
+        }
+        for (int i = 0; i < state.DiscardPile.Count; i++)
+        {
+            total++;
+            if (state.DiscardPile[i].IsAttack) attacks++;
+        }
+        if (total <= 0) return 1.0;  // Snapshot incomplete — fail open.
+
+        double ratio = attacks / (double)total;
+        return System.Math.Min(1.0, ratio / 0.3);
     }
 
     /// <summary>

@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.7.24 (2026-05-18)
+
+**Future attack potential scaling for Vulnerable.**
+
+### 배경
+
+v0.7.23 의 survival probability 는 "이 공격이 적을 죽이면 Vuln 가치 0" 만
+처리. 하지만 **"Vuln 걸었는데 다음 턴 공격카드가 없어 못 쓰는 케이스"** 미처리.
+
+Pure-skill 덱 (Hexaghost shutout 등) 이나 attack-light 덱에서 Vuln 가치
+overestimate.
+
+### 변경
+
+PowerApps 루프에서 `IsAttackDependentDebuff(powerName)` 체크 후 future
+attack ratio 로 추가 스케일링.
+
+```csharp
+double futureAttackMult = ComputeFutureAttackMultiplier(state, card);
+//   ratio = attacks / (hand∪draw∪discard size, self 제외)
+//   mult = min(1.0, ratio / 0.3)
+
+if (IsAttackDependentDebuff(powerName) && futureAttackMult < 1.0)
+    perEnemy = (int)(perEnemy * futureAttackMult);
+```
+
+대상 powers: `VulnerablePower`, `DarkShacklesPower`.
+
+명시 제외:
+- `WeakPower/FrailPower/ShacklingPotion/Dampen/EnfeeblingTouch` — 적 행동
+  의존 (우리 공격과 무관)
+- `Poison/Constrict/Rupture/NoxiousFumes` — DoT 자동 트리거
+- `Hex/Confused/PiercingWail` — 다른 경로
+
+### 결과
+
+`scripts/_inspect_v0_7_24.py`:
+
+| 덱 구성 | atk ratio | mult | Bash Vuln 가치 |
+|---|:---:|:---:|---:|
+| Attack-heavy (50%) | 0.50 | 1.0× | 623 |
+| Balanced (30%) | 0.30 | 1.0× | 623 |
+| Skill-heavy (15%) | 0.15 | 0.5× | 311 |
+| Pure-skill (0%) | 0.00 | 0.0× | **0** |
+
+Pure-skill 덱에서 Vuln 가치 정확히 0 처리.
+
+---
+
 ## v0.7.23 (2026-05-18)
 
 **Survival probability scaling + lethal-mode setup attack penalty.**
