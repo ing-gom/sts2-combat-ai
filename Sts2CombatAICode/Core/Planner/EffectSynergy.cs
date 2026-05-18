@@ -232,6 +232,11 @@ internal static class EffectSynergy
             ApplyOutbreakTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.PALE_BLUE_DOT")
             ApplyPaleBlueDotTickValue(card, state, ref b, parts);
+        // v0.7.43 — DECISIONS_DECISIONS (어려운 결정): choose 1 Skill in hand,
+        // play it 3 times. 0-cost / 6-star Rare. REPEAT axis previously
+        // unscored — the card looked like a plain draw card to the AI.
+        else if (card.Id == "CARD.DECISIONS_DECISIONS")
+            ApplyDecisionsDecisionsRepeat(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -2773,6 +2778,61 @@ internal static class EffectSynergy
         b += delta;
         parts.Add($"paleBlueDotTick(drawAxis={drawAxisCards},rate={rate:F2})={delta:+#;-#;0}");
     }
+
+    // ─── v0.7.43 — DECISIONS_DECISIONS (Regent, Rare, 0c/6-star) ───────────────
+
+    /// <summary>
+    /// v0.7.43 — DECISIONS_DECISIONS payoff: choose 1 Skill in hand AFTER
+    /// drawing 3 (5 upgraded) cards, then play that Skill 3 times. The DRAW
+    /// part is already credited via the DRAW axis. This handler adds the
+    /// "play best Skill 3 times" payoff using the current hand's best Skill
+    /// value as a proxy (the freshly-drawn skills aren't visible to the AI;
+    /// current hand is the lower bound — actual chosen skill is at least
+    /// this strong).
+    ///
+    /// Conservative 0.7 discount for: (1) the chosen Skill is exhausted /
+    /// expended via the repeats (varies by card), (2) the proxy might be
+    /// suboptimal if a stronger skill is drawn, (3) some Skills don't scale
+    /// linearly with repeats (Block stacks fine, but per-turn buffs cap at 1).
+    /// </summary>
+    private static void ApplyDecisionsDecisionsRepeat(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int bestSkillValue = 0;
+        string? bestSkillId = null;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsSkill || c.IsCurseOrStatus || !c.IsPlayable) continue;
+            int v = EstimateCardPower(c, state, freeUse: true);
+            if (v > bestSkillValue)
+            {
+                bestSkillValue = v;
+                bestSkillId = c.Id;
+            }
+        }
+
+        // No skill in current hand. The 3-5 fresh draws may surface one, but
+        // can't credit that without knowing the draws. Minimum case credit so
+        // the card still slightly scores positive (draw value covers the rest).
+        if (bestSkillValue == 0)
+        {
+            const int NoSkillBaseline = 150;
+            b += NoSkillBaseline;
+            parts.Add($"decisionsNoSkill=+{NoSkillBaseline}");
+            return;
+        }
+
+        const int Cap = 1800;
+        const double Discount = 0.7;
+        const int RepeatCount = 3;
+        int v2 = (int)(bestSkillValue * RepeatCount * Discount);
+        if (v2 > Cap) v2 = Cap;
+        b += v2;
+        parts.Add($"decisionsRepeat(best={Short(bestSkillId ?? "?")}({bestSkillValue})x3x{Discount})=+{v2}");
+    }
+
+    private static string Short(string id) =>
+        id == null ? "?" : (id.StartsWith("CARD.") ? id.Substring(5) : id);
 
     // ─── v0.7.32 — Defect orb stem Power passives ──────────────────────────────
     //
