@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.7.28 (2026-05-18)
+
+**Star stem Power passives — 5 handlers (Regent archetype).**
+
+| Power | Tier | Scaling factor |
+|---|---|---|
+| GenesisPower | B | turns × PerStarValue (no consumer: 차감) |
+| OrbitPower | B | (turns × 3 / 4) × PerStarValue (energy spend rate) |
+| BlackHolePower | B | (producer + consumer plays) × aliveEnemies × 3 dmg |
+| ChildOfTheStarsPower | S | consumer plays × BlockPerStar × 30 |
+| TheSealedThronePower | S | card-play rate (4/turn) capped by consumer throughput |
+
+핵심 gate: **STAR_CONSUMER 부재 시 baseline 차감**. Star 생성만 있고 소비 없으면
+자원 inflation = 가치 없음.
+
+---
+
 ## v0.7.27 (2026-05-18)
 
 **Shiv stem Power passives — 5 handlers (Silent archetype).**
