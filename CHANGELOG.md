@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.7.53 (2026-05-18)
+
+**Combat-specific 가중치 (사용자 요청 #3).**
+
+이번 전투 의 적 구성/intent 패턴 따라 axis 우선순위 동적 조정.
+
+### 새 모듈 `CombatContext.cs`
+
+**CombatProfile flag 8종**:
+- `HasMultiHitAttacker` (IntentRepeats ≥ 2)
+- `HasSingleBigHitter` (1 hit × ≥20 dmg)
+- `IsAoeEncounter` (alive ≥ 3)
+- `HasBuffingEnemy` (Buff intent)
+- `IsLongFight` / `IsShortFight` (RemainingTurns)
+- `HasArtifactEnemy` (debuff 차단)
+- `HasThornsEnemy`
+
+**ContextBonus** per-card:
+
+| Combat 패턴 | 보너스 카드 | 페널티 카드 |
+|---|---|---|
+| Multi-hit | Weak/Frail/StrengthDown +120 | — |
+| Single big | Block / Vuln +80 | — |
+| AOE | AOE attack +100 | — |
+| Long fight | Poison/Doom/Power/Scaling +60~80 | — |
+| Short fight | Burst attack +80 | Power/Scaling -100 |
+| Artifact | — | Debuff -60 (낭비) |
+| Thorns | — | Multi-hit attack -80 |
+| Buffing enemy | 큰 attack / 큰 block +50 | — |
+
+PlanScorer.Score() 의 comboBonus 에 합산.
+
+### 누적 효과
+
+이제 같은 카드도 **상황에 따라 다르게 평가**:
+- DEFEND 5: 평소 ~150 → Single Big Hitter 상대 ~230
+- Strike 6: 평소 ~300 → AOE 패턴에선 다르고, Thorns 적엔 ~220
+- Inflame: 평소 ~700 → Long fight ~760, Short fight ~600
+
+---
+
 ## v0.7.52 (2026-05-18)
 
 **Deck archetype 자동 감지 (사용자 요청: 덱 구성 기반 favorable 지표).**
