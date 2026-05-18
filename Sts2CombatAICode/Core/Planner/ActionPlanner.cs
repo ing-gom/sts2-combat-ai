@@ -78,10 +78,71 @@ internal static class ActionPlanner
     public static System.Collections.Generic.List<(string id, int targetIdx, int firstScore, int secondScore, int total, string? bestNextId)>
         LastCandidates { get; } = new();
 
+    /// <summary>v0.7.75 — When candidates empty but hand non-empty, diagnostic
+    /// string describing why each card was filtered. Read by VakuuExecutor.</summary>
+    public static string? LastEmptyReason { get; private set; }
+
+    private static string WhyFiltered(SimCard c, SimState state)
+    {
+        if (!c.IsPlayable)
+        {
+            if (StarCostByCardId.TryGetValue(c.Id ?? "", out int sc))
+                return state.PlayerStars < sc ? $"!IsPlayable+stars{state.PlayerStars}<{sc}" : "ok-star-unlock";
+            return "!IsPlayable";
+        }
+        if (c.Cost < 0) return "Cost<0";
+        bool corruptionFreeSkill = c.IsSkill
+            && state.PlayerPowers != null
+            && state.PlayerPowers.TryGetValue("CorruptionPower", out var cs) && cs > 0;
+        bool freeCovers = (c.IsAttack && state.PlayerFreeAttacks > 0)
+                       || (c.IsSkill && state.PlayerFreeSkills > 0)
+                       || (c.IsPower && state.PlayerFreePowers > 0)
+                       || corruptionFreeSkill;
+        if (!freeCovers && c.Cost > state.PlayerEnergy)
+            return $"cost{c.Cost}>energy{state.PlayerEnergy}";
+        if (c.IsCurseOrStatus) return "curse/status";
+        bool isOrbEvokeOnly =
+            (c.Axes.Contains("ORB_AMPLIFIER") || c.Axes.Contains("ORB_EVOKE")
+             || c.Axes.Contains("LIGHTNING_EVOKE"))
+            && !c.IsAttack && c.Damage == 0;
+        if (isOrbEvokeOnly && state.PlayerOrbCount == 0) return "orbEvokeNoOrb";
+        if (c.Axes.Contains("STAR_X_COST") && state.PlayerStars == 0) return "starX+0stars";
+        if (c.IsEnergyGainCard && c.EnergyGain > 0
+            && !c.IsAttack && c.Damage == 0 && c.DrawCount == 0)
+        {
+            bool anyOther = false;
+            foreach (var oc in state.Hand)
+            {
+                if (ReferenceEquals(oc, c)) continue;
+                if (!oc.IsPlayable || oc.IsCurseOrStatus || oc.Cost < 0) continue;
+                anyOther = true; break;
+            }
+            if (!anyOther) return "energyGain-noOtherCard";
+        }
+        return "OK?";
+    }
+
     public static PlanStep? PlanNextStep(SimState state)
     {
         var candidates = EnumerateCandidates(state).ToList();
-        if (candidates.Count == 0) return null;
+        if (candidates.Count == 0)
+        {
+            // v0.7.75 — Diagnostic: if state.Hand has cards but candidates is
+            // empty, dump per-card filter reasons so we can debug "no playable
+            // card, stopping" reports.
+            if (state.Hand.Count > 0)
+            {
+                var sb = new System.Text.StringBuilder("[CombatAI] candidates EMPTY despite hand: ");
+                foreach (var c in state.Hand)
+                {
+                    string reason = WhyFiltered(c, state);
+                    sb.Append($"{c.Id}({reason}) ");
+                }
+                LastEmptyReason = sb.ToString();
+            }
+            return null;
+        }
+        LastEmptyReason = null;
 
         // v0.2.5 — depth-2 lookahead: for each first-card candidate, simulate playing it
         // and score the best possible second card in the resulting state. Combined score

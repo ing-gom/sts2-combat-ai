@@ -144,6 +144,9 @@ internal static class VakuuExecutor
                 var plan = ActionPlanner.PlanNextStep(snapshot);
                 if (plan == null)
                 {
+                    // v0.7.75 — Show why filtered when this surfaces.
+                    if (!string.IsNullOrEmpty(ActionPlanner.LastEmptyReason))
+                        MainFile.Logger.Info(ActionPlanner.LastEmptyReason);
                     MainFile.Logger.Info($"[CombatAI] step {step + 1} no playable card, stopping");
                     break;
                 }
