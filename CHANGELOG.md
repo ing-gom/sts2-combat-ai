@@ -1,5 +1,63 @@
 # Changelog
 
+## v0.7.18 (2026-05-18)
+
+**A-tier 1-path coverage — 5 mechanic 핸들러.**
+
+### 배경
+
+v0.7.17 audit 후 A-tier 1-path 12장 검토. 7장은 direct-stat 평가 충분
+(DEVASTATE 30dmg / SKEWER X-cost / VOLLEY X-cost 등) 또는 PlanScorer
+EstimateCalculatedHits 가 이미 cover (HEAVENLY_DRILL x≥4 doubling).
+**5장이 실질 gap**: 특수 메커니즘 미반영.
+
+### 추가 핸들러 (5)
+
+| 카드 | char | 메커니즘 | 공식 |
+|---|---|---|---|
+| **FLECHETTES** | Silent | 5dmg × hand.Skills count | extraHits = max(0, skills - currentHits); v = extraHits×5×35 |
+| **MAKE_IT_SO** | Regent | 0c 6dmg + 3 Skills 시 reclaim | v = (6×35) × min(1, TurnSkillsPlayed/3) |
+| **SUNDER** | Defect | 3c 24dmg + kill 시 +3 energy | projected ≥ target.Hp+Block → v = 3×60 |
+| **TESLA_COIL** | Defect | 0c 3dmg + 모든 orb evoke | v = orbCount × 200 |
+| **THRUMMING_HATCHET** | Shared | 1c 11dmg + 턴말 hand 복귀 | (turns-1) × (11×35+20) × 0.5, cap 1000 |
+
+### 핵심 결과 (`scripts/_inspect_atier_5_handlers.py`)
+
+```
+FLECHETTES: 2 skills → +175, 5 skills → +700 (hits=1 fallback)
+MAKE_IT_SO: 0 skills → 0, 3+ skills → +210 (full reclaim)
+SUNDER: kill confirmed (projected ≥ effHp) → +180
+TESLA_COIL: 3 orbs → +600, 5 orbs → +1000
+THRUMMING_HATCHET: 3 turns → +405, 7+ turns → +1000 (cap)
+```
+
+### 의도된 의사결정 영향
+
+- **FLECHETTES**: Silent Skill 빌드에서 hand 가 Skills 가득이면 점수 폭증
+  (단순 5dmg/1c 카드 → 진짜 가치 인지)
+- **MAKE_IT_SO**: Silent Sly 빌드 turn 3+ Skills 후 free 6dmg perpetual
+- **SUNDER**: weakened 적 처치 시 즉시 cost-refund (3c 부담 해소)
+- **TESLA_COIL**: orb 풀 후 사용 시 매우 강력 — 빈 orb queue 시 그냥 3dmg
+- **THRUMMING_HATCHET**: 단기간 컴뱃에 약함, 보스전에 강함 (자연 reflection)
+
+### 종합 Coverage — v0.7.18 후
+
+| Path 수 | 카드 | % |
+|---:|---:|---:|
+| 0 (UNPLAYABLE 자동 skip) | 28 | 4.9% |
+| 1 (direct-stat) | 54 | 9.4% |
+| 2+ | 495 | 85.8% |
+
+S-tier 1-path: 0 (v0.7.17). A-tier 1-path: **7 → 2** (5장 핸들러 추가).
+잔존 A-tier 1-path 2장 (DEVASTATE 30dmg 단순 / VOLLEY X-cost 단순) 은
+direct-stat 으로 충분히 평가됨.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_atier_5_handlers.py`: 5 카드 × 5-6 시나리오
+  모두 예상.
+
 ## v0.7.17 (2026-05-18)
 
 **S-tier 1-path coverage — ALL_FOR_ONE + PINPOINT mechanic handlers.**
