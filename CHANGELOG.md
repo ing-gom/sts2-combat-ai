@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.47 (2026-05-18)
+
+**Pile manipulation stem audit (Batch 2/7).**
+
+5 카드 검증 — 대부분 handler 있어서 폴리시 위주:
+- ANOINTED, CHARGE, DREDGE, FOREGONE_CONCLUSION, GLIMMER (이미 처리)
+
+### 개선
+
+**FOREGONE_CONCLUSION** (C, 1c): 다음 턴 draw pile 에서 2장 선택.
+기존 mean × 1.5 → **top-2 positives × 0.75** (player choice 반영).
+
+**ANOINTED** (C, 1c): "draw pile 의 모든 Rare → hand". rarity 무 → 
+**EstimateCardPower > 250 인 top-4 sum** (rare proxy).
+
+다른 카드 (CHARGE/DREDGE/GLIMMER) 는 이미 적절히 처리됨.
+
+---
+
 ## v0.7.46 (2026-05-18)
 
 **Discard / Sly stem audit (Batch 1/7 of skill systematic review).**
