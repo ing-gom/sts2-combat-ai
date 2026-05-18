@@ -1,5 +1,72 @@
 # Changelog
 
+## v0.7.23 (2026-05-18)
+
+**Survival probability scaling + lethal-mode setup attack penalty.**
+
+### 배경
+
+기존 PlanScorer Attack branch 는 Bash 같은 setup attack (low dpe + debuff)
+의 PowerCatalog 값 (VulnerablePower 850) 을 무조건 flat 가산. 결과:
+- 적 18 HP: Bash(8 dmg + Vuln 2) + Strike(9 dmg) = 17 ≠ kill
+- vs Strike × 3 = 18 dmg = kill
+- 점수상 Bash + Strike 가 우위라도 실제론 Strike × 3 정답
+
+문제: Vuln 의 future-turn 가치가 적이 죽으면 0인데 그 보정 없음.
+
+### 변경 — 2 layer
+
+#### Layer 1: Survival probability scaling
+
+PlanScorer Attack branch 의 PowerApps 루프에서 enemy debuff 점수에 survival
+확률 곱셈. 적이 이 공격에 죽으면 future-turn 가치 0.
+
+```csharp
+double survivalRatio = (effHp - effectiveTotal) / effHp;
+// floor 0.15: 죽지 않으면 minimum 가치 보존 (chain attack 가치)
+if (0 < survivalRatio < 0.15) survivalRatio = 0.15;
+// kill case (effectiveTotal >= effHp): survivalRatio = 0 (full waste)
+
+perEnemy = (int)(PowerCatalog.ValueEnemyDebuff(name, amt) * w.AttachedDebuffMultiplier
+                  * survivalRatio);
+```
+
+AOE 의 경우 alive enemies 의 HP 잔여 비율 평균.
+
+#### Layer 2: Lethal-mode setup attack penalty
+
+`IsSetupAttackCard(card)`: Attack + (VULN/WEAK/FRAIL_PRODUCER axis 보유) + dpe < 5.5.
+
+```csharp
+if (lethalThisTurn && IsSetupAttackCard(card))
+    lethalSetupPenalty = w.LethalModeNonAttackPenalty * 6 / 10;  // 60%
+```
+
+### 검증 (`scripts/_inspect_v0_7_23.py`)
+
+```
+적 30 HP, non-lethal:           A=1113   B= 630   → A (Vuln 가치 큼) ✅
+적 18 HP, non-lethal:           A= 962   B= 630   → A (multi-turn Vuln) ✅
+적 18 HP, lethalThisTurn:       A= 662   B= 630   → A (margin 좁아짐)
+적 16 HP, lethal A도 kill:      A= 615   B= 630   → B (overkill setup) ✅
+적  8 HP, Bash 단독 kill:       A= 190   B= 630   → B (Vuln 완전 waste) ✅
+```
+
+이전 모든 시나리오 A 압도적 우위 → 이제 적 HP 작아질수록 B 자연스럽게 우위
+로 전환. cost-효율 (Strike × 3 = 18 dmg, Bash + Strike = 17 dmg) 정확 인지.
+
+### 영향
+
+- **자해 / overkill setup 회피**: 적 죽일 수 있는데 Bash 깐다 → 자동 deprioritise
+- **multi-turn Vuln 보존**: 적 HP 큼 → Vuln 잔존 가치 살아있음 → 콤보 우대
+- **dynamic balance**: lethal-this-turn flag + survival ratio + setup penalty 가
+  자동 조합
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_v0_7_23.py`: 5 시나리오 모두 예상치.
+
 ## v0.7.22 (2026-05-18)
 
 **Power activation condition penalties — S+ Power cards 의 조건부 가치 인지.**
