@@ -704,7 +704,11 @@ internal static class PlanScorer
             // Balanced playstyle prioritises HP preservation, so weight self-damage at
             // ×100 score per point (≈ 2× WastedBlock penalty per HP, big enough to push
             // the planner toward non-attack alternatives when reflect is heavy).
+            // v0.7.34 — Also accumulate thornsDamage (raw HP) for the survival
+            // check below: a multi-hit attack into thorns can self-promote
+            // urgency from Heavy to Fatal.
             int thornsPenalty = 0;
+            int thornsDamage = 0;  // raw HP cost from this attack's thorns reflects
             int hits = System.Math.Max(1, card.Hits);
             if (isAoe)
             {
@@ -712,6 +716,7 @@ internal static class PlanScorer
                 if (aliveThorns > 0)
                 {
                     thornsPenalty = -aliveThorns * hits * 100;
+                    thornsDamage = aliveThorns * hits;
                     details.Add($"THORNS_AOE{thornsPenalty}");
                 }
             }
@@ -721,6 +726,7 @@ internal static class PlanScorer
                 if (thorns > 0)
                 {
                     thornsPenalty = -thorns * hits * 100;
+                    thornsDamage = thorns * hits;
                     details.Add($"THORNS{thornsPenalty}");
                 }
             }
@@ -762,9 +768,12 @@ internal static class PlanScorer
             // v0.7.33 — Effective urgency accounts for card.HpLossAmount: a
             // Spite/Inferno-trigger attack on a low-HP turn can self-promote
             // the situation from Heavy to Fatal.
+            // v0.7.34 — Thorns reflect HP is also folded into the survival
+            // check. A multi-hit attack vs heavy thorns can self-kill before
+            // enemy intent fires.
             int survivalAtkPenalty = 0;
             {
-                var urg = GetEffectiveUrgency(state, card.HpLossAmount);
+                var urg = GetEffectiveUrgency(state, card.HpLossAmount + thornsDamage);
                 if (urg == SurvivalUrgency.Fatal || urg == SurvivalUrgency.Heavy)
                 {
                     bool isLethalSingle = !isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count
@@ -785,7 +794,8 @@ internal static class PlanScorer
             }
 
             // v0.7.33 — Additional penalty for self-damage that promotes urgency.
-            int selfDmgAtkPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn);
+            // v0.7.34 — Includes thorns reflect HP for accurate urgency.
+            int selfDmgAtkPenalty = ComputeSelfDamagePenaltyWithThorns(card, state, lethalThisTurn, thornsDamage);
             if (selfDmgAtkPenalty != 0)
                 details.Add($"selfDmg={selfDmgAtkPenalty}");
 
@@ -1793,12 +1803,20 @@ internal static class PlanScorer
     /// kill bonus dwarfs and the combat ends before HP can matter).
     /// </summary>
     private static int ComputeSelfDamagePenalty(SimCard card, SimState state, bool lethalThisTurn)
+        => ComputeSelfDamagePenaltyWithThorns(card, state, lethalThisTurn, 0);
+
+    /// <summary>
+    /// v0.7.34 — Same as ComputeSelfDamagePenalty but also factors in raw
+    /// thorns reflect HP (only relevant for Attack branch where target's
+    /// ThornsAmount applies per hit). Skill / Power branches pass 0.
+    /// </summary>
+    private static int ComputeSelfDamagePenaltyWithThorns(SimCard card, SimState state, bool lethalThisTurn, int thornsDamage)
     {
-        int hpLoss = card.HpLossAmount;
+        int hpLoss = card.HpLossAmount + System.Math.Max(0, thornsDamage);
         if (hpLoss <= 0) return 0;
         if (lethalThisTurn) return 0;  // we kill them first; HP loss doesn't matter
 
-        // Self-kill: card alone reduces HP to ≤ 0 (Spite-edge cases, low-HP states).
+        // Self-kill: card alone reduces HP to ≤ 0.
         if (hpLoss >= state.PlayerHp) return -2000;
 
         var baseUrg = EnemyTurnSimulator.GetSurvivalUrgency(state);

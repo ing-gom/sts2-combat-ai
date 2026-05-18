@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.7.34 (2026-05-18)
+
+**Thorns 자해를 survival check 에 통합.**
+
+### 배경
+
+`thornsPenalty` 는 attack score 에 직접 차감되어 있었지만 **survival urgency
+재산정** 에는 안 들어감. 결과:
+- HP 8 + incoming 4 (Moderate) → 5-thorns 적 상대 2-hit 공격 → 자해 10
+- effHp = -2 → 사실상 self-kill 인데, 기존 penalty 는 -1000 만
+
+### 변경
+
+`ComputeSelfDamagePenaltyWithThorns(card, state, lethalThisTurn, thornsDamage)`
+헬퍼 추가. Attack branch 의 thornsDamage 를 hpLoss 와 합산해서 urgency
+재평가 (v0.7.33 의 self-damage 모델 확장).
+
+```csharp
+int hpLoss = card.HpLossAmount + thornsDamage;
+if (hpLoss >= state.PlayerHp) return -2000;  // self-kill
+var effUrg = GetEffectiveUrgency(state, hpLoss);
+// jump-비례 penalty (v0.7.33 로직 동일)
+```
+
+Skill / Power branch 는 thornsDamage=0 passthrough.
+
+### 효과 예시
+
+| 상황 | 이전 | v0.7.34 |
+|---|---:|---:|
+| HP 8 + incoming 4, 5-thorns 적 2-hit | thorns-1000 | thorns-1000 + selfDmg-1000 (Heavy→Fatal) |
+| HP 4 + incoming 3, 2-thorns 적 3-hit (자해 6) | thorns-600 | thorns-600 + selfDmg-2000 (self-kill) |
+| Lethal-this-turn vs thorns 적 | thorns-N | 0 (combat 종료 bypass) |
+
+---
+
 ## v0.7.33 (2026-05-18)
 
 **HP-loss aware survival check — 현재 턴 정밀화 Phase 1.**
