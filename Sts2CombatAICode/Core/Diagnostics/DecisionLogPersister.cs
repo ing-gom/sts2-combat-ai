@@ -123,6 +123,19 @@ internal static class DecisionLogPersister
         AppendBool(sb, "fetch_card", e.IsFetchCard); sb.Append(',');
         AppendInt(sb, "combo_links", e.ComboLinks); sb.Append(',');
         Append(sb, "reason", e.Reason); sb.Append(',');
+        // v0.7.41 — Outcome fields. Captured after the card actually played
+        // so the log shows AI prediction vs reality.
+        AppendInt(sb, "player_hp_after", e.PlayerHpAfter); sb.Append(',');
+        AppendInt(sb, "player_block_after", e.PlayerBlockAfter); sb.Append(',');
+        AppendInt(sb, "enemy_hp_after", e.EnemyHpAfterTotal); sb.Append(',');
+        AppendInt(sb, "damage_dealt", e.DamageDealt); sb.Append(',');
+        AppendInt(sb, "self_damage", e.SelfDamage); sb.Append(',');
+        AppendBool(sb, "killed_enemy", e.KilledEnemy); sb.Append(',');
+        AppendBool(sb, "is_turn_end", e.IsTurnEnd); sb.Append(',');
+        AppendInt(sb, "turn_hp_start", e.TurnHpStart); sb.Append(',');
+        AppendInt(sb, "turn_hp_end", e.TurnHpEnd); sb.Append(',');
+        AppendInt(sb, "turn_damage_taken", e.TurnDamageTaken); sb.Append(',');
+        AppendInt(sb, "turn_cards_played", e.TurnCardsPlayed); sb.Append(',');
         Append(sb, "snapshot", e.SnapshotSummary); sb.Append(',');
         Append(sb, "breakdown", e.BreakdownDetails);
         sb.Append('}');

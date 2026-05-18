@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.7.41 (2026-05-18)
+
+**Outcome tracking — AI 의사결정의 실제 결과 기록.**
+
+기존 DecisionLog 는 "결정 시점 상태 + 선택 카드 + 점수" 만 기록.
+"이 결정이 실제로 어떤 결과를 가져왔나?" 정보 부재.
+
+### 변경
+
+`DecisionLog.Entry` 에 outcome 필드 추가:
+- `PlayerHpAfter` / `PlayerBlockAfter` — 카드 play 직후 상태
+- `EnemyHpAfterTotal` — 모든 alive 적 HP 합
+- `DamageDealt` — 이 카드로 실제 입힌 데미지
+- `SelfDamage` — 자해 (thorns reflect / HpLoss)
+- `KilledEnemy` — 이 play 가 적을 처치했는지
+
+새 메서드: `DecisionLog.UpdateLastOutcome(...)` — `VakuuExecutor` 가
+`CardCmd.AutoPlay` 완료 후 호출, 마지막 entry 의 outcome 필드 mutate.
+
+### Turn-end summary entry 추가
+
+각 player turn 의 자동 plays 종료 후 별도 entry 기록:
+- `IsTurnEnd = true`, `CardId = "<TURN_END>"`
+- `TurnHpStart` / `TurnHpEnd` — 턴 시작/종료 HP
+- `TurnDamageTaken` — 이 턴 자해 + (이전 턴 enemy damage 가 미반영)
+- `TurnCardsPlayed` — 자동 play 카드 수
+
+이 entry 다음에 enemy 턴이 옴. 따라서 **(다음 turn 의 first entry HP) − (이 TURN_END HP)** = enemy 턴 데미지.
+
+### NDJSON 추가 필드
+
+```
+"player_hp_after","player_block_after","enemy_hp_after",
+"damage_dealt","self_damage","killed_enemy",
+"is_turn_end","turn_hp_start","turn_hp_end",
+"turn_damage_taken","turn_cards_played"
+```
+
+### 분석 능력
+
+- AI 가 "lethal score 5000" 으로 픽했는데 실제 damage=0 → mispredict 검출
+- 자해 카드 후 HP 변화 검증
+- 턴별 평균 카드수 / 데미지 / HP 손실 트렌드
+- 모든 결정의 prediction vs reality 비교
+
+---
+
 ## v0.7.40 (2026-05-18)
 
 **Thorns HP scaling + AI 멈춤 (mid-turn forfeit) 버그 fix.**
