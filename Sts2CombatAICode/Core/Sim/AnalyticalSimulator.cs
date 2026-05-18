@@ -186,7 +186,20 @@ internal static class AnalyticalSimulator
                 int newPoison = enemy.PoisonAmount;
                 int newConstrict = enemy.ConstrictAmount;
                 int newBurn = enemy.BurnAmount;
+                int newDoom = enemy.DoomAmount;
                 int artifactLeft = enemy.ArtifactAmount;
+
+                // v0.7.13 — REAPER_FORM applies DoomPower stack on every attack
+                // hit. Add 1 stack per hit (multi-hit attacks apply multiple
+                // stacks). Artifact does NOT intercept self-buff-driven debuffs
+                // (Doom is added on hit, not via a debuff PowerVar).
+                if (next.PlayerPowers != null
+                    && next.PlayerPowers.TryGetValue("ReaperFormPower", out var reaperStacks)
+                    && reaperStacks > 0
+                    && card.Damage > 0)
+                {
+                    newDoom += reaperStacks * System.Math.Max(1, card.Hits);
+                }
                 foreach (var (powerName, amount) in card.PowerApps)
                 {
                     if (!IsEnemyDebuff(powerName)) continue;
@@ -217,6 +230,7 @@ internal static class AnalyticalSimulator
                     PoisonAmount = newPoison,
                     ConstrictAmount = newConstrict,
                     BurnAmount = newBurn,
+                    DoomAmount = newDoom,
                     ArtifactAmount = artifactLeft,
                     HardenedShellRemaining = shellLeft,
                 });
@@ -493,8 +507,9 @@ internal static class AnalyticalSimulator
             if (e.HasTurnStartStrengthBuff)
                 ne = ne with { StrengthAmount = ne.StrengthAmount + 1 };
 
-            // DoT ticks (Poison + Constrict). Burn timing varies — left out.
-            int dotTick = ne.PoisonAmount + ne.ConstrictAmount;
+            // DoT ticks (Poison + Constrict + Doom). Burn timing varies — left out.
+            // v0.7.13 — DoomPower from REAPER_FORM ticks alongside other DoT.
+            int dotTick = ne.PoisonAmount + ne.ConstrictAmount + ne.DoomAmount;
             if (dotTick > 0)
                 ne = ne with { Hp = System.Math.Max(0, ne.Hp - dotTick) };
 
@@ -533,12 +548,9 @@ internal static class AnalyticalSimulator
             // BarricadePower → block carries over instead of resetting.
             if (state.PlayerPowers.TryGetValue("BarricadePower", out var brc) && brc > 0)
                 barricadeActive = true;
-            // ReaperFormPower N → apply DoomPower stack N to every alive enemy.
-            // We surface this via the enemy Powers dict; on enemy turn the
-            // Doom ticks deal damage equal to current stack (modeled inline
-            // via enemy.PoisonAmount + ConstrictAmount for now; DoomPower
-            // accounting deferred to a follow-up because SimEnemy has no
-            // dedicated Doom field yet).
+            // ReaperFormPower 는 ApplyCardPlay 의 attack 분기에서 적 DoomAmount 누적
+            // (v0.7.13). 여기서는 별도 처리 없음 — AdvanceTurn 의 enemy DoT loop 가
+            // PoisonAmount + ConstrictAmount + DoomAmount 합산해 tick.
         }
 
         // (e)+(f) Block reset (unless Barricade) + energy reset (flat 3 base).
@@ -557,6 +569,49 @@ internal static class AnalyticalSimulator
 
         int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - 5);
         int newDiscardPileSize = 0;
+
+        // v0.7.13 — MAYHEM / STAMPEDE turn-start auto-play. Each stack auto-
+        // plays a card (MAYHEM: top of draw pile, STAMPEDE: random Attack from
+        // draw). Both modeled as free-use damage from the synthetic average
+        // draw card landing on the weakest alive enemy.
+        //
+        // AGGRESSION is deliberately NOT simulated here — its turn-start
+        // effect is "random Attack from discard → hand". With our synthetic
+        // average-card hand model the addition isn't distinguishable; its
+        // value is already credited via the v0.7.4 EffectSynergy bonus.
+        int mayhemStacks = 0, stampedeStacks = 0;
+        if (state.PlayerPowers != null)
+        {
+            state.PlayerPowers.TryGetValue("MayhemPower", out mayhemStacks);
+            state.PlayerPowers.TryGetValue("StampedePower", out stampedeStacks);
+        }
+        int autoTriggers = mayhemStacks + stampedeStacks;
+        if (autoTriggers > 0)
+        {
+            var avgAuto = MakeAverageDrawCard(state);
+            int perTriggerDmg = avgAuto.IsAttack ? avgAuto.TotalDamage : 0;
+            int totalAutoDmg = perTriggerDmg * autoTriggers;
+            if (totalAutoDmg > 0)
+            {
+                int wIdx = -1; int wHp = int.MaxValue;
+                for (int i = 0; i < newEnemies.Count; i++)
+                {
+                    if (!newEnemies[i].IsAlive) continue;
+                    if (newEnemies[i].Hp < wHp) { wHp = newEnemies[i].Hp; wIdx = i; }
+                }
+                if (wIdx >= 0)
+                {
+                    var t = newEnemies[wIdx];
+                    int blkAfter = System.Math.Max(0, t.Block - totalAutoDmg);
+                    int leakToE = System.Math.Max(0, totalAutoDmg - t.Block);
+                    newEnemies[wIdx] = t with
+                    {
+                        Block = blkAfter,
+                        Hp = System.Math.Max(0, t.Hp - leakToE),
+                    };
+                }
+            }
+        }
 
         // v0.7.12 — distribute allyAbsorbed across alive allies proportional
         // to their HP share. Allies whose Hp drops to 0 become inert (dead).
