@@ -29,7 +29,14 @@ internal static class HandSynergy
                                                           // attacks, causing Twin-Strike-before-Bash
                                                           // mis-orderings.
     private const int WeakSavingsPerHpPoint    = 30;     // score per HP of enemy damage prevented
-    private const int WeakSavingsTurnCap       = 2;      // future turns to count
+    private const int WeakSavingsTurnCap       = 4;      // v0.7.25 — was 2; high-stack Weak now scales up to 4 turns
+
+    // v0.7.25 — Baseline per-hit attack estimate used when the enemy is NOT
+    // currently attack-intent (buff / heal / defend / summon / debuff / status).
+    // Weak applied now still mitigates their FUTURE attack turns; without intent
+    // visibility into those turns, fall back to a conservative average.
+    private const int WeakNonAttackBaselineDmg = 8;
+    private const int WeakNonAttackBaselineHits = 1;
     // v0.6.8 — RagePower (Ironclad RAGE): +N block per attack played this turn,
     // for the rest of the turn. Total expected block = N × (remaining attacks
     // in hand). Same beneficiary-count pattern as Dexterity, but the per-card
@@ -127,24 +134,74 @@ internal static class HandSynergy
     }
 
     /// <summary>
-    /// Estimated HP saved by applying Weak this turn. Per-hit STS-accurate model:
-    /// each enemy attack hit deals floor((IntentDamage + Strength) × 0.75), so
+    /// Estimated HP saved by applying Weak. Per-hit STS-accurate model: each
+    /// enemy attack hit deals floor((IntentDamage + Strength) × 0.75), so
     /// savings per hit = perHit − floor(perHit × 0.75) ≈ ceil(perHit × 0.25).
     /// Multi-hit enemies multiply this savings by IntentRepeats; Weak persisting
     /// over multiple turns multiplies again, capped at WeakSavingsTurnCap.
+    ///
+    /// v0.7.25 — Two refinements:
+    ///   1. Non-attack-intent enemies (buffing/healing this turn) still count
+    ///      towards Weak value because Weak stacks decay 1/turn — applying now
+    ///      mitigates THEIR FUTURE attack turns. Uses a baseline 8 dmg × 1 hit
+    ///      estimate, halved for future-intent uncertainty. First turn lapses
+    ///      (no current-turn attack to mitigate) so effectiveTurns -= 1.
+    ///   2. Cap uses RemainingTurnsEstimator instead of hard-coded 2. High-stack
+    ///      Weak on long boss fights now properly scales up to 4 turns.
     /// </summary>
     private static int ComputeWeakSavings(int weakStacks, SimState state)
     {
+        if (weakStacks <= 0) return 0;
+        int remainingTurns = RemainingTurnsEstimator.From(state);
+        int turnCap = System.Math.Min(weakStacks, System.Math.Min(remainingTurns, WeakSavingsTurnCap));
+        if (turnCap <= 0) return 0;
+
         int hpSaved = 0;
         foreach (var e in state.Enemies)
         {
-            if (!e.IsAlive || !e.HasAttackIntent || e.IsInert) continue;
-            int perHit = e.IntentDamage + System.Math.Max(0, e.StrengthAmount);
+            if (!e.IsAlive || e.IsInert) continue;
+
+            // Classify intent. DeathBlow with intent damage acts like attack intent.
+            bool currentTurnAttacks = e.HasAttackIntent
+                                    || (e.HasDeathBlowIntent && e.IntentDamage > 0);
+            bool futureIntentAttack = !currentTurnAttacks
+                                    && (e.HasBuffIntent || e.HasDebuffIntent
+                                        || e.HasHealIntent || e.HasDefendIntent
+                                        || e.HasSummonIntent || e.HasStatusIntent);
+            if (!currentTurnAttacks && !futureIntentAttack) continue;
+
+            int perHit, hits;
+            if (currentTurnAttacks)
+            {
+                perHit = e.IntentDamage + System.Math.Max(0, e.StrengthAmount);
+                hits = System.Math.Max(1, e.IntentRepeats);
+            }
+            else
+            {
+                // Conservative baseline: enemy will likely attack in their next
+                // attack turn at roughly this profile.
+                perHit = WeakNonAttackBaselineDmg + System.Math.Max(0, e.StrengthAmount);
+                hits = WeakNonAttackBaselineHits;
+            }
+
             int perHitSavings = perHit - (int)(perHit * 0.75);
             if (perHitSavings <= 0) continue;
-            int turnSavings = perHitSavings * System.Math.Max(1, e.IntentRepeats);
-            int effectiveTurns = System.Math.Min(weakStacks, WeakSavingsTurnCap);
-            hpSaved += turnSavings * effectiveTurns;
+            int turnSavings = perHitSavings * hits;
+
+            int effectiveTurns = turnCap;
+            if (!currentTurnAttacks)
+            {
+                // First Weak turn lapses on a non-attacking intent — by the next
+                // turn one stack has already decayed.
+                effectiveTurns = System.Math.Max(0, effectiveTurns - 1);
+            }
+            if (effectiveTurns <= 0) continue;
+
+            int contribution = turnSavings * effectiveTurns;
+            // Future-intent enemies: halve for uncertainty (they may keep
+            // non-attacking, or die first, etc.)
+            if (!currentTurnAttacks) contribution /= 2;
+            hpSaved += contribution;
         }
         return hpSaved * WeakSavingsPerHpPoint;
     }
