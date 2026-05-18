@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.7.55 (2026-05-18)
+
+**DeckThroughput — DPT/BPT 지표 + 코어카드 식별.**
+
+사용자 요청: "카드들이 턴에 얼만큼 데미지 버틸 수 있고 / 입힐 수 있는지 +
+코어카드 식별".
+
+### 새 모듈 `DeckThroughput.cs`
+
+**Profile 계산** (Hand+DrawPile+DiscardPile 전체):
+- `AvgDamagePerTurn (DPT)` = totalDamage × PlaysPerTurn(3) / totalCards
+- `AvgBlockPerTurn (BPT)` = totalBlock × 3 / totalCards
+- `CoreAttackers` = top-3 attacks by per-energy damage ratio
+- `CoreDefenders` = top-3 block skills by per-energy block ratio
+
+**Coverage 지표**:
+- `DamageCoverage = DPT × RemainingTurns / enemyHpSum` (≥1.0 = 이길 수 있음)
+- `BlockCoverage = BPT / incoming` (≥1.0 = 막을 수 있음)
+
+### 통합
+
+**PlanScorer**: 코어 카드 (top-3 attacker/defender) play 시 **+80 보너스**.
+일반 동치 카드보다 우대.
+
+**VakuuExecutor**: 매 턴 시작 시 로그 출력
+```
+[CombatAI]   throughput: dpt=18 bpt=12 dmgCov=2.40 blkCov=1.33 
+                          coreAtk=[KINGLY_PUNCH,STRIKE,FALLING_STAR] 
+                          coreDef=[BULWARK,DEFEND,SUMMON_FORTH]
+```
+
+### 활용
+
+- **dmgCov < 1.0** = 이 턴 페이스로 못 이김 → AI 가 sustain/scaling 우선
+- **blkCov < 1.0** = 막을 수 없음 → 적 처치 우선 또는 dodge
+- **coreAtk** 카드 = 빌드의 main carry → 우선 플레이
+- **coreDef** 카드 = 위기 시 안전판
+
+---
+
 ## v0.7.54 (2026-05-18)
 
 **Win condition 추론 (사용자 요청 #4) — 전략 phase 분류.**
