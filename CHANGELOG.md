@@ -1,5 +1,89 @@
 # Changelog
 
+## v0.7.22 (2026-05-18)
+
+**Power activation condition penalties — S+ Power cards 의 조건부 가치 인지.**
+
+### 배경
+
+PowerCatalog 가 BarricadePower 1200, EchoFormPower 1500 등 절대값 큰 점수
+부여. 하지만 다음 조건들 미충족 시 실제 활성 가치는 훨씬 낮음:
+- EchoForm 마지막 카드로 깔면 → 이번 턴 echo 0
+- Barricade 0 block → 운반할 게 없음 (다음 턴부터 활성)
+- MachineLearning 손 cap (10) → 추가 draw 못 받음
+- Cruelty Vuln 적 없고 hand 에 Vuln producer 도 없음 → +25% 부스트 안 됨
+
+기존엔 fightCtx 가 부분적으로 short-fight 만 보정. 이번 핸들러는 **board state
+specific 조건** 점수화.
+
+### 변경 (`PlanScorer.ComputePowerActivationPenalty`)
+
+PlanScorer Power branch 의 PowerCatalog credit 직후 호출. 4가지 검사:
+
+#### 1. EchoForm / Burst
+```
+energyAfter = state.PlayerEnergy - card.Cost
+playablesAfter = count(other playable cards with cost <= energyAfter or cost == 0)
+if playablesAfter == 0: penalty -= 400
+```
+첫 echo 가 다음 턴으로 deferred → 30% 가치 감산 (1500 → 1100).
+
+#### 2. Barricade
+```
+if state.PlayerBlock == 0 && !HasBlockSourceInHand(hand): penalty -= 200
+```
+운반할 block 도, 만들 카드도 없으면 1200 → 1000. 다음 턴 block 빌드 시
+활성하지만 지연.
+
+#### 3. MachineLearning
+```
+if state.Hand.Count >= 10: penalty -= 250
+```
+손 가득이면 draw 못 받아 wasted → 900 → 650.
+
+#### 4. Cruelty
+```
+if !anyVulnEnemy && !HasVulnProducerInHand(hand): penalty -= 200
+```
+Vuln 적용 못 받으면 25% 부스트 0 → 600 → 400.
+
+### 검증 (`scripts/_inspect_v0_7_22.py`)
+
+```
+=== EchoForm ===
+normal play (cards left to echo)            penalty=  +0  net=1500
+LAST card, 0 energy, 0 other plays          penalty= -400 net=1100
+0-cost echoform-class with cards            penalty=  +0  net=1500
+
+=== Barricade ===
+normal: 10 block already                    penalty=  +0  net=1200
+0 block + Defend in hand                    penalty=  +0  net=1200
+0 block + NO block cards                    penalty= -200 net=1000
+
+=== MachineLearning ===
+normal: hand 5 cards                        penalty=  +0  net=900
+nearly full: 9 cards                        penalty=  +0  net=900
+AT cap: 10 cards                            penalty= -250 net=650
+
+=== Cruelty ===
+normal: Vuln target available               penalty=  +0  net=600
+Bash in hand (Vuln producer)                penalty=  +0  net=600
+NO Vuln + NO producer (wasted now)          penalty= -200 net=400
+```
+
+### 의도
+
+- **조건부 가치 인지** — Power score 가 실제 활용도와 일치
+- **타이밍 가이드** — Barricade 는 block 카드 함께 들렸을 때 / EchoForm 은
+  energy 있을 때 우선 선택
+- **보수적 페널티** — 활성 가능성이 있으면 0 페널티 (HasBlockSource /
+  HasVulnProducer / playablesAfter > 0 등 분기로 conditions met 인지)
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_v0_7_22.py`: 4 카드 × 3 시나리오 모두 예상치.
+
 ## v0.7.21 (2026-05-18)
 
 **Combat length estimator 정교화 + CORRUPTION cost-reduction + DOOM
