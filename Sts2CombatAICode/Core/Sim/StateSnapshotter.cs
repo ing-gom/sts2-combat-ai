@@ -53,6 +53,11 @@ internal static class StateSnapshotter
             var playerPowerDict = CombatReflection.GetAllPowers(creature);
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
             int playerDoom = CombatReflection.GetPowerAmount(creature, "DoomPower");
+            // v0.7.35 — Player-side DoT stacks. Tick at turn end / start;
+            // factor into current-turn survival check.
+            int playerPoison = CombatReflection.GetPowerAmount(creature, "PoisonPower");
+            int playerBurn = CombatReflection.GetPowerAmount(creature, "BurnPower");
+            int playerConstrict = CombatReflection.GetPowerAmount(creature, "ConstrictPower");
 
             int orbCount = 0, orbCapacity = 0;
             var orbQueue = new List<OrbKind>();
@@ -264,6 +269,9 @@ internal static class StateSnapshotter
                 PlayerVulnerable = playerVuln,
                 PlayerWeak = playerWeak,
                 PlayerFrail = playerFrail,
+                PlayerPoison = playerPoison,
+                PlayerBurn = playerBurn,
+                PlayerConstrict = playerConstrict,
                 DrawPileSize = drawPileSize,
                 DiscardPileSize = discardPileSize,
                 DrawPile = drawPile,
