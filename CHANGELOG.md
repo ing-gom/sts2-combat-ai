@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.7.59 (2026-05-18)
+
+**CombatPlan — multi-turn stage tracking.**
+
+### Stage 5종
+
+| Stage | 조건 | 우대 |
+|---|---|---|
+| **Opening** (턴 ≤ 2) | 초반 | Draw/Energy/Power +30~50 |
+| **Setup** | Winning race | Power +70, Scaling/Stat-producer +40~50 |
+| **Burst** | Tight/Losing + DPT ≥ 10 | Attack +40, Power -50 |
+| **Lockdown** | Moderate + TTD ≥ 4 | Block ≥6 +50, Poison/Doom +60 |
+| **Cleanup** | enemyHp ≤ DPT × 2 | Attack +60, Power -100 |
+
+### NotifyTurn API
+
+`CombatPlan.NotifyTurn(roundNumber)` — VakuuExecutor 가 매 턴 시작 시 호출.
+초반 턴 분류 (Opening) 정확.
+
+### VakuuExecutor 로그
+
+```
+[CombatAI]   plan: stage=Setup
+```
+
+### 통합 효과 — v0.7.51~59
+
+매 카드 결정에 통합되는 분석 layer:
+1. 카드 자체 효과
+2. Hand 시너지
+3. **Deck archetype** (v0.7.52)
+4. **Combat encounter** (v0.7.53)
+5. **Win condition phase** (v0.7.54)
+6. **Deck throughput + cycling** (v0.7.55-56)
+7. **Survival projection (race)** (v0.7.57)
+8. **Deck quality** (v0.7.58)
+9. **Plan stage** (v0.7.59)
+
+총 9-dimensional 의사결정.
+
+---
+
 ## v0.7.58 (2026-05-18)
 
 **DeckQuality — 덱 구조 진단 + per-card 보정.**

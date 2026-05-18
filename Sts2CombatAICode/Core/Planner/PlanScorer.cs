@@ -232,6 +232,17 @@ internal static class PlanScorer
                 ? $"quality({quality.Health})+{qualityBonus}"
                 : $"{comboDetail},quality({quality.Health})+{qualityBonus}";
         }
+        // v0.7.59 — Multi-turn plan stage. Smooths flip-flopping across turns
+        // by tracking the macro stage and biasing toward stage-aligned plays.
+        var planStage = CombatPlan.Classify(state, raceProj);
+        int stageBonus = CombatPlan.StageBonus(card, planStage);
+        if (stageBonus != 0)
+        {
+            comboBonus += stageBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"stage({planStage}){stageBonus:+0;-0}"
+                : $"{comboDetail},stage({planStage}){stageBonus:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable

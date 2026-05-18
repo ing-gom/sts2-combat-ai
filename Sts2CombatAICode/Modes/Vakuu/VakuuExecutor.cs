@@ -98,6 +98,9 @@ internal static class VakuuExecutor
                 // v0.7.55 — Deck throughput diagnostic (once per step turn-start).
                 if (step == 0)
                 {
+                    // v0.7.59 — Notify CombatPlan of the current round so
+                    // Stage.Opening / mature-game classification works.
+                    Sts2CombatAI.Planner.CombatPlan.NotifyTurn(combatState.RoundNumber);
                     var tp = Sts2CombatAI.Planner.DeckThroughput.Compute(snapshot);
                     double dmgCov = Sts2CombatAI.Planner.DeckThroughput.DamageCoverage(snapshot, tp);
                     double blkCov = Sts2CombatAI.Planner.DeckThroughput.BlockCoverage(snapshot, tp);
@@ -118,6 +121,9 @@ internal static class VakuuExecutor
                     // v0.7.58 — Deck quality diagnostic
                     var quality = Sts2CombatAI.Planner.DeckQuality.Compute(snapshot);
                     MainFile.Logger.Info($"[CombatAI]   quality: {Sts2CombatAI.Planner.DeckQuality.Describe(quality)}");
+                    // v0.7.59 — Plan stage
+                    var planStage = Sts2CombatAI.Planner.CombatPlan.Classify(snapshot, proj);
+                    MainFile.Logger.Info($"[CombatAI]   plan: stage={planStage}");
                 }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
