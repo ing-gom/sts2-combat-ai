@@ -271,11 +271,13 @@ internal static class PlanScorer
         // v0.7.63 — Variance penalty in critical situations. High-variance
         // cards (random gen, random target) lose tiebreaks when the race
         // is tight or stage is Cleanup — prefer reliability.
-        int variancePenalty = CardVariance.ReliabilityPenalty(card, raceProj, planStage);
+        // v0.7.64 — RANDOM-target attacks collapse to None on single-enemy
+        // encounters (all hits land on the same target).
+        int variancePenalty = CardVariance.ReliabilityPenalty(card, state, raceProj, planStage);
         if (variancePenalty != 0)
         {
             comboBonus += variancePenalty;
-            var level = CardVariance.Classify(card);
+            var level = CardVariance.Classify(card, state);
             comboDetail = string.IsNullOrEmpty(comboDetail)
                 ? $"variance({level}){variancePenalty:+0;-0}"
                 : $"{comboDetail},variance({level}){variancePenalty:+0;-0}";
