@@ -74,6 +74,10 @@ internal static class AnalyticalSimulator
         // 3. Apply card effects
         int newPlayerStr = next.PlayerStrength;
         int newPlayerDex = next.PlayerDexterity;
+        // v0.7.82 — VigorPower buffer. Carried across the simulated step so a
+        // skill that grants Vigor lifts the next attack's damage, then is
+        // consumed when an attack plays.
+        int newPlayerVigor = next.PlayerVigor;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -116,6 +120,10 @@ internal static class AnalyticalSimulator
                     case "FocusPower":
                     case "TemporaryFocusPower":
                         newPlayerFocus += amount; break;
+                    // v0.7.82 — VigorPower propagation. Some Power cards (TERRAFORMING,
+                    // PREP_TIME-derived buffs etc.) grant Vigor; the next attack
+                    // lookahead must see the boost.
+                    case "VigorPower": newPlayerVigor += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -160,8 +168,11 @@ internal static class AnalyticalSimulator
                 // sim was dealing uncapped damage to Intangible / shell enemies, so
                 // the second-card lookahead saw a corpse where the game would still
                 // have a full-HP target and planned overkill chains accordingly.
+                // v0.7.82 — Apply Vigor to damage. Consumption happens once after
+                // the attack resolves (after the enemy loop) so each enemy in AOE
+                // sees the same Vigor amount, matching STS canonical behavior.
                 int totalDmg = StatusMath.EffectivePerEnemyTotal(
-                    card.Damage, card.Hits, newPlayerStr, enemy, playerWeak);
+                    card.Damage, card.Hits, newPlayerStr, newPlayerVigor, enemy, playerWeak);
 
                 // Block-first absorption
                 int blockAfter = System.Math.Max(0, enemy.Block - totalDmg);
@@ -249,6 +260,10 @@ internal static class AnalyticalSimulator
                 });
             }
             next = next with { Enemies = newEnemies };
+
+            // v0.7.82 — Vigor is single-shot: consumed when this attack resolves.
+            // Subsequent attacks in the depth-N lookahead chain see Vigor=0.
+            newPlayerVigor = 0;
         }
 
         // 3c. Skill: self block (only when self-targeted) + apply powers to target if any
@@ -283,6 +298,8 @@ internal static class AnalyticalSimulator
                         case "FocusPower":
                         case "TemporaryFocusPower":
                             newPlayerFocus += amount; break;
+                        // v0.7.82 — Skill-granted Vigor (rare but exists in STS2).
+                        case "VigorPower": newPlayerVigor += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -437,6 +454,7 @@ internal static class AnalyticalSimulator
             PlayerEnergy = energy,
             PlayerStrength = newPlayerStr,
             PlayerDexterity = newPlayerDex,
+            PlayerVigor = newPlayerVigor,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,

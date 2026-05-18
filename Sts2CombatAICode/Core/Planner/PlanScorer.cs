@@ -437,8 +437,10 @@ internal static class PlanScorer
             bool targetIsVulnerable = !isAoe
                 && targetIdx >= 0 && targetIdx < state.Enemies.Count
                 && state.Enemies[targetIdx].VulnerableAmount > 0;
+            // v0.7.82 — Include PlayerVigor: when this card is being scored as the
+            // CURRENT play, any Vigor on the player applies to it (single-shot).
             int effectivePerHit = StatusMath.EffectiveAttackDmg(card.Damage,
-                state.PlayerStrength, targetIsVulnerable, playerIsWeak);
+                state.PlayerStrength, state.PlayerVigor, targetIsVulnerable, playerIsWeak);
 
             // v0.6.7 — Variable-damage hit-count override. Card.Hits comes from
             // RepeatVar / CalculatedHits and defaults to 1, but several attacks
@@ -513,10 +515,14 @@ internal static class PlanScorer
                 {
                     var e = state.Enemies[i];
                     if (!e.IsAlive) continue;
+                    // v0.7.82 — AOE: Vigor applies to ONE hit total across the whole AOE,
+                    // not per enemy. Conservative: include Vigor in the rawPer / perEnemyTotal
+                    // for each enemy (slight over-credit), since picking AOE means Vigor
+                    // benefits the first enemy resolved. Acceptable noise for AOE scoring.
                     int rawPer = StatusMath.EffectiveAttackDmg(card.Damage,
-                        state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                        state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
                     int perEnemyTotal = StatusMath.EffectivePerEnemyTotal(
-                        card.Damage, effHits, state.PlayerStrength, e, playerIsWeak);
+                        card.Damage, effHits, state.PlayerStrength, state.PlayerVigor, e, playerIsWeak);
                     if (rawPer > 0 && e.DamageCapPerHit > 0 && rawPer > e.DamageCapPerHit) capsHit++;
                     if ((e.HardenedShellRemaining > 0 && rawPer * effHits > e.HardenedShellRemaining)
                         || (rawPer > 0 && e.HardenedShellRemaining == 0
@@ -557,8 +563,11 @@ internal static class PlanScorer
                     {
                         var e = state.Enemies[i];
                         if (!e.IsAlive) continue;
+                        // v0.7.82 — Random multi-hit: Vigor applies to one hit total.
+                        // Conservative approximation: include Vigor in per-hit calc;
+                        // overkill clamp limits over-credit naturally.
                         int perHitForE = StatusMath.EffectiveAttackDmg(card.Damage,
-                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                            state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
                         if (e.DamageCapPerHit > 0 && perHitForE > e.DamageCapPerHit)
                             perHitForE = e.DamageCapPerHit;
                         if (perHitForE <= 0) continue;
@@ -726,8 +735,11 @@ internal static class PlanScorer
                     {
                         var e = state.Enemies[i];
                         if (!e.IsAlive) continue;
+                        // v0.7.82 — Random lethal-prob: include Vigor in per-hit so
+                        // hitsNeeded calc accounts for it (Vigor enables more kills with
+                        // fewer hits).
                         int perHitForE = StatusMath.EffectiveAttackDmg(card.Damage,
-                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                            state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
                         if (e.DamageCapPerHit > 0 && perHitForE > e.DamageCapPerHit)
                             perHitForE = e.DamageCapPerHit;
                         if (perHitForE <= 0) continue;
@@ -756,8 +768,11 @@ internal static class PlanScorer
                 {
                     if (!state.Enemies[i].IsAlive) continue;
                     var ei = state.Enemies[i];
+                    // v0.7.82 — AOE per-enemy: Vigor applies once globally, but
+                    // approximate by applying to each enemy (slight over-credit at
+                    // most +Vigor*aoeCount, bounded by enemy hp).
                     int perEnemyDmg = StatusMath.EffectivePerEnemyTotal(
-                        card.Damage, card.Hits, state.PlayerStrength, ei, playerIsWeak);
+                        card.Damage, card.Hits, state.PlayerStrength, state.PlayerVigor, ei, playerIsWeak);
                     var (b, d) = ScoreAttackTarget(card, i, state, w, perEnemyDmg);
                     targetBonus += b;
                     totalAliveBlock += ei.Block;
@@ -965,8 +980,10 @@ internal static class PlanScorer
                                          && effectiveTotal >= state.Enemies[targetIdx].EffectiveHp;
                     bool isLethalAoe = isAoe && state.Enemies.Where(e => e.IsAlive).All(e =>
                     {
+                        // v0.7.82 — Lethal-AOE check: include Vigor (applies to first
+                        // hit of first enemy; conservative to include for all enemies).
                         int perHit = StatusMath.EffectiveAttackDmg(card.Damage,
-                            state.PlayerStrength, e.VulnerableAmount > 0, playerIsWeak);
+                            state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
                         return perHit * System.Math.Max(1, card.Hits) >= e.EffectiveHp;
                     });
                     if (!isLethalSingle && !isLethalAoe)
@@ -1530,18 +1547,24 @@ internal static class PlanScorer
             .ToList();
 
         int totalReachable = 0;
+        // v0.7.82 — Vigor budget. Single-shot: only the FIRST attack in this chain
+        // gets the Vigor bonus, subsequent attacks see 0.
+        int vigorRemaining = state.PlayerVigor;
         foreach (var atk in attacks)
         {
             if (atk.Cost > energy) continue;
             energy -= atk.Cost;
+            int useVigor = vigorRemaining;
+            vigorRemaining = 0;
 
             if (atk.Target == TargetType.AllEnemies)
             {
                 foreach (var e in state.Enemies)
                 {
                     if (!e.IsAlive) continue;
+                    // v0.7.82 — Vigor (per-hit bonus) folded into base via overload.
                     int per = StatusMath.EffectiveAttackDmg(atk.Damage,
-                        state.PlayerStrength, e.VulnerableAmount > 0, playerWeak);
+                        state.PlayerStrength, useVigor, e.VulnerableAmount > 0, playerWeak);
                     if (e.DamageCapPerHit > 0 && per > e.DamageCapPerHit)
                         per = e.DamageCapPerHit;
                     int eachTotal = per * System.Math.Max(1, atk.Hits);
@@ -1564,7 +1587,7 @@ internal static class PlanScorer
                 }
                 if (bestEnemy == null) continue;
                 int per = StatusMath.EffectiveAttackDmg(atk.Damage,
-                    state.PlayerStrength, bestEnemy.VulnerableAmount > 0, playerWeak);
+                    state.PlayerStrength, useVigor, bestEnemy.VulnerableAmount > 0, playerWeak);
                 if (bestEnemy.DamageCapPerHit > 0 && per > bestEnemy.DamageCapPerHit)
                     per = bestEnemy.DamageCapPerHit;
                 int eachTotal = per * System.Math.Max(1, atk.Hits);
