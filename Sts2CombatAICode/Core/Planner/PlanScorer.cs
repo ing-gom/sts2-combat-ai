@@ -209,6 +209,18 @@ internal static class PlanScorer
                 ? $"core+{coreBonus}"
                 : $"{comboDetail},core+{coreBonus}";
         }
+        // v0.7.57 — Survival race projection. Compare turns-to-death vs
+        // turns-to-kill and bias toward damage (losing race), balance
+        // (tight), or scaling (winning).
+        var raceProj = SurvivalProjection.Compute(state, throughput);
+        int raceBonus = SurvivalProjection.RaceBonus(card, raceProj);
+        if (raceBonus != 0)
+        {
+            comboBonus += raceBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"race({raceProj.Race}){raceBonus:+0;-0}"
+                : $"{comboDetail},race({raceProj.Race}){raceBonus:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable
