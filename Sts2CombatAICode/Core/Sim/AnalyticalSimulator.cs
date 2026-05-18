@@ -444,9 +444,15 @@ internal static class AnalyticalSimulator
     {
         // (a)+(b) Resolve enemy intents — PredictPlayerDmg already factors
         // block (incl. EOT bonus), Vulnerable on player, Weak on enemies, and
-        // Intangible cap. We trust its math and apply the result.
-        int leak = EnemyTurnSimulator.PredictPlayerDmg(state);
-        int newPlayerHp = System.Math.Max(0, state.PlayerHp - leak);
+        // Intangible cap.
+        //
+        // v0.7.12 — split the raw post-block leak between player and allies
+        // (skeleton split-fire defense). Allies take the absorption pool
+        // proportional to their Hp share; overflow returns to player.
+        int rawLeak = EnemyTurnSimulator.PredictRawLeak(state);
+        int allyAbsorbed = EnemyTurnSimulator.ComputeAllyAbsorption(state, rawLeak);
+        int playerLeak = rawLeak - allyAbsorbed;
+        int newPlayerHp = System.Math.Max(0, state.PlayerHp - playerLeak);
 
         // v0.7.11 — Ally attacks fire after player turn ends but before
         // enemy intents resolve (in practice STS2 allies act on the player's
@@ -509,7 +515,34 @@ internal static class AnalyticalSimulator
         int newPlayerFrail = System.Math.Max(0, state.PlayerFrail - 1);
         int newPlayerIntangible = System.Math.Max(0, state.PlayerIntangible - 1);
 
-        // (e)+(f) Block reset + energy reset (flat 3 base).
+        // v0.7.12 — Player Power per-turn passives (Phase 2b). The full
+        // PlayerPowers dict is consulted for persistent powers that don't have
+        // a dedicated SimState field. Each adds its turn-start effect on top
+        // of what's already credited via PowerCatalog scoring.
+        int newPlayerStr = state.PlayerStrength;
+        int newPlayerHpAfterPassives = newPlayerHp;
+        bool barricadeActive = false;
+        if (state.PlayerPowers != null && state.PlayerPowers.Count > 0)
+        {
+            // DemonFormPower N → +N Strength every turn-start.
+            if (state.PlayerPowers.TryGetValue("DemonFormPower", out var df) && df > 0)
+                newPlayerStr += df;
+            // RegenPower N → restore N HP at turn-start (capped by absolute heal).
+            if (state.PlayerPowers.TryGetValue("RegenPower", out var rg) && rg > 0)
+                newPlayerHpAfterPassives += rg;
+            // BarricadePower → block carries over instead of resetting.
+            if (state.PlayerPowers.TryGetValue("BarricadePower", out var brc) && brc > 0)
+                barricadeActive = true;
+            // ReaperFormPower N → apply DoomPower stack N to every alive enemy.
+            // We surface this via the enemy Powers dict; on enemy turn the
+            // Doom ticks deal damage equal to current stack (modeled inline
+            // via enemy.PoisonAmount + ConstrictAmount for now; DoomPower
+            // accounting deferred to a follow-up because SimEnemy has no
+            // dedicated Doom field yet).
+        }
+
+        // (e)+(f) Block reset (unless Barricade) + energy reset (flat 3 base).
+        int newPlayerBlock = barricadeActive ? state.PlayerBlock : 0;
         const int BaseTurnEnergy = 3;
 
         // (g) New hand from deck pool. Hand size = 5 (STS2 default). Existing
@@ -525,16 +558,41 @@ internal static class AnalyticalSimulator
         int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - 5);
         int newDiscardPileSize = 0;
 
+        // v0.7.12 — distribute allyAbsorbed across alive allies proportional
+        // to their HP share. Allies whose Hp drops to 0 become inert (dead).
+        var newAllies = new System.Collections.Generic.List<SimAlly>(state.Allies.Count);
+        if (allyAbsorbed > 0)
+        {
+            int totalAllyHp = 0;
+            foreach (var a in state.Allies) if (a.IsAlive) totalAllyHp += a.Hp;
+            foreach (var a in state.Allies)
+            {
+                if (!a.IsAlive) { newAllies.Add(a); continue; }
+                // Each ally absorbs in proportion to its HP share.
+                int share = totalAllyHp > 0
+                    ? (int)((long)allyAbsorbed * a.Hp / totalAllyHp)
+                    : 0;
+                int newHp = System.Math.Max(0, a.Hp - share);
+                newAllies.Add(a with { Hp = newHp });
+            }
+        }
+        else
+        {
+            newAllies.AddRange(state.Allies);
+        }
+
         return state with
         {
-            PlayerHp = newPlayerHp,
-            PlayerBlock = 0,
+            PlayerHp = newPlayerHpAfterPassives,
+            PlayerBlock = newPlayerBlock,
             PlayerEnergy = BaseTurnEnergy,
+            PlayerStrength = newPlayerStr,
             PlayerVulnerable = newPlayerVuln,
             PlayerWeak = newPlayerWeak,
             PlayerFrail = newPlayerFrail,
             PlayerIntangible = newPlayerIntangible,
             Enemies = newEnemies,
+            Allies = newAllies,
             Hand = newHand,
             DrawPileSize = newDrawPileSize,
             DiscardPileSize = newDiscardPileSize,

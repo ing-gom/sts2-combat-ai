@@ -156,6 +156,22 @@ internal sealed record SimState
     public IReadOnlyList<SimAlly> Allies { get; init; } = System.Array.Empty<SimAlly>();
 
     /// <summary>
+    /// v0.7.12 — All Power instances active on the player (name → stack count).
+    /// Captured by StateSnapshotter from <c>creature.Powers</c> so handlers
+    /// can detect persistent passives (DemonFormPower, RegenPower, BarricadePower,
+    /// EchoFormPower, MachineLearningPower, etc.) without inflating SimState
+    /// with one field per power.
+    ///
+    /// AdvanceTurn consults this for per-turn passive effects (Strength gain
+    /// from DemonForm, HP regen from RegenPower, block-carry from Barricade).
+    /// Explicit fields like PlayerStrength / PlayerFocus / PlayerIntangible
+    /// remain primary — the dict catches the long-tail powers that don't have
+    /// a dedicated field.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> PlayerPowers { get; init; }
+        = new Dictionary<string, int>();
+
+    /// <summary>
     /// Cards in the Exhaust pile. EXHAUST_CONSUMER cards (PACTS_END, ASHEN_STRIKE,
     /// SOUL_STORM, EVIL_EYE, DARK_EMBRACE-as-Power-payoff) scale with the count
     /// of cards that have been exhausted this combat. Captured separately from
