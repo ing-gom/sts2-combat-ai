@@ -296,6 +296,14 @@ internal static class EffectSynergy
             ApplyTheBombDelayed(card, state, ref b, parts);
         else if (card.Id == "CARD.TORIC_TOUGHNESS")
             ApplyToricToughnessMultiTurn(card, state, ref b, parts);
+        // v0.7.51 — Self-growing attack cards (batch 6/7). Investment value
+        // beyond this-play damage: each play boosts future plays' damage.
+        else if (card.Id == "CARD.CLAW")
+            ApplySelfGrowingAttack(card, state, ref b, parts, increasePerPlay: 2, hitCount: 1);
+        else if (card.Id == "CARD.MAUL")
+            ApplySelfGrowingAttack(card, state, ref b, parts, increasePerPlay: 1, hitCount: 2);
+        else if (card.Id == "CARD.RAMPAGE")
+            ApplyRampageSelfGrow(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -3090,6 +3098,66 @@ internal static class EffectSynergy
         int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
         b += v;
         parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.51 — Generic self-growing attack handler for cards that boost all
+    /// siblings of the same id every time one is played. Current damage is
+    /// already correctly resolved via CardReflection's CalculatedDamageVar;
+    /// this layer adds the FUTURE-value increment for remaining siblings.
+    ///
+    /// CLAW (B, Defect): +2 to all CLAWs per play, single-hit
+    /// MAUL (A, Ironclad): +1 to all MAULs per play, 2-hit
+    /// </summary>
+    private static void ApplySelfGrowingAttack(SimCard self, SimState state, ref int b, List<string> parts,
+        int increasePerPlay, int hitCount)
+    {
+        // Count siblings (same id) across all piles excluding self.
+        int siblings = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Id == self.Id) siblings++;
+        }
+        foreach (var c in state.DrawPile) if (c.Id == self.Id) siblings++;
+        foreach (var c in state.DiscardPile) if (c.Id == self.Id) siblings++;
+
+        if (siblings == 0)
+        {
+            // No siblings — this play's increment is wasted (one-shot).
+            // No bonus, no penalty (the immediate damage is its own value).
+            return;
+        }
+
+        int turns = RemainingTurnsEstimator.From(state);
+        // Each sibling will play ~once over remaining combat. Cap by turns × 2.
+        int futurePlays = System.Math.Min(siblings, turns * 2);
+        // Each future play benefits from this card's increment.
+        // Per-hit damage × DamagePerPoint(50) calibrated /10.
+        int bonus = futurePlays * increasePerPlay * hitCount * 50 / 10;
+        const int Cap = 800;
+        if (bonus > Cap) bonus = Cap;
+        b += bonus;
+        parts.Add($"selfGrow(sib{siblings}/play{futurePlays}*inc{increasePerPlay}*hit{hitCount}={bonus})");
+    }
+
+    /// <summary>
+    /// v0.7.51 — RAMPAGE (Ironclad, C, 1c): "Deal 9 damage. Permanently increase
+    /// THIS card's damage by 5." (Only buffs self, not siblings.) Different from
+    /// CLAW pattern — value depends on # of times we'll draw THIS instance.
+    /// </summary>
+    private static void ApplyRampageSelfGrow(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Same-card instance ~ played 1-2 times per combat on average. The +5
+        // benefits only this exact instance. Use turns/3 as proxy for draw count.
+        int turns = RemainingTurnsEstimator.From(state);
+        int futureDraws = System.Math.Max(0, turns / 3);  // expect to draw this instance once per 3 turns
+        const int IncreasePerPlay = 5;
+        int bonus = futureDraws * IncreasePerPlay * 50 / 10;
+        const int Cap = 400;
+        if (bonus > Cap) bonus = Cap;
+        b += bonus;
+        parts.Add($"rampageGrow(futureDraws{futureDraws}*inc5={bonus})");
     }
 
     /// <summary>
