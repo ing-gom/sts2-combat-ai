@@ -1,5 +1,107 @@
 # Changelog
 
+## v0.7.14 (2026-05-18)
+
+**Forward Simulator Phase 2c — Monte Carlo next-turn hand sampling.**
+
+### 배경
+
+v0.7.10 의 multi-turn projection 은 `MakeAverageDrawCard × 5` synthetic
+hand 만 모델링. 다음 턴 hand 다양성 (강한 카드만 vs 저주 폴루션 vs 콤보)
+이 한 표본으로 평탄화됨 → planner 의 second-turn 시그널이 노이즈 줄어든
+대신 **고가치 콤보 / 저가치 위험 둘 다 못 봄**.
+
+Phase 2c 는 actual deck pool sampling 으로 대체.
+
+### 변경
+
+**`AnalyticalSimulator.cs`**:
+
+- `AdvanceTurn(state)` 본체 → `AdvanceTurnInternal(state, nextHand)` 로 추출
+  (불변)
+- `BuildSyntheticHand(state)` 신규 — 기존 `MakeAverageDrawCard ×5` 동작
+- `BuildSampledHand(state, handSize, rng)` 신규 — Fisher-Yates partial
+  shuffle 로 `DrawPile + DiscardPile` 에서 `handSize` 장 sampling without
+  replacement. pool < handSize 시 전체 반환.
+- **`AdvanceTurnSampled(state, rng)`** public API — `AdvanceTurnInternal(state,
+  BuildSampledHand(state, 5, rng))` 위임
+
+**`ActionPlanner.cs`**:
+
+- `MonteCarloSamples = 3` 상수
+- multi-turn lookahead: 기존 단일 `AdvanceTurn(nextState)` → N=3 sample
+  의 `AdvanceTurnSampled(nextState, rng)` 평균:
+  ```
+  seed = nextState.Hand.Count * 31 + nextState.PlayerHp + card.Id.GetHashCode()
+  rng = Random(seed)
+  for s in 0..N:
+      nextTurnState = AdvanceTurnSampled(nextState, rng)
+      sampleScore[s] = BestContinuation(nextTurnState, depth=1, K=3)
+  nextTurnBonus = mean(sampleScore) * NextTurnDiscount
+  ```
+
+Deterministic seed: 같은 state + 같은 first card → 같은 sample 시퀀스
+재현. card.Id 가 salt 로 들어가 후보별 sample 다양성 보장.
+
+### MC 의 진짜 가치
+
+`scripts/_inspect_monte_carlo.py` 의 linear sum 표는 synth-avg ≈ true mean
+보여줌 — **선형 합산만 한다면 MC 가 별 의미 없음**. 실제 가치는 PlanScorer
+의 non-linear 평가에서 나옴:
+
+- **Lethal detection** — synth-avg "평균 카드" 는 절대 lethal 못 침. MC
+  sample 은 3장의 강한 Attack 이 우연히 들어와 lethal kill 가능 ↔ 약한 hand 는 못 함
+- **BuildSynergy / AmplifierSynergy** — POISON_PRODUCER + POISON_CONSUMER
+  특정 조합이 동시에 hand 에 있어야 트리거. 평균 카드는 어떤 build axis 도
+  안 가짐
+- **HP threshold effects** — HP_LOSS_CONSUMER 가 events 카운트에 따라
+  bonus. 다양한 hand 가 events 다르게 만들 수 있음 (sampling 미세 차이지만)
+- **Curse / Status pollution** — synth-avg 는 저주를 0.X 비율로 섞은 "회색
+  카드" 가 됨. MC sample 은 "이번 hand 에 저주 1장 들어왔다" vs "안 들어왔다"
+  로 갈림
+
+### 비용
+
+- per first-card candidate: depth=2 beam (~50 calls) + N=3 × depth=1
+  (~50 calls) = ~200 calls
+- legacy single sample = +50 calls → MC 추가 +100 calls
+- 24 first candidates (hand=8, targets=3): legacy ~2160, MC ~4800 (~2.2x)
+- 100ms/PlanNextStep → ~220ms (여전히 허용)
+
+### 의도된 효과
+
+| 시나리오 | synth-avg signal | MC signal |
+|---|---|---|
+| Power 깔기 vs 공격 | 다음 턴 "평균 카드" hand 본인 효과 못 봄 | 강한 hand sample → Power 가치 visible |
+| 자해 카드 (BLOODLETTING) | 다음 턴 평균 draw 평탄 | 저주 sample → +HP loss producer 인지 |
+| Combo 빌드 | 평균 카드 0 시너지 | sample 별 시너지 발생 → 시너지 카드 점수 상향 |
+| 저주 폴루션 | 평균에 묻힘 | 일부 sample 에 저주, 일부 cleaner — variance 보임 |
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_monte_carlo.py`: linear sum 시 synth-avg/MC
+  거의 동등 (선형성 검증) — 실제 비선형 PlanScorer 에서 차이가 발생.
+
+### Forward sim coverage — v0.7.14 후
+
+| 영역 | 상태 |
+|---|---|
+| Pile / random / pool-aware | ✅ |
+| Power 패시브 PowerCatalog 도달 | ✅ |
+| HP_LOSS producer/consumer | ✅ |
+| 단일턴 depth=3 beam search | ✅ |
+| 멀티턴 AdvanceTurn projection | ✅ |
+| Self-copy chain 6장 | ✅ |
+| Skeleton ally damage + split-fire | ✅ |
+| DemonForm/Regen/Barricade per-turn passive | ✅ |
+| ReaperForm Doom on enemies | ✅ |
+| MAYHEM/STAMPEDE 실제 auto-trigger | ✅ |
+| **Monte Carlo next-turn hand sampling (N=3)** | ✅ **v0.7.14** |
+| AGGRESSION 손에 카드 추가 시뮬 | ⊘ EffectSynergy credit |
+| EchoForm/MachineLearning hand mutation | ❌ Phase 4 |
+| CombatAdvisor 자매 모드 포트 | ❌ |
+
 ## v0.7.13 (2026-05-18)
 
 **ReaperForm Doom on enemies + MAYHEM/STAMPEDE 실제 AdvanceTurn 발화.**
