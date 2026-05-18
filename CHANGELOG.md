@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.7.57 (2026-05-18)
+
+**SurvivalProjection — turns-to-death vs turns-to-kill race.**
+
+### 새 module
+
+`SurvivalProjection.cs`:
+- **TurnsToDeath** = currentHp / (incoming - realizedBlock + DoT + Doom)
+- **TurnsToKill** = totalEnemyHp / (DPT - enemyAutoBlock - enemyRegen + DoT)
+- **Race** = Winning / Tight / Losing / Decided
+
+### Per-card race bias
+
+| Race | Attack | Block | Power | Scaling |
+|---|---|---|---|---|
+| **Losing** (TTD ≤ TTK) | **+80** | -60 | **-100** | -100 |
+| **Tight** (within 1) | +40 (big atk) | +30 (big block) | 0 | 0 |
+| **Winning** (TTK + 1 < TTD) | 0 | 0 | **+50** | +30 |
+| Decided (lethal/cleared) | 0 | 0 | 0 | 0 |
+
+### 사용 의미
+
+- **Losing**: deck 으로는 못 이김 → push damage 강제 (block 으로 못 막음)
+- **Tight**: 1턴 차이. 모든 결정 결정적
+- **Winning**: 안정. Power/scaling 투자 가능
+
+### VakuuExecutor 로그
+
+```
+[CombatAI]   race: Tight ttd=4 ttk=3 hpLoss/turn=8 dmg/turn=22
+```
+
+→ 3턴 안에 kill 해야 하는데 우리 4턴이면 죽음. tight race → balanced.
+
+---
+
 ## v0.7.56 (2026-05-18)
 
 **DeckThroughput 확장: 순환 지표 + 코어 cycler.**
