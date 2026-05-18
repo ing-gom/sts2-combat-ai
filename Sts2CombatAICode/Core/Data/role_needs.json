@@ -1,0 +1,2408 @@
+{
+  "_comment": "축 기반 시너지 추천 테이블. 단일 출처 (build_catalog.py HTML + C# AxisSynergyCatalog 공용). '내가 이 축을 가졌을 때 덱에서 추가로 필요한 역할' 을 역할별 weight + label 로 정의한다. role/w/label 필드 의미는 build_catalog.html computeSynergy / C# Stage2Scorer 가 동일하게 해석.",
+  "POISON_PRODUCER": [
+    {
+      "role": "POISON_CONSUMER",
+      "w": 2.5,
+      "label": "독 수요"
+    },
+    {
+      "role": "POISON_AMPLIFIER",
+      "w": 2.5,
+      "label": "독 증폭기"
+    },
+    {
+      "role": "POISON",
+      "w": 1.5,
+      "label": "독 카드"
+    },
+    {
+      "role": "AOE_POISON",
+      "w": 2.0,
+      "label": "광역 독"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "순환 지원"
+    }
+  ],
+  "POISON": [
+    {
+      "role": "POISON_PRODUCER",
+      "w": 2.5,
+      "label": "독 공급"
+    },
+    {
+      "role": "POISON_AMPLIFIER",
+      "w": 2.0,
+      "label": "독 증폭기"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "스케일링"
+    }
+  ],
+  "POISON_CONSUMER": [
+    {
+      "role": "POISON_PRODUCER",
+      "w": 3.0,
+      "label": "독 공급"
+    },
+    {
+      "role": "POISON_AMPLIFIER",
+      "w": 1.5,
+      "label": "독 증폭기"
+    },
+    {
+      "role": "POISON",
+      "w": 1.5,
+      "label": "독 카드"
+    }
+  ],
+  "AOE_POISON": [
+    {
+      "role": "POISON_PRODUCER",
+      "w": 2.0,
+      "label": "독 공급"
+    },
+    {
+      "role": "POISON_AMPLIFIER",
+      "w": 2.5,
+      "label": "독 증폭기"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "스케일링"
+    }
+  ],
+  "POISON_AMPLIFIER": [
+    {
+      "role": "POISON_PRODUCER",
+      "w": 3.0,
+      "label": "독 공급"
+    },
+    {
+      "role": "AOE_POISON",
+      "w": 2.5,
+      "label": "광역 독"
+    },
+    {
+      "role": "POISON",
+      "w": 2.0,
+      "label": "독 카드"
+    },
+    {
+      "role": "POISON_CONSUMER",
+      "w": 1.5,
+      "label": "독 수요"
+    }
+  ],
+  "CUNNING_PRODUCER": [
+    {
+      "role": "CUNNING_CONSUMER",
+      "w": 2.5,
+      "label": "교활 수요"
+    },
+    {
+      "role": "CUNNING",
+      "w": 2.0,
+      "label": "교활 카드"
+    },
+    {
+      "role": "DRAW",
+      "w": 1.0,
+      "label": "손패 보충"
+    }
+  ],
+  "CUNNING": [
+    {
+      "role": "CUNNING_CONSUMER",
+      "w": 2.5,
+      "label": "교활 수요"
+    },
+    {
+      "role": "CUNNING_PRODUCER",
+      "w": 2.0,
+      "label": "교활 공급"
+    }
+  ],
+  "_comment_cunning_consumer": "Sly 카드(=CUNNING) 가 버리기 트리거로 실제 복귀 이득을 내므로 비-Sly 순수 PRODUCER 대비 2배. C# DeckContextAnalyzer 의 역방향 pull 비율(2:1) 과 일치.",
+  "CUNNING_CONSUMER": [
+    {
+      "role": "CUNNING",
+      "w": 3.0,
+      "label": "교활"
+    },
+    {
+      "role": "CUNNING_PRODUCER",
+      "w": 1.5,
+      "label": "교활 공급"
+    },
+    {
+      "role": "CUNNING_CONSUMER",
+      "w": 1.5,
+      "label": "교활 수요 자기커플링"
+    },
+    {
+      "role": "DRAW",
+      "w": 1.0,
+      "label": "손패 보충"
+    },
+    {
+      "role": "DISCARD_PAYOFF",
+      "w": 0.8,
+      "label": "버리기 페이오프"
+    },
+    {
+      "role": "DISCARD_TURN_PAYOFF",
+      "w": 1.0,
+      "label": "이번 턴 버리기 페이오프"
+    }
+  ],
+  "_comment_discard_payoff": "DISCARD_PAYOFF (스택): 전투 누적 버린 더미 크기로 스케일 — 여러 턴에 걸쳐 꾸준히 버릴수록 강해짐. DISCARD_TURN_PAYOFF (메멘토 모리): 이번 턴 버린 수로 스케일 — 같은 턴 다량 버리기 콤보 필요. DISCARD_RECLAIM(더미 회수) 은 별개 유지. DRAW 단독은 버린 카드 수에 직접 기여하지 않음 (CUNNING_CONSUMER 같은 버리기 엔진이 있어야만 유효) — 단순 DRAW는 needs 에서 제외.",
+  "DISCARD_PAYOFF": [
+    {
+      "role": "CUNNING_CONSUMER",
+      "w": 2.0,
+      "label": "버리기 엔진"
+    },
+    {
+      "role": "CUNNING",
+      "w": 1.0,
+      "label": "교활 카드"
+    }
+  ],
+  "DISCARD_TURN_PAYOFF": [
+    {
+      "role": "CUNNING_CONSUMER",
+      "w": 2.5,
+      "label": "같은 턴 버리기 엔진"
+    },
+    {
+      "role": "CUNNING",
+      "w": 1.5,
+      "label": "교활 카드 (버려지면 복귀해 재버리기 가능)"
+    }
+  ],
+  "_comment_exhaust": "EXHAUST_SELF/TAG 는 Exhaust 키워드에서 자동 emit 되는 단순 마커 — 소멸 페이오프 빌드의 '연료' 역할은 EXHAUST_PRODUCER (다른 카드를 소멸 더미에 의도적으로 추가) 만 수행. 자기소멸 유틸/디버프 카드(PIERCING_WAIL, CALCULATED_GAMBLE, ASSASSINATE, FEED 등 ~57장) 가 소멸 페이오프 시너지로 오분류되지 않도록 EXHAUST_SELF/TAG 쪽 가중치는 '부스러기' 수준(0.5) 으로 유지.",
+  "EXHAUST_SELF": [
+    {
+      "role": "EXHAUST_CONSUMER",
+      "w": 0.5,
+      "label": "소멸 부스러기"
+    }
+  ],
+  "EXHAUST_TAG": [
+    {
+      "role": "EXHAUST_CONSUMER",
+      "w": 0.5,
+      "label": "소멸 부스러기"
+    }
+  ],
+  "EXHAUST_PRODUCER": [
+    {
+      "role": "EXHAUST_CONSUMER",
+      "w": 3.0,
+      "label": "소멸 페이오프"
+    }
+  ],
+  "_comment_exhaust_burst": "EXHAUST_BURST: 한 번 발동으로 손 전체 또는 3장+ 대량 소멸 (지옥불·허상·기사회생·화력 증폭·순수·타락) — 1장 소멸과 격차 분리. EXHAUST_CONSUMER 가 BURST(4.5) > PRODUCER(3.0) 로 가중. STAR_BURST 패턴과 동형. BURST 카드는 EXHAUST_PRODUCER 도 함께 부여 (CSV 자동) — 후보 카드의 best-role 매칭에서 더 높은 w 가 자동 선택됨.",
+  "EXHAUST_BURST": [
+    {
+      "role": "EXHAUST_CONSUMER",
+      "w": 4.5,
+      "label": "고출력 소멸 페이오프 (3장+/회)"
+    }
+  ],
+  "_comment_exhaust_drain_passive": "EXHAUST_DRAIN_PASSIVE (전투의 북소리): 매 턴 자동으로 덱 카드를 영구 소멸. 일반 EXHAUST_PRODUCER 와 달리 사용 시점이 아닌 패시브 누적이라 빈 덱에서 자해. 소멸 페이오프(EXHAUST_CONSUMER) + DRAW(소실분 보충) + 덱 두께 모두 갖춰져야 가치. AxisDependencies 에 costOverride 3 + min EXHAUST_CONSUMER 3 으로 등록해 cost=0 이라도 페널티 적용.",
+  "EXHAUST_DRAIN_PASSIVE": [
+    {
+      "role": "EXHAUST_CONSUMER",
+      "w": 3.0,
+      "label": "소멸 페이오프"
+    },
+    {
+      "role": "DRAW",
+      "w": 1.0,
+      "label": "소실분 보충 드로우"
+    }
+  ],
+  "EXHAUST_CONSUMER": [
+    {
+      "role": "EXHAUST_BURST",
+      "w": 4.5,
+      "label": "고출력 소멸 공급 (3장+/회)"
+    },
+    {
+      "role": "EXHAUST_PRODUCER",
+      "w": 3.0,
+      "label": "소멸 공급"
+    },
+    {
+      "role": "EXHAUST_DRAIN_PASSIVE",
+      "w": 2.5,
+      "label": "패시브 소멸 공급"
+    },
+    {
+      "role": "EXHAUST_SELF",
+      "w": 0.5,
+      "label": "소멸 부스러기"
+    },
+    {
+      "role": "EXHAUST_TAG",
+      "w": 0.5,
+      "label": "소멸 부스러기"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "순환 지원"
+    }
+  ],
+  "DOOM": [
+    {
+      "role": "DOOM_CONSUMER",
+      "w": 2.5,
+      "label": "종말 페이오프"
+    },
+    {
+      "role": "DOOM_PRODUCER",
+      "w": 2.0,
+      "label": "종말 공급"
+    },
+    {
+      "role": "DOOM_AMPLIFIER",
+      "w": 2.0,
+      "label": "종말 증폭기"
+    }
+  ],
+  "DOOM_PRODUCER": [
+    {
+      "role": "DOOM_CONSUMER",
+      "w": 2.5,
+      "label": "종말 페이오프"
+    },
+    {
+      "role": "DOOM_AMPLIFIER",
+      "w": 2.5,
+      "label": "종말 증폭기"
+    },
+    {
+      "role": "DOOM",
+      "w": 2.0,
+      "label": "종말 부여"
+    },
+    {
+      "role": "AOE_DOOM",
+      "w": 2.0,
+      "label": "광역 종말"
+    }
+  ],
+  "_comment_doom_self_producer": "DOOM_SELF_PRODUCER (정신 폭주): 자기 자신에게 종말을 부여 — 적 종말 누적/폭발 빌드와 무관. 단, '종말 부여 이벤트'를 트리거로 쓰는 카드(수의=종말 부여 시 방어도, 죽음의 문턱=이번 턴 종말 부여 시 추가 방어도)와는 페어링 가능. 적 종말 스택 의존(때가 되었다) 카드와는 시너지 없으므로 가중치 보수적으로 1.5. 역방향(DOOM_CONSUMER→DOOM_SELF_PRODUCER) 미추가 — 때가 되었다 같은 카드는 자기 종말 무용.",
+  "DOOM_SELF_PRODUCER": [
+    {
+      "role": "DOOM_CONSUMER",
+      "w": 1.5,
+      "label": "종말 부여 트리거 페어"
+    }
+  ],
+  "DOOM_CONSUMER": [
+    {
+      "role": "DOOM_PRODUCER",
+      "w": 3.0,
+      "label": "종말 공급"
+    },
+    {
+      "role": "DOOM_AMPLIFIER",
+      "w": 1.5,
+      "label": "종말 증폭기"
+    },
+    {
+      "role": "DOOM",
+      "w": 2.5,
+      "label": "종말 부여"
+    }
+  ],
+  "AOE_DOOM": [
+    {
+      "role": "DOOM_PRODUCER",
+      "w": 2.0,
+      "label": "종말 공급"
+    },
+    {
+      "role": "DOOM_AMPLIFIER",
+      "w": 2.5,
+      "label": "종말 증폭기"
+    },
+    {
+      "role": "DOOM_CONSUMER",
+      "w": 2.5,
+      "label": "종말 페이오프"
+    }
+  ],
+  "DOOM_AMPLIFIER": [
+    {
+      "role": "DOOM_PRODUCER",
+      "w": 3.0,
+      "label": "종말 공급"
+    },
+    {
+      "role": "AOE_DOOM",
+      "w": 2.5,
+      "label": "광역 종말"
+    },
+    {
+      "role": "DOOM",
+      "w": 2.0,
+      "label": "종말 부여"
+    },
+    {
+      "role": "DOOM_CONSUMER",
+      "w": 1.5,
+      "label": "종말 페이오프"
+    }
+  ],
+  "STAR": [
+    {
+      "role": "STAR_CONSUMER",
+      "w": 2.5,
+      "label": "별 수요"
+    },
+    {
+      "role": "STAR_PRODUCER",
+      "w": 2.0,
+      "label": "별 공급"
+    },
+    {
+      "role": "STAR_AMPLIFIER",
+      "w": 2.0,
+      "label": "별 증폭기"
+    }
+  ],
+  "STAR_PRODUCER": [
+    {
+      "role": "STAR_CONSUMER",
+      "w": 2.5,
+      "label": "별 수요"
+    },
+    {
+      "role": "STAR_AMPLIFIER",
+      "w": 2.5,
+      "label": "별 증폭기"
+    },
+    {
+      "role": "STAR",
+      "w": 1.5,
+      "label": "별 관련"
+    }
+  ],
+  "STAR_CONSUMER": [
+    {
+      "role": "STAR_PRODUCER",
+      "w": 3.0,
+      "label": "별 공급"
+    },
+    {
+      "role": "STAR_AMPLIFIER",
+      "w": 2.0,
+      "label": "별 증폭기 (수요 가치 증가)"
+    },
+    {
+      "role": "STAR",
+      "w": 1.5,
+      "label": "별 관련"
+    }
+  ],
+  "STAR_BURST": [
+    {
+      "role": "STAR_AMPLIFIER",
+      "w": 3.0,
+      "label": "별 증폭기"
+    },
+    {
+      "role": "STAR_CONSUMER",
+      "w": 2.0,
+      "label": "별 수요"
+    }
+  ],
+  "STAR_AMPLIFIER": [
+    {
+      "role": "STAR_BURST",
+      "w": 4.5,
+      "label": "고출력 별 공급 (2개+/회)"
+    },
+    {
+      "role": "STAR_PRODUCER",
+      "w": 3.0,
+      "label": "별 공급"
+    },
+    {
+      "role": "STAR",
+      "w": 2.0,
+      "label": "별 관련"
+    }
+  ],
+  "_comment_star_payoff": "STAR_PAYOFF (별의 아이=별 1개+ 보유 시 방어, 초승달 창=보유 별 수만큼 +딜): 별 자원 풀이 핵심 enabler. STAR_CONSUMER/X_COST 외에 STAR_PRODUCER/BURST/STAR 도 시너지 — AXIS_DEPENDENCIES(build_catalog.py:7677) 의 trigger 목록과 동일 매핑.",
+  "STAR_PAYOFF": [
+    {
+      "role": "STAR_CONSUMER",
+      "w": 4.5,
+      "label": "별 수요 (페이오프 핵심)"
+    },
+    {
+      "role": "STAR_BURST",
+      "w": 4.0,
+      "label": "고출력 별 공급 (2개+/회)"
+    },
+    {
+      "role": "STAR_X_COST",
+      "w": 3.5,
+      "label": "별 전량 소비 (대량 발동)"
+    },
+    {
+      "role": "STAR_PRODUCER",
+      "w": 2.5,
+      "label": "별 공급"
+    },
+    {
+      "role": "STAR",
+      "w": 1.5,
+      "label": "별 관련"
+    }
+  ],
+  "SOUL_PRODUCER": [
+    {
+      "role": "SOUL_CONSUMER",
+      "w": 2.5,
+      "label": "영혼 수요"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "순환 지원"
+    }
+  ],
+  "SOUL_CONSUMER": [
+    {
+      "role": "SOUL_PRODUCER",
+      "w": 2.5,
+      "label": "영혼 공급"
+    }
+  ],
+  "SKELETON_PRODUCER": [
+    {
+      "role": "SKELETON_CONSUMER",
+      "w": 2.5,
+      "label": "골골이 수요"
+    },
+    {
+      "role": "SKELETON_HP_AMPLIFIER",
+      "w": 1.5,
+      "label": "골골이 HP 증폭기"
+    },
+    {
+      "role": "SKELETON_AMPLIFIER",
+      "w": 1.5,
+      "label": "골골이 증폭기"
+    },
+    {
+      "role": "MINION",
+      "w": 1.5,
+      "label": "하수인 소환"
+    }
+  ],
+  "SKELETON_CONSUMER": [
+    {
+      "role": "SKELETON_PRODUCER",
+      "w": 2.5,
+      "label": "골골이 공급"
+    },
+    {
+      "role": "SKELETON_HP_AMPLIFIER",
+      "w": 1.0,
+      "label": "골골이 HP 증폭기"
+    },
+    {
+      "role": "MINION",
+      "w": 2.0,
+      "label": "하수인 소환"
+    }
+  ],
+  "_comment_skeleton_amplifier": "골골이 증폭기 두 경로 — HP 증폭(체력 획득 자체를 키움)과 공격 증폭(공격 시 피해 배수)은 독립. SKELETON_PRODUCER 가 HP 만 올린다고 ATTACK_AMPLIFIER(석회화) 가 자동 시너지가 되진 않음. SKELETON_AMPLIFIER 는 mod BuildSynergy.cs 가 `SKELETON_*` 접미사 매칭으로 amp 를 잡기 위한 alias — SKELETON_ATTACK_AMPLIFIER 와 동일 위치에 부여하고 advisor 점수에서도 같은 가중치.",
+  "SKELETON_HP_AMPLIFIER": [
+    {
+      "role": "SKELETON_PRODUCER",
+      "w": 3.0,
+      "label": "골골이 공급"
+    },
+    {
+      "role": "SKELETON_CONSUMER",
+      "w": 1.5,
+      "label": "골골이 수요"
+    },
+    {
+      "role": "MINION",
+      "w": 1.5,
+      "label": "하수인 소환"
+    }
+  ],
+  "SKELETON_ATTACK_AMPLIFIER": [
+    {
+      "role": "SKELETON_PRODUCER",
+      "w": 3.0,
+      "label": "골골이 공급"
+    },
+    {
+      "role": "SKELETON_HP_AMPLIFIER",
+      "w": 1.0,
+      "label": "골골이 HP 증폭기"
+    },
+    {
+      "role": "SKELETON_CONSUMER",
+      "w": 1.0,
+      "label": "골골이 수요"
+    },
+    {
+      "role": "MINION",
+      "w": 1.5,
+      "label": "하수인 소환"
+    }
+  ],
+  "SKELETON_AMPLIFIER": [
+    {
+      "role": "SKELETON_PRODUCER",
+      "w": 3.0,
+      "label": "골골이 공급"
+    },
+    {
+      "role": "SKELETON_HP_AMPLIFIER",
+      "w": 1.0,
+      "label": "골골이 HP 증폭기"
+    },
+    {
+      "role": "SKELETON_CONSUMER",
+      "w": 1.0,
+      "label": "골골이 수요"
+    },
+    {
+      "role": "MINION",
+      "w": 1.5,
+      "label": "하수인 소환"
+    }
+  ],
+  "ORB": [
+    {
+      "role": "ORB_CONSUMER",
+      "w": 2.0,
+      "label": "구체 수요"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 2.0,
+      "label": "구체 증폭기"
+    },
+    {
+      "role": "ORB_PRODUCER",
+      "w": 1.5,
+      "label": "구체 공급"
+    }
+  ],
+  "ORB_PRODUCER": [
+    {
+      "role": "ORB_CONSUMER",
+      "w": 2.0,
+      "label": "구체 수요"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 2.5,
+      "label": "구체 증폭기"
+    },
+    {
+      "role": "ORB",
+      "w": 1.5,
+      "label": "구체 관련"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.0,
+      "label": "슬롯 확장"
+    },
+    {
+      "role": "ORB_PRODUCER",
+      "w": 1.5,
+      "label": "구체 영창 카드"
+    }
+  ],
+  "ORB_CONSUMER": [
+    {
+      "role": "ORB_PRODUCER",
+      "w": 2.0,
+      "label": "구체 공급"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 1.5,
+      "label": "구체 증폭기"
+    },
+    {
+      "role": "ORB",
+      "w": 1.5,
+      "label": "구체 관련"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 스케일"
+    }
+  ],
+  "ORB_AMPLIFIER": [
+    {
+      "role": "ORB_PRODUCER",
+      "w": 3.0,
+      "label": "구체 공급"
+    },
+    {
+      "role": "ORB",
+      "w": 2.0,
+      "label": "구체 관련"
+    },
+    {
+      "role": "ORB_CONSUMER",
+      "w": 1.5,
+      "label": "구체 수요"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 스케일"
+    }
+  ],
+  "_comment_orb_types": "구체 타입별 시너지. 번개=랜덤딜, 냉기=방어, 암흑=누적 폭발, 플라즈마=에너지, 유리=광역딜(자기감쇠). ORB_EVOKE=명시적 발현 카드. SLOT_EXPAND=축전기(슬롯 확장). 유리 구체는 매 턴 피해 1 감소(최소0) → SLOT_EXPAND가 역시너지, ORB_EVOKE가 필수.",
+  "LIGHTNING_ORB": [
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (번개 패시브/발현 딜 스케일)"
+    },
+    {
+      "role": "LIGHTNING_EVOKE",
+      "w": 1.5,
+      "label": "번개 전용 발현 트리거 (테슬라 코일)"
+    },
+    {
+      "role": "ORB_EVOKE",
+      "w": 1.0,
+      "label": "범용 발현 트리거"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 1.5,
+      "label": "구체 증폭기"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.0,
+      "label": "슬롯 확장 (번개 더 채우기)"
+    },
+    {
+      "role": "ORB_VARIETY_AMPLIFIER",
+      "w": 1.0,
+      "label": "타입 다양성 증폭기 (컴파일 드라이버)"
+    }
+  ],
+  "_comment_lightning_evoke": "LIGHTNING_EVOKE: 번개 구체만 전용으로 발현하는 카드(테슬라 코일). ORB_EVOKE(범용 발현)와 달리 LIGHTNING_ORB 생산자만 needs로 요청 — 암흑/유리 구체와는 무관.",
+  "LIGHTNING_EVOKE": [
+    {
+      "role": "LIGHTNING_ORB",
+      "w": 2.5,
+      "label": "번개 영창 카드 (발현 연료)"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (발현 딜 스케일)"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.0,
+      "label": "슬롯 확장"
+    }
+  ],
+  "FROST_ORB": [
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (서리 패시브/발현 방어 스케일)"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 2.5,
+      "label": "슬롯 확장 (매 턴 방어도 핵심)"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 1.5,
+      "label": "구체 증폭기"
+    },
+    {
+      "role": "BLOCK_AMPLIFIER",
+      "w": 0.8,
+      "label": "방어도 증폭기"
+    },
+    {
+      "role": "FROST_PAYOFF",
+      "w": 1.0,
+      "label": "서리 구체 페이오프 (우박 폭풍 등)"
+    },
+    {
+      "role": "ORB_VARIETY_AMPLIFIER",
+      "w": 1.0,
+      "label": "타입 다양성 증폭기 (컴파일 드라이버)"
+    }
+  ],
+  "_comment_frost_payoff": "FROST_PAYOFF: 서리 구체 보유를 조건/트리거로 사용하는 페이오프 카드(우박 폭풍 등). 채널이 아닌 '서리 있음' 전제 카드 — FROST_ORB 영창 카드로 조건 충족 필요.",
+  "FROST_PAYOFF": [
+    {
+      "role": "FROST_ORB",
+      "w": 2.5,
+      "label": "서리 영창 카드 (페이오프 조건 충족)"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.5,
+      "label": "슬롯 확장 (서리 유지)"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (서리 발현 딜 스케일)"
+    }
+  ],
+  "DARK_ORB": [
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (어둠 누적량 증가)"
+    },
+    {
+      "role": "ORB_EVOKE",
+      "w": 2.0,
+      "label": "어둠 발현 (누적 피해 해소)"
+    },
+    {
+      "role": "DARK_ORB_AMPLIFIER",
+      "w": 2.0,
+      "label": "암흑 전용 증폭기 (어둠같이)"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 1.0,
+      "label": "범용 구체 증폭기 (루프·다중 발현 등)"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.0,
+      "label": "슬롯 확장"
+    },
+    {
+      "role": "ORB_VARIETY_AMPLIFIER",
+      "w": 1.0,
+      "label": "타입 다양성 증폭기 (컴파일 드라이버)"
+    }
+  ],
+  "_comment_orb_variety_amplifier": "ORB_VARIETY_AMPLIFIER: 슬롯에 있는 구체 타입의 종류 수로 스케일하는 카드(컴파일 드라이버). 개별 구체 효과 강도(FOCUS)와 무관 — 타입 다양성이 많을수록 효과 증폭. 번개·서리·어둠·플라즈마 각 타입 카드를 needs로 요청.",
+  "_comment_orb_variety_amplifier_weights": "MULTI_ORB w:2.5 — 1장에 3타입 동시 공급(무지개). 단일 타입 w:1.2 × 3 = 3.6 이론값에서 pick-당-1-role 한계를 보정. SLOT_EXPAND w:1.5 — 슬롯 부족 시 다양성 병목 해소.",
+  "ORB_VARIETY_AMPLIFIER": [
+    {
+      "role": "MULTI_ORB",
+      "w": 2.5,
+      "label": "멀티 구체 생산 (3타입 동시 영창)"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.5,
+      "label": "슬롯 확장 (더 많은 타입 수용)"
+    },
+    {
+      "role": "LIGHTNING_ORB",
+      "w": 1.2,
+      "label": "번개 구체 (타입 다양성 +1)"
+    },
+    {
+      "role": "FROST_ORB",
+      "w": 1.2,
+      "label": "서리 구체 (타입 다양성 +1)"
+    },
+    {
+      "role": "DARK_ORB",
+      "w": 1.2,
+      "label": "어둠 구체 (타입 다양성 +1)"
+    },
+    {
+      "role": "PLASMA_ORB",
+      "w": 1.0,
+      "label": "플라즈마 구체 (타입 다양성 +1)"
+    }
+  ],
+  "_comment_dark_orb_amplifier": "DARK_ORB_AMPLIFIER: 암흑 구체 지속 능력만 전용으로 증폭하는 카드(어둠같이). LIGHTNING_EVOKE(테슬라 코일)와 대칭 구조. 어둠 구체 없으면 완전 공회전 — DARK_ORB 영창 카드가 필수 선행 조건. DARK_ORB_PRODUCER 는 mod `_PRODUCER` 접미사 매칭용 alias — DARK_ORB 와 동일 가중치.",
+  "DARK_ORB_AMPLIFIER": [
+    {
+      "role": "DARK_ORB",
+      "w": 3.0,
+      "label": "암흑 구체 영창 카드 (증폭 연료 필수)"
+    },
+    {
+      "role": "DARK_ORB_PRODUCER",
+      "w": 3.0,
+      "label": "암흑 구체 영창 카드 (증폭 연료 필수)"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (지속 능력 발동 피해 스케일)"
+    },
+    {
+      "role": "ORB_EVOKE",
+      "w": 1.5,
+      "label": "발현 트리거 (누적 피해 해소)"
+    },
+    {
+      "role": "SLOT_EXPAND",
+      "w": 1.0,
+      "label": "슬롯 확장 (어둠 더 채우기)"
+    }
+  ],
+  "DARK_ORB_PRODUCER": [
+    {
+      "role": "DARK_ORB_AMPLIFIER",
+      "w": 2.0,
+      "label": "암흑 전용 증폭기 (어둠같이)"
+    },
+    {
+      "role": "ORB_EVOKE",
+      "w": 2.0,
+      "label": "어둠 발현 (누적 피해 해소)"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 1.0,
+      "label": "범용 구체 증폭기"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (어둠 누적량 증가)"
+    }
+  ],
+  "_comment_plasma_orb": "PLASMA_ORB: 에너지 생산자(플라즈마 패시브 +1/턴, 발현 +2). 집중(밀집) 무영향. ENERGY 축(=에너지 생산 카드)은 needs 대상이 아님 — 같은 생산자끼리 시너지 없음. X_COST가 핵심 에너지 소비자. SLOT_EXPAND 슬롯 1개 = 에너지 +1/턴 직접 스케일.",
+  "PLASMA_ORB": [
+    {
+      "role": "SLOT_EXPAND",
+      "w": 2.0,
+      "label": "슬롯 확장 (슬롯 1개 = 에너지 +1/턴 직접 스케일)"
+    },
+    {
+      "role": "X_COST",
+      "w": 2.0,
+      "label": "에너지 수요 — X코스트 (잉여 에너지 전량 소모)"
+    },
+    {
+      "role": "ORB_EVOKE",
+      "w": 1.0,
+      "label": "발현 트리거 (발현 시 에너지 2 버스트 추출)"
+    }
+  ],
+  "GLASS_ORB": [
+    {
+      "role": "ORB_EVOKE",
+      "w": 2.5,
+      "label": "발현 트리거 (감쇠 전 2배 광역 발현)"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (광역 패시브 딜 + 발현 스케일)"
+    },
+    {
+      "role": "ORB_AMPLIFIER",
+      "w": 1.5,
+      "label": "구체 증폭기"
+    }
+  ],
+  "ORB_EVOKE": [
+    {
+      "role": "DARK_ORB",
+      "w": 2.0,
+      "label": "암흑 구체 (발현 시 누적 피해 최고)"
+    },
+    {
+      "role": "GLASS_ORB",
+      "w": 2.0,
+      "label": "유리 구체 (감쇠 전 2배 광역)"
+    },
+    {
+      "role": "LIGHTNING_ORB",
+      "w": 1.0,
+      "label": "번개 구체 (발현 시 딜)"
+    },
+    {
+      "role": "PLASMA_ORB",
+      "w": 1.0,
+      "label": "플라즈마 구체 (발현 시 에너지 2 버스트)"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 (발현 효과 스케일, 플라즈마 제외)"
+    }
+  ],
+  "SLOT_EXPAND": [
+    {
+      "role": "ORB_PRODUCER",
+      "w": 2.5,
+      "label": "구체 공급 (빈 슬롯 채우기)"
+    },
+    {
+      "role": "FOCUS",
+      "w": 1.5,
+      "label": "집중 스케일"
+    },
+    {
+      "role": "FROST_ORB",
+      "w": 1.5,
+      "label": "서리 구체 (매 턴 방어도)"
+    },
+    {
+      "role": "PLASMA_ORB",
+      "w": 1.0,
+      "label": "플라즈마 구체 (매 턴 에너지)"
+    },
+    {
+      "role": "SLOT_COST",
+      "w": 2.0,
+      "label": "슬롯 소모 카드 보상 (증강 등)"
+    }
+  ],
+  "_comment_slot_cost": "SLOT_COST: 구체 슬롯을 소모 비용으로 사용하는 카드(증강 등). 슬롯을 잃으면 SLOT_EXPAND 로 보상해야 하므로 양방향 시너지.",
+  "SLOT_COST": [
+    {
+      "role": "SLOT_EXPAND",
+      "w": 3.0,
+      "label": "슬롯 확장 (잃은 슬롯 보상 필수)"
+    }
+  ],
+  "_comment_volatile_ethereal": "VOLATILE_CONSUMER 페이오프(서류 폭풍 등 '휘발성 카드를 뽑을 때마다')는 손에서 휘발성 키워드를 가진 모든 카드에서 발동. 따라서 VOLATILE_PRODUCER(휘발성 카드를 손/덱에 추가) + ETHEREAL_SELF(자체가 휘발성 키워드 카드, 분석/강령회/모독 등 23장+) + ETHEREAL_PRODUCER 모두 트리거. AXIS_DEPENDENCIES(build_catalog.py:7666) 와 동일 매핑. ETHEREAL_SELF 가중치는 PRODUCER 와 동일(2.0) — 직접 뽑힐 때마다 페이오프 발동.",
+  "VOLATILE_PRODUCER": [
+    {
+      "role": "VOLATILE_CONSUMER",
+      "w": 2.0,
+      "label": "휘발성 수요"
+    },
+    {
+      "role": "AOE_DAMAGE",
+      "w": 1.0,
+      "label": "광역 딜"
+    }
+  ],
+  "VOLATILE_CONSUMER": [
+    {
+      "role": "VOLATILE_PRODUCER",
+      "w": 2.0,
+      "label": "휘발성 공급"
+    },
+    {
+      "role": "ETHEREAL_SELF",
+      "w": 2.0,
+      "label": "휘발성 키워드 카드"
+    },
+    {
+      "role": "ETHEREAL_PRODUCER",
+      "w": 2.0,
+      "label": "휘발성 공급"
+    }
+  ],
+  "_comment_debuff_amplifier": "VULN/WEAK producer 축은 범용 보조라 단독으로는 '빌드 코어' 취급하지 않지만, 스택을 스케일링/조건부로 읽는 AMPLIFIER payoff 카드(악랄함·제압·추적·분쇄 등)는 producer 없이는 공회전하는 진성 synergy. 가중치는 POISON(2.5/3.0) 보다 낮춰(1.5/2.5) 빌드 코어 승격은 억제하면서 amplifier↔producer 페어링만 시너지로 반영. VULN/WEAK 는 legacy 키, VULN_PRODUCER/WEAK_PRODUCER 는 mod BuildSynergy.cs `_PRODUCER` 접미사 매칭용 alias — 동일 가중치 적용.",
+  "VULN": [
+    {
+      "role": "VULN_AMPLIFIER",
+      "w": 1.5,
+      "label": "취약 증폭"
+    }
+  ],
+  "VULN_PRODUCER": [
+    {
+      "role": "VULN_AMPLIFIER",
+      "w": 1.5,
+      "label": "취약 증폭"
+    }
+  ],
+  "VULN_AMPLIFIER": [
+    {
+      "role": "VULN",
+      "w": 2.5,
+      "label": "취약 공급"
+    },
+    {
+      "role": "VULN_PRODUCER",
+      "w": 2.5,
+      "label": "취약 공급"
+    },
+    {
+      "role": "DAMAGE",
+      "w": 0.8,
+      "label": "딜 카드"
+    }
+  ],
+  "AOE_DEBUFF": [
+    {
+      "role": "VULN_AMPLIFIER",
+      "w": 1.5,
+      "label": "취약 증폭"
+    },
+    {
+      "role": "WEAK_AMPLIFIER",
+      "w": 1.0,
+      "label": "약화 증폭"
+    }
+  ],
+  "WEAK": [
+    {
+      "role": "WEAK_AMPLIFIER",
+      "w": 1.5,
+      "label": "약화 증폭"
+    }
+  ],
+  "WEAK_PRODUCER": [
+    {
+      "role": "WEAK_AMPLIFIER",
+      "w": 1.5,
+      "label": "약화 증폭"
+    }
+  ],
+  "WEAK_AMPLIFIER": [
+    {
+      "role": "WEAK",
+      "w": 2.5,
+      "label": "약화 공급"
+    },
+    {
+      "role": "WEAK_PRODUCER",
+      "w": 2.5,
+      "label": "약화 공급"
+    },
+    {
+      "role": "BLOCK",
+      "w": 0.6,
+      "label": "방어 카드"
+    }
+  ],
+  "_comment_scaling": "SCALING 범용 성장 축 — DRAW 제거 (범용 지원).",
+  "SCALING": [
+    {
+      "role": "DAMAGE",
+      "w": 0.8,
+      "label": "딜 카드"
+    },
+    {
+      "role": "BLOCK",
+      "w": 0.8,
+      "label": "방어 카드"
+    }
+  ],
+  "_comment_card_gen": "CARD_GEN — 매 턴 또는 즉발로 카드를 핸드/덱에 추가. 추가된 카드의 활용처는 archetype 무관 일반 carrier (DAMAGE/BLOCK). 매 턴 형(SCALING 동반)은 통계적 평균 가치이므로 SCALING(0.8) 보다 약하게 0.6 — universal utility 인정 + audit 노이즈 제한.",
+  "CARD_GEN": [
+    {
+      "role": "DAMAGE",
+      "w": 0.6,
+      "label": "딜 카드 (랜덤 추가의 통계적 가치)"
+    },
+    {
+      "role": "BLOCK",
+      "w": 0.6,
+      "label": "방어 카드 (랜덤 추가의 통계적 가치)"
+    }
+  ],
+  "BLOCK_SCALING": [],
+  "_comment_strength_split": "STRENGTH 분리: STRENGTH_PRODUCER(힘 부여 카드, 예: 낙인) ↔ STRENGTH_CONSUMER(공격 카드 = type=Attack 자동 부여 마커). Producer-Producer 매칭은 의미상 시너지가 아니므로 분리. STRENGTH_CONSUMER 는 build_catalog.py / CardAdvisorService / DeckCounterBuilder 에서 type=Attack 카드에 자동 주입.",
+  "STRENGTH_PRODUCER": [
+    {
+      "role": "STRENGTH_CONSUMER",
+      "w": 1.0,
+      "label": "공격 카드 (힘 활용)"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "스케일링"
+    }
+  ],
+  "STRENGTH_CONSUMER": [],
+  "DEXTERITY": [
+    {
+      "role": "BLOCK",
+      "w": 1.0,
+      "label": "방어 카드"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "스케일링"
+    }
+  ],
+  "FOCUS": [
+    {
+      "role": "ORB",
+      "w": 1.5,
+      "label": "구체 관련"
+    },
+    {
+      "role": "ORB_PRODUCER",
+      "w": 1.5,
+      "label": "구체 공급"
+    },
+    {
+      "role": "ORB_CONSUMER",
+      "w": 1.5,
+      "label": "구체 수요"
+    }
+  ],
+  "_comment_vigor": "VIGOR: 활력 — 매 턴 첫 공격 카드 피해 증가(소모 후 초기화). 스킬/파워로 쌓고 공격 카드로 소모하는 Producer→Consumer 구조. 첫 공격 한 장에만 적용되므로 STRENGTH_PRODUCER(전체 공격)보다 좁지만, 다타 공격과 조합하면 타격당 보정이 중첩됨.",
+  "VIGOR": [
+    {
+      "role": "DAMAGE",
+      "w": 1.0,
+      "label": "딜 카드 (활력 소모)"
+    },
+    {
+      "role": "AOE_DAMAGE",
+      "w": 0.8,
+      "label": "광역 딜 (활력 소모)"
+    }
+  ],
+  "_comment_damage_strength": "DAMAGE/AOE_DAMAGE ↔ STRENGTH_PRODUCER/VIGOR 역참조 — STRENGTH_PRODUCER는 영구 누적(w=0.55), VIGOR는 첫 공격 한 장에 고정 보정(w=0.50). 공격 수가 적은 덱에서 VIGOR가 단기 딜 기여로 STRENGTH_PRODUCER에 근접하므로 거의 같은 가중치.",
+  "DAMAGE": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 0.55,
+      "label": "힘 공급"
+    },
+    {
+      "role": "VIGOR",
+      "w": 0.5,
+      "label": "활력 스케일 (첫 공격)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "AOE_DAMAGE": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 0.55,
+      "label": "힘 공급"
+    },
+    {
+      "role": "VIGOR",
+      "w": 0.5,
+      "label": "활력 스케일 (첫 공격)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "_comment_damage_amplifier": "DAMAGE_AMPLIFIER (치사성): 매 턴 처음 공격 카드 피해량 배수 — 조건 없는 전체 공격 증폭, 요지부동의 공격 거울. BLOCK_AMPLIFIER 와 대칭으로 0.8 유지.",
+  "DAMAGE_AMPLIFIER": [
+    {
+      "role": "DAMAGE",
+      "w": 0.8,
+      "label": "딜 공급"
+    },
+    {
+      "role": "AOE_DAMAGE",
+      "w": 0.8,
+      "label": "광역 딜 공급"
+    }
+  ],
+  "_comment_multi_hit": "HIT_N / MULTI_HIT_SCALING: 다타 공격 축. 힘·활력·취약·약화·딜증폭기가 타격당 적용되므로 타수에 비례해 weight 증가. VIGOR는 첫 공격 한 장에만 적용되는 제약이 있어 STRENGTH보다 ~90% 수준으로 설정.",
+  "HIT_2": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 0.7,
+      "label": "힘 공급 (×2)"
+    },
+    {
+      "role": "VIGOR",
+      "w": 0.62,
+      "label": "활력 스케일 (×2 — 첫 공격)"
+    },
+    {
+      "role": "VULN",
+      "w": 0.5,
+      "label": "취약 배수 (×2)"
+    },
+    {
+      "role": "WEAK",
+      "w": 0.4,
+      "label": "약화 배수 (×2)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "HIT_3": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 0.9,
+      "label": "힘 공급 (×3)"
+    },
+    {
+      "role": "VIGOR",
+      "w": 0.8,
+      "label": "활력 스케일 (×3 — 첫 공격)"
+    },
+    {
+      "role": "VULN",
+      "w": 0.6,
+      "label": "취약 배수 (×3)"
+    },
+    {
+      "role": "WEAK",
+      "w": 0.5,
+      "label": "약화 배수 (×3)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "HIT_4": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.1,
+      "label": "힘 공급 (×4)"
+    },
+    {
+      "role": "VIGOR",
+      "w": 1.0,
+      "label": "활력 스케일 (×4 — 첫 공격)"
+    },
+    {
+      "role": "VULN",
+      "w": 0.7,
+      "label": "취약 배수 (×4)"
+    },
+    {
+      "role": "WEAK",
+      "w": 0.6,
+      "label": "약화 배수 (×4)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "HIT_5": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.3,
+      "label": "힘 공급 (×5)"
+    },
+    {
+      "role": "VIGOR",
+      "w": 1.15,
+      "label": "활력 스케일 (×5 — 첫 공격)"
+    },
+    {
+      "role": "VULN",
+      "w": 0.8,
+      "label": "취약 배수 (×5)"
+    },
+    {
+      "role": "WEAK",
+      "w": 0.7,
+      "label": "약화 배수 (×5)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "MULTI_HIT_SCALING": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.2,
+      "label": "힘 공급 (타수 성장)"
+    },
+    {
+      "role": "VIGOR",
+      "w": 1.1,
+      "label": "활력 스케일 (타수 성장 — 첫 공격)"
+    },
+    {
+      "role": "VULN",
+      "w": 0.8,
+      "label": "취약 배수 (타수 성장)"
+    },
+    {
+      "role": "WEAK",
+      "w": 0.6,
+      "label": "약화 배수 (타수 성장)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "딜 증폭기"
+    }
+  ],
+  "_comment_x_cost": "X_COST: 가용 에너지 전체로 스케일 (척결·장송가). 진짜 에너지 *생산자* 가 핵심 — ENERGY_PRODUCER 우선 (가중치 1.8), 기존 ENERGY 축은 cost-marker 와 producer 혼재라 보조 가중치(0.6)로 유지.",
+  "X_COST": [
+    {
+      "role": "ENERGY_PRODUCER",
+      "w": 1.8,
+      "label": "에너지 생산자 (X코스트 소비 연료)"
+    },
+    {
+      "role": "ENERGY",
+      "w": 0.6,
+      "label": "에너지 관련 카드 (보조)"
+    }
+  ],
+  "_comment_energy_producer": "ENERGY_PRODUCER: 매 턴/즉발 에너지 공급(우정·권역·부름·연명·정신폭주). X_COST 와 양방향 — 에너지를 *전량 소모* 하는 카드 없으면 가치 반감. 일반 ENERGY 축은 cost-marker 도 포함하므로 분리.",
+  "ENERGY_PRODUCER": [
+    {
+      "role": "X_COST",
+      "w": 1.5,
+      "label": "에너지 수요 — X코스트 (공급한 에너지 전량 소모)"
+    }
+  ],
+  "ENERGY": [
+    {
+      "role": "X_COST",
+      "w": 0.5,
+      "label": "X코스트 (보조 — ENERGY 축은 producer 혼재)"
+    }
+  ],
+  "_comment_energy_consumer": "ENERGY_CONSUMER: cost ≥ 1 카드 자동 부여(build_catalog.py). 모든 비용 카드는 에너지 소비자 → ENERGY_PRODUCER 카드와 보편 시너지. forward 흐름의 K 누적이 'cost 카드 N장 = 에너지 카드 N배 가치'를 자연 표현. ENERGY_PRODUCER 가 IMMEDIATE 카테고리(BuildFitScorer.cs)라 초반 phase 가중 부스트 자동.",
+  "ENERGY_CONSUMER": [
+    {
+      "role": "ENERGY_PRODUCER",
+      "w": 1.5,
+      "label": "에너지 공급 (코스트 카드 연료)"
+    }
+  ],
+  "_comment_draw_on_draw": "DRAW_ON_DRAW: 카드를 뽑을 때마다 효과 발동 (부식성 파도 등) — 외부 드로우의 소비자. '드로우 엔진'(실제 카드를 뽑는 DRAW 축) 이 있어야 트리거가 작동.",
+  "DRAW_ON_DRAW": [
+    {
+      "role": "DRAW",
+      "w": 3.0,
+      "label": "드로우 엔진"
+    },
+    {
+      "role": "DRAW_AMPLIFIER",
+      "w": 2.0,
+      "label": "드로우 증폭기"
+    }
+  ],
+  "_comment_draw_conditional": "DRAW_CONDITIONAL: 스스로 뽑되 조건부(있다면/종류당/이번 턴에 등). 각 카드의 드로우 조건은 카드 고유 메커니즘에 종속(컴파일 드라이버=구체 영창, 회수=첫 사용, FTL=적게 플레이). 범용 DRAW 카드는 이 조건을 보조하지 않으므로 DRAW needs 없음. 구체 의존 카드는 ORB_PRODUCER 축에서 별도 커버.",
+  "DRAW_CONDITIONAL": [],
+  "_comment_absent_conditional": "ABSENT_CONDITIONAL: 부재 조건 카드(성급함=손에 공격 카드 없을 때, 초조함=손이 비었을 때, 대단원의 막=뽑을 더미가 비었을 때). 압축덱일수록·카드 빨리 비울수록 발동률↑. EXHAUST_PRODUCER(소멸로 덱 영구 압축)와 VOLATILE_PRODUCER(휘발성으로 자동 소멸)가 핵심 enabler. DRAW는 손/더미를 빨리 돌려 부재 상태를 자주 만들어주므로 보조. 카드 풀이 좁아 역방향(EXHAUST→ABSENT) needs는 추가하지 않음.",
+  "ABSENT_CONDITIONAL": [
+    {
+      "role": "EXHAUST_PRODUCER",
+      "w": 1.5,
+      "label": "덱 압축"
+    },
+    {
+      "role": "VOLATILE_PRODUCER",
+      "w": 1.0,
+      "label": "휘발성 자동 소멸"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "덱 사이클 가속"
+    }
+  ],
+  "_comment_draw_amplifier": "DRAW_AMPLIFIER: 기존 드로우를 증폭/가속 (창백한 푸른 점 등) — payoff 필요.",
+  "DRAW_AMPLIFIER": [
+    {
+      "role": "DRAW_ON_DRAW",
+      "w": 2.5,
+      "label": "드로우 트리거"
+    },
+    {
+      "role": "DRAW",
+      "w": 1.5,
+      "label": "드로우 엔진"
+    }
+  ],
+  "_comment_draw": "DRAW: 범용 지원 축 — 명시 needs 없음. DRAW_ON_DRAW payoff 가 있을 때 자연스럽게 상향됨.",
+  "_comment_strike_consumer": "STRIKE_CONSUMER (완벽한 타격): 덱의 STRIKE_TYPE 카드 수만큼 본인 피해 스케일링 — 타격 카드가 연료. 역방향은 약하게(1.0): 타격 카드가 완벽한 타격 빌드를 '원하는' 것은 아니므로.",
+  "STRIKE_CONSUMER": [
+    {
+      "role": "STRIKE_TYPE",
+      "w": 2.5,
+      "label": "타격 카드"
+    },
+    {
+      "role": "DAMAGE",
+      "w": 0.6,
+      "label": "딜 카드"
+    }
+  ],
+  "_comment_strike_on_draw": "STRIKE_ON_DRAW (지옥검무): 타격 카드를 뽑을 때마다 효과 발동 — STRIKE_TYPE 카드(뽑힐 연료)와 DRAW 엔진(뽑는 속도) 양쪽 필요. 타격+드로우 겸용 카드(폼멜 타격 등)는 두 needs를 동시에 충족해 이중 시너지.",
+  "STRIKE_ON_DRAW": [
+    {
+      "role": "STRIKE_TYPE",
+      "w": 2.5,
+      "label": "타격 카드"
+    },
+    {
+      "role": "DRAW",
+      "w": 2.0,
+      "label": "드로우 엔진"
+    }
+  ],
+  "_comment_strike_type": "STRIKE_TYPE: 타격형 카드는 힘·활력으로 직접 스케일하므로 STRENGTH_PRODUCER/VIGOR 를 명시적으로 needs에 추가. STRENGTH_PRODUCER(1.2): 힘은 타격 카드 전체 피해에 영구 적용. VIGOR(0.8): 활력은 매 턴 첫 공격에만 적용이므로 STRENGTH_PRODUCER보다 낮게 설정.",
+  "STRIKE_TYPE": [
+    {
+      "role": "STRIKE_CONSUMER",
+      "w": 1.0,
+      "label": "완벽한 타격"
+    },
+    {
+      "role": "STRIKE_ON_DRAW",
+      "w": 1.0,
+      "label": "지옥검무"
+    },
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.2,
+      "label": "힘 공급"
+    },
+    {
+      "role": "VIGOR",
+      "w": 0.8,
+      "label": "활력 스케일"
+    }
+  ],
+  "SHIV": [
+    {
+      "role": "SHIV_PRODUCER",
+      "w": 2.5,
+      "label": "단도 공급"
+    },
+    {
+      "role": "SHIV_AMPLIFIER",
+      "w": 2.5,
+      "label": "단도 증폭기"
+    },
+    {
+      "role": "SHIV_CONSUMER",
+      "w": 2.0,
+      "label": "단도 수요"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "정확도 스케일"
+    }
+  ],
+  "SHIV_PRODUCER": [
+    {
+      "role": "SHIV_CONSUMER",
+      "w": 2.5,
+      "label": "단도 수요"
+    },
+    {
+      "role": "SHIV_AMPLIFIER",
+      "w": 2.5,
+      "label": "단도 증폭기"
+    },
+    {
+      "role": "SHIV",
+      "w": 1.5,
+      "label": "단도 추가"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "정확도 스케일"
+    }
+  ],
+  "SHIV_CONSUMER": [
+    {
+      "role": "SHIV_PRODUCER",
+      "w": 3.0,
+      "label": "단도 공급"
+    },
+    {
+      "role": "SHIV_AMPLIFIER",
+      "w": 1.5,
+      "label": "단도 증폭기"
+    },
+    {
+      "role": "SHIV",
+      "w": 2.0,
+      "label": "단도 카드"
+    }
+  ],
+  "SHIV_AMPLIFIER": [
+    {
+      "role": "SHIV_PRODUCER",
+      "w": 3.0,
+      "label": "단도 공급"
+    },
+    {
+      "role": "SHIV",
+      "w": 2.0,
+      "label": "단도 카드"
+    },
+    {
+      "role": "SHIV_CONSUMER",
+      "w": 1.5,
+      "label": "단도 수요"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "정확도 스케일"
+    }
+  ],
+  "FORGE": [
+    {
+      "role": "FORGE",
+      "w": 2.0,
+      "label": "단조 추가"
+    },
+    {
+      "role": "FORGE_PRODUCER",
+      "w": 2.0,
+      "label": "단조 공급"
+    },
+    {
+      "role": "FORGE_AMPLIFIER",
+      "w": 2.5,
+      "label": "단조 증폭기"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "스케일링"
+    }
+  ],
+  "FORGE_AMPLIFIER": [
+    {
+      "role": "FORGE",
+      "w": 2.5,
+      "label": "단조 카드"
+    },
+    {
+      "role": "FORGE_PRODUCER",
+      "w": 3.0,
+      "label": "단조 공급"
+    },
+    {
+      "role": "SCALING",
+      "w": 0.8,
+      "label": "스케일링"
+    }
+  ],
+  "FORGE_PRODUCER": [
+    {
+      "role": "LORDS_BLADE_AMPLIFIER",
+      "w": 3.0,
+      "label": "칼날 증폭"
+    },
+    {
+      "role": "FORGE_AMPLIFIER",
+      "w": 2.5,
+      "label": "단조 증폭기"
+    },
+    {
+      "role": "LORDS_BLADE_PAYOFF",
+      "w": 2.0,
+      "label": "칼날 활용"
+    },
+    {
+      "role": "FORGE",
+      "w": 1.5,
+      "label": "단조 카드"
+    },
+    {
+      "role": "BLOCK",
+      "w": 1.2,
+      "label": "단조 중 생존"
+    },
+    {
+      "role": "DAMAGE",
+      "w": 1.2,
+      "label": "단조 중 화력"
+    }
+  ],
+  "LORDS_BLADE_ACCESS": [
+    {
+      "role": "LORDS_BLADE_PAYOFF",
+      "w": 2.5,
+      "label": "칼날 활용"
+    },
+    {
+      "role": "LORDS_BLADE_AMPLIFIER",
+      "w": 2.5,
+      "label": "칼날 증폭"
+    },
+    {
+      "role": "FORGE_PRODUCER",
+      "w": 1.5,
+      "label": "단조 공급"
+    }
+  ],
+  "LORDS_BLADE_AMPLIFIER": [
+    {
+      "role": "FORGE_PRODUCER",
+      "w": 3.5,
+      "label": "단조 공급"
+    },
+    {
+      "role": "LORDS_BLADE_PRODUCER",
+      "w": 3.5,
+      "label": "단조 공급 (칼날)"
+    },
+    {
+      "role": "FORGE_AMPLIFIER",
+      "w": 2.0,
+      "label": "단조 증폭기"
+    },
+    {
+      "role": "LORDS_BLADE_ACCESS",
+      "w": 2.0,
+      "label": "칼날 접근"
+    },
+    {
+      "role": "LORDS_BLADE_PAYOFF",
+      "w": 1.5,
+      "label": "칼날 활용"
+    }
+  ],
+  "LORDS_BLADE_PAYOFF": [
+    {
+      "role": "FORGE_PRODUCER",
+      "w": 2.5,
+      "label": "단조 공급"
+    },
+    {
+      "role": "LORDS_BLADE_PRODUCER",
+      "w": 2.5,
+      "label": "단조 공급 (칼날)"
+    },
+    {
+      "role": "LORDS_BLADE_ACCESS",
+      "w": 2.0,
+      "label": "칼날 접근"
+    },
+    {
+      "role": "LORDS_BLADE_AMPLIFIER",
+      "w": 2.0,
+      "label": "칼날 증폭"
+    }
+  ],
+  "_comment_lords_blade_producer": "LORDS_BLADE_PRODUCER 는 FORGE_PRODUCER 의 `_PRODUCER` 접미사 alias — mod BuildSynergy.cs 가 stem 일치 매칭으로 LORDS_BLADE_AMPLIFIER/PAYOFF 와 페어링하도록 추가. needs 는 FORGE_PRODUCER 와 동일 구조 유지.",
+  "LORDS_BLADE_PRODUCER": [
+    {
+      "role": "LORDS_BLADE_AMPLIFIER",
+      "w": 3.0,
+      "label": "칼날 증폭"
+    },
+    {
+      "role": "FORGE_AMPLIFIER",
+      "w": 2.5,
+      "label": "단조 증폭기"
+    },
+    {
+      "role": "LORDS_BLADE_PAYOFF",
+      "w": 2.0,
+      "label": "칼날 활용"
+    },
+    {
+      "role": "FORGE",
+      "w": 1.5,
+      "label": "단조 카드"
+    },
+    {
+      "role": "BLOCK",
+      "w": 1.2,
+      "label": "단조 중 생존"
+    },
+    {
+      "role": "DAMAGE",
+      "w": 1.2,
+      "label": "단조 중 화력"
+    }
+  ],
+  "_comment_minion": "MINION: 소환 카드는 골골이 최대/현재 HP를 올리는 생산자 역할 — SKELETON_CONSUMER/AMPLIFIER와 직접 시너지.",
+  "MINION": [
+    {
+      "role": "SKELETON_CONSUMER",
+      "w": 2.0,
+      "label": "골골이 수요"
+    },
+    {
+      "role": "SKELETON_HP_AMPLIFIER",
+      "w": 1.0,
+      "label": "골골이 HP 증폭기"
+    },
+    {
+      "role": "SKELETON_PRODUCER",
+      "w": 1.0,
+      "label": "골골이 공급"
+    },
+    {
+      "role": "MINION",
+      "w": 1.0,
+      "label": "하수인 추가"
+    }
+  ],
+  "_comment_defend_type_amplifier": "DEFEND_TYPE_AMPLIFIER (고정시키기): 수비 카드를 통해 얻는 방어도 증가 — DEFEND_TYPE/STARTER 카드 없으면 완전 공회전.",
+  "DEFEND_TYPE_AMPLIFIER": [
+    {
+      "role": "DEFEND_TYPE",
+      "w": 3.0,
+      "label": "수비 카드"
+    },
+    {
+      "role": "STARTER",
+      "w": 2.5,
+      "label": "기본 수비 카드"
+    }
+  ],
+  "DEFEND_TYPE": [
+    {
+      "role": "DEFEND_TYPE_AMPLIFIER",
+      "w": 2.0,
+      "label": "수비 증폭기"
+    }
+  ],
+  "_comment_block": "BLOCK: 범용 방어 축 — THORNS 제거 (너무 특화된 매칭). BLOCK_AMPLIFIER 는 범용 축이라 가중치 0.8 (DEXTERITY 수준) 으로 과잉 매칭 억제.",
+  "BLOCK": [
+    {
+      "role": "SCALING",
+      "w": 0.5,
+      "label": "스케일링"
+    },
+    {
+      "role": "DEXTERITY",
+      "w": 0.8,
+      "label": "민첩 스케일"
+    },
+    {
+      "role": "BLOCK_AMPLIFIER",
+      "w": 0.8,
+      "label": "방어 증폭기"
+    }
+  ],
+  "_comment_replay": "ATTACK_REPLAY (원투 펀치/메아리 형상): 플레이어가 고른 공격을 한 번 더 발동 = 같은 카드 복제. 코스트 무관(0코스트도 추가 발동 자체가 이득). ATTACK_REPLAY_RANDOM (쇄도): 매 턴 손에서 무작위 공격 1장 자동 사용 → 절약 에너지 = 그 공격의 코스트. 1코=약(1.0), 2코=중(2.0), 3+코=강(4.0)의 mutex 그룹 — 덱에 여러 코스트 공격이 있을 때 *최고 티어* 만 카운트(중복 합산 방지). 0코/X코는 자동 사용 시 절약 에너지 0이라 매칭에서 완전 제외. SKILL_REPLAY (폭주): 모든 스킬 카드 대상 재사용. 역방향은 노이즈 우려로 생략.",
+  "ATTACK_REPLAY": [
+    {
+      "role": "DAMAGE",
+      "w": 2.0,
+      "label": "복사할 딜 카드"
+    },
+    {
+      "role": "AOE_DAMAGE",
+      "w": 1.5,
+      "label": "복사할 광역 딜"
+    }
+  ],
+  "ATTACK_REPLAY_RANDOM": [
+    {
+      "role": "DAMAGE_COSTED_1",
+      "w": 1.0,
+      "label": "쇄도 발동 후보: 1코 공격",
+      "mutex_group": "stampede_cost"
+    },
+    {
+      "role": "DAMAGE_COSTED_2",
+      "w": 2.0,
+      "label": "쇄도 발동 후보: 2코 공격",
+      "mutex_group": "stampede_cost"
+    },
+    {
+      "role": "DAMAGE_COSTED_3P",
+      "w": 4.0,
+      "label": "쇄도 발동 후보: 3+코 공격",
+      "mutex_group": "stampede_cost"
+    }
+  ],
+  "SKILL_REPLAY": [
+    {
+      "role": "BLOCK",
+      "w": 1.5,
+      "label": "복사할 방어 카드"
+    },
+    {
+      "role": "DRAW",
+      "w": 1.5,
+      "label": "복사할 드로우"
+    },
+    {
+      "role": "CUNNING",
+      "w": 1.2,
+      "label": "복사할 교활 카드"
+    },
+    {
+      "role": "EXHAUST_PRODUCER",
+      "w": 1.0,
+      "label": "복사할 소멸 카드"
+    },
+    {
+      "role": "SCALING",
+      "w": 1.0,
+      "label": "복사할 성장 카드"
+    },
+    {
+      "role": "VULN",
+      "w": 0.8,
+      "label": "복사할 취약 카드"
+    },
+    {
+      "role": "WEAK",
+      "w": 0.8,
+      "label": "복사할 약화 카드"
+    },
+    {
+      "role": "POISON",
+      "w": 0.8,
+      "label": "복사할 독 카드"
+    }
+  ],
+  "_comment_block_payoff": "BLOCK_PAYOFF (몸통 박치기): 현재 방어도 수치를 다른 효과(주로 딜)로 변환 — BLOCK 공급량과 BLOCK_AMPLIFIER(바리케이드 등 누적 증폭) 양쪽에 강하게 의존. 역방향: BLOCK_AMPLIFIER가 있으면 BLOCK_PAYOFF 카드 가치가 급상승.",
+  "BLOCK_PAYOFF": [
+    {
+      "role": "BLOCK_AMPLIFIER",
+      "w": 2.5,
+      "label": "방어도 누적 증폭"
+    },
+    {
+      "role": "BLOCK",
+      "w": 2.0,
+      "label": "방어도 공급"
+    },
+    {
+      "role": "DEXTERITY",
+      "w": 1.0,
+      "label": "민첩 스케일"
+    }
+  ],
+  "_comment_burst_finisher": "BURST_FINISHER (정신 폭주·인지 편향·유령의 형상): 강력한 즉발 효과 + 매 턴 누적 자기 패널티. 빌드 의존도는 카드별로 다름 — (1) 0코스트 정신 폭주는 손에 들고 마지막 턴에 사용 가능해 자해 누적을 회피할 수 있어 빌드 의존도 약함(거의 모든 빌드에서 baseline DRAW/ENERGY/SCALING 시너지로 추천됨, BURST_FINISHER 가중치는 상대적 부스트). (2) 인지 편향·유령의 형상은 사용 즉시 매 턴 패널티가 시작되므로 빠른 회수가 필요 — 빌드 의존도 진짜 있음. 역방향(DAMAGE→BURST_FINISHER) 미추가 — 모든 딜덱이 이 위험 카드를 원하지 않음(좁은 카드 풀 3장).",
+  "BURST_FINISHER": [
+    {
+      "role": "DAMAGE",
+      "w": 1.0,
+      "label": "빠른 킬 화력"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "한 방 화력 증폭"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "콤보 발굴"
+    },
+    {
+      "role": "HP_LOSS_PREVENT",
+      "w": 0.5,
+      "label": "자해 1회분 무효화"
+    }
+  ],
+  "_comment_block_amplifier": "BLOCK_AMPLIFIER (요지부동/참호): 기존 BLOCK 을 배수로 증폭 — BLOCK 공급 없으면 공회전. POISON_AMPLIFIER(2.5~3.0) 대비 가중치 0.8 로 낮춤 — BLOCK 은 범용 축이라 모든 덱에 있어 시너지 노이즈 방지.",
+  "BLOCK_AMPLIFIER": [
+    {
+      "role": "BLOCK",
+      "w": 0.8,
+      "label": "방어 공급"
+    },
+    {
+      "role": "BLOCK_PAYOFF",
+      "w": 1.5,
+      "label": "방어도 페이오프"
+    }
+  ],
+  "_comment_hp_loss": "HP_LOSS: 자해 비용 카드(사혈/혈류/피의 벽/제물/낙인 등)가 덱에 쌓이면 지속력 필요 — HEAL 카드와 비대칭 페어링. 역방향(HEAL→HP_LOSS)은 넣지 않음: 힐은 자해 빌드 전용이 아닌 범용 생존 축. HP_LOSS_CONSUMER(갈가리 찢기·파열·불바다)는 자해 카드가 많을수록 직접 가치 상승 — 가중치 2.0.",
+  "HP_LOSS": [
+    {
+      "role": "HEAL",
+      "w": 1.5,
+      "label": "체력 회복"
+    },
+    {
+      "role": "HP_LOSS_CONSUMER",
+      "w": 2.0,
+      "label": "체력 손실 수요"
+    }
+  ],
+  "_comment_hp_loss_consumer": "HP_LOSS_CONSUMER: 체력 손실 이벤트에 반응하는 카드(갈가리 찢기·파열·불바다). 덱에 HP_LOSS 카드가 있어야 풀 가동 가능 — 공급원이 없으면 공회전. 역방향도 동등하게 추천.",
+  "HP_LOSS_CONSUMER": [
+    {
+      "role": "HP_LOSS",
+      "w": 2.0,
+      "label": "체력 손실 공급원"
+    }
+  ],
+  "_comment_hp_loss_prevent": "HP_LOSS_PREVENT: 체력 손실을 직접 막는 카드(버퍼). 방어도와 무관하게 1회분 HP를 보호 — 큰 단발/자해 비용 무효화에 강력. 범용 방어 유틸이라 needs는 비워둠(DRAW_CONDITIONAL 패턴과 동일 — 모든 빌드에 1장 가치). HP_LOSS_CONSUMER 빌드(자해 페이오프)와는 잠재적 반시너지지만, BUFFER는 보통 1장만 들어가므로 명시 충돌 처리는 생략.",
+  "HP_LOSS_PREVENT": [],
+  "_comment_focus_penalty": "FOCUS_PENALTY: 밀집을 소모 비용으로 잃는 카드(파괴광선 -3 등). 구체 빌드에서 밀집 손실을 보상하려면 FOCUS 증가 카드가 필요. HP_LOSS ↔ HEAL 패턴과 동일 구조. 역방향(FOCUS→FOCUS_PENALTY)은 넣지 않음 — 집중 카드는 밀집 패널티 빌드 전용이 아님.",
+  "FOCUS_PENALTY": [
+    {
+      "role": "FOCUS",
+      "w": 2.0,
+      "label": "밀집 보상 카드 (손실 상쇄)"
+    }
+  ],
+  "_comment_status": "STATUS_PRODUCER (터보·오버클럭·틀어막기 등): 부산물로 상태이상 카드를 손/덱에 추가. STATUS_TO_HAND (불가피한 충돌·불시착): 상태이상을 드로우 파일이 아닌 손에 직접 추가 — 같은 턴 즉발 소비 가능하므로 STATUS_CONSUMER 와 상위 시너지. STATUS_CONSUMER (압축·굴뚝·로켓 펀치·고철을 보물로): 손의 상태이상 카드를 소모·변환해 이득 획득 — 생산자 없으면 공회전이므로 역방향 가중치를 높임. DRAW 미약 연결: 손패가 많을수록 상태이상 카드와 동시 보유 확률 상승.",
+  "STATUS_TO_HAND": [
+    {
+      "role": "STATUS_CONSUMER",
+      "w": 3.5,
+      "label": "즉발 상태이상 수요 (같은 턴 콤보)"
+    }
+  ],
+  "STATUS_PRODUCER": [
+    {
+      "role": "STATUS_CONSUMER",
+      "w": 2.5,
+      "label": "상태이상 수요"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.5,
+      "label": "순환 지원"
+    }
+  ],
+  "STATUS_CONSUMER": [
+    {
+      "role": "STATUS_TO_HAND",
+      "w": 3.5,
+      "label": "즉발 상태이상 공급 (같은 턴 소비)"
+    },
+    {
+      "role": "STATUS_PRODUCER",
+      "w": 3.0,
+      "label": "상태이상 공급"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "손패 보충 (상태이상 동시 보유 확률 상승)"
+    }
+  ],
+  "_comment_free_attack": "0코스트 공격 생태계. FREE_ATTACK: 비소멸 0코스트 공격 카드 (연료). 세 역할 — RETURNER(야성: 플레이 즉시 복귀), RECLAIMER(하나를 위한 모두: 버린 더미 회수), FILTER(긁어내기: 드로우 필터로 0코스트만 손에 남김). 세 역할은 모두 FREE_ATTACK 연료를 공동 전제조건으로 공유하지만 서로 간 직접 시너지는 없음. 0코스트 페이오프 빌드는 손패 회전이 끊기면 자해하므로 DRAW 엔진을 보조 needs 로 둠 (페이오프보다 낮은 가중치 — 코어가 아니라 윤활유).",
+  "FREE_ATTACK_RETURNER": [
+    {
+      "role": "FREE_ATTACK",
+      "w": 3.0,
+      "label": "0코스트 공격 카드 (복귀 연료)"
+    }
+  ],
+  "FREE_ATTACK_RECLAIMER": [
+    {
+      "role": "FREE_ATTACK",
+      "w": 2.5,
+      "label": "0코스트 공격 카드 (회수 연료)"
+    }
+  ],
+  "FREE_ATTACK_FILTER": [
+    {
+      "role": "FREE_ATTACK",
+      "w": 2.5,
+      "label": "0코스트 공격 카드 (필터 통과)"
+    }
+  ],
+  "FREE_ATTACK": [
+    {
+      "role": "FREE_ATTACK_RETURNER",
+      "w": 2.0,
+      "label": "0코스트 복귀 Power"
+    },
+    {
+      "role": "FREE_ATTACK_RECLAIMER",
+      "w": 1.5,
+      "label": "0코스트 회수 카드"
+    },
+    {
+      "role": "FREE_ATTACK_FILTER",
+      "w": 1.5,
+      "label": "0코스트 필터 카드"
+    },
+    {
+      "role": "DRAW",
+      "w": 1.0,
+      "label": "손패 회전 엔진 (0코스트 회전 가속)"
+    },
+    {
+      "role": "DRAW_AMPLIFIER",
+      "w": 0.6,
+      "label": "드로우 증폭 보조"
+    }
+  ],
+  "_comment_power_conditional": "POWER_CONDITIONAL (서브루틴): 파워 카드 사용할 때마다 에너지 획득 — 덱에 파워 카드가 많을수록 트리거 횟수 증가. POWER_TYPE 역방향: 파워 카드가 덱에 있으면 서브루틴 가치 상승. POWER_TYPE 은 카드 타입 Power 카드 전체에 자동 부여되는 마커 축 (CardAdvisorService / DeckCounterBuilder 에서 inject).",
+  "POWER_CONDITIONAL": [
+    {
+      "role": "POWER_TYPE",
+      "w": 2.0,
+      "label": "파워 카드 연료 (사용할수록 에너지 획득)"
+    }
+  ],
+  "_comment_power_cost_enabler": "POWER_COST_ENABLER (합성): 다음에 사용하는 파워 카드의 비용이 0 — 파워 카드가 없으면 효과가 낭비되므로 POWER_TYPE 을 강하게 요구.",
+  "POWER_COST_ENABLER": [
+    {
+      "role": "POWER_TYPE",
+      "w": 2.0,
+      "label": "파워 카드 필요 (다음 파워 0비용 트리거)"
+    }
+  ],
+  "_comment_power_amplifier": "POWER_AMPLIFIER (신호 증폭): 다음에 사용하는 파워 카드를 1번 추가로 발동 — 파워 카드가 없으면 효과가 낭비되므로 POWER_TYPE 을 강하게 요구. POWER_TYPE 역방향: 파워 카드가 덱에 있으면 신호 증폭 가치 상승.",
+  "POWER_AMPLIFIER": [
+    {
+      "role": "POWER_TYPE",
+      "w": 2.0,
+      "label": "파워 카드 필요 (다음 파워 이중 발동 트리거)"
+    }
+  ],
+  "POWER_TYPE": [
+    {
+      "role": "POWER_CONDITIONAL",
+      "w": 1.5,
+      "label": "파워 트리거 카드 (서브루틴)"
+    },
+    {
+      "role": "POWER_COST_ENABLER",
+      "w": 1.5,
+      "label": "파워 비용 감소 카드 (합성)"
+    },
+    {
+      "role": "POWER_AMPLIFIER",
+      "w": 1.5,
+      "label": "파워 증폭 카드 (신호 증폭)"
+    }
+  ],
+  "_comment_skill_pair": "SKILL_TYPE / SKILL_CONDITIONAL / SKILL_COST_ENABLER 는 POWER_TYPE 페어와 대칭 구조. SKILL_TYPE 은 Skill 카드에 자동 주입되는 마커 (CardAdvisorService / DeckCounterBuilder / build_catalog.py 동기화). SKILL_CONDITIONAL: 스킬 사용 시마다 트리거 (정밀 사격=스킬 사용 시 자기 비용 -1, 그렇게 하라=스킬 3장 시 손 복귀, 설계의 대가=스킬 사용 시 교활 부여). SKILL_COST_ENABLER: 다음/모든 스킬 비용 인하 (덮치기=다음 스킬 0코, 타락=모든 스킬 0코).",
+  "SKILL_CONDITIONAL": [
+    {
+      "role": "SKILL_TYPE",
+      "w": 2.0,
+      "label": "스킬 카드 연료 (사용할수록 트리거)"
+    }
+  ],
+  "SKILL_COST_ENABLER": [
+    {
+      "role": "SKILL_TYPE",
+      "w": 2.0,
+      "label": "스킬 카드 필요 (스킬 비용 인하 발동)"
+    }
+  ],
+  "SKILL_TYPE": [
+    {
+      "role": "SKILL_CONDITIONAL",
+      "w": 1.5,
+      "label": "스킬 트리거 카드"
+    },
+    {
+      "role": "SKILL_COST_ENABLER",
+      "w": 1.5,
+      "label": "스킬 비용 감소 카드"
+    }
+  ],
+  "_comment_attack_pair": "ATTACK_TYPE / ATTACK_CONDITIONAL / ATTACK_COST_ENABLER 는 POWER_TYPE / SKILL_TYPE 페어와 대칭 구조. ATTACK_TYPE 은 Attack 카드에 자동 주입되는 마커. ATTACK_CONDITIONAL: 공격 사용 시마다 트리거 (재앙=공격 사용 시 무작위 공격 회수, 격노=공격 사용 시 방어도 3). ATTACK_COST_ENABLER: 다음 공격 비용 인하 (무자비=다음 공격 0코). 공격 카드가 보편적이라 가중치는 SKILL/POWER 보다 약간 낮게(1.5/1.0) — 매칭 대상 덱이 많아 변별력 보정.",
+  "ATTACK_CONDITIONAL": [
+    {
+      "role": "ATTACK_TYPE",
+      "w": 1.5,
+      "label": "공격 카드 연료 (사용할수록 트리거)"
+    }
+  ],
+  "ATTACK_COST_ENABLER": [
+    {
+      "role": "ATTACK_TYPE",
+      "w": 1.5,
+      "label": "공격 카드 필요 (공격 비용 인하 발동)"
+    }
+  ],
+  "ATTACK_TYPE": [
+    {
+      "role": "ATTACK_CONDITIONAL",
+      "w": 1.0,
+      "label": "공격 트리거 카드"
+    },
+    {
+      "role": "ATTACK_COST_ENABLER",
+      "w": 1.0,
+      "label": "공격 비용 감소 카드"
+    }
+  ],
+  "AOE": [
+    {
+      "role": "AOE_DAMAGE",
+      "w": 0.5,
+      "label": "광역 딜 시너지"
+    },
+    {
+      "role": "AOE_DEBUFF",
+      "w": 0.5,
+      "label": "광역 디버프 시너지"
+    }
+  ],
+  "ATTACK_COUNT": [
+    {
+      "role": "DAMAGE",
+      "w": 1.0,
+      "label": "추가 공격 (피해 페이오프)"
+    },
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.2,
+      "label": "힘 공급 (공격 +N)"
+    },
+    {
+      "role": "MULTI_HIT_SCALING",
+      "w": 1.0,
+      "label": "타격수 스케일"
+    },
+    {
+      "role": "HIT_2",
+      "w": 0.5,
+      "label": "다타 공격"
+    },
+    {
+      "role": "HIT_3",
+      "w": 0.6,
+      "label": "다타 공격 (3)"
+    },
+    {
+      "role": "HIT_4",
+      "w": 0.7,
+      "label": "다타 공격 (4)"
+    }
+  ],
+  "DRAW_PILE_SEARCH": [
+    {
+      "role": "DRAW",
+      "w": 0.8,
+      "label": "드로우 엔진"
+    },
+    {
+      "role": "DRAW_AMPLIFIER",
+      "w": 1.0,
+      "label": "드로우 증폭"
+    }
+  ],
+  "FREE_ATTACK_PRODUCER": [
+    {
+      "role": "FREE_ATTACK_RETURNER",
+      "w": 2.5,
+      "label": "0코 복귀 (생성-회수 루프)"
+    },
+    {
+      "role": "FREE_ATTACK_RECLAIMER",
+      "w": 2.0,
+      "label": "0코 회수"
+    },
+    {
+      "role": "FREE_ATTACK_FILTER",
+      "w": 1.5,
+      "label": "0코 필터 (덱 압축)"
+    },
+    {
+      "role": "FREE_ATTACK",
+      "w": 1.0,
+      "label": "0코 카드 풀"
+    },
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.0,
+      "label": "힘 공급 (다타 잠재)"
+    }
+  ],
+  "REPEAT": [
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 1.5,
+      "label": "딜 증폭 (반복 시 배수)"
+    },
+    {
+      "role": "ATTACK_REPLAY",
+      "w": 2.0,
+      "label": "공격 재사용"
+    },
+    {
+      "role": "SKILL_REPLAY",
+      "w": 1.5,
+      "label": "스킬 재사용"
+    },
+    {
+      "role": "BLOCK_AMPLIFIER",
+      "w": 1.0,
+      "label": "방어 증폭 (반복 시)"
+    },
+    {
+      "role": "POWER_AMPLIFIER",
+      "w": 0.8,
+      "label": "파워 증폭"
+    }
+  ],
+  "SELF_RETURN": [
+    {
+      "role": "STRENGTH_PRODUCER",
+      "w": 1.5,
+      "label": "힘 공급 (반복 공격)"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 1.2,
+      "label": "딜 증폭 (반복 사용)"
+    },
+    {
+      "role": "VULN",
+      "w": 0.8,
+      "label": "취약 (다회 공격 페이오프)"
+    },
+    {
+      "role": "ATTACK_REPLAY",
+      "w": 1.0,
+      "label": "공격 반복 시너지"
+    }
+  ],
+  "SKILL_COUNT": [
+    {
+      "role": "SKILL_TYPE",
+      "w": 1.0,
+      "label": "스킬 카드 풀"
+    },
+    {
+      "role": "BLOCK",
+      "w": 0.5,
+      "label": "방어 (스킬은 방어 多)"
+    },
+    {
+      "role": "DRAW",
+      "w": 0.5,
+      "label": "드로우 (스킬은 드로우 多)"
+    },
+    {
+      "role": "SKILL_REPLAY",
+      "w": 1.0,
+      "label": "스킬 재사용"
+    }
+  ],
+
+  "_comment_combatai_port": "v0.7.x — 5 axes ported from Sts2CombatAI EffectSynergy handlers. Source: scripts/combatai_handled_axes.json. Each axis has an explicit game-aware handler in CombatAI's planner.",
+
+  "HEAL": [
+    {
+      "role": "HP_LOSS",
+      "w": 2.0,
+      "label": "자해 카드 (HEAL 활용)"
+    },
+    {
+      "role": "HP_LOSS_CONSUMER",
+      "w": 1.5,
+      "label": "자해 소비자 시너지"
+    },
+    {
+      "role": "BLOCK",
+      "w": 0.8,
+      "label": "지속 생존"
+    }
+  ],
+
+  "STRENGTH_DOWN": [
+    {
+      "role": "WEAK_PRODUCER",
+      "w": 1.5,
+      "label": "약화 스택"
+    },
+    {
+      "role": "VULN_PRODUCER",
+      "w": 1.2,
+      "label": "취약 시너지"
+    },
+    {
+      "role": "BLOCK",
+      "w": 1.0,
+      "label": "방어 빌드"
+    }
+  ],
+
+  "CARD_RETURN": [
+    {
+      "role": "DRAW",
+      "w": 1.0,
+      "label": "순환 보강"
+    },
+    {
+      "role": "EXHAUST_PRODUCER",
+      "w": 1.5,
+      "label": "소멸 회수"
+    },
+    {
+      "role": "DISCARD_RECLAIM",
+      "w": 1.2,
+      "label": "버리기 회수"
+    }
+  ],
+
+  "EXHAUST_TARGET_RANDOM": [
+    {
+      "role": "EXHAUST_CONSUMER",
+      "w": 2.5,
+      "label": "소멸 페이오프"
+    },
+    {
+      "role": "EXHAUST_PRODUCER",
+      "w": 1.5,
+      "label": "소멸 빌드"
+    },
+    {
+      "role": "DAMAGE_AMPLIFIER",
+      "w": 0.8,
+      "label": "데미지 시너지"
+    }
+  ],
+
+  "OSTY": [
+    {
+      "role": "SKELETON_PRODUCER",
+      "w": 3.0,
+      "label": "스켈레톤 공급"
+    },
+    {
+      "role": "SKELETON_AMPLIFIER",
+      "w": 2.0,
+      "label": "스켈레톤 증폭"
+    },
+    {
+      "role": "MINION",
+      "w": 1.5,
+      "label": "하수인 시너지"
+    },
+    {
+      "role": "DEFEND_TYPE",
+      "w": 0.5,
+      "label": "방어 보조"
+    }
+  ]
+}
