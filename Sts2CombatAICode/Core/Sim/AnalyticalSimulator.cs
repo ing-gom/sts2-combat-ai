@@ -455,6 +455,73 @@ internal static class AnalyticalSimulator
     ///     (matches AnalyticalSimulator's intra-turn draw model).
     /// </summary>
     public static SimState AdvanceTurn(SimState state)
+        => AdvanceTurnInternal(state, BuildSyntheticHand(state));
+
+    /// <summary>
+    /// v0.7.14 (Phase 2c) — AdvanceTurn variant whose next-turn hand is drawn
+    /// via Monte Carlo sampling from the actual deck pool (DrawPile +
+    /// DiscardPile) rather than 5× synthetic average cards. Lets the planner
+    /// evaluate "what if I draw a Strike heavy hand next turn" vs "what if
+    /// I draw a defensive hand" — variance the synthetic average smooths out.
+    ///
+    /// Caller is responsible for averaging scores across N samples for noise
+    /// reduction (ActionPlanner uses N=3).
+    /// </summary>
+    public static SimState AdvanceTurnSampled(SimState state, System.Random rng)
+        => AdvanceTurnInternal(state, BuildSampledHand(state, 5, rng));
+
+    /// <summary>
+    /// Synthetic next-turn hand: 5 copies of the pile's average card. Kept as
+    /// the default <see cref="AdvanceTurn"/> behavior — deterministic,
+    /// noise-free, suitable for non-Monte-Carlo callers.
+    /// </summary>
+    private static System.Collections.Generic.List<SimCard> BuildSyntheticHand(SimState state)
+    {
+        var hand = new System.Collections.Generic.List<SimCard>();
+        if (state.DrawPile.Count + state.DiscardPile.Count > 0)
+        {
+            var avg = MakeAverageDrawCard(state);
+            for (int i = 0; i < 5; i++) hand.Add(avg);
+        }
+        return hand;
+    }
+
+    /// <summary>
+    /// Monte Carlo next-turn hand: <paramref name="handSize"/> distinct cards
+    /// drawn uniformly without replacement from <c>DrawPile + DiscardPile</c>.
+    /// Fisher–Yates partial shuffle keeps the sample O(handSize) rather than
+    /// O(pile-size). Returns the full pool when it's smaller than handSize.
+    /// </summary>
+    private static System.Collections.Generic.List<SimCard> BuildSampledHand(
+        SimState state, int handSize, System.Random rng)
+    {
+        var hand = new System.Collections.Generic.List<SimCard>(handSize);
+        int poolSize = state.DrawPile.Count + state.DiscardPile.Count;
+        if (poolSize == 0) return hand;
+
+        if (poolSize <= handSize)
+        {
+            foreach (var c in state.DrawPile) hand.Add(c);
+            foreach (var c in state.DiscardPile) hand.Add(c);
+            return hand;
+        }
+
+        // Copy combined pool into a mutable array, then Fisher–Yates the
+        // first `handSize` indices. Cheaper than a full shuffle.
+        var copy = new SimCard[poolSize];
+        int w = 0;
+        foreach (var c in state.DrawPile) copy[w++] = c;
+        foreach (var c in state.DiscardPile) copy[w++] = c;
+        for (int i = 0; i < handSize; i++)
+        {
+            int j = i + rng.Next(poolSize - i);
+            (copy[i], copy[j]) = (copy[j], copy[i]);
+            hand.Add(copy[i]);
+        }
+        return hand;
+    }
+
+    private static SimState AdvanceTurnInternal(SimState state, System.Collections.Generic.List<SimCard> nextHand)
     {
         // (a)+(b) Resolve enemy intents — PredictPlayerDmg already factors
         // block (incl. EOT bonus), Vulnerable on player, Weak on enemies, and
@@ -557,17 +624,14 @@ internal static class AnalyticalSimulator
         int newPlayerBlock = barricadeActive ? state.PlayerBlock : 0;
         const int BaseTurnEnergy = 3;
 
-        // (g) New hand from deck pool. Hand size = 5 (STS2 default). Existing
-        // hand is conceptually discarded — we don't track which cards survive
-        // via Ethereal exhaust / Retain (Phase 2a simplification).
-        var newHand = new System.Collections.Generic.List<SimCard>();
-        if (state.DrawPile.Count + state.DiscardPile.Count > 0)
-        {
-            var avg = MakeAverageDrawCard(state);
-            for (int i = 0; i < 5; i++) newHand.Add(avg);
-        }
+        // (g) New hand from deck pool — provided by caller. Caller picks
+        // synthetic-avg (BuildSyntheticHand, default AdvanceTurn) or Monte
+        // Carlo sampling (BuildSampledHand, AdvanceTurnSampled).
+        // Existing hand is conceptually discarded — we don't track which
+        // cards survive via Ethereal exhaust / Retain (Phase 2a simplification).
+        var newHand = nextHand;
 
-        int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - 5);
+        int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - newHand.Count);
         int newDiscardPileSize = 0;
 
         // v0.7.13 — MAYHEM / STAMPEDE turn-start auto-play. Each stack auto-

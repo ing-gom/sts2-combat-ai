@@ -26,6 +26,15 @@ internal static class ActionPlanner
     private const double NextTurnDiscount = 0.30;
 
     /// <summary>
+    /// v0.7.14 — Monte Carlo sample count for next-turn hand projection.
+    /// N=3 is a perf/variance trade-off: enough samples to spread the deck
+    /// distribution without exploding PlanScorer call count. With ~50 calls
+    /// per depth=1 lookahead, 3 samples cost +150 calls per first-card
+    /// candidate (~3x legacy when including the depth=2 main beam).
+    /// </summary>
+    private const int MonteCarloSamples = 3;
+
+    /// <summary>
     /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
     /// reveals which follow-up card the depth-2 lookahead picked as the "best second
     /// play" after this candidate — invaluable for explaining why a setup card won
@@ -78,11 +87,36 @@ internal static class ActionPlanner
                 // Next-turn projection — discounted because the projection
                 // assumes the rest of this turn is forfeit (we only advance
                 // from after the first card, not after the full 3-card seq).
+                //
+                // v0.7.14 — Monte Carlo over N=3 sampled next-turn hands.
+                // Replaces the single synthetic-avg AdvanceTurn call with an
+                // average across 3 actually-drawn hands so variance in the
+                // deck pool ("might draw Strikes / might draw curses") shows
+                // up in the next-turn signal instead of being smoothed away.
                 try
                 {
-                    var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurn(nextState);
-                    int nextTurnSingleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: 3, out _);
-                    nextTurnBonus = (int)(nextTurnSingleStep * NextTurnDiscount);
+                    // Seed deterministically per state so the same scoring
+                    // run reproduces. The seed mixes hand size + player HP +
+                    // a candidate-specific salt to avoid all first-card
+                    // candidates sharing identical samples.
+                    int seed = nextState.Hand.Count * 31 + nextState.PlayerHp + card.Id.GetHashCode();
+                    var rng = new System.Random(seed);
+                    int sampleTotal = 0;
+                    int sampleCount = 0;
+                    for (int s = 0; s < MonteCarloSamples; s++)
+                    {
+                        try
+                        {
+                            var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurnSampled(nextState, rng);
+                            int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: 3, out _);
+                            if (singleStep < 0) singleStep = 0;
+                            sampleTotal += singleStep;
+                            sampleCount++;
+                        }
+                        catch { /* skip sample on sim failure */ }
+                    }
+                    int nextTurnAvg = sampleCount > 0 ? sampleTotal / sampleCount : 0;
+                    nextTurnBonus = (int)(nextTurnAvg * NextTurnDiscount);
                     if (nextTurnBonus < 0) nextTurnBonus = 0;
                 }
                 catch { /* AdvanceTurn failure → no next-turn signal */ }
