@@ -157,6 +157,20 @@ internal static class PlanScorer
                 ? $"pairBonus+{comboPairBonus}"
                 : $"{comboDetail},pairBonus+{comboPairBonus}";
         }
+        // v0.7.52 — Deck-wide archetype alignment. Detect the dominant build
+        // commitment (≥3 supporters in deck) and bias the score toward
+        // cards belonging to that build. Folded into comboBonus so the
+        // existing log column captures it.
+        var (archPrimary, archSecondary, archCount) = ArchetypeDetector.Detect(state);
+        int archAlignment = ArchetypeDetector.AlignmentBonus(card, archPrimary, archSecondary, archCount);
+        if (archAlignment != 0)
+        {
+            comboBonus += archAlignment;
+            string archTag = $"arch({archPrimary}/{archCount})+{archAlignment}";
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? archTag
+                : $"{comboDetail},{archTag}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable

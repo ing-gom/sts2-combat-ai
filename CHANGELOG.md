@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.7.52 (2026-05-18)
+
+**Deck archetype 자동 감지 (사용자 요청: 덱 구성 기반 favorable 지표).**
+
+### 배경
+
+기존 `BuildSynergy` 는 hand 내 cross-axis 매칭만. deck 전체의 build
+commitment 무시 — 6장 POISON 빌드인데 hand 에 amplifier 없으면 poison
+카드 선호도 보너스 부재.
+
+### 변경
+
+새 모듈 `ArchetypeDetector.cs`:
+
+**12 archetypes 지원**:
+- Strength / Block / ExhaustBurst / Poison / ShivStorm
+- OrbDefect / StarRegent / ForgeBlade / SkeletonSwarm
+- SoulNecro / Doom / None
+
+**Detection**:
+- Hand + DrawPile + DiscardPile 전체 walk
+- 각 archetype axis 매칭 카드 카운트
+- ≥3장 = commitment 등록
+- Top-2 (primary + secondary)
+
+**AlignmentBonus**:
+- Primary aligned: `(supporters - 3) × 30` (cap 250)
+- Secondary aligned: ½ of primary
+- 무관련: 0 (페널티 없음 — 보너스만)
+
+### Wiring
+
+`PlanScorer.Score()` 의 comboBonus 에 합산. DecisionLog 에
+`arch(Poison/7)+120` 같은 detail 추가.
+
+### 효과 예시
+
+6장 Poison deck:
+- POISON_PRODUCER 카드 (NoxiousFumes, DeadlyPoison): +90
+- POISON_AMPLIFIER (Accelerant): +90
+- non-Poison attack (Strike): +0
+
+플레이어가 archetype 의도를 deck-build 단계에서 표현 → AI 가 자동 인식
+→ 일관된 plays.
+
+---
+
 ## v0.7.51 (2026-05-18)
 
 **Self-growing attack handlers (CLAW/MAUL/RAMPAGE).**
