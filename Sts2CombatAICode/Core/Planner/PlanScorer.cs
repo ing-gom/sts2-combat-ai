@@ -459,12 +459,54 @@ internal static class PlanScorer
                 details.Add($"{dmgLabel}*{w.DamagePerPointBonus}={effect}");
             }
 
+            // v0.7.23 — Survival probability for enemy-debuff value scaling.
+            // VulnerablePower / WeakPower / FrailPower / Constrict etc. give
+            // multi-turn future-attack benefit. If THIS attack kills the
+            // target, that future value is wasted (Vuln on a corpse = 0).
+            // Single-target: ratio = (effHp − attackDmg) / effHp, floor 0.
+            // AOE: avg fraction-of-HP-remaining across alive enemies.
+            // Floor 0.15 preserves a small portion (chain-attack benefit even
+            // when the next strike kills).
+            double survivalRatio;
+            if (isAoe)
+            {
+                int sumRemain = 0, sumEffHp = 0;
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (!e.IsAlive) continue;
+                    int eEff = e.Hp + e.Block;
+                    if (eEff <= 0) continue;
+                    sumRemain += System.Math.Max(0, eEff - effectiveTotal);
+                    sumEffHp += eEff;
+                }
+                survivalRatio = sumEffHp > 0 ? sumRemain / (double)sumEffHp : 1.0;
+            }
+            else if (targetIdx >= 0 && targetIdx < state.Enemies.Count)
+            {
+                var t = state.Enemies[targetIdx];
+                if (!t.IsAlive) survivalRatio = 1.0;
+                else
+                {
+                    int effHp = t.Hp + t.Block;
+                    survivalRatio = effHp > 0
+                        ? System.Math.Max(0, effHp - effectiveTotal) / (double)effHp
+                        : 0.0;
+                }
+            }
+            else survivalRatio = 1.0;
+            if (survivalRatio < 0.15 && survivalRatio > 0) survivalRatio = 0.15;
+            // Pure-kill (survivalRatio = 0) keeps 0 — debuff fully wasted.
+
             int attached = 0;
             foreach (var (powerName, amount) in card.PowerApps)
             {
                 // AOE attaches debuff to every enemy too. Apply stack curve once,
                 // then multiplier for AOE breadth.
                 int perEnemy = (int)(PowerCatalog.ValueEnemyDebuff(powerName, amount) * w.AttachedDebuffMultiplier);
+                // v0.7.23 — Survival probability scaling. Future-turn debuff
+                // value is lost when target dies on this attack.
+                perEnemy = (int)(perEnemy * survivalRatio);
 
                 // v0.2.9 — Artifact blocks our enemy debuffs. v0.5 — canonical STS
                 // semantics: each debuff APPLICATION consumes 1 Artifact charge and is
@@ -720,7 +762,19 @@ internal static class PlanScorer
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
+            // v0.7.23 — Lethal-mode setup attack penalty. Setup attacks
+            // (Bash-like: low dmg-per-energy + applies debuff) sacrifice
+            // immediate damage for future-turn payoff. When we can kill
+            // THIS turn with simpler attacks, the setup card is overkill
+            // — its debuff value lapses on a corpse.
+            int lethalSetupPenalty = 0;
+            if (lethalThisTurn && IsSetupAttackCard(card))
+            {
+                lethalSetupPenalty = w.LethalModeNonAttackPenalty * 6 / 10;
+                details.Add($"lethalSetup={lethalSetupPenalty}");
+            }
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
                 Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -1627,6 +1681,27 @@ internal static class PlanScorer
         if (idx <= 0) return powerName;
         var stem = powerName.Substring(0, idx);
         return stem.Length <= 4 ? stem : stem.Substring(0, 4);
+    }
+
+    /// <summary>
+    /// v0.7.23 — A "setup attack" is an Attack card whose primary value is
+    /// applying a debuff for future-turn payoff (Bash/Sucker Punch/Clothesline
+    /// etc.) rather than dealing damage now. Heuristic: card is Attack with
+    /// VULN/WEAK/FRAIL_PRODUCER axis AND its dmg-per-energy is materially
+    /// lower than a generic Strike-tier attack (dpe < 5.5 vs Strike's 6.0).
+    /// Used by lethal-mode penalty so setup cards aren't preferred over
+    /// simpler attacks when greedy damage already kills.
+    /// </summary>
+    private static bool IsSetupAttackCard(SimCard card)
+    {
+        if (!card.IsAttack || card.Cost <= 0) return false;
+        if (card.Axes == null) return false;
+        bool hasSetupAxis = card.Axes.Contains("VULN_PRODUCER")
+                         || card.Axes.Contains("WEAK_PRODUCER")
+                         || card.Axes.Contains("FRAIL_PRODUCER");
+        if (!hasSetupAxis) return false;
+        double dpe = card.TotalDamage / (double)card.Cost;
+        return dpe < 5.5;
     }
 
     /// <summary>
