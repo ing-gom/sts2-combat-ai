@@ -1,5 +1,1530 @@
 # Changelog
 
+## v0.7.11 (2026-05-18)
+
+**Phase 3 — Self-copy chain 6장 + Skeleton ally 모델링.**
+
+### Phase 3a — Self-copy chain 카드 평가
+
+기존 6장이 단일 효과만 점수화 → 자기 복사본 / 손 복제 의 future-play 가치
+누락. 카드별 핸들러 추가.
+
+| 카드 | tier | 핸들러 | 공식 | Cap |
+|---|---|---|---|---:|
+| **ANGER** | B | `ApplyAngerChain` | (turns−1) × (6dmg×35 + 80cost0) × 0.4 | 400 |
+| **UNDEATH** | A | `ApplyUndeathChain` | (turns−1) × (7blk×25 + 80cost0) × 0.4 | 400 |
+| **DUAL_WIELD** | B | `ApplyDualWieldChain` | max(hand atk/power EV) × 0.7 | — |
+| **HEIRLOOM_HAMMER** | C | `ApplyHeirloomHammerChain` | max(hand atk EV) × 0.7 | — |
+| **NIGHTMARE** | B | `ApplyNightmareChain` | 3 × max(hand EV) × 0.5 (next-turn discount) | 900 |
+| **ADAPTIVE_STRIKE** | B | `ApplyAdaptiveStrikeChain` | 18dmg × 50 × 0.4 = +360 (constant) | — |
+
+`ChainDiscount = 0.4` 공통 — deck cycling / draw RNG / exhaust 불확실성 반영.
+
+**예상치 (`scripts/_inspect_phase3.py`)**:
+
+```
+ANGER         turns=2 +116  turns=4 +348  turns=7 +348
+UNDEATH       turns=2 +102  turns=4 +306  turns=7 +306
+DUAL_WIELD    hand=200 +140  hand=500 +350  hand=900 +630
+NIGHTMARE     hand=200 +300  hand=500 +750  hand=900 +900 [cap]
+ADAPTIVE_STR  constant +360
+```
+
+ANGER 의 long-fight 가치 ×3 (단일 6dmg 점수의 ~3 배). NIGHTMARE 는 강덱에서
+cap 까지 saturate.
+
+### Phase 3b — Skeleton ally 모델링
+
+`SimEnemy` 와 대칭 구조의 신규 `SimAlly` 도입. Necrobinder 스켈레톤 / 기타
+player-side 소환물 모델링.
+
+**신규 파일**:
+- `Sts2CombatAICode/Core/Sim/SimAlly.cs` — Hp, Block, IntentDamage,
+  IntentRepeats, HasAttackIntent, ClassName, SourceRef
+
+**`SimState.Allies`** — `IReadOnlyList<SimAlly>` 필드. 빈 리스트 = capture
+실패 fallback.
+
+**StateSnapshotter 변경**:
+- 기존 SkeletonCount 카운팅 루프 → SimAlly 빌드도 함께. 각 ally:
+  - Hp/Block: `CombatReflection` 동일 필드 활용
+  - Intent: `monster.NextMove.Intents` 순회 (`CombatReflection.Classify`,
+    `GetAttackIntentDamage`, `GetAttackIntentRepeats`)
+- SkeletonCount 는 호환성 위해 유지.
+
+**`RemainingTurnsEstimator.EstimatePlayerDpt` 가산**:
+```csharp
+allyDamage = sum(ally.TotalIntentDamage for alive attacking ally)
+playerDpt = handAttackDamage / 2 + strengthBonus + allyDamage
+```
+
+스켈레톤 데미지가 컴뱃 길이 추정에 반영 → Necrobinder 패시브 가치 visible.
+
+**`AnalyticalSimulator.AdvanceTurn` 가산**:
+- 적 intent 해소 전 ally 가 가장 HP 낮은 적에 데미지 (block-first)
+- 단일 타겟 휴리스틱 (스켈레톤별 타겟팅 분기 미반영)
+
+**예상치 (3b)**:
+
+```
+scenario                                       dpt  turns
+no skeletons, boss 300 HP                       10     10 [cap]
+1 skeleton 8 dmg, boss 300 HP                   18     10 [cap]
+3 skeletons 8 dmg, boss 300 HP                  34      8
+5 skeletons 8 dmg, elite 100                    45      2
+```
+
+스켈레톤 다수 시 컴뱃 길이 추정 정확히 단축 → 패시브 카드 가치 비례 조정.
+
+### Random target 카드
+
+catalog 정찰 결과 **0 카드** (STS2 에는 random-target attack 카드 없음 —
+Sword Boomerang 류는 STS1 only). 작업 영역 X.
+
+### 의도적으로 안 한 부분
+
+- **Skeleton 별도 타겟팅 + 적 split-fire**: 적이 ally HP 를 우선 공격하는
+  로직 미반영. AdvanceTurn 의 enemy 데미지가 ally HP 차감 후 player HP
+  로 가는 분기 없음. Phase 3c 영역.
+- **ANGER 의 chain-of-chain**: 추가된 ANGER 가 다시 ANGER 를 추가 → 무한
+  복리. 현재 (turns−1) 선형 추정.
+- **ADAPTIVE_STRIKE 의 cost-set-zero 카드가 그 턴에 draw 안 될 수도**:
+  확률 미반영, 단순 0.4 discount.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_phase3.py`: 3a 카드 6종 × 시나리오, 3b 스켈레톤
+  4 시나리오 모두 예상 범위.
+
+### Power 효과 + 자해 + 자기복사 + 스켈레톤 — v0.7.11 후
+
+| 영역 | 처리 상태 |
+|---|---|
+| Power 패시브 (S/A/B/C/D) | ✅ v0.7.7 |
+| HP_LOSS producer/consumer | ✅ v0.7.7/v0.7.8 |
+| 단일턴 depth=3 beam search | ✅ v0.7.9 |
+| 멀티턴 AdvanceTurn projection | ✅ v0.7.10 |
+| **Self-copy chain 6장** | ✅ v0.7.11 |
+| **Skeleton ally 데미지 기여** | ✅ v0.7.11 |
+| Skeleton split-fire defense | ❌ Phase 3c |
+| Monte Carlo draw RNG | ❌ Phase 2c |
+
+## v0.7.10 (2026-05-18)
+
+**Forward Simulator Phase 2a — AdvanceTurn + multi-turn 평가 통합.**
+
+### Phase 2a scope (사전 합의)
+
+| 구성 | 포함 |
+|---|---|
+| A. ResolveEnemyIntents | ✅ `EnemyTurnSimulator.PredictPlayerDmg` 활용 |
+| B. AdvanceTurn | ✅ 신규 (`AnalyticalSimulator.AdvanceTurn`) |
+| C. ActionPlanner multi-turn 통합 | ✅ next-turn discount 0.30 |
+| D. Power passive 자동 트리거 | ❌ Phase 2b |
+| E. Monte Carlo draw RNG | ❌ Phase 2c |
+
+### A+B — `AnalyticalSimulator.AdvanceTurn`
+
+신규 메서드. 단일 호출로 턴 종료 → 다음 플레이어 턴 시작 state 생성.
+
+처리 항목 (Phase 2a 단순화):
+1. **적 intent 해소** — `PredictPlayerDmg` (Vuln/Weak/Intangible/Frail + block
+   + EOT block bonus 다 반영) → player HP 차감
+2. **적 turn-start Strength** — `HasTurnStartStrengthBuff` (Ritual 등) → +1 str
+3. **DoT tick** — enemy.Hp -= (Poison + Constrict). enemy.Block reset.
+4. **Player 상태 decrement** — Vuln/Weak/Frail/Intangible -1 each
+5. **Enemy 상태 decrement** — Vuln/Weak/Frail/Poison -1 each
+6. **Player block reset** + **energy reset to 3** (base, character 추가
+   에너지 미반영 — Pyre/Berserk 등 Phase 2b)
+7. **New hand** — 5장 synthetic average card (`MakeAverageDrawCard` 재사용)
+8. **Pile 시프트** — discard → reshuffle 로 모두 draw pool 흡수
+
+### C — ActionPlanner multi-turn 통합
+
+기존 depth=3 beam 후, 첫 카드 적용 state 에서 `AdvanceTurn` 실행 →
+**next-turn single-step max × 0.30 discount** 가산:
+
+```
+total = firstScore
+      + BestContinuation(state1, depth=2, K=3)    // 이번 턴 2~3 카드
+      + BestContinuation(AdvanceTurn(state1), depth=1) * 0.30   // 다음 턴 첫 카드
+```
+
+`NextTurnDiscount = 0.30` — 보수적. 이유:
+- 다음 턴 hand 가 synthetic (RNG 노이즈)
+- AdvanceTurn 이 *첫 카드 적용 후* state 에서 출발 (이번 턴 잔여 카드 미반영)
+- 적 intent 가 정확하지 않을 수 있음 (다음 턴 intent unknown)
+
+### 의도된 효과
+
+| 결정 시나리오 | depth=3 만 | + multi-turn |
+|---|---|---|
+| Inflame (P) vs Strike | Inflame 점수 약함 (이번 턴 0 데미지) | Inflame +next-turn boost — Power 가치 visible |
+| Defend (S) vs 공격 | 적 데미지 적으면 둘 비슷 | 다음 턴 HP 보존 → Defend score ↑ |
+| BLOODLETTING — 자해 + draw | depth=3 시퀀스 정확 | 다음 턴 hand 가 새로 그려지니 draw 가치 ↓ (정확) |
+| Power 깔기 (DemonForm) | 점수 보수적 | next-turn Strength stack 보너스 → Power score ↑ |
+
+### 검증 (`scripts/_inspect_advance_turn.py`)
+
+```
+scenario                                  leak  hp->   status
+safe: 70 HP, 15 block, 1 enemy 8x2          1   70->69  -
+vuln incoming: dmg x1.5                    15   60->45  vuln 2->1
+intangible: cap each hit at 1               5   40->35  intang 1->0
+fatal: 12 HP, no block, big boss            25   12-> 0  -
+multi-enemy: 3 attackers                   26   80->54  -
+```
+
+`AdvanceTurn` 가 `PredictPlayerDmg` 의 vuln/weak/intangible 분기 모두
+정확히 mirror.
+
+### Phase 2a 단순화 (의도적)
+
+- **Player block 항상 0 으로 reset** — Barricade / Calipers 미반영
+- **Energy = 3 flat** — Pyre / Berserk / EnergyNextTurnPower 추가 보너스 미반영
+- **Ethereal exhaust / Retain 미반영** — 다음 턴 hand 가 deck pool 의 average ×5
+- **AdvanceTurn 의 시작 state** — depth=3 시퀀스 끝 state 가 아닌 첫 카드만
+  적용된 state. multi-turn 보너스가 약간 보수적 (의도)
+- **다음 턴은 single-step max** — depth=1, full beam search 안 함
+
+### Phase 2b/2c 영역
+
+- Power passive 자동 트리거 (MAYHEM/AGGRESSION/STAMPEDE/REAPER_FORM)
+- Monte Carlo draw sampling
+- AdvanceTurn 시작 state 정확화 (depth=3 끝 state 사용)
+- 다음 턴 depth=3 full search
+- 캐릭터별 base energy / EnergyNextTurnPower / Barricade 반영
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_advance_turn.py`: 7 시나리오 모두 leak / HP /
+  status decrement 정확.
+
+## v0.7.9 (2026-05-18)
+
+**Forward Simulator Phase 1 — depth=3 beam search + HpLoss simulator
+통합.**
+
+### 배경
+
+`docs/forward_sim_scope.md` 의 Phase 1 작업 (원래 4일 추정). 정찰 결과
+**`AnalyticalSimulator.ApplyCardPlay` 가 이미 v0.2.5 부터 존재** (damage /
+block / power / orb / draw / Vuln-Weak-Frail-Poison-Constrict-Burn-Artifact
+propagation, 약 600줄). Phase 1 의 80% 가 기존 인프라로 cover 됨.
+
+진짜 남은 작업:
+1. v0.7.8 의 `HpLossAmount` 를 simulator 가 PlayerHp 에 차감 (누락)
+2. 결정된 (depth=3, beamK=3) 단일 턴 beam search 로 확장
+
+### 결정 사항 (사전 합의)
+
+| 결정 | 값 |
+|---|---|
+| Depth | 3 (1 first card + 2 lookahead) |
+| Multi-turn | NO (Phase 1 = 단일 턴) |
+| Tree pruning | Top-K beam search (K=3) |
+| Vakuu vs Advisor 공유 | NO (CombatAI 만, Advisor 포트는 별개) |
+
+### 변경
+
+#### Phase 1.1 — HpLoss simulator 통합
+
+`AnalyticalSimulator.ApplyCardPlay` (line 73):
+```csharp
+if (card.HpLossAmount > 0)
+    newPlayerHp = Math.Max(0, newPlayerHp - card.HpLossAmount);
+```
+
+자해 카드 (BLOODLETTING / OFFERING / HEMOKINESIS) 시퀀스 시 다음 카드 평가가
+낮아진 HP 를 정확히 봄. v0.7.8 의 `EstimateCardPower` HP-페널티 밴드와 연결:
+"BLOODLETTING 두 번 연달아" 같은 위험 시퀀스가 자동 페널티.
+
+#### Phase 1.2 — Depth=3 Beam Search
+
+`ActionPlanner.cs`:
+- 기존 `secondScore` 계산 (single-step max from second card) →
+  `BestContinuation(nextState, depth=2, beamK=3, ...)`
+- 신규 헬퍼 `BestContinuation(state, depth, w, beamK, out firstCardId)`:
+  - 모든 candidate 점수 → 상위 K (=3) beam pruning
+  - depth > 1 이면 ApplyCardPlay 후 재귀
+  - depth = 0 시 return 0
+
+탐색 트리:
+```
+PlanNextStep (전체 enumeration, no beam)
+  ├── ApplyCardPlay → BestContinuation(state, depth=2, K=3)
+  │     ├── score all, take top 3
+  │     │   ├── ApplyCardPlay → BestContinuation(state, depth=1, K=3)  [single-step max]
+  │     │   ...
+```
+
+= 1 first card + 2 lookahead cards = depth 3 total 카드 시퀀스 평가.
+
+### 복잡도 (`scripts/_inspect_beam_search_complexity.py`)
+
+| hand × targets | legacy d2 | **v0.7.9 d=3 K=3** | 배수 |
+|---|---:|---:|---:|
+| 4 × 1 | 16 | 40 | 2.5x |
+| 6 × 1 | 36 | 108 | 3.0x |
+| 6 × 3 | 324 | **1188** | 3.7x |
+| 8 × 3 | 576 | 2160 | 3.8x |
+
+per-step ~1k~2k PlanScorer.Score calls, ~50us each → ~100ms / PlanNextStep.
+턴당 ~5 steps × 100ms = ~500ms. **허용 범위**.
+
+(d=4 K=3 은 ~11x, d=3 K=5 는 ~5x. 추후 튜닝 가능.)
+
+### 예상 효과
+
+**Combo 발견** — depth=2 까지 못 봤던 3-step 시퀀스 인식:
+- Inflame → Strike → Bash (2 Strength stack 후 강타격)
+- Dexterity → Defend → Body Slam (block 빌드 후 block→dmg 변환)
+- Spot Weakness → 추가 setup → finisher
+- Bloodletting → Bash → Strike (자해 후 에너지 활용)
+
+**자해 시퀀스 페널티 자동화** — HpLoss 가 state 에 반영되므로 두 번째/세 번째
+자해 카드의 EstimateCardPower 가 낮아진 HP 의 페널티 밴드 (≤25 HP → -200/HP)
+자동 적용.
+
+### Phase 1 NOT cover (Phase 2 영역)
+
+- 턴 경계 — `AdvanceTurn` / `ResolveEnemyIntents` 없음. 다음 턴 시나리오 0.
+- Monte Carlo draw RNG — synthetic average draw 카드만 (v0.5.1 기존 인프라).
+- Card-specific special effect (DREDGE player choice, TEAR_ASUNDER scaling)
+  — 기존 EffectSynergy 휴리스틱.
+- CombatAdvisor 자매 모드 포트 — 별개 작업.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_beam_search_complexity.py`: 복잡도 표 — depth=3
+  K=3 가 legacy 의 3-3.8x.
+
+## v0.7.8 (2026-05-18)
+
+**HpLossAmount → CardEffectSummary 통합. 자해 비용 EstimateCardPower 차감.
+Forward simulator Phase 1 scope 정의.**
+
+### 자해 카드 평가 — Phase 2 완성
+
+v0.7.7 의 `ApplyHpLossConsumer` 는 *소비자 측* (RUPTURE / TEAR_ASUNDER /
+INFERNO) 만 정교화 — *생산자 측* (BLOODLETTING / OFFERING 등) 의 HP 비용은
+미반영. 이번 작업은 producer cost 도 점수화.
+
+#### 변경 파일
+
+| 파일 | 변경 |
+|---|---|
+| `CardEffectSummary.cs` | `HpLossAmount` 필드 추가 |
+| `CardReflection.cs` | DynamicVar `HpLoss` 추출 (`hpLoss += amount` ~line 226) |
+| `SimCard.cs` | `HpLossAmount` 노출 |
+| `EffectSynergy.cs` `EstimateCardPower` | HP 비례 패널티 + floor at curse-equivalent |
+
+#### 패널티 밴드
+
+| PlayerHp | per-HP-loss 패널티 |
+|---:|---:|
+| > 60 | 12 |
+| 41-60 | 30 |
+| 26-40 | 70 |
+| ≤ 25 | 200 |
+
+floor: `CurseInHand=-250` (in-hand) / `CurseFree=-100` (free-use).
+
+#### 평가 표 (`scripts/_inspect_hploss_card_eval.py`)
+
+| 카드 | HP 80 | HP 50 | HP 35 | HP 20 |
+|---|---:|---:|---:|---:|
+| **BLOODLETTING** (0c, 3d+2e, -3HP) | +374 | +320 | +200 | **-190** |
+| **OFFERING** (0c, 3d+2e, -6HP) | +338 | +230 | -10 | **-250** [floor] |
+| **HEMOKINESIS** (1c, 15dmg, -2HP) | +521 | +485 | +405 | +145 |
+| **BREAKTHROUGH** (1c, 12dmg, -1HP) | +428 | +410 | +370 | +240 |
+| **BLOOD_WALL** (2c, 14blk, -2HP) | +326 | +290 | +210 | -50 |
+
+- OFFERING 은 HP ≤ 25 에서 floor (-250) — "절대 쓰지 마" 신호
+- HEMOKINESIS 는 큰 damage 가 HP loss 압도 → low HP 에서도 양수 유지 (실제
+  플레이 직관: 15 데미지로 적 죽이면 turn 종료 데미지 회피 가능)
+- BLOODLETTING 은 HP 20 에서 -190 — 강한 경고 but not floor
+
+#### 영향
+
+- 자해 카드 10장 (BLOODLETTING / OFFERING / HEMOKINESIS / BREAKTHROUGH /
+  BRAND / DEMONIC_SHIELD / BLOOD_WALL / HAUNT / + curse BAD_LUCK)
+- pile-mean 핸들러 (DREDGE / CASCADE / MAYHEM tick 등) 도 자동으로 HP-loss
+  카드 평가가 정확해짐 — pile 에 OFFERING 이 있으면 mean 이 음수 쪽으로 정확
+  반영
+- Floor 처리로 pile-mean 폭발 방지
+
+### Mantra 메모리 정정
+
+`project_vakuu_plus.md` 의 "Watcher Mantra 시스템 미인식" 항목은 **잘못된 기록**.
+STS2 catalog 0 Mantra 카드 / 0 코드 reference. Regent 의 `PlayerStars` 가
+STS1 Watcher Mantra 와 동일 카테고리 (`SimState.cs:78` 의 주석이 이미 명시).
+메모리 strikethrough 로 정정.
+
+### Forward simulator Phase 1 scope 문서
+
+`docs/forward_sim_scope.md` 신규. 본격 구현 전 alignment 용 — 현재 한계,
+Phase 1 API (Simulator.ApplyCardPlay / AdvanceTurn / ResolveEnemyIntents),
+신규 파일 구조, 작업량 추정 (~4일), Pareto 80% scope, Phase 1 cover 안 함
+영역, 결정 포인트 5개 (depth / deck mean / tree pruning / Vakuu vs Advisor
+공유 / branching factor).
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_hploss_card_eval.py`: 7 카드 × 4 HP 밴드 표
+  모두 예상 범위.
+
+### Power 효과 + 자해 빌드 — v0.7.8 후 상태
+
+- **Power 패시브** (S/A/B/C/D): 모두 PowerCatalog + amplifier axis + id-derived
+  fallback 안전망 cover (v0.7.7).
+- **HP_LOSS_CONSUMER**: state-aware (events × 60, producers × 35) — v0.7.7.
+- **HP_LOSS_PRODUCER cost**: HP 비례 패널티 — **v0.7.8 신규**.
+
+→ **Ironclad 자해 빌드 평가 완전 정합**. producer 비용 + consumer 가치 + 통합
+state 트래킹.
+
+## v0.7.7 (2026-05-18)
+
+**[B] HP_LOSS 평가 정교화 + [C] PowerCatalog id-derived fallback (안전망).**
+
+---
+
+### Part C — PowerCatalog 24장 도달성 안전망
+
+**배경**: v0.7.3 의 가정 — "catalog `vars: {}` Power 카드 24장은 runtime
+reflection 이 `PowerVar<T>` 를 잡아 PowerCatalog 값에 도달". 이 가정 실패
+시 BARRICADE / REAPER_FORM / UNMOVABLE / TRACKING 등 **S/A-tier 11장 + B
+이하 13장 = 총 24장이 모두 Power effect 0점** 평가됨.
+
+**조치**: PlanScorer Power branch 에 **id-derived fallback** 추가
+(`PlanScorer.cs:174` 다음). `card.PowerApps.Count == 0` 인 Power 카드에 대해:
+
+```
+derivedName = IdToPowerName(card.Id)   // CARD.MAYHEM -> "MayhemPower"
+v = max(PowerCatalog.LookupSelfBuff(derived), LookupEnemyDebuff(derived))
+if (v != DefaultValue) effect += v
+```
+
+`DefaultValue=200` 가드 — heuristic-fallback 200 은 추측이라 신뢰 안 함.
+explicit 등록된 카드만 가산.
+
+**검증** (`scripts/_inspect_powercatalog_id_fallback.py`):
+
+```
+Power cards with catalog vars empty - 24 total
+
+S  UNMOVABLE         UnmovablePower         600  OK
+S  REAPER_FORM       ReaperFormPower        800  OK
+S  THE_SEALED_THRONE TheSealedThronePower   700  OK
+S  TOOLS_OF_THE_TRADE ToolsOfTheTradePower  500  OK
+S  TRACKING          TrackingPower          600  OK
+A  DARK_EMBRACE      DarkEmbracePower       500  OK
+...
+D  BARRICADE         BarricadePower        1200  OK
+D  CALAMITY          CalamityPower          350  OK
+
+Explicit PowerCatalog hits: 24/24
+Heuristic fallback only: 0/24
+```
+
+**24/24 카드 모두 PowerCatalog 등록 확인**. id-derived fallback 가
+reflection 실패 시 안전망으로 작동. 만약 reflection 이 정상이면 fallback
+는 no-op (Count == 0 가드).
+
+---
+
+### Part B — HP_LOSS_CONSUMER state 통합
+
+**배경**: `ApplyHpLossConsumer` 가 절대 HP 임계값 (≤30 / ≤50) 만 사용 →
+RUPTURE (event 당 Strength +1), TEAR_ASUNDER (hits = 1 + events), INFERNO
+(event 누적) 의 진짜 가치 미반영. 자해 빌드 (BLOODLETTING + RUPTURE) 시너지
+못 봄.
+
+(참고: TEAR_ASUNDER hits 스케일링은 v0.6.8 의 `EstimateCalculatedHits` 가
+이미 처리 — 본 작업은 점수 가산 측면.)
+
+**조치**: `ApplyHpLossConsumer` 3-signal 가산:
+
+| 시그널 | 공식 | 비고 |
+|---|---|---|
+| **(1) HP 임계값** | HP≤30 → +350, HP≤50 → +200 | 기존 |
+| **(2) CombatPlayerHpLossEvents** | events × 60 | 이미 발생한 자해/피격 |
+| **(3) HP_LOSS 축 producer 카운트** | min(producers × 35, 300) | 미래 자해 producer 잠재량 |
+
+HP_LOSS axis 카드: BLOODLETTING / OFFERING / HEMOKINESIS / INFERNO /
+BREAKTHROUGH / BRAND / DEMONIC_SHIELD / BLOOD_WALL / CRIMSON_MANTLE 등.
+저주/Status (BAD_LUCK / BECKON) 는 카운트 제외 (passive damage 라 자발 X).
+
+**검증** (`scripts/_inspect_hploss_consumer.py`):
+
+```
+scenario                                          hp  events  prod  bonus
+turn 1 healthy, no setup                          80      0      0      0
+turn 1 healthy, OFFERING+HEMOKINESIS+INFERNO      80      0      3   +105
+mid-fight, 1 event + 2 producers                  55      1      2   +130
+low HP, 3 events + Bloodletting deck              25      3      5   +705
+critical, 5 events + heavy self-harm              12      5      7   +895
+late, 8 events stacked                            30      8      1   +865
+```
+
+이전: 동일 시나리오들 모두 0 또는 +350 (임계값만). 이제 producer/event
+스택에 비례. RUPTURE 같은 카드 평가 시 자해 빌드 시너지 정확 반영.
+
+---
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_powercatalog_id_fallback.py`: 24/24 OK.
+- `python scripts/_inspect_hploss_consumer.py`: 8 시나리오 모두 예상 범위.
+
+### Power 효과 커버리지 — v0.7.7 후
+
+- **S/A/B/C/D Power 카드 100% PowerCatalog 도달 보장** (reflection +
+  id-derived 이중 보완).
+- 자해 빌드 (Ironclad) consumer 카드 (RUPTURE / TEAR_ASUNDER / INFERNO)
+  state-aware 평가.
+
+## v0.7.6 (2026-05-18)
+
+**RemainingTurnsProxy 정적 3 → 동적 추정.**
+
+### 배경
+
+v0.7.2~0.7.5 의 모든 Power 패시브 핸들러가 `RemainingTurnsProxy = 3` 상수
+사용. 실제 컴뱃 길이는 1턴 lethal 부터 10턴 보스까지 변동 큰데 모두 같은
+값으로 평가됨 — 1턴 남은 컴뱃에서 MAYHEM 을 과대평가, 7턴 보스전에서 과소
+평가.
+
+### 핵심 — `RemainingTurnsEstimator` (Sts2CombatAICode/Core/Planner/)
+
+```csharp
+turns = clamp(enemy_hp_sum / playerDpt, [1, 10])
+playerDpt = sum(hand_attack_damage) / 2 + player_strength × 2
+```
+
+- **O(1) 산술** — forward sim 0, Monte Carlo 0. 호출 당 ~10 micro-ops.
+- 핸들러 매 호출 시 직접 calling (SimState 캐싱 안 함 — overhead 무시할
+  수준이고 cache invalidation 이슈 0).
+- **edge cases**:
+  - 적 모두 사망 → 1
+  - 핸드에 attack 0장 (Power-only opener / 방어 턴) → **FallbackTurns=3**
+    (MaxTurns 10 으로 가면 패시브 과대평가)
+  - 극단 강덱 → 1 (lethal next turn)
+  - 극단 약덱 → 10 (clamp 상한)
+
+### 교체된 핸들러 (6곳)
+
+| 핸들러 | 카드 |
+|---|---|
+| `ApplyMayhemTickValue` | MAYHEM |
+| `ApplyCardReturn` case AGGRESSION | AGGRESSION |
+| `ApplyCardReturn` case NOSTALGIA | NOSTALGIA |
+| `ApplyStampedeTickValue` | STAMPEDE |
+| `ApplyJugglingTickValue` | JUGGLING |
+| `TryApplyPoolBasedRandom` | CREATIVE_AI / HELLO_WORLD / SPECTRUM_SHIFT |
+
+STRATAGEM (ReshuffleProxy=2), CALAMITY (ExpectedAttackChains=3),
+HELLRAISER (per-Strike) 는 turns 비의존 — 그대로.
+
+### 검증 (`scripts/_inspect_remaining_turns_estimator.py`)
+
+```
+scenario                                            enemyHp   dpt  turns
+turn 1: boss 250 HP, opener hand (Strike x3)            250     9     10
+turn 4: boss 60 HP left, scaled hand                     60    23      2
+3 minions 30 HP each, AoE hand                           90    10      9
+near-lethal: boss 15 HP, big attack                      15    14      1
+no attacks in hand (Power-only opener)                  200     0      3
+
+=== MAYHEM delta - static (3) vs dynamic ===
+starter pile, near-lethal (1 turn)     static +175  dynamic -275  shift -450
+starter pile, normal (3 turns)         static +175  dynamic +175  shift   +0
+starter pile, long boss (7 turns)      static +175  dynamic +1075 shift +900
+mid pile, near-lethal                  static +811  dynamic  -63  shift -874
+strong pile, near-lethal               static +1200 dynamic +137  shift -1063
+```
+
+- 컴뱃 길이 = 3 일 때 정확히 v0.7.5 와 동일 (회귀 없음)
+- near-lethal 일 때 MAYHEM 점수 −450 ~ −1063 감소 — "이제 패시브 깔 시간 없어"
+- long boss 일 때 starter 덱 MAYHEM +900 상승 — "긴 컴뱃, 패시브 가치 ↑"
+- 강덱은 이미 cap saturated 라 long boss 에서 추가 변화 없음
+
+### 의도적으로 안 한 부분
+
+- **SimState 캐싱**: per-snapshot 1회 계산해 필드로 저장하는 방안 검토했으나
+  추정 자체가 너무 가볍고 (per-scoring ~10 micro-ops × ~200 calls/turn =
+  2k ops) cache invalidation 위험 없는 직접 호출 선택.
+- **블록 / Poison / Vuln 가산 dpt**: 1차 버전은 hand attack damage + strength
+  만. 따라서 starter-vs-boss 시나리오에서 약간 long-side 로 추정. 실제 cap
+  (MAYHEM 1200 등) 이 영향 제한.
+- **Forward simulation 기반 length 추정**: 큰 인프라 작업 영역. 별개 추진.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_remaining_turns_estimator.py`: 8 시나리오 + 9
+  MAYHEM 비교 모두 예상 범위.
+
+## v0.7.5 (2026-05-18)
+
+**잔존 Power 패시브 6장 — DrawPile / Hand / Pool / Strike-count aware 평가.**
+
+### 배경
+
+v0.7.4 까지 Power 효과 평가에서 flat magnitude 로 남아 있던 6장 처리. v0.7.3
+MAYHEM 패턴 (PowerCatalog baked baseline + state-derived delta + cap/floor)
+을 각 메커니즘에 맞춰 적용.
+
+### 카드별 처리
+
+| 카드 | tier | 메커니즘 | state 입력 | tick 공식 | baked |
+|---|---|---|---|---|---:|
+| **STAMPEDE** | B | 턴 종료 시 DrawPile random Attack auto-play | DrawPile.Attacks | mean(free=T) × 3 | 350 |
+| **NOSTALGIA** | D | 첫 attack/skill → top of draw (retain-like) | Hand.Atk/Skl | mean(free=F) × 0.4 × 3 | 250 |
+| **STRATAGEM** | C | shuffle 시 random card → hand | DiscardPile | mean(free=F) × 2 | 250 |
+| **CALAMITY** | D | Attack 사용 후 random Attack → hand | PoolMeans.attack | mean × 3 | 350 |
+| **HELLRAISER** | D | Strike-named 카드 draw 시 auto-play | Strike count in piles | count × 90 | 300 |
+| **JUGGLING** | D | 3번째 Attack 복사 → hand | Hand.Attacks | mean × 3 × 0.4 | 300 |
+
+### 검증 (`scripts/_inspect_remaining_power_passives.py`)
+
+```
+STAMPEDE  (baked=350, cap=1200)
+  starter Strikes×5    n=5  mean=300  tick= 900  delta= +550
+  strong attacks×4     n=4  mean=900  tick=2700  delta=+1200 [cap]
+
+NOSTALGIA  (baked=250, cap=800)
+  starter mix          n=6  mean=187  tick= 224  delta=  -26
+  strong mix           n=4  mean=690  tick= 828  delta= +578
+
+STRATAGEM  (baked=250, cap=800)
+  mixed (4)            n=4  mean=438  tick= 876  delta= +626
+  curse-polluted       n=4  mean= -10  tick=-20  delta= -250 [floor]
+  strong (6)           n=6  mean=690  tick=1380  delta= +800 [cap]
+
+CALAMITY  (baked=350, cap=1500)
+  IRONCLAD pool.mean=317  tick= 951  delta= +601
+  REGENT   pool.mean=458  tick=1374  delta=+1024
+
+HELLRAISER  (baked=300, cap=1000)
+  Strike-less          -> -300 (strip baked)
+  6 Strikes            count=6  delta= +240
+  12 Strikes           count=12 delta= +780
+
+JUGGLING  (baked=300, cap=800)
+  3 Strikes            mean=230  delta=-24
+  3 heavy atks         mean=630  delta=+456
+```
+
+### 튜닝 노트
+
+- **EAC (Expected Attack Chains)** for CALAMITY: 초기 6 → 3 으로 하향. 6 은
+  cap saturation 으로 character 변별력 0. 에너지/핸드캡 dilution 고려한
+  realistic net chain 수 = 3 (3 attacks/turn × 1 turn dilution).
+- **HELLRAISER PerStrikeBonus = 90**: free-Strike 가치 (~300) − paid-Strike
+  (~230) = ~70/play, ×~1.3 plays/strike 평균 = ~90.
+- **NOSTALGIA RetainDiscount = 0.4**: Retain 1턴 ≈ 40% 추가 효용
+  (v0.7.1 HIDDEN_GEM 0.6 retain-2 의 절반 — retain 1).
+- **JUGGLING HitRate = 0.4**: 3+ attacks/turn 확률, mixed deck 휴리스틱.
+
+### Power 효과 커버리지 — v0.7.5 후
+
+| Tier | 처리됨 (pile/hand/pool-aware) |
+|---|---|
+| **S/A** | 모두 PowerCatalog + amplifier axis 로 cover (Tracking/Unmovable/Reaper Form/Sealed Throne 등) |
+| **B** | MAYHEM(C)·AGGRESSION·STAMPEDE·HELLO_WORLD·CREATIVE_AI·SUBROUTINE·TYRANNY·TRASH_TO_TREASURE — pile/pool-aware 또는 axis 시너지 |
+| **C** | STRATAGEM·SPECTRUM_SHIFT pile-aware, MASTER_PLANNER (단순) flat |
+| **D** | NOSTALGIA·HELLRAISER·JUGGLING·CALAMITY pile/hand/pool-aware, BARRICADE flat (block-amp axis 로 별도 cover) |
+
+**모든 D-tier 이상 Power 패시브 100% state-aware.** flat 잔존은 단순
+효과 (BARRICADE block carryover, MASTER_PLANNER Skill→Sly buff) 뿐.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_remaining_power_passives.py`: 6 카드 모두 예상치,
+  cap/floor 정상 발화.
+
+## v0.7.4 (2026-05-18)
+
+**AGGRESSION Power passive — v0.7.3 MAYHEM 패턴으로 정렬.**
+
+### 배경
+
+v0.7.1 에서 `CARD.AGGRESSION` 는 이미 DiscardPile-aware:
+```
+v = discard_attack_mean × 1.5
+```
+하지만 `PowerCatalog["AggressionPower"]=400` 이 PlanScorer Power branch 에서
+이미 가산되는데 EffectSynergy 가 위 보너스를 **on top** 으로 추가 →
+**over-count**. v0.7.3 의 MAYHEM 처리에서 정한 단일 패턴 (delta-from-baseline)
+과도 불일치.
+
+### 변경
+
+`EffectSynergy.cs:830` 의 `CARD.AGGRESSION` case 를 MAYHEM 패턴으로 재작성:
+
+```
+baked = PowerCatalog.LookupSelfBuff("AggressionPower")  // 400 동적
+tick  = discard_attack_mean × UpgradeFactor × RemainingTurnsProxy
+delta = clamp(tick − baked, −baked, +Cap)
+b    += delta
+```
+
+- **RemainingTurnsProxy = 3** — v0.7.2/0.7.3 와 동일
+- **UpgradeFactor = 1.3** — 회수된 Attack 이 "임시 강화" 되는 효과 근사
+  (damage +30% 정도의 net 보너스)
+- **Cap = 1200**, **Floor = −baked** (MAYHEM 과 동일)
+- **freeUse = false** — 회수된 카드는 손에 들어가 normal-cost 로 플레이
+
+### 시나리오 (`scripts/_inspect_aggression_eval.py`)
+
+| 시나리오 | atks | mean | tick | delta | 판정 |
+|---|---:|---:|---:|---:|---|
+| empty discard / no attacks |  0 |   0 |     0 |    +80 | baseline |
+| starter Strikes (Strike=6 ×5)        |  5 | 230 |  897 |   +497 | ok |
+| mid (mix 6/8/12 dmg)                 |  6 | 316 | 1232 |   +832 | strong |
+| **Bludgeon-class (18 ×4)**           |  4 | 630 | 2457 |  +1200 | **cap hit** |
+| **Ironclad finisher mix (25/20/15)** |  3 | 706 | 2753 |  +1200 | **cap hit** |
+
+(저주/Status floor 케이스는 Attack-only 필터링 때문에 존재하지 않음 —
+mean 은 항상 ≥ 0.)
+
+### Power 효과 커버리지 — 진행 상황 (v0.7.4 기준)
+
+| Tier | Power 패시브 카드 | DrawPile/Discard-aware 처리 |
+|---|---|---|
+| **B+** | AGGRESSION, MAYHEM (C), HELLO_WORLD (B), CREATIVE_AI (B), WHITE_NOISE | ✅ 5장 모두 |
+| C | STRATAGEM, MASTER_PLANNER | flat |
+| D | NOSTALGIA, HELLRAISER, CALAMITY, JUGGLING | flat |
+
+**B-tier 이상은 모두 cover 완료.** D/C tier 4장만 follow-up 영역.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_aggression_eval.py`: 6 시나리오 모두 예상치,
+  cap 정상 발화.
+
+## v0.7.3 (2026-05-18)
+
+**MAYHEM Power passive — DrawPile-aware turn-tick value.**
+
+### 배경
+
+MAYHEM 은 매 턴 시작 시 DrawPile 맨 위 카드를 auto-play 하는 Power 패시브.
+v0.7.2 까지 PlanScorer Power 브랜치가 `PowerCatalog["MayhemPower"]=500` 만
+flat 가산 — DrawPile 구성을 무시함. Bludgeon-급 강덱이든 저주 다수 덱이든
+동일 점수.
+
+### 핵심 — `ApplyMayhemTickValue` (EffectSynergy.cs)
+
+```
+delta = (DrawPile.mean[freeUse=true] * RemainingTurnsProxy) - baked
+b += clamp(delta, -baked, +Cap)
+```
+
+- **baked**: `PowerCatalog.LookupSelfBuff("MayhemPower")` 동적 lookup — 매직
+  넘버 0 (PowerCatalog 값을 600 으로 올려도 자동 추종).
+- **RemainingTurnsProxy = 3**: v0.7.2 의 Level 4 휴리스틱과 통일된 컴뱃-길이
+  proxy.
+- **Cap = 1200**: 강덱 (mean 600+) 에서 runaway 방지.
+- **Floor = −baked**: PowerCatalog 가산분을 완전히 상쇄할 수 있되 음수로는
+  안 가게 (total MAYHEM 점수가 0 미만 못 가는 정상화).
+- **저주/Status 포함**: `EstimateCardPower(freeUse=true)` 가 -100 반환 →
+  pile-polluted 덱이 mean 을 끌어내려 자연스러운 패널티.
+- **빈 DrawPile**: +80 baseline (discard 리셔플 후 다시 작동 — 완전히 0 아님).
+
+### 검증 (`scripts/_inspect_mayhem_eval.py`)
+
+| 시나리오 | n | mean | tick×3 | delta | 판정 |
+|---|---:|---:|---:|---:|---|
+| empty            |  0 |    0 |     0 |    +80 | baseline |
+| starter (S6/D5)  | 10 |  225 |   675 |   +175 | ok |
+| mid (mean ~437)  |  8 |  437 |  1311 |   +811 | strong |
+| **strong** (mean ~637) |  8 |  637 |  1911 |  +1200 | **cap hit** |
+| curse-polluted (3C+4S) |  7 |  128 |   384 |   -116 | weak |
+| **all curses**   |  5 | -100 |  -300 |   -500 | **floor (= -baked)** |
+
+### 의도적으로 안 한 부분
+
+- **STAMPEDE / CALAMITY / NOSTALGIA / STRATAGEM / HELLRAISER / JUGGLING** —
+  같은 catalog `vars: {}` 그룹이지만 각각 다른 메커니즘 (random Attack only /
+  top-modification / hand-copy / attack-chain). 별도 핸들러로 follow-up.
+- **AGGRESSION Power 패시브** — 카드 단위 (`CARD.AGGRESSION` in `ApplyCardReturn`,
+  v0.7.1) 로는 이미 DiscardPile-aware. Power 패시브 (`AggressionPower`) 시점에서
+  추가로 DiscardPile 가산 필요 시 별도 작업.
+- **동적 RemainingTurns 추정** — SimEnemy HP/intent 로 컴뱃 길이 추정은 모드
+  전체 공유 인프라가 될 만한 크기. v0.7.x 범위 밖.
+
+### 검증
+
+- `dotnet build`: 0 compilation errors. (mods 폴더 copy 는 게임 실행 중이라
+  락 — DLL 자체는 빌드 성공.)
+- `python scripts/_inspect_mayhem_eval.py`: 6 시나리오 모두 예상치 출력,
+  cap / floor 정상 발화.
+
+## v0.7.2 (2026-05-18)
+
+**Level 4 — Pool-based random 카드 (CREATIVE_AI / HELLO_WORLD / WHITE_NOISE /
+DISCOVERY / SPLASH / JACKPOT / DISTRACTION / CALL_OF_THE_VOID / LARGESSE /
+SPECTRUM_SHIFT) 의 character pool 평균치 기반 평가.**
+
+### 배경
+
+v0.7.1 의 `EstimateCardPower` 는 *카드 객체* 를 평가할 뿐, "캐릭터 풀에서
+한 장이 random 으로 뽑힐 때 평균 가치" 는 다루지 못함. 그래서 Level 4 카드
+12장이 카드-id 별 **flat magnitude** 로만 평가됨 (CREATIVE_AI=150, HELLO_WORLD=120
+등). 현재 캐릭터 풀이 power 가 약한지 강한지 무관하게 같은 점수.
+
+### 핵심 인프라
+
+1. **`EffectScoringWeights.cs`** — `EstimateCardPower` 가중치를 상수화. Python
+   mirror (`scripts/_effect_scoring_weights.py`) 가 같은 숫자 참조해
+   pool-means 생성 시 drift 방지.
+
+2. **`scripts/build_pool_means.py`** — `cards_catalog.json` 의 1117 카드를
+   character × pool-filter 로 그룹핑해 mean / top1of3 / top1of5 분포를 100k
+   Monte Carlo 샘플링으로 산출. `PowerCatalog.cs` 의 SelfBuff/EnemyDebuff
+   dict 를 정규식으로 파싱해 power-value 도 그대로 mirror.
+
+3. **`Sts2CombatAICode/Core/Data/pool_means.json`** — 5 character × 11 filter
+   = 55 분포 통계. csproj `EmbeddedResource` 로 DLL 에 패킹.
+
+4. **`SimState.CharacterId`** — `player.Character.Id.Entry` 캡쳐. 미상시 빈
+   문자열 → flat-magnitude fallback.
+
+5. **`PoolMeans` 로더** — 1회 정적 로드, `Get(characterId, filter)` 가
+   PoolSummary { N, Mean, Top1Of3, Top1Of5 } 반환.
+
+6. **`TryApplyPoolBasedRandom`** — 12 card-id 별 (filter, aggregation,
+   multiplier) 매핑. Pool-aware 값 사용 가능하면 그걸로 평가, 아니면 기존
+   flat switch 로 폴백.
+
+### 카드별 평가 표 (IRONCLAD 기준, 단위: 평가 점수)
+
+| 카드 | filter | agg | mult | flat | pool-aware | 변화 |
+|---|---|---|---:|---:|---:|---:|
+| **CREATIVE_AI**     | power_free | mean    | 3 | 150 | 420 | +270 |
+| **HELLO_WORLD**     | common     | mean    | 3 | 120 | 726 | +606 |
+| **SPECTRUM_SHIFT**  | colorless  | mean    | 3 | 100 | 642 | +542 |
+| **WHITE_NOISE**     | power_free | mean    | 1 | 350 | 140 | −210 |
+| **DISTRACTION**     | skill_free | mean    | 1 | 240 | 134 | −106 |
+| **CALL_OF_THE_VOID**| all_free   | mean    | 1 | 100 | 261 | +161 |
+| **LARGESSE**        | colorless  | mean    | 1 | 150 | 214 |  +64 |
+| **DISCOVERY**       | all        | top1of3 | 1 | 280 | 373 |  +93 |
+| **SPLASH**          | attack     | top1of3 | 1 | 200 | 485 | +285 |
+| **JACKPOT**         | all_free   | mean    | 3 | 180 | 783 | +603 |
+
+- WHITE_NOISE / DISTRACTION 의 하락은 의도된 보수성. `EstimateCardPower` 의
+  Power-divisor (free=5) 가 context-free 디스카운트라 PowerCatalog
+  base 600 → 120 으로 떨어짐. v0.7.1 의 pile-based 핸들러와 동일 룰.
+- Per-card cap 800 — REGENT JACKPOT 1 장만 캡 적중.
+- RemainingTurnsProxy = 3 — 컴뱃 평균 길이 conservative proxy.
+
+### 의도적으로 안 한 부분
+
+- **MAYHEM** (Power 패시브 — DrawPile-aware): PowerCatalog 확장 영역. Level 4
+  대상 아님.
+- **MAD_SCIENCE** (type=None 무작위 effect): Level 5. catalog 에 effect-type
+  메타데이터 embed 필요.
+- **Cost-set-0 이후 후속 카드의 BuildSynergy 시너지**: PoolMeans 는 단일 카드
+  평균. 시너지 매칭은 단독 axis 라우팅에서 처리.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings (Godot source-gen,
+  VakuuExecutor null).
+- `python scripts/build_pool_means.py`: 5 character × 11 filter 모두 산출,
+  최소 pool 크기 n=17 (NECROBINDER power).
+- `python scripts/_inspect_pool_based_eval.py` — character-by-character
+  spot-check 표 정상 출력.
+
+## v0.7.1 (2026-05-17)
+
+**Level 3 — Pile-based random 카드의 SimState.DrawPile / DiscardPile 활용
+정확 평가.**
+
+### 배경
+
+v0.6.9 까지 pile-based random 카드들 (DREDGE / CATASTROPHE / WISH 등 11장)
+이 카드-id 별 **flat magnitude** (DREDGE=450 등) 로만 평가됨. SimState 가
+실제 pile 카드 리스트를 보유하고 있는데도 활용 안 함:
+
+- DiscardPile 에 강한 카드 가득 → DREDGE 진짜 가치 ~800
+- DiscardPile 에 약한 카드만 → DREDGE 가치 ~200
+- 현재는 둘 다 +450 으로 동일 평가
+
+### 핵심 헬퍼
+
+**`EstimateCardPower(SimCard, SimState, bool freeUse)`** — context-free 카드 가치 추정:
+- Attack: TotalDamage × 50 (free) or 35 (in-hand)
+- Skill: Block × 30 (free) or 25
+- DrawCount × 70, EnergyGain × 130 (free) or 60
+- PowerApps: PowerCatalog 가치 / 5 (free) or 7 (in-hand, 큰 discount)
+- Cost penalty/bonus (free 일 땐 적용 안 함)
+- Curse/Status: -100 (free) 또는 -250 (in-hand)
+
+### 패치 — 7개 핸들러 재작성/신설
+
+**`ApplyCardReturn` 재작성 (in-hand value):**
+- **DREDGE**: top-N positives × player choice (negative 카드 skip)
+- **NEOWS_FURY**: random 2 → DiscardPile mean × 2
+- **AGGRESSION**: discard Attack mean × 1.5 (Power 다중 턴)
+- 기타 (NOSTALGIA / PHOTON_CUT / GLIMMER / ANOINTED): pile-aware 또는 flat fallback
+
+**`ApplyDrawPileSearch` 재작성:**
+- **WISH** (id-dispatch, axis 없음): DrawPile 의 **max** (player choice)
+- **CHARGE**: top-2 positives + upgrade bonus
+- **FOREGONE_CONCLUSION**: mean × 1.5 (next-turn discount)
+
+**`ApplyAutoPlayFromPile` 신설 (freeUse=true):**
+- **CASCADE**: DrawPile non-curse mean × (X+1)
+- **CATASTROPHE**: DrawPile non-curse mean × 2
+- **UPROAR**: DrawPile Attack mean × 1
+- **BEAT_DOWN**: DiscardPile Attack mean × 3
+
+**`ApplyDrawPileRandomModifier` 신설:**
+- **HIDDEN_GEM**: DrawPile non-curse/non-Power mean × 0.6 (Retain 2 = ~60% 추가 가치)
+- **DRAIN_POWER**: DiscardPile mean × 0.4 (2 카드 × ~20% upgrade)
+
+### 시나리오 (DiscardPile = [Strike, Bash, Curse])
+
+| 카드 | v0.6.9 (flat) | v0.7.1 (pile-aware) |
+|---|---:|---:|
+| **DREDGE** (top-3 from discard) | 450 | top-2 positives (Strike+Bash) = **510**, curse 제외 |
+| **NEOWS_FURY** (2 random) | flat | (Strike+Bash+Curse mean=87) × 2 = **174** |
+| **WISH** (best of draw) | 200 (id flat) | DrawPile max (예: Anger) = **290** |
+| **CATASTROPHE** (2 autoplay) | 0 (no handler) | freeUse mean × 2 = **434** |
+| **CASCADE** (X+1 autoplay) | 0 (no handler) | freeUse mean × (X+1) = **변동** |
+| **HIDDEN_GEM** [S] (Retain on random) | 0 | mean × 0.6 = **~120** |
+
+### 검증
+
+- `dotnet build`: 0 errors, 0 warnings
+- 0-rule blind: 32 → **31** (1장 감소)
+- EffectSynergy reach: 109 → **132** (23장 추가)
+- A-tier blind: 1장만 남음 (MAD_SCIENCE — type=None 무작위 effect, Level 5 영역)
+
+### 의도적으로 안 한 부분
+
+- **Level 4 (pool-based random)**: CREATIVE_AI, HELLO_WORLD, DISCOVERY, WHITE_NOISE 등 ~12장. character pool 의 평균 가치를 build 시점에 통계로 embed 해야 정확. 별도 데이터 작업 영역.
+- **MAYHEM (Power 패시브)**: PowerCatalog 가 처리. DrawPile-aware 가산은 PowerCatalog 확장 필요.
+- **재귀적 PlanScorer.Score 호출**: `EstimateCardPower` 는 의도적으로 light heuristic (target / 상태 무관). 재귀 호출 시 stack overflow / 비용 폭증 위험.
+
+## v0.7.0 (2026-05-17)
+
+**Random multi-hit 카드 binomial 확률 모델 + 단일타겟 overkill discount.**
+
+### 배경
+
+사용자 보고: "RICOCHET 3×3 (총 9) 가 HP4 적 + HP20 적 상황에서 단일 6-dmg
+카드보다 우선되는 게 맞나? 실제로는 50% 확률 처치라 6-dmg 단일타겟 (100%
+처치) 이 더 안전한데."
+
+게임 본체 `AttackCommand.TargetingRandomOpponents` 디컴파일 결과: 매 hit
+마다 `Rng.CombatTargets.NextItem(validTargets)` 로 **독립 재선택** 확인.
+PlanScorer 는 `TargetType.RandomEnemy` 카드를 단일타겟으로 취급해 모든 hit
+이 `targetIdx` 에 적중한다고 가정 → LETHAL bonus over-credit.
+
+### 두 가지 별개의 누락
+
+**1. Random multi-hit 분포 미모델링**
+- RICOCHET 3×3 vs 2적: 단일타겟 처리 → 모든 9 데미지가 E1 적중 가정 → LETHAL +5000
+- 실제: 적 1마리 처치 확률 = P(X≥2 | Bin(3, 0.5)) = 50%
+- 결과: 무작위 카드가 deterministic 단일타겟보다 항상 우위 (잘못)
+
+**2. Overkill discount 부재**
+- 6-dmg 카드가 HP4 적 칠 때 2 데미지 낭비 → score 에 반영 안 됨
+- 6×50 + LETHAL(5000) = 5300 (실제 가치는 4×50 + 5000 = 5200)
+
+### 패치
+
+**`PlanScorer.cs:Attack 브랜치`** — `isRandom` 분기 신설:
+```csharp
+bool isRandom = card.Target == TargetType.RandomEnemy;
+```
+
+**Damage scoring 분기:**
+```csharp
+if (isAoe)       // 기존 AOE 합산
+else if (isRandom)
+{
+    // 살아있는 적 N마리 → pHit = 1/N
+    // 각 적의 expected damage = effHits × pHit × perHitForE
+    // 각 적의 EffectiveHp 로 overkill clamp
+    // sum → aggregatedDmg
+}
+else             // 단일타겟: dmgForScoring = min(effectiveTotal, t.EffectiveHp) 추가 clamp
+```
+
+**Target-bonus 분기 (LETHAL + intent 보너스):**
+```csharp
+if (isRandom)
+{
+    // 각 적에 대해:
+    //   hitsNeeded = ⌈EffHp / perHit⌉
+    //   pLethal = BinomialAtLeast(effHits, 1/N, hitsNeeded)
+    //   weightedBonus = ScoreAttackTarget(idx, EffHp) × pLethal
+}
+```
+
+**Binomial 헬퍼 (`BinomialAtLeast` + `BinomialCoefficient`)**:
+- `P(X ≥ k | X ~ Bin(n, p))` 직접 CDF 합산
+- STS2 hit count 최대 ~10 — overflow 무관
+
+### Spread vs Kill 자동 구별
+
+기존 ScoreAttackTarget 의 intent-aware 보너스가 그대로 작동:
+- BuffEnemyKillBonus 1000 / HealEnemyKillBonus 800 / SummonEnemyKillBonus 500 / DeathBlowEnemyKillBonus 700
+- RealLethalKillBonus 5000
+
+랜덤 카드는 `pLethal` 로 weighted → must-kill 시 deterministic 카드가 자연스럽게 이김. 분산 가치 시 expected damage 가 단일타겟 데미지 초과 → random 이김.
+
+### 시나리오 검증 (수동 trace)
+
+| 시나리오 | 6-dmg 단일 | 3×3 무작위 | 결과 |
+|---|---:|---:|---|
+| **A**: HP4 + HP20 normal | 5200 (clamp4 + LETHAL) | 2900 (0.5×LETHAL + 분산 dmg) | **단일 +2300** ✓ |
+| **B**: HP20 + HP20 (처치 불가) | 300 (dmg only) | 400 (분산 dmg) | **무작위 +100** ✓ |
+| **C**: HP4 BuffIntent + HP20 | 6200 (LETHAL + BuffKill) | 3400 (0.5×weighted) | **단일 +2800** ✓ |
+
+### 검증
+
+- `dotnet build`: 0 compile errors (DLL copy 만 game-lock — 게임 종료 후 재빌드 필요)
+- 모든 RANDOM 축 카드에 적용 (RICOCHET / RIP_AND_TEAR / STARDUST / VOLLEY / SWORD_BOOMERANG / BOUNCING_FLASK / FLAK_CANNON 등 14장)
+- 단일타겟 overkill clamp 는 모든 single-target attack 에 적용
+
+### 의도적으로 안 한 부분
+
+- **AOE overkill clamp**: 이미 `StatusMath.EffectivePerEnemyTotal` 이 per-enemy block / shell 처리. AOE 전반 clamp 는 over-discount 위험.
+- **HardenedShellPower 의 random 분배**: 각 hit 의 shell budget 추적은 forward-sim 영역. 현재 random 분기는 per-enemy 적용 안 함 (예외적 케이스).
+- **StackededPower / 다중 buff 적의 가중치 차등**: ScoreAttackTarget 가 이미 처리.
+
+## v0.6.9 (2026-05-17)
+
+**Tier 1+2+3 카드 커버리지 일괄 패치 — 12개 패턴, 30+ 카드.**
+
+### 배경
+
+v0.6.8 audit 후 식별된 12개 미지원 패턴:
+- Tier 1 (EASY, 4개): STATUS_TO_HAND / FOCUS / STATUS_CONSUMER / MaxHp
+- Tier 2 (MEDIUM, 4개): DRAW_CONDITIONAL / CARD_RETURN / DRAW_PILE_SEARCH / COST_ENABLER
+- Tier 3 (HARD, 2개): CARD_GEN / EXHAUST_TARGET_RANDOM
+- 부가: OSTY-conditional / VigorPower / ENLIGHTENMENT / PRECISE_CUT / WHITE_NOISE&DISCOVERY 류
+
+### 전체 카드 룰-hit 통계 (576 base cards)
+
+| 메트릭 | v0.6.6 | v0.6.8 | **v0.6.9** | 개선 |
+|---|---:|---:|---:|---:|
+| 0-rule blind | 92 (16.0%) | 87 (15.1%) | **32 (5.6%)** | **-60장** |
+| S-tier blind | 14 | 9 | **0** | -14 |
+| A-tier blind | 53 | 48 | **1** | -52 |
+| EffectSynergy 적용 | 46 | 58 | **109** | +63 |
+| HandSynergy 적용 | 40 | 41 | **47** | +7 |
+
+### Tier 1 패치
+
+**STATUS_TO_HAND 페널티** (`ApplyStatusToHandPenalty`):
+- CRASH_LANDING [A] AOE 잔해 가득 → -350
+- COLLISION_COURSE [A] 잔해 1장 → -150
+
+**FOCUS HandSynergy** (`HandSynergy.FocusPower` case + `remainingOrbCards`):
+- 일반 + Temporary FocusPower 모두 처리. 카드별 PowerVar<FocusPower> 자동 추출됨
+- SYNCHRONIZE 의 `CalculatedFocus` → `CardReflection` 가 TemporaryFocusPower 로 승격
+- 적용: DEFRAGMENT [S], BIASED_COGNITION [A], FOCUSED_STRIKE [A], HOTFIX [B], SYNCHRONIZE [B]
+
+**STATUS_CONSUMER** (`ApplyStatusConsumer`):
+- 손패 status/curse 수 × 180 (cap 540), 없으면 -100
+- 적용: ROCKET_PUNCH, FLAK_CANNON, COMPACT (+ Powers: ITERATION, SMOKESTACK, TRASH_TO_TREASURE)
+
+**MaxHp gain** (`CardEffectSummary.MaxHpAmount` + `ApplyMaxHpGain`):
+- BRIGHTEST_FLAME [A] (+1), FEED [C] (+3 on kill)
+- 영구 +40 per point — small but recognized
+
+### Tier 2 패치
+
+**DRAW_CONDITIONAL** (`ApplyDrawConditional`): id-gated per-card
+- FTL: `cardsThisTurn < 3` 시 +200
+- PALE_BLUE_DOT: `≥ 4` 시 +200
+- FETCH / COMPILE_DRIVER / 기타 fallback
+
+**CARD_RETURN** (`ApplyCardReturn`): DiscardPile 카운트 기반
+- DREDGE: min(discardSize, 3) × 150
+- AGGRESSION / NOSTALGIA / STRATAGEM / PHOTON_CUT / GLIMMER / ANOINTED
+
+**DRAW_PILE_SEARCH** (`ApplyDrawPileSearch`): DrawPile 사이즈 gated
+- CHARGE [A] +280, FOREGONE_CONCLUSION / ANOINTED, 빈 pile -100
+
+**COST_ENABLER** (`ApplyNextCardCostEnabler`):
+- UNRELENTING (Attack), SYNTHESIS (Power), POUNCE (Skill) — 손패 최고 cost × 220
+- 매치 없으면 -150
+
+### Tier 3 패치
+
+**CARD_GEN** (`ApplyCardGen`): 카드 id 별 가치 추정
+- 구체 생성 (Shiv/Slime+): BLADE_OF_INK +600, BLADE_DANCE +450
+- 선택형 (CHARGE/NIGHTMARE/GUARDS): +350~400
+- 무작위 (CALL_OF_THE_VOID/CREATIVE_AI): +100~150
+- axis-missing 카드 fallback (id-gate): WHITE_NOISE [S]=+350, DISCOVERY/DISTRACTION/WISH/LARGESSE/SPLASH
+
+**EXHAUST_TARGET_RANDOM** (`ApplyRandomExhaustPenalty`):
+- CINDER/TRUE_GRIT: -90~120
+- THRASH: -60 (자체 데미지 가산 offset)
+- TYRANNY (Power): +40 (turn-thin)
+
+### 부가 패치
+
+**OSTY-conditional 공격** (`ApplyOstyConditional`):
+- SkeletonCount > 0 시 +150, 죽었으면 **-350**
+- 적용: POKE [B], SWEEPING_GAZE [B], FLATTEN/RATTLE/RIGHT_HAND_HAND/SNAP [C]
+
+**ENLIGHTENMENT** (`ApplyEnlightenmentBonus`):
+- 손/덱/discard 의 cost > 1 카드 cost 절감 합산 × 80, cap 1600
+- B-tier 스킬, 전투 영향 큰 카드
+
+**PRECISE_CUT anti-handsize** (`ApplyPreciseCutScaling`):
+- 13 - 2 × others → other-card 수 × -100 페널티
+
+**VigorPower HandSynergy**:
+- next attack +N — 남은 공격 1+ 시 N × 50, 없으면 -100
+
+### 남은 진짜 blind (32장)
+
+| Tier | 카드 수 | 분류 |
+|---:|---:|---|
+| S | **0** | ✓ 전부 cover |
+| A | **1** | MAD_SCIENCE (type=None 무작위 effect — 본질적 forward-sim 영역) |
+| B | 6 | CASCADE/METAMORPHOSIS/SECRET_TECHNIQUE 등 random pulls |
+| C | 8 | random/scaling 카드 |
+| D | 6 | low-tier scaling/random |
+| Status/Curse/Quest | 33 | 의도된 미스코어 (UNPLAYABLE / 페널티) |
+
+남은 32장은 **무작위 카드 가치 예측** 또는 **multi-combat scaling** 영역으로
+정적 평가의 본질적 한계. forward-sim / depth-2 lookahead 확장 영역.
+
+### 검증
+
+- `dotnet build`: 0 errors, 0 warnings (4 pre-existing)
+- `measure_ai_card_coverage`: 회귀 없음
+- `_inspect_card_rule_hits`: blind 92→32 (-65%)
+
+### 새 audit script
+
+- `scripts/_inspect_remaining_gaps.py` — 패턴 별 카드 + solvability 분류
+
+## v0.6.8 (2026-05-17)
+
+**Turn/combat-history 카운터를 SimState 에 노출 + 가변-데미지 정적 한계 영역
+6장 (RAGE, TEAR_ASUNDER, HEAVENLY_DRILL, EIDOLON, STOKE, PURITY) 정확 평가.**
+
+### 배경
+
+v0.6.7 까지 다음 6장은 "SimState 가 추적 안 하는 turn-level 카운터 필요"
+로 분류되어 정적 평가 한계 영역이었음. 게임 본체 `CombatManager.Instance.History`
+가 모든 카드 플레이 / 데미지 받음 이벤트를 추적하므로 이를 read-only 로
+스냅샷하면 모두 정확히 평가 가능.
+
+### SimState 확장 (3개 신규 필드)
+
+```csharp
+public int TurnAttacksPlayed { get; init; }       // 이번 턴 사용한 공격 수
+public int TurnSkillsPlayed { get; init; }        // 이번 턴 사용한 스킬 수
+public int CombatPlayerHpLossEvents { get; init; } // 이번 전투 HP 손실 횟수
+```
+
+### StateSnapshotter 확장
+
+`CombatManager.Instance.History.Entries` 를 single-pass 로 walk:
+- `CardPlayFinishedEntry` 중 `RoundNumber == cs.RoundNumber && CurrentSide == cs.CurrentSide && Card.Owner == player` 인 entry 의 type 별 카운트
+- `DamageReceivedEntry` 중 `Receiver == player.Creature && Result.UnblockedDamage > 0` 카운트
+- try/catch — 실패 시 0으로 fallback (defensive)
+- `FormatForLog` 에 AtkT/SklT/HpLost statusBits 추가
+
+### 카드별 패치
+
+| 카드 | 메커니즘 | 구현 위치 | 효과 (예시) |
+|---|---|---|---|
+| **RAGE** | Skill applies RagePower N → 공격당 N block | CardReflection 가 `DynamicVar("Power", N)` + `id == "CARD.RAGE"` → PowerApps["RagePower"]=N 매핑. HandSynergy 에 `RagePower` case 추가 (남은 공격 × N × 30) | 공격 4장 손패 → +270 (기존 PowerCatalog 300 단독) |
+| **TEAR_ASUNDER** | "5 dmg, 이번 전투 HP 손실 횟수만큼 반복" | `EstimateVariableHits` 에 id-gate: `1 + state.CombatPlayerHpLossEvents` | HP loss 4회 → Hits=5, 데미지 25 (기존 5) |
+| **HEAVENLY_DRILL** | "8 × X, X≥4 면 X×=2" | `EstimateVariableHits` X_COST 분기에 `if (id == HEAVENLY_DRILL && x >= 4) x *= 2` | Energy 5 → 데미지 80 (기존 40) |
+| **EIDOLON** | "hand 모두 소멸, 9장 이상이면 Intangible" | `EvaluateExhaustBurstSpecial` 헬퍼: hand ≥ 9 면 +900, 미만이면 -(handExhausted × 60) | hand 9 → +900, hand 5 → -240 |
+| **STOKE** | "hand 소멸, N개 무작위 카드 생성" | 동일 헬퍼: handExhausted × 40 | hand 5 → +160 |
+| **PURITY** | "최대 3장 선택 소멸 (player choose)" | 동일 헬퍼: curse/status 카드 수 × 220, 없으면 +40 | curse 2장 → +440 |
+
+### 의도적으로 안 한 부분
+
+- **STOMP / PINPOINT**: 데미지 고정. cost-discount 메커니즘인데 게임 본체
+  `EnergyCost.AddThisTurn(-N)` 가 이미 `GetAmountToSpend()` 에 반영되므로
+  `CardReflection.GetCost` 가 자동으로 할인된 cost 반환 — **이미 정확** 임.
+- **CORRUPTION / FEEL_NO_PAIN / MONOLOGUE / SHADOWMELD / STAMPEDE**:
+  Power-type 카드로 PowerCatalog 가 자기 stack 처리. `DynamicVar("Power", N)`
+  는 PowerCatalog id-derived lookup 으로 cover.
+- **UPPERCUT / PUTREFY / SHOCKWAVE / EXPOSE**: 별도 PowerVar<T> (Vuln/Weak)
+  가 vars 에 있어 기존 PowerApps 추출 path 가 처리.
+
+### 검증
+
+- `dotnet build`: 0 errors / 0 warnings
+- `measure_ai_card_coverage`: 기존 metric 회귀 없음
+- 카드 룰-hit audit: RAGE / TEAR_ASUNDER 등 추가 룰 매칭 확인
+
+## v0.6.7 (2026-05-17)
+
+**남은 8개 stem 의 fine-grained stack-aware EffectSynergy 보너스 추가 —
+SimState 에 pile/ally/token 카운터 5종 신설.**
+
+### 배경
+
+v0.6.6 까지 14개 complete-pair stem 모두에 SkillSequencingTier Setup 가 들어
+갔으나, **stack 누적량에 비례한 burst-타이밍 자동 인지**는 8개 stem 에서 결여:
+CUNNING / SOUL / FORGE / LORDS_BLADE / SKELETON / EXHAUST / VOLATILE / SHIV.
+`BuildSynergy` 의 200pt 플랫 보너스만 받아서 "영혼 30 쌓였을 때 SOUL_STORM"
+vs "영혼 5 쌓였을 때 SOUL_STORM" 을 구분 못함.
+
+### 게임-측 데이터 소스 매핑 (decompile 검증)
+
+`ilspycmd` 로 `sts2.dll` 까서 각 stem 의 실제 메커니즘 확인:
+
+| Stem | 게임 본체 구현 | 가시화 경로 |
+|---|---|---|
+| SOUL | `MegaCrit.Sts2.Core.Models.Cards.Soul` (token card) | piles 의 `Soul` 인스턴스 카운트 |
+| SHIV | `MegaCrit.Sts2.Core.Models.Cards.Shiv` (token card) | piles 의 `Shiv` 인스턴스 카운트 |
+| SKELETON | `Osty` monster, `cs.Allies` 에 등재 | `Allies.Where(Monster is Osty && IsAlive)` |
+| EXHAUST | `PileType.Exhaust` (enum 값 존재) | `PileType.Exhaust.GetPile(player).Cards.Count` |
+| FORGE / LORDS_BLADE | `SovereignBlade` (token card) | piles 의 `SovereignBlade` 카운트 |
+| VOLATILE | `CardKeyword.Ethereal` (휘발성 = Ethereal 의 한국어) | hand 의 `IsEthereal` 카운트 (기존 필드) |
+| CUNNING | `CardKeyword.Sly` (카드 키워드, 스택 없음) | **mechanism 없음 → skip** |
+
+### SimState 확장
+
+```csharp
+public int SoulInPiles { get; init; }         // hand+draw+discard+exhaust 의 Soul 카드
+public int ShivInPiles { get; init; }         // hand+draw+discard+exhaust 의 Shiv 카드
+public int SkeletonCount { get; init; }       // 살아있는 Osty 동맹
+public int ExhaustPileSize { get; init; }     // Exhaust pile 카드 수
+public int SovereignBladeCount { get; init; } // piles 의 SovereignBlade (Forge/LordsBlade proxy)
+```
+
+VolatileInHand 은 `SimCard.IsEthereal` 으로 inline 계산 — 신규 필드 불필요.
+
+### StateSnapshotter 변경
+
+`CountTokenCards()` 헬퍼 신설 — 한 pile 을 한 번 walk 하면서 Soul/Shiv/
+SovereignBlade 세 종류를 동시에 카운트. hand + draw + discard + exhaust
+네 pile 모두 처리.
+
+Skeleton 카운트는 `cs.Allies` 를 walk 하며 `monster.GetType().Name == "Osty"`
++ `IsAlive` 필터. 실패해도 0 으로 fallback (try/catch).
+
+`FormatForLog` 에 statusBits 5개 추가 (Soul/Shiv/Osty/Exh/Blade) — DecisionLog
+에 stack 가시화. 0 일 때는 출력 안 함 (조용한 디폴트).
+
+### EffectSynergy 핸들러 (6개 신규)
+
+| 핸들러 | Axis | Stack signal | Per-stack | Cap | No-source 페널티 |
+|---|---|---|---|---:|---:|
+| `ApplySoulConsumer` | SOUL_CONSUMER/AMPLIFIER | SoulInPiles | ×25 | 400 | -200 |
+| `ApplyShivConsumer` | SHIV_CONSUMER/AMPLIFIER | ShivInPiles | ×30 | 360 | -180 |
+| `ApplySkeletonConsumer` | SKELETON_CONSUMER/AMPLIFIER | SkeletonCount | 300/360 (포화) | - | **-400** (BONE_SHARDS 사례) |
+| `ApplyExhaustConsumer` | EXHAUST_CONSUMER | ExhaustPileSize | ×20 | 320 | 없음 (pile 단조 증가) |
+| `ApplyBladeAmplifier` | FORGE/LORDS_BLADE_AMPLIFIER | SovereignBladeCount | ×150 | 450 | -200 |
+| `ApplyVolatileConsumer` | VOLATILE_CONSUMER | Hand.IsEthereal + 0.25×Draw.IsEthereal | hand×90 + draw×25 | 540 | -150 |
+
+각 핸들러는 3-tier signal pattern (stack > 0 / producer-in-hand / nothing) 동일.
+BuildSynergy 가 이미 producer↔consumer 페어 200pt 를 주므로 매그니튜드를
+DoT 핸들러 (×20) 보다 약간 작게 책정 — over-credit 방지.
+
+### 영향 카드 (대표)
+
+- **SOUL_STORM** (NECROBINDER, Attack [C]): 영혼 30 쌓이면 +400, 5장이면 +125
+- **REAVE** (NECROBINDER, Attack [C]): 동일하게 영혼 누적량 따라 가산
+- **BONE_SHARDS** (NECROBINDER, Attack [S]): Osty 살아있으면 +300, 죽었으면 **-400** (현재 dead-weight 정확 표현)
+- **PROTECTOR** (NECROBINDER, Attack [A]): 동일
+- **HAMMER_TIME** (REGENT, Power [A]): SovereignBlade 1개=+150, 2개=+300, 3+개=+450
+- **CONQUEROR** (REGENT, Skill [D]): 동일
+- **PAGESTORM** (NECROBINDER, Power [S]): hand 에 Ethereal 3장이면 +270
+- **VEILPIERCER** (NECROBINDER, Attack [B]): 동일
+- **PACTS_END** (IRONCLAD, Attack [S]): Exhaust pile 10장이면 +200
+- **KNIFE_TRAP** (SILENT, Skill [B]): Shiv 5장이면 +150
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings
+- `_inspect_mechanic_coverage.py`: **14/15 complete-pair stem 이 SkillSetup+EffSyn YES** (ORB / CUNNING 의도적 제외 명시)
+- `measure_ai_card_coverage.py`: 기존 metric 회귀 없음
+
+### 의도적으로 안 한 것
+
+- **ORB**: `BuildSynergy.Compute` 가 이미 orb full/empty 처리 (`_combat`/`v0.5` 시점 코드). EffSyn 추가는 double-credit.
+- **SovereignBlade `_currentDamage` 읽기**: private field reflection 가능하지만, 단순 카운트로 충분. 정밀도 vs 복잡도 trade-off 에서 카운트 선택.
+
+### 추가 패치 — CUNNING discard-trigger signal (1차 누락 부분)
+
+초기에 "CUNNING 은 키워드만, 스택 메커니즘 없음" 으로 제외했으나 재검토 결과
+**Sly = discard 시 자동 발동** 메커니즘으로 확인 (`CardCmd.cs`):
+
+```csharp
+foreach (CardModel card in discardCards) {
+    if (card.IsSlyThisTurn) slyCards.Add(card);
+    // ... add to discard pile ...
+}
+foreach (CardModel item in slyCards) {
+    await AutoPlay(choiceContext, item, null, AutoPlayType.SlyDiscard);
+}
+```
+
+따라서 **CUNNING_CONSUMER (forced-discard 카드: ACROBATICS, CALCULATED_GAMBLE,
+PREPARED, HIDDEN_DAGGERS, SURVIVOR) 의 가치는 손패 Sly 카드 수에 비례**.
+
+#### 구현
+
+- `SimCard.IsSly` 신규 필드. `Axes.Contains("CUNNING")` (raw axis) 으로 판정.
+  catalog audit 결과 CUNNING raw axis ↔ `keywords:["Sly"]` 가 **8/8 1:1 매칭**.
+- `EffectSynergy.ApplyCunningConsumer` 신규 핸들러. 손패 Sly 카드 수 × 110 (최대 3장),
+  producer-in-hand 폴백 +60, 둘 다 없으면 -150 (consumer 의 draw/block 자체 가치는 보존).
+
+#### 영향 카드
+
+- **ACROBATICS** (SILENT, Skill [S]): "Draw 3, discard 1" → 손패 Sly 1장이면 +110, 2-3장이면 +220~330
+- **CALCULATED_GAMBLE** (SILENT, Skill [S]): "Discard hand, draw same" → 동일 식
+- **HIDDEN_DAGGERS** (SILENT, Skill [A]), **PREPARED**, **SURVIVOR** 등 동일
+
+이로써 16개 stem 중 **15개 (ORB 제외) 가 full stack-aware coverage** 달성.
+
+### 추가 패치 — 카드별 룰-hit audit 후 누락 카드 처리
+
+`_inspect_card_rule_hits.py` 로 각 base card 가 어떤 PlanScorer 룰에 hit 하는지
+정적 매핑. 결과: 0-rule 카드 92장 (16%), S-tier 14장 / A-tier 53장이 "blind"
+상태. 그 중 진짜 누락 메커니즘 식별:
+
+#### Gap 1: STRENGTH_DOWN 축 (8 카드, S-tier 3장)
+
+**미커버**: DARK_SHACKLES [S], ENFEEBLING_TOUCH [S], PIERCING_WAIL [S], SHARED_FATE [A],
+DYING_STAR [B], MANGLE [C], CRUSH_UNDER [C], MONARCHS_GAZE [D]
+
+`StrengthLoss` var (DynamicVar 형식, PowerVar 아님) 으로 적 힘 감소. WEAK 와
+같은 위협-감소 setup 인데 EffectSynergy 에 핸들러 없었음.
+
+**구현**:
+- `CardEffectSummary.StrengthDownAmount` 신규 필드
+- `CardReflection.GetEffectSummary` 가 `DynamicVar.Name == "StrengthLoss" / "EnemyStrengthLoss"` 추출
+- `EffectSynergy.ApplyStrengthDown`: amount × savingsHits × 30 (cap 1200).
+  AOE 검출 (AOE_DEBUFF / AOE_OTHER / TargetType.AllEnemies) 으로 multi-enemy
+  합산. 공격 적이 없으면 -200.
+
+#### Gap 2: HEAL 축 (5 카드, S-tier 1장)
+
+**미커버**: NOT_YET [S, Heal 10], SPUR [C, Heal 5], FEED [C — MaxHp gain, 별개],
+BRIGHTEST_FLAME [A — MaxHp gain, 별개], DEVOUR_LIFE [Power, 기존 cover]
+
+**구현**:
+- `CardEffectSummary.HealAmount` 신규 필드
+- `CardReflection` 가 `DynamicVar.Name == "Heal"` 추출
+- `EffectSynergy.ApplyHeal`: HP threshold 기반 (≤20: ×40, ≤40: ×25, 그 외 ×12).
+  no-incoming-damage AND high HP 면 -150 (full HP 회복 페널티).
+- MaxHp-gain 카드는 `HealAmount=0` 이라 자동 skip — long-run scaling 은 별도 영역.
+
+#### Gap 3: Dead handler 정리
+
+audit 결과 0 카드 매칭 핸들러 식별:
+- `SOUL_AMPLIFIER` — 0 cards → 핸들러 호출 조건에서 제거 (CONSUMER 만 유지)
+- `BURN_CONSUMER` / `BURN_AMPLIFIER` — 0 cards
+- `CONSTRICT_CONSUMER` / `CONSTRICT_AMPLIFIER` — 0 cards
+
+`DotStems = {"POISON", "DOOM", "BURN", "CONSTRICT"}` → `{"POISON", "DOOM"}` 으로
+축소. enemy-side SimEnemy.BurnAmount/ConstrictAmount 필드는 유지 (적이 player
+에게 적용한 debuff 가능성).
+
+#### 영향 카드 (대표)
+
+- **DARK_SHACKLES** (SHARED, Skill [S]): 적 1마리 공격 의도 시 9×1×30=+270, 다중공격이면 +540+
+- **PIERCING_WAIL** (SILENT, Skill [S]): AOE — 적 3마리 single-hit 시 6×3×30=+540
+- **NOT_YET** (IRONCLAD, Skill [S]): HP 20 이하 + 다음 턴 데미지 10 예상 시 10×40=+400
+- **MANGLE** (IRONCLAD, Attack [C]): 데미지 15 + StrengthLoss 10 → +300 추가
+
+#### 정적 평가 한계 영역 (별도 작업)
+
+여전히 raw 데미지만 받는 카드들 (블라인드 92→90):
+- **X_COST 가변** (WHIRLWIND, SKEWER, VOLLEY, HEAVENLY_DRILL): X 값 runtime 알아야 정확
+- **EXHAUST_BURST** (FIEND_FIRE): hand 사이즈 비례
+- **SKILL_CONDITIONAL / ATTACK_CONDITIONAL** (PINPOINT, MAKE_IT_SO, STOMP): 누적 조건
+- **STATUS_TO_HAND** (CRASH_LANDING, COLLISION_COURSE): 잔해 추가 페널티 미반영
+- **ABSENT_CONDITIONAL** (GRAND_FINALE): pile 상태 의존
+- **SCALING-on-Attack** (MAUL): 영구 증가 — 런 후반 가치 반영 어려움
+
+이들은 정적 evaluation 의 본질적 한계 — depth-2 lookahead / runtime simulator
+확장 영역.
+
+### Audit script
+
+- `scripts/_inspect_card_rule_hits.py` — 카드별 룰 hit 매핑 + dead handler 감지 + per-rule coverage
+
+### 추가 패치 — 가변-데미지 / 가변-블록 카드 정확 평가 (EXHAUST_BURST + X_COST)
+
+사용자 지적: "FIEND_FIRE (지옥불) 같은 카드 평가는?" / "SECOND_WIND (기사회생) 도?"
+
+`vars={Damage:7}` 만 보면 FIEND_FIRE 는 7 데미지 1히트로 평가되어 실제 게임의
+`7 × hand_size` 와 큰 괴리. SECOND_WIND 도 base Block:5 만 봐서 실제
+`5 × non-attack hand` 와 괴리. SimState 가 hand / energy 카운트 노출하므로 정확
+추정 가능 — runtime simulator 없이 정적 평가 단계에서 처리.
+
+#### 패턴별 추정 룰
+
+| Axis | 카드 | 추정 |
+|---|---|---|
+| **EXHAUST_BURST (Attack)** | FIEND_FIRE [S, 7] | `Hits = hand non-curse 카드 수 + 1 (self)` |
+| **EXHAUST_BURST (Skill, Block>0)** | SECOND_WIND [A, 5 block] | `Block ×= non-attack non-curse hand 수` |
+| **X_COST (Attack)** | SKEWER [A, 8] / WHIRLWIND [A, 5 AOE] / VOLLEY [A, 10] / ERADICATE [B, 11] | `Hits = state.PlayerEnergy` |
+
+#### 구현
+
+**`PlanScorer.EstimateVariableHits(card, state)`** — Attack 전용 헬퍼:
+- EXHAUST_BURST: `state.Hand` 의 non-curse non-self 카운트 + 1
+- X_COST: `state.PlayerEnergy` (X-cost 카드는 남은 에너지 전부 소비)
+- 둘 다 아니면 0 반환 (기본 Hits 사용)
+
+**`PlanScorer.EstimateBlockMultiplier(card, state)`** — Skill 전용:
+- EXHAUST_BURST + Block > 0 시 non-attack non-curse hand 수 반환
+- 그 외 1 (변경 없음)
+
+Attack 브랜치 `effHits = max(card.Hits, variableHits)` 로 override. AOE 분기도
+동일하게 effHits 사용 (HardenedShellRemaining 체크도 effHits 반영).
+
+Skill 브랜치 `rawBlock = card.Block × blockMultiplier` → effectiveBlock 계산.
+
+#### 영향 — 대표 시나리오
+
+| 카드 | 상황 | Before | After |
+|---|---|---|---|
+| **FIEND_FIRE** [S] | hand 5장 | dmg 7 → 7점 등급 | dmg 35 → A-S 등급 (uplift 약 +1400) |
+| **SECOND_WIND** [A] | non-attack 3장 hand | block 5 | block 15 (uplift 약 +400) |
+| **WHIRLWIND** [A] | energy 3, AOE 2 적 | 10 AOE | 30 AOE (uplift 약 +1000) |
+| **SKEWER** [A] | energy 3, 단일 타겟 | 8 | 24 (uplift 약 +800) |
+| **VOLLEY** [A] | energy 2, random | 10 | 20 (uplift 약 +500) |
+| **ERADICATE** [B] | energy 4, retain | 11 | 44 (uplift 약 +1600) |
+
+#### 의도적으로 안 한 부분
+
+- **HEAVENLY_DRILL** 의 "X ≥ 4 시 ×2 doubling" — base X 만 적용 (loss of accuracy on 1 card)
+- **STOMP / RAGE** (ATTACK_CONDITIONAL — 사용한 공격 수 비례): 턴 내 played-count 추적 필요. SimState 미노출.
+- **TEAR_ASUNDER** (MULTI_HIT_SCALING via HP loss count): combat-level history 필요.
+- **PINPOINT** (SKILL_CONDITIONAL cost reduction): turn-level skill count 필요.
+- **EIDOLON / STOKE / PURITY** (EXHAUST_BURST 의 비-데미지 효과): 특수 보너스 처리는 카드별 override 영역.
+
+이들은 SimState 확장 (TurnPlayedAttacks / TurnPlayedSkills / CombatHpLost / TurnExhaustCount 등)
+이 필요한 별도 패치 — depth-2 lookahead 와 함께 다룰 영역.
+
+## v0.6.6 (2026-05-17)
+
+**전체 pair-axis stem 에 대한 Skill within-turn ordering 커버리지 + 가시
+stack 기반 EffectSynergy 확장.**
+
+### 배경 (1차 — POISON/DOOM)
+
+POWER 타입 POISON/DOOM 카드 (NOXIOUS_FUMES, COUNTDOWN, REAPER_FORM 등 9장)
+는 `PowerSequencingTier` 에 모두 등록되어 Setup/Scaling 우선순위가 잡혀
+있었으나, **Skill / Attack 타입 producer/consumer 는 ordering hook 누락**:
+
+- POISON Skill (8): BOUNCING_FLASK / BUBBLE_BUBBLE / CORROSIVE_WAVE /
+  DEADLY_POISON / HAZE / MIRAGE / MONOLOGUE / SNAKEBITE — 전부 `SkillTier.Unknown`
+- DOOM Skill (7): DEATHBRINGER / DEATHS_DOOR / END_OF_DAYS / NEGATIVE_PULSE /
+  NO_ESCAPE / OBLIVION / SCOURGE — 6장이 `Unknown` (DEATHBRINGER 만 부수
+  Weak 적용으로 Setup 이었음)
+- POISON Attack (2) + DOOM Attack (2 — BLIGHT_STRIKE, TIMES_UP) — `EffectSynergy`
+  가 target stack 신호를 읽지 않아 consumer (TIMES_UP) 가 dead-weight
+
+### 변경
+
+**`SkillSequencingTier.Classify`** — POISON/DOOM/BURN/CONSTRICT producer/
+amplifier 를 `SkillTier.Setup` 으로 분류. PowerApps 키 (PoisonPower/DoomPower/
+BurnPower/ConstrictPower) 또는 axis suffix (`*_PRODUCER`, `*_AMPLIFIER`) 매칭.
+
+**`SkillSequencingTier.ConditionalBonus`** — Setup tier no-beneficiary
+판정을 일반화. VULN/WEAK producer 는 남은 attack 수, DoT producer 는
+같은 stem 의 CONSUMER/AMPLIFIER 가 손패에 있는지 (또는 attack 수 fallback)
+를 검사. penalty label `setupNoAtk` → `setupNoBeneficiary`.
+
+**`EffectSynergy.Compute`** — POISON/DOOM/BURN/CONSTRICT CONSUMER/AMPLIFIER
+axis 처리 추가. target 의 실제 stack (PoisonAmount/ConstrictAmount/BurnAmount/
+DoomPower) 을 읽어 per-stack ×20 (consumer) / ×10 (amplifier) bonus. stack
+없으면 any-enemy / in-hand producer fallback, 둘 다 없으면 -300/-150.
+
+### 영향 카드
+
+| 카테고리 | 카드 수 | 카드 (대표) |
+|---|---:|---|
+| Skill — Setup tier 신규 분류 | 12 | BOUNCING_FLASK, BUBBLE_BUBBLE, CORROSIVE_WAVE, DEADLY_POISON, END_OF_DAYS, HAZE, MIRAGE, NEGATIVE_PULSE, NO_ESCAPE, OBLIVION, SCOURGE, SNAKEBITE |
+| Attack — EffectSynergy consumer 보너스 신규 | 1 | TIMES_UP (DOOM_CONSUMER) |
+| Skill — EffectSynergy consumer 보너스 신규 | 2 | BUBBLE_BUBBLE (POISON_CONSUMER), DEATHS_DOOR (DOOM_CONSUMER) |
+
+### 비고 (1차)
+
+- POWER 타입 POISON/DOOM 9장은 기존에 이미 PowerSequencingTier 에서 cover됨 — 본 패치 변경 없음.
+- MONOLOGUE / TYRANNY 처럼 axis tag (`POISON`) 가 실제 효과와 무관해 보이는
+  경우는 PRODUCER suffix 없으면 무시 — mis-tag 방어.
+- `ComboRecognition` 의 producer↔consumer/amplifier edge 매칭은 기존에 이미
+  POISON_PRODUCER ↔ POISON_CONSUMER 를 포함 (≥3 link 체인에서만 발화).
+
+### 2차 확장 — 모든 complete-pair stem 으로 일반화
+
+`scripts/_inspect_mechanic_coverage.py` 로 audit 한 결과 POISON/DOOM 외에도
+같은 producer/consumer 패턴을 가진 stem 이 다수 있었음. **complete pair
+(P≥1 AND (A≥1 OR C≥1))** 인 14개 stem 모두에 Skill Setup-tier ordering 적용.
+
+| Stem | Skill 프로듀서 | Setup tier (post) | Notes |
+|---|---:|---|---|
+| VULN  | 6 | ✓ (pre) | |
+| WEAK  | 7 | ✓ (pre) | |
+| POISON | 6 | ✓ (1차) | |
+| DOOM  | 6 | ✓ (1차) | |
+| ORB   | 18 | **제외** | `BuildSynergy` 가 orb full/empty 처리 — double-credit 방지 |
+| STAR  | 9 | ✓ (2차) | |
+| EXHAUST | 10 | ✓ (2차) | |
+| CUNNING | 5 | ✓ (2차) | |
+| SKELETON | 9 | ✓ (2차) | |
+| SOUL  | 6 | ✓ (2차) | |
+| FORGE | 7 | ✓ (2차) | |
+| LORDS_BLADE | 7 | ✓ (2차) | |
+| VOLATILE | 1 | ✓ (2차) | |
+| SHIV  | 3 | ✓ (2차) | |
+| DARK_ORB | 2 | ✓ (2차) | |
+
+### 구현 — SkillSequencingTier
+
+`PairStemsForSetup` HashSet 도입. `Classify` 가 임의 `<stem>_PRODUCER` /
+`<stem>_AMPLIFIER` 축을 발견하면 stem 이 allowlist 에 있을 때 Setup 반환.
+
+`ConditionalBonus` 의 no-beneficiary penalty 를 3 카테고리로 분리:
+- **debuff** (VULN/WEAK) → 남은 attack 0 시 -200
+- **dot** (POISON/DOOM/BURN/CONSTRICT) → 같은 stem CONSUMER/AMPLIFIER 손패 OR 남은 attack 둘 다 없으면 -200
+- **resource** (STAR/CUNNING/SOUL/FORGE/LORDS_BLADE/SKELETON/SHIV/VOLATILE/EXHAUST/DARK_ORB) → 페널티 없음 (resource 는 다음 턴에도 가치 보존)
+
+### 구현 — EffectSynergy 추가 stack-aware 핸들러
+
+| 카드 | Axis | 새 핸들러 | Stack signal |
+|---|---|---|---|
+| `CARD.STARDUST` | STAR_CONSUMER | `ApplyStarConsumer` | `state.PlayerStars × 15` (cap 450) |
+| `CARD.DARKNESS` | DARK_ORB_AMPLIFIER | `ApplyDarkOrbAmplifier` | `OrbQueue` 의 Dark 개수 × 120 (cap 360) |
+
+기타 stem (CUNNING/SOUL/FORGE/LORDS_BLADE/SKELETON/EXHAUST/VOLATILE/SHIV)
+은 `SimState` / `SimEnemy` 가 player-side stack 을 노출하지 않아 stack-aware
+EffectSynergy 추가 불가. **BuildSynergy 의 generic producer↔consumer pair
+bonus (200점) 가 baseline 역할** — pair 가 hand 에 있을 때만 가산.
+
+### Audit 도구
+
+- `scripts/_inspect_poison_doom.py` — 1차용 (POISON/DOOM 카드 목록 + Setup 분류 검증)
+- `scripts/_inspect_mechanic_coverage.py` — 2차용 (전체 pair-stem coverage 매트릭스)
+
+
+
 ## v0.6.5 (2026-05-17)
 
 **Power-typed amplifier 카드 hand-aware 보너스 — AmplifierSynergy 를

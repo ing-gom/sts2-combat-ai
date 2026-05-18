@@ -75,6 +75,18 @@ internal sealed record SimCard
     public bool IsExhaust { get; init; }
 
     /// <summary>
+    /// True when this card carries the `CardKeyword.Sly` keyword — STS2 Silent
+    /// "교활". Sly cards auto-play when discarded (see `CardCmd.cs` Sly-discard
+    /// loop). The planner uses this to score CUNNING_CONSUMER cards (forced
+    /// discards like Acrobatics / Calculated Gamble) higher when the hand is
+    /// rich in Sly producers — more Sly cards in hand = more discard-trigger
+    /// payoff. Detected via `axes.Contains("CUNNING")` (raw axis without
+    /// _PRODUCER/_CONSUMER suffix). Audit confirmed 1:1 mapping with the
+    /// catalog's `keywords:["Sly"]` (8 / 8 base cards as of v0.103.2).
+    /// </summary>
+    public bool IsSly { get; init; }
+
+    /// <summary>
     /// True when this card fetches / discovers a random card from the draw or
     /// discard pile (Anointed, Apotheosis, Echo of Fallen, etc. — catalog
     /// `fetch_trigger`). Drives status / curse pollution penalty scoring:
@@ -103,4 +115,7 @@ internal sealed record SimCard
     public int EvokeCount => Effect.EvokeCount;
     public int ChannelCount => Effect.ChannelCount;
     public OrbKind ChannelKind => Effect.ChannelKind;
+
+    // v0.7.8 — self-damage cost (BLOODLETTING/OFFERING/HEMOKINESIS etc.).
+    public int HpLossAmount => Effect.HpLossAmount;
 }

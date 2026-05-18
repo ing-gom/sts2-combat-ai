@@ -75,6 +75,13 @@ internal static class AnalyticalSimulator
         bool playerWeak = next.PlayerWeak > 0;
         bool playerFrail = next.PlayerFrail > 0;
 
+        // v0.7.9 — Self-damage on play. Cards expose HpLoss via CardEffectSummary
+        // (BLOODLETTING 3, OFFERING 6, HEMOKINESIS 2 etc.). Subtract before any
+        // turn-resolution math so subsequent depth-N candidates see the lower HP
+        // and the HpLoss penalty band in EstimateCardPower fires correctly.
+        if (card.HpLossAmount > 0)
+            newPlayerHp = System.Math.Max(0, newPlayerHp - card.HpLossAmount);
+
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
         if (card.IsPower)
         {
@@ -413,6 +420,124 @@ internal static class AnalyticalSimulator
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,
+        };
+    }
+
+    /// <summary>
+    /// v0.7.10 (Forward Sim Phase 2a) — Advance state to the next player turn.
+    /// Combines (a) end-of-turn block bonuses, (b) enemy intent resolution
+    /// (damage applied through block, leak to HP), (c) enemy turn-start buffs +
+    /// DoT ticks, (d) per-turn status decrement (Vuln/Weak/Frail/Intangible -1
+    /// for both sides + Poison -1), (e) player block reset, (f) energy reset to
+    /// base 3, (g) synthetic next-turn hand from current deck pool.
+    ///
+    /// Approximations (Phase 2a):
+    ///   • PredictPlayerDmg used directly for the lump leak (block consumed
+    ///     atomically). Per-hit accounting deferred.
+    ///   • Energy resets to a flat 3. Per-character base + EnergyNextTurnPower
+    ///     / Pyre / Berserk bonuses not folded in (no SimState field).
+    ///   • Barricade / Calipers not modeled — block always resets fully.
+    ///   • Hand draw uses one synthetic average card duplicated × 5
+    ///     (matches AnalyticalSimulator's intra-turn draw model).
+    /// </summary>
+    public static SimState AdvanceTurn(SimState state)
+    {
+        // (a)+(b) Resolve enemy intents — PredictPlayerDmg already factors
+        // block (incl. EOT bonus), Vulnerable on player, Weak on enemies, and
+        // Intangible cap. We trust its math and apply the result.
+        int leak = EnemyTurnSimulator.PredictPlayerDmg(state);
+        int newPlayerHp = System.Math.Max(0, state.PlayerHp - leak);
+
+        // v0.7.11 — Ally attacks fire after player turn ends but before
+        // enemy intents resolve (in practice STS2 allies act on the player's
+        // EOT). Their damage applies to the weakest live enemy each turn.
+        // Block-absorbed-first matches enemy attack handling.
+        int totalAllyDmg = 0;
+        foreach (var ally in state.Allies)
+        {
+            if (!ally.IsAlive || !ally.HasAttackIntent) continue;
+            totalAllyDmg += ally.TotalIntentDamage;
+        }
+        // Apply ally damage to weakest live enemy (single-target heuristic).
+        int weakestIdx = -1;
+        int weakestHp = int.MaxValue;
+        for (int i = 0; i < state.Enemies.Count; i++)
+        {
+            var e = state.Enemies[i];
+            if (!e.IsAlive) continue;
+            if (e.Hp < weakestHp) { weakestHp = e.Hp; weakestIdx = i; }
+        }
+
+        // (c) Enemies: turn-start Strength gain (Ritual etc.), DoT ticks, and
+        // per-turn debuff decrement on the enemy itself.
+        var newEnemies = new System.Collections.Generic.List<SimEnemy>(state.Enemies.Count);
+        for (int idx = 0; idx < state.Enemies.Count; idx++)
+        {
+            var e = state.Enemies[idx];
+            if (!e.IsAlive) { newEnemies.Add(e); continue; }
+            var ne = e;
+
+            // Apply ally damage to weakest enemy (block-first).
+            if (idx == weakestIdx && totalAllyDmg > 0)
+            {
+                int newBlock = System.Math.Max(0, ne.Block - totalAllyDmg);
+                int leakToEnemy = System.Math.Max(0, totalAllyDmg - ne.Block);
+                ne = ne with { Block = newBlock, Hp = System.Math.Max(0, ne.Hp - leakToEnemy) };
+            }
+            if (e.HasTurnStartStrengthBuff)
+                ne = ne with { StrengthAmount = ne.StrengthAmount + 1 };
+
+            // DoT ticks (Poison + Constrict). Burn timing varies — left out.
+            int dotTick = ne.PoisonAmount + ne.ConstrictAmount;
+            if (dotTick > 0)
+                ne = ne with { Hp = System.Math.Max(0, ne.Hp - dotTick) };
+
+            ne = ne with
+            {
+                VulnerableAmount = System.Math.Max(0, ne.VulnerableAmount - 1),
+                WeakAmount       = System.Math.Max(0, ne.WeakAmount - 1),
+                FrailAmount      = System.Math.Max(0, ne.FrailAmount - 1),
+                PoisonAmount     = System.Math.Max(0, ne.PoisonAmount - 1),
+                Block            = 0, // enemies' block also resets each turn
+            };
+            newEnemies.Add(ne);
+        }
+
+        // (d) Player status decrement.
+        int newPlayerVuln = System.Math.Max(0, state.PlayerVulnerable - 1);
+        int newPlayerWeak = System.Math.Max(0, state.PlayerWeak - 1);
+        int newPlayerFrail = System.Math.Max(0, state.PlayerFrail - 1);
+        int newPlayerIntangible = System.Math.Max(0, state.PlayerIntangible - 1);
+
+        // (e)+(f) Block reset + energy reset (flat 3 base).
+        const int BaseTurnEnergy = 3;
+
+        // (g) New hand from deck pool. Hand size = 5 (STS2 default). Existing
+        // hand is conceptually discarded — we don't track which cards survive
+        // via Ethereal exhaust / Retain (Phase 2a simplification).
+        var newHand = new System.Collections.Generic.List<SimCard>();
+        if (state.DrawPile.Count + state.DiscardPile.Count > 0)
+        {
+            var avg = MakeAverageDrawCard(state);
+            for (int i = 0; i < 5; i++) newHand.Add(avg);
+        }
+
+        int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - 5);
+        int newDiscardPileSize = 0;
+
+        return state with
+        {
+            PlayerHp = newPlayerHp,
+            PlayerBlock = 0,
+            PlayerEnergy = BaseTurnEnergy,
+            PlayerVulnerable = newPlayerVuln,
+            PlayerWeak = newPlayerWeak,
+            PlayerFrail = newPlayerFrail,
+            PlayerIntangible = newPlayerIntangible,
+            Enemies = newEnemies,
+            Hand = newHand,
+            DrawPileSize = newDrawPileSize,
+            DiscardPileSize = newDiscardPileSize,
         };
     }
 

@@ -31,6 +31,32 @@ internal enum SkillTier
 internal static class SkillSequencingTier
 {
     /// <summary>
+    /// Complete pair-axis stems (catalog has ≥1 Producer AND ≥1 Amplifier/Consumer)
+    /// where producer-first within-turn ordering matters. Each Skill carrying
+    /// `<stem>_PRODUCER` or `<stem>_AMPLIFIER` for one of these stems is routed
+    /// to Setup tier so it gains the +100 ordering nudge when ≥2 Skills compete.
+    ///
+    /// ORB is excluded — BuildSynergy already provides full/empty-slot
+    /// orb-state awareness for ORB_PRODUCER/CONSUMER and adding Setup tier
+    /// on top would double-credit the channel/evoke decision.
+    /// </summary>
+    private static readonly HashSet<string> PairStemsForSetup = new()
+    {
+        // DoT (target-resident stack — explicit beneficiary check in ConditionalBonus)
+        "POISON", "DOOM", "BURN", "CONSTRICT",
+        // Player resources / counters — producer-first ordering helps same-turn
+        // consumers but resource accrual stands on its own value (no penalty).
+        "STAR", "CUNNING", "SOUL", "FORGE",
+        "LORDS_BLADE", "SKELETON",
+        // Generated cards / volatile self-managed pool
+        "SHIV", "VOLATILE",
+        // Exhaust mechanic — EXHAUST_PRODUCER skills feed EXHAUST_CONSUMER payoffs
+        "EXHAUST",
+        // Specific orb subtype (DefectVisual)
+        "DARK_ORB",
+    };
+
+    /// <summary>
     /// Tier of a Skill card. Returns <see cref="SkillTier.Unknown"/> for
     /// non-Skill input or Skills that don't fit any specific bucket.
     /// </summary>
@@ -51,6 +77,36 @@ internal static class SkillSequencingTier
         if (card.Axes.Contains("VULN_PRODUCER") || card.Axes.Contains("VULN")
             || card.Axes.Contains("WEAK_PRODUCER") || card.Axes.Contains("WEAK"))
             return SkillTier.Setup;
+
+        // DoT producers — Poison / Doom / Burn / Constrict via PowerApps. The
+        // var-key check catches consumer-style cards that ALSO apply the DoT
+        // (BUBBLE_BUBBLE applies +9 poison conditionally) and primarily Skill
+        // producers (DEADLY_POISON / END_OF_DAYS / etc.).
+        if (card.PowerApps.ContainsKey("PoisonPower")
+            || card.PowerApps.ContainsKey("DoomPower")
+            || card.PowerApps.ContainsKey("BurnPower")
+            || card.PowerApps.ContainsKey("ConstrictPower"))
+            return SkillTier.Setup;
+
+        // Generic complete-pair stem promotion. Any Skill carrying
+        // `<stem>_PRODUCER` or `<stem>_AMPLIFIER` for a registered stem
+        // earns Setup tier. Resource-accrual stems (STAR / CUNNING / SOUL /
+        // FORGE / LORDS_BLADE / SKELETON / SHIV / VOLATILE / EXHAUST /
+        // DARK_ORB) gain ordering nudge without the no-beneficiary penalty —
+        // ConditionalBonus distinguishes resource vs DoT vs debuff and only
+        // penalises the latter two when their beneficiary is absent.
+        foreach (var ax in card.Axes)
+        {
+            string stem;
+            if (ax.EndsWith("_PRODUCER"))
+                stem = ax.Substring(0, ax.Length - "_PRODUCER".Length);
+            else if (ax.EndsWith("_AMPLIFIER"))
+                stem = ax.Substring(0, ax.Length - "_AMPLIFIER".Length);
+            else
+                continue;
+            if (PairStemsForSetup.Contains(stem))
+                return SkillTier.Setup;
+        }
 
         // Cantrip — draw or energy generation. Plays before damage so the
         // freshly drawn / energy-funded cards land this turn.
@@ -100,13 +156,81 @@ internal static class SkillSequencingTier
         {
             case SkillTier.Setup:
             {
+                // Setup-category classification:
+                //   • debuff   — VULN / WEAK producer. Beneficiary = remaining attacks.
+                //                Penalty when no attack in hand (existing behaviour).
+                //   • dot      — POISON / DOOM / BURN / CONSTRICT producer. Beneficiary
+                //                = same-stem CONSUMER/AMPLIFIER or remaining attacks
+                //                (Envenom / Reaper Form payoff). Penalty when none.
+                //   • resource — STAR / CUNNING / SOUL / FORGE / LORDS_BLADE /
+                //                SKELETON / SHIV / VOLATILE / EXHAUST / DARK_ORB.
+                //                Ordering nudge only — resource accrues for future
+                //                turns even without an in-hand consumer, so the
+                //                no-beneficiary penalty is omitted.
+                bool isDebuff =
+                    self.PowerApps.ContainsKey("VulnerablePower")
+                    || self.PowerApps.ContainsKey("WeakPower")
+                    || self.Axes.Contains("VULN_PRODUCER") || self.Axes.Contains("VULN")
+                    || self.Axes.Contains("WEAK_PRODUCER") || self.Axes.Contains("WEAK");
+                bool isDot =
+                    self.PowerApps.ContainsKey("PoisonPower")
+                    || self.PowerApps.ContainsKey("DoomPower")
+                    || self.PowerApps.ContainsKey("BurnPower")
+                    || self.PowerApps.ContainsKey("ConstrictPower");
+                if (!isDot)
+                {
+                    foreach (var ax in self.Axes)
+                    {
+                        if (ax == "POISON_PRODUCER" || ax == "POISON_AMPLIFIER"
+                            || ax == "DOOM_PRODUCER"   || ax == "DOOM_AMPLIFIER"
+                            || ax == "BURN_PRODUCER"   || ax == "BURN_AMPLIFIER"
+                            || ax == "CONSTRICT_PRODUCER")
+                        { isDot = true; break; }
+                    }
+                }
+                // debuff takes priority — VULN/WEAK producers that *also* carry
+                // DoT axes (rare; tagging artefact) should run the attack check.
+                string category = isDebuff ? "debuff" : isDot ? "dot" : "resource";
+
                 int remainingAttacks = state.Hand.Count(c =>
                     !ReferenceEquals(c, self) && c.IsPlayable && c.IsAttack);
-                if (remainingAttacks == 0)
+
+                if (category == "debuff")
                 {
-                    b -= 200;
-                    parts.Add("setupNoAtk=-200");
+                    if (remainingAttacks == 0)
+                    {
+                        b -= 200;
+                        parts.Add("setupNoAtk=-200");
+                    }
                 }
+                else if (category == "dot")
+                {
+                    bool hasBeneficiary = remainingAttacks > 0;
+                    if (!hasBeneficiary)
+                    {
+                        foreach (var stem in new[] { "POISON", "DOOM", "BURN", "CONSTRICT" })
+                        {
+                            bool selfHasStem = false;
+                            foreach (var ax in self.Axes)
+                            {
+                                if (ax == stem || ax == stem + "_PRODUCER" || ax == stem + "_AMPLIFIER")
+                                { selfHasStem = true; break; }
+                            }
+                            if (!selfHasStem) continue;
+                            bool found = state.Hand.Any(c =>
+                                !ReferenceEquals(c, self) && c.IsPlayable
+                                && (c.Axes.Contains(stem + "_CONSUMER")
+                                    || c.Axes.Contains(stem + "_AMPLIFIER")));
+                            if (found) { hasBeneficiary = true; break; }
+                        }
+                    }
+                    if (!hasBeneficiary)
+                    {
+                        b -= 200;
+                        parts.Add("setupNoBeneficiary=-200");
+                    }
+                }
+                // resource: no penalty — production stands on its own.
                 break;
             }
             case SkillTier.Cantrip:
