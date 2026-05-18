@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.7.63 (2026-05-19)
+
+**CardVariance — 신뢰도 tag + critical-situation 페널티.**
+
+### 배경
+
+기존: 50 RANDOM-axis 카드의 expected value 는 binomial / mean / pool means
+로 정확 모델. 하지만 **variance 자체** (worst-case 회피) 가 close-call /
+lethal 상황에서 중요한데 미반영.
+
+### Variance Level 4종
+
+| Level | 카드 |
+|---|---|
+| **None** | STRIKE, DEFEND, 등 결정적 카드 |
+| **Low** | X_COST (energy 범위 내 variance), EXHAUST_TARGET_RANDOM |
+| **Medium** | TargetType.RandomEnemy attack (RICOCHET/VOLLEY 등) |
+| **High** | CARD_GEN RANDOM (DISCOVERY/WISH/CASCADE 등 11종 명시) |
+
+### Critical 페널티
+
+| Race / Stage | High | Medium | Low |
+|---|---:|---:|---:|
+| Tight race | **-100** | -50 | -20 |
+| Losing race | **-100** | -50 | -20 |
+| Cleanup stage | **-100** | -50 | -20 |
+| Sustain / Setup / Winning | 0 | 0 | 0 |
+
+→ 일반 상황: variance 카드 정상 평가
+→ Critical: deterministic 우대 (도박 회피)
+
+### DecisionLog detail
+
+```
+variance(High)-100
+```
+
+매 결정의 breakdown 에 variance level 명시.
+
+---
+
 ## v0.7.62 (2026-05-18)
 
 **Opportunity cost — alternative cards + runner-up delta.**
