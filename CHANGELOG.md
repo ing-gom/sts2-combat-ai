@@ -1,5 +1,57 @@
 # Changelog
 
+## v0.7.60 (2026-05-18)
+
+**CardRole — per-card 역할 분류.**
+
+### Role 8종
+
+| Role | 기준 |
+|---|---|
+| **Curse** | IsCurseOrStatus |
+| **Setup** | Power / VULN/WEAK/FRAIL Producer / Str/Dex/Vigor Producer |
+| **Cycler** | DrawCount > 0 또는 EnergyGain > 0 |
+| **Tech** | EXHAUST_TARGET / PILE_TO_HAND / DRAW_PILE_SEARCH |
+| **Defensive** | Block ≥ 4 (8+ = heavy) |
+| **Carry** | X_COST attack 또는 TotalDamage ≥ 16 |
+| **Support** | Attack, dmg 6-15 |
+| **Filler** | else |
+
+### Phase coherence bonus
+
+| Stage | 우대 role | 페널티 role |
+|---|---|---|
+| Opening | Setup +30, Cycler +20 | — |
+| Setup | Setup +40, Cycler +20 | Carry -20 (홀딩) |
+| Burst | Carry +50, Support +30 | Setup -30 |
+| Lockdown | Defensive +50, Setup +20 | — |
+| Cleanup | Carry +60, Support +40, Filler +20 | Setup -60, Tech -30 |
+
+### VakuuExecutor 로그
+
+```
+[CombatAI]   roles: carry=2 support=8 setup=4 def=3 cyc=2 tech=1 filler=2 curse=0
+```
+
+→ Carry 2장 보이면 일관된 게임플랜. Filler 많으면 deck 빈약.
+
+### 통합 효과 — v0.7.51~60
+
+매 카드 결정에 10-dimensional 분석:
+
+1. 카드 자체 효과
+2. Hand 시너지 (BuildSynergy/HandSynergy/Combo)
+3. Deck archetype (12 builds)
+4. Combat encounter (8 flags)
+5. Win condition phase (5)
+6. Deck throughput (DPT/BPT/core)
+7. Deck cycling (turns per cycle)
+8. Survival race (TTD vs TTK)
+9. Deck quality (health)
+10. **Card role (8 types) + plan stage coherence**
+
+---
+
 ## v0.7.59 (2026-05-18)
 
 **CombatPlan — multi-turn stage tracking.**
