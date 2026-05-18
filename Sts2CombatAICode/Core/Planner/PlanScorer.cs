@@ -437,10 +437,24 @@ internal static class PlanScorer
             bool targetIsVulnerable = !isAoe
                 && targetIdx >= 0 && targetIdx < state.Enemies.Count
                 && state.Enemies[targetIdx].VulnerableAmount > 0;
+            bool targetIsWeak = !isAoe
+                && targetIdx >= 0 && targetIdx < state.Enemies.Count
+                && state.Enemies[targetIdx].WeakAmount > 0;
+            // v0.7.86 — Card-id-specific damage adder (AccuracyPower on Shiv).
+            // Applied to base damage before the Strength/Vigor/multiplier chain.
+            int adjustedBaseDamage = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, state);
             // v0.7.82 — Include PlayerVigor: when this card is being scored as the
             // CURRENT play, any Vigor on the player applies to it (single-shot).
-            int effectivePerHit = StatusMath.EffectiveAttackDmg(card.Damage,
+            int effectivePerHit = StatusMath.EffectiveAttackDmg(adjustedBaseDamage,
                 state.PlayerStrength, state.PlayerVigor, targetIsVulnerable, playerIsWeak);
+            // v0.7.84 — Damage multipliers: Tracking (vs Weak ×2), Cruelty
+            // (vs Vuln ×1.25), Lethality (first attack/turn ×1.5). Lethality
+            // assumes this card is the first attack — when scoring a candidate
+            // as the IMMEDIATE play, that holds; multi-card chain estimators
+            // gate it separately.
+            effectivePerHit = StatusMath.ApplyDamageMultipliers(effectivePerHit, state,
+                defenderVulnerable: targetIsVulnerable, defenderWeak: targetIsWeak,
+                lethalityActive: true);
 
             // v0.6.7 — Variable-damage hit-count override. Card.Hits comes from
             // RepeatVar / CalculatedHits and defaults to 1, but several attacks
@@ -523,6 +537,13 @@ internal static class PlanScorer
                         state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
                     int perEnemyTotal = StatusMath.EffectivePerEnemyTotal(
                         card.Damage, effHits, state.PlayerStrength, state.PlayerVigor, e, playerIsWeak);
+                    // v0.7.84 — Apply per-target damage multipliers.
+                    rawPer = StatusMath.ApplyDamageMultipliers(rawPer, state,
+                        defenderVulnerable: e.VulnerableAmount > 0, defenderWeak: e.WeakAmount > 0,
+                        lethalityActive: true);
+                    perEnemyTotal = StatusMath.ApplyDamageMultipliers(perEnemyTotal, state,
+                        defenderVulnerable: e.VulnerableAmount > 0, defenderWeak: e.WeakAmount > 0,
+                        lethalityActive: true);
                     if (rawPer > 0 && e.DamageCapPerHit > 0 && rawPer > e.DamageCapPerHit) capsHit++;
                     if ((e.HardenedShellRemaining > 0 && rawPer * effHits > e.HardenedShellRemaining)
                         || (rawPer > 0 && e.HardenedShellRemaining == 0
@@ -568,6 +589,10 @@ internal static class PlanScorer
                         // overkill clamp limits over-credit naturally.
                         int perHitForE = StatusMath.EffectiveAttackDmg(card.Damage,
                             state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
+                        // v0.7.84 — Damage multipliers per target.
+                        perHitForE = StatusMath.ApplyDamageMultipliers(perHitForE, state,
+                            defenderVulnerable: e.VulnerableAmount > 0,
+                            defenderWeak: e.WeakAmount > 0, lethalityActive: true);
                         if (e.DamageCapPerHit > 0 && perHitForE > e.DamageCapPerHit)
                             perHitForE = e.DamageCapPerHit;
                         if (perHitForE <= 0) continue;
@@ -740,6 +765,10 @@ internal static class PlanScorer
                         // fewer hits).
                         int perHitForE = StatusMath.EffectiveAttackDmg(card.Damage,
                             state.PlayerStrength, state.PlayerVigor, e.VulnerableAmount > 0, playerIsWeak);
+                        // v0.7.84 — Damage multipliers.
+                        perHitForE = StatusMath.ApplyDamageMultipliers(perHitForE, state,
+                            defenderVulnerable: e.VulnerableAmount > 0,
+                            defenderWeak: e.WeakAmount > 0, lethalityActive: true);
                         if (e.DamageCapPerHit > 0 && perHitForE > e.DamageCapPerHit)
                             perHitForE = e.DamageCapPerHit;
                         if (perHitForE <= 0) continue;
@@ -773,6 +802,10 @@ internal static class PlanScorer
                     // most +Vigor*aoeCount, bounded by enemy hp).
                     int perEnemyDmg = StatusMath.EffectivePerEnemyTotal(
                         card.Damage, card.Hits, state.PlayerStrength, state.PlayerVigor, ei, playerIsWeak);
+                    // v0.7.84 — Damage multipliers per enemy.
+                    perEnemyDmg = StatusMath.ApplyDamageMultipliers(perEnemyDmg, state,
+                        defenderVulnerable: ei.VulnerableAmount > 0,
+                        defenderWeak: ei.WeakAmount > 0, lethalityActive: true);
                     var (b, d) = ScoreAttackTarget(card, i, state, w, perEnemyDmg);
                     targetBonus += b;
                     totalAliveBlock += ei.Block;
@@ -1016,7 +1049,22 @@ internal static class PlanScorer
                 details.Add($"lethalSetup={lethalSetupPenalty}");
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty;
+            // v0.7.85 — Attack-triggered block from RagePower (N block per attack
+            // played) and AfterimagePower (N block per card played, includes
+            // attacks). Credits the attack's defensive utility so RAGE / AFTERIMAGE
+            // builds correctly prefer attacks even on defensive turns.
+            int attackReactiveBlock = 0;
+            if (state.PlayerRage > 0)
+                attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerRage,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
+            if (state.PlayerAfterimage > 0)
+                attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerAfterimage,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
+            int reactiveBlockBonus = attackReactiveBlock * w.BlockPerPointBonus;
+            if (reactiveBlockBonus != 0)
+                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage})={reactiveBlockBonus}");
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
                 Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -1035,6 +1083,25 @@ internal static class PlanScorer
             int rawBlock = card.Block * System.Math.Max(1, blockMultiplier);
             int effectiveBlock = StatusMath.EffectiveBlock(rawBlock,
                 state.PlayerDexterity, state.PlayerFrail > 0);
+            // v0.7.85 — UnmovablePower doubles the first block card/turn. When
+            // scoring a candidate as the immediate play AND Unmovable is still
+            // unused, credit the doubled value. Caller's depth-N lookahead will
+            // see `UnmovableUsedThisTurn=true` post-simulation so subsequent
+            // blocks score normally.
+            if (state.PlayerUnmovable > 0 && !state.UnmovableUsedThisTurn && effectiveBlock > 0)
+            {
+                int bonus = effectiveBlock;  // doubles → +1× of base
+                effectiveBlock += bonus;
+                details.Add($"unmovable×2(+{bonus})");
+            }
+            // v0.7.85 — AfterimagePower: +N block on every card play (this one too).
+            if (state.PlayerAfterimage > 0)
+            {
+                int afterBlock = StatusMath.EffectiveBlock(state.PlayerAfterimage,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
+                effectiveBlock += afterBlock;
+                details.Add($"afterimage(+{afterBlock})");
+            }
             int effect = effectiveBlock * w.BlockPerPointBonus;
             details.Add($"skillBase={w.SkillBaseBonus}");
             if (blockMultiplier > 1)
@@ -1550,24 +1617,31 @@ internal static class PlanScorer
         // v0.7.82 — Vigor budget. Single-shot: only the FIRST attack in this chain
         // gets the Vigor bonus, subsequent attacks see 0.
         int vigorRemaining = state.PlayerVigor;
+        // v0.7.84 — Lethality budget. First attack/turn only.
+        bool lethalityRemaining = state.PlayerLethality > 0;
         foreach (var atk in attacks)
         {
             if (atk.Cost > energy) continue;
             energy -= atk.Cost;
             int useVigor = vigorRemaining;
             vigorRemaining = 0;
+            bool useLethality = lethalityRemaining;
+            lethalityRemaining = false;
 
             if (atk.Target == TargetType.AllEnemies)
             {
                 foreach (var e in state.Enemies)
                 {
                     if (!e.IsAlive) continue;
-                    // v0.7.82 — Vigor (per-hit bonus) folded into base via overload.
                     int per = StatusMath.EffectiveAttackDmg(atk.Damage,
                         state.PlayerStrength, useVigor, e.VulnerableAmount > 0, playerWeak);
                     if (e.DamageCapPerHit > 0 && per > e.DamageCapPerHit)
                         per = e.DamageCapPerHit;
                     int eachTotal = per * System.Math.Max(1, atk.Hits);
+                    // v0.7.84 — Damage multipliers per enemy.
+                    eachTotal = StatusMath.ApplyDamageMultipliers(eachTotal, state,
+                        defenderVulnerable: e.VulnerableAmount > 0,
+                        defenderWeak: e.WeakAmount > 0, lethalityActive: useLethality);
                     if (e.HardenedShellRemaining > 0
                         && eachTotal > e.HardenedShellRemaining)
                         eachTotal = e.HardenedShellRemaining;
@@ -1576,7 +1650,6 @@ internal static class PlanScorer
             }
             else
             {
-                // Pick the most-Vulnerable alive enemy for damage estimation.
                 SimEnemy? bestEnemy = null;
                 foreach (var e in state.Enemies)
                 {
@@ -1591,6 +1664,10 @@ internal static class PlanScorer
                 if (bestEnemy.DamageCapPerHit > 0 && per > bestEnemy.DamageCapPerHit)
                     per = bestEnemy.DamageCapPerHit;
                 int eachTotal = per * System.Math.Max(1, atk.Hits);
+                // v0.7.84 — Damage multipliers.
+                eachTotal = StatusMath.ApplyDamageMultipliers(eachTotal, state,
+                    defenderVulnerable: bestEnemy.VulnerableAmount > 0,
+                    defenderWeak: bestEnemy.WeakAmount > 0, lethalityActive: useLethality);
                 totalReachable += eachTotal;
             }
         }

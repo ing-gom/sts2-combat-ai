@@ -37,6 +37,36 @@ internal sealed record SimState
     // this turn, then consumed (reset to 0). Unlike Strength which persists,
     // Vigor is one-shot.
     public int PlayerVigor { get; init; }
+    // v0.7.83 — BufferPower stack. Each stack negates ONE incoming damage
+    // instance (entire hit, regardless of size). Decremented per instance
+    // negated. Critical for survival projection: a 30-damage enemy hit with
+    // Buffer 1 deals 0 damage. Without modelling this the planner over-defends
+    // on Watcher / certain build turns.
+    public int PlayerBuffer { get; init; }
+    // v0.7.84 — Damage multiplier powers. None modify Strength; all apply to
+    // the final per-attack damage as conditional multipliers.
+    //   • PlayerLethality > 0 → first attack/turn × 1.5 (Silent Volatile).
+    //   • PlayerTracking  > 0 → vs Weak target × 2 (Silent).
+    //   • PlayerCruelty   > 0 → vs Vulnerable target × 1.25 (Silent).
+    // Lethality is single-shot (first attack only); Tracking/Cruelty are
+    // permanent passives that apply every attack.
+    public int PlayerLethality { get; init; }
+    public int PlayerTracking { get; init; }
+    public int PlayerCruelty { get; init; }
+    // v0.7.85 — Block-side reactive / multiplier powers.
+    //   • PlayerRage      > 0 → +N block per attack played.
+    //   • PlayerAfterimage> 0 → +N block per card played.
+    //   • PlayerUnmovable > 0 → first block card/turn × 2 (single-shot per turn).
+    // Unmovable consumption tracked via UnmovableUsedThisTurn flag; reset by
+    // AdvanceTurn.
+    public int PlayerRage { get; init; }
+    public int PlayerAfterimage { get; init; }
+    public int PlayerUnmovable { get; init; }
+    public bool UnmovableUsedThisTurn { get; init; }
+    // v0.7.86 — AccuracyPower (Silent passive): each Shiv card deals +N extra
+    // damage. Applied to cards whose id matches "SHIV" (base) — the only Shiv
+    // card kind in STS2's catalog.
+    public int PlayerAccuracy { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
