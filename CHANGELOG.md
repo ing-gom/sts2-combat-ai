@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.7.68 (2026-05-19)
+
+**Comprehensive archetype magnitude audit — Summon / Forge / Stars / OrbSlots.**
+
+### 사용자 요청
+
+전체 archetype-specific var audit. 26 카드 추가 처리.
+
+### Summon (7 신규)
+
+| 카드 | Tier | Cost | Summon |
+|---|---|---:|---:|
+| CLEANSE | B | 1 | 3 |
+| INVOKE | B | 1 | 2 |
+| BODYGUARD | C | 1 | 5 |
+| NECRO_MASTERY | C | 2 | 5 |
+| PULL_AGGRO | C | 2 | 4 |
+| SPUR | C | 1 | 3 |
+| **REANIMATE** | **S** | **3** | **20** |
+
+`ApplySkeletonSummonN(count)` 일반화. Diminishing returns: > 6 면 `6 + (n-6)/3`.
+
+### Forge (5 신규)
+
+| 카드 | Tier | Forge |
+|---|---|---:|
+| REFINE_BLADE | C | 9 |
+| SPOILS_OF_BATTLE | C | 5 |
+| WROUGHT_IN_WAR | C (Attack!) | 7 |
+| BIG_BANG | S | 5 (+ Stars 1) |
+| BULWARK | S | 10 |
+
+`ApplyForgeGeneric(amount)`. Blade 부재 시 forge × 10 페널티 (~50-300).
+
+### Stars (10 신규)
+
+| 카드 | Stars |
+|---|---:|
+| GLOW/GATHER_LIGHT/HIDDEN_CACHE/RADIATE/SOLAR_STRIKE/CONVERGENCE | 1 |
+| VENERATE/SHINING_STRIKE | 2 |
+| KNOCKOUT_BLOW | 5 |
+| **ROYAL_GAMBLE** | **9** |
+
+`ApplyStarsGain(amount)`. STAR_CONSUMER 보유 시 150/star, 없으면 40/star.
+
+### OrbSlots (1)
+
+**BULK_UP**: -1 OrbSlot 페널티 (orb 활성 시만), filled > newCap → -200, else -50.
+
+---
+
 ## v0.7.67 (2026-05-19)
 
 **Archetype magnitude audit — Forge 30, Summon 6 misprice.**
