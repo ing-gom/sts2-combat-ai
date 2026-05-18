@@ -61,6 +61,13 @@ internal static class EffectSynergy
         if (axes.Contains("HP_LOSS_CONSUMER"))
             ApplyHpLossConsumer(state, ref b, parts);
 
+        // v0.7.37 — Self-harm trigger preview. When this card causes player HP
+        // loss (HpLossAmount > 0) AND the player has Inferno/Combust-type
+        // passives on, fire the trigger preview as a bonus.
+        // Visible deterministic effect, not future-sim.
+        if (card.HpLossAmount > 0 || axes.Contains("HP_LOSS_SELF") || axes.Contains("HP_LOSS"))
+            ApplySelfHarmTriggerPreview(card, state, ref b, parts);
+
         // STRENGTH_DOWN — applies StrengthLoss to enemy(ies). Reduces enemy
         // attack damage on subsequent attacks; per-hit savings compound on
         // multi-hit intent. Scoring mirrors WEAK_AMPLIFIER but uses the
@@ -3857,6 +3864,55 @@ internal static class EffectSynergy
         {
             b -= 1500;
             parts.Add("blkPayoffNoBlk=-1500");
+        }
+    }
+
+    /// <summary>
+    /// v0.7.37 — Self-harm trigger preview. When the played card causes the
+    /// player to take HP loss AND the player has an HP_LOSS_TRIGGER passive,
+    /// the passive fires once per HP loss event. Credits the card with the
+    /// triggered effect (currently AOE damage from Inferno/Combust, and any
+    /// other HP_LOSS-trigger from PlayerPowers).
+    ///
+    /// Triggers covered:
+    ///   InfernoPower    — AOE 6 dmg on HP loss event (1 trigger per card)
+    ///   CombustPower    — turn-end AOE per stack (already credited by
+    ///                     PowerCatalog flat; not a per-card trigger).
+    ///   RupturePower    — +1 Strength on HP loss event (permanent buff)
+    ///   ShroudPower     — +2 block per Doom apply (different mechanic; skip)
+    ///   FeelNoPainPower — +N block on exhaust (different mechanic; skip)
+    ///
+    /// Pure current-state read of PlayerPowers — no future-sim.
+    /// </summary>
+    private static void ApplySelfHarmTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+
+        // InfernoPower: AOE 6 dmg on HP loss. Multiplier from stack amount.
+        if (state.PlayerPowers.TryGetValue("InfernoPower", out var inferno) && inferno > 0)
+        {
+            int aliveCount = 0;
+            foreach (var e in state.Enemies)
+                if (e.IsAlive) aliveCount++;
+            if (aliveCount > 0)
+            {
+                // Per-stack 6 AOE; clamp 1 trigger this card.
+                int dmgPerEnemy = 6 * inferno;
+                int v = aliveCount * dmgPerEnemy * 50 / 10;  // damage × DamagePerPoint / calibration
+                b += v;
+                parts.Add($"infernoTrigger(stack={inferno},alive={aliveCount})=+{v}");
+            }
+        }
+
+        // RupturePower: +1 Strength permanent on HP loss event.
+        if (state.PlayerPowers.TryGetValue("RupturePower", out var rupture) && rupture > 0)
+        {
+            // Each +1 Str applies to all future attacks for the rest of the
+            // fight. Use RemainingTurns × ~3 attacks/turn × 50 dmg per Str.
+            int turns = RemainingTurnsEstimator.From(state);
+            int v = turns * 3 * rupture * 50 / 10;
+            b += v;
+            parts.Add($"ruptureTrigger(stack={rupture},turns={turns})=+{v}");
         }
     }
 
