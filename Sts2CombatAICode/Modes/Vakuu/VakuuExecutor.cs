@@ -124,6 +124,9 @@ internal static class VakuuExecutor
                     // v0.7.59 — Plan stage
                     var planStage = Sts2CombatAI.Planner.CombatPlan.Classify(snapshot, proj);
                     MainFile.Logger.Info($"[CombatAI]   plan: stage={planStage}");
+                    // v0.7.60 — Deck role mix
+                    var roleMix = Sts2CombatAI.Planner.CardRole.DeckMix(snapshot);
+                    MainFile.Logger.Info($"[CombatAI]   roles: {roleMix}");
                 }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
