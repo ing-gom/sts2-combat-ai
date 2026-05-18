@@ -268,6 +268,18 @@ internal static class PlanScorer
                 ? $"finisher{finisherBonus:+0;-0}"
                 : $"{comboDetail},finisher{finisherBonus:+0;-0}";
         }
+        // v0.7.63 — Variance penalty in critical situations. High-variance
+        // cards (random gen, random target) lose tiebreaks when the race
+        // is tight or stage is Cleanup — prefer reliability.
+        int variancePenalty = CardVariance.ReliabilityPenalty(card, raceProj, planStage);
+        if (variancePenalty != 0)
+        {
+            comboBonus += variancePenalty;
+            var level = CardVariance.Classify(card);
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"variance({level}){variancePenalty:+0;-0}"
+                : $"{comboDetail},variance({level}){variancePenalty:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable
