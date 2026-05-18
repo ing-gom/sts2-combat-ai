@@ -310,6 +310,14 @@ internal static class EffectSynergy
         else if (card.Id == "CARD.ROYAL_GAMBLE")      ApplyStarsGain(card, state, ref b, parts, 9);
         // OrbSlots
         else if (card.Id == "CARD.BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
+        // v0.7.69 — Exhaust-related card handlers. Specific mechanics not
+        // captured by generic EXHAUST_CONSUMER (+20/exhausted, cap 320).
+        else if (card.Id == "CARD.FEEL_NO_PAIN")      ApplyFeelNoPainPower(card, state, ref b, parts);
+        else if (card.Id == "CARD.PACTS_END")         ApplyPactsEndGated(card, state, ref b, parts);
+        else if (card.Id == "CARD.CHILL")             ApplyChillFrostPerEnemy(card, state, ref b, parts);
+        else if (card.Id == "CARD.ALCHEMIZE")         ApplyAlchemizePotion(card, state, ref b, parts);
+        else if (card.Id == "CARD.BURNING_PACT")      ApplyBurningPactExhaustDraw(card, state, ref b, parts);
+        else if (card.Id == "CARD.EVIL_EYE")          ApplyEvilEyeConditional(card, state, ref b, parts);
         // v0.7.48 — Retain skill specific mechanics (batch 3/7).
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
@@ -3546,6 +3554,154 @@ internal static class EffectSynergy
         int v2 = exhausts * 250;
         b += v2;
         parts.Add($"purity(exhaust{exhausts}x250)=+{v2}");
+    }
+
+    /// <summary>
+    /// v0.7.69 — FEEL_NO_PAIN (Ironclad B Power 1c): "When a card is exhausted,
+    /// gain 3 block." Per-exhaust block trigger. Value scales with deck's
+    /// EXHAUST cards (those that self-exhaust frequently).
+    /// </summary>
+    private static void ApplyFeelNoPainPower(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int exhaustSources = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && (c.Axes.Contains("EXHAUST_SELF")
+                                    || c.Axes.Contains("EXHAUST_PRODUCER"))) exhaustSources++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("EXHAUST_SELF")
+                                    || c.Axes.Contains("EXHAUST_PRODUCER"))) exhaustSources++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && (c.Axes.Contains("EXHAUST_SELF")
+                                    || c.Axes.Contains("EXHAUST_PRODUCER"))) exhaustSources++;
+
+        if (exhaustSources == 0)
+        {
+            b -= 200;
+            parts.Add("feelNoPainNoExhaust=-200");
+            return;
+        }
+        int turns = RemainingTurnsEstimator.From(state);
+        // Expect ~exhaustSources / 2 exhausts per turn, ×3 block per
+        int blockPerTurn = (exhaustSources / 2) * 3;
+        int v = blockPerTurn * turns * 30 / 2;  // /2 calibration (mid-late game)
+        const int Cap = 1000;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"feelNoPain(exhSrc{exhaustSources},turns{turns}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.69 — PACTS_END (Ironclad S Attack 0c): AOE 17 dmg if exhaust pile
+    /// has ≥3 cards. Otherwise unplayable (handled by CanPlay). When playable,
+    /// massive value.
+    /// </summary>
+    private static void ApplyPactsEndGated(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.ExhaustPileSize < 3)
+        {
+            // CanPlay should have filtered, but defensive
+            b -= 200;
+            parts.Add($"pactsEndNoExhaust({state.ExhaustPileSize}/3)=-200");
+            return;
+        }
+        int aliveCount = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0) return;
+        // 17 dmg × aliveCount × 50 / 10 calibration on top of base attack score
+        int v = 17 * aliveCount * 50 / 10 / 4;  // /4 since base AOE damage already credited
+        const int Cap = 600;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"pactsEnd(exh{state.ExhaustPileSize},alive{aliveCount}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.69 — CHILL (Defect S Skill 0c): channel Frost per alive enemy.
+    /// 0-cost AOE Frost generator. Value scales with alive count + orb-active.
+    /// </summary>
+    private static void ApplyChillFrostPerEnemy(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerOrbCapacity == 0)
+        {
+            b -= 100;
+            parts.Add("chillNoOrb=-100");
+            return;
+        }
+        int aliveCount = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0) return;
+        // Each Frost orb = block ~2 passive + 5 evoke, ~180 value.
+        // Capped by orb queue capacity (overflow kicks out).
+        int frostsAdded = System.Math.Min(aliveCount,
+            System.Math.Max(1, state.PlayerOrbCapacity - state.PlayerOrbCount));
+        int v = frostsAdded * 180;
+        const int Cap = 900;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"chill(alive{aliveCount},addFrost{frostsAdded}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.69 — ALCHEMIZE (Silent/Shared S Skill 1c): random potion + exhaust.
+    /// Potion value is uncertain but typically 200-400 in-combat.
+    /// </summary>
+    private static void ApplyAlchemizePotion(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Conservative: 280 average potion value. Variance handled by
+        // CardVariance separately (it's High variance).
+        const int v = 280;
+        b += v;
+        parts.Add($"alchemize(randomPotion={v})");
+    }
+
+    /// <summary>
+    /// v0.7.69 — BURNING_PACT (Ironclad S Skill 1c): "Exhaust 1 hand card.
+    /// Draw 2 cards." Cheap deck-cycle + cleanse.
+    /// </summary>
+    private static void ApplyBurningPactExhaustDraw(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Count curses/status in hand — primary exhaust targets.
+        int curses = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) curses++;
+        }
+        int exhaustValue = curses > 0 ? 250 : 60;  // Big value if cleansing curses
+        // Draw 2 — already credited by DRAW axis. Add a small synergy bonus.
+        int v = exhaustValue + 80;  // exhaust + small draw amplifier
+        b += v;
+        parts.Add($"burningPact(curse{curses}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.69 — EVIL_EYE (Ironclad B Skill 1c): "Block 8. If you exhausted
+    /// any card this turn, gain 8 more block." Conditional bonus.
+    /// </summary>
+    private static void ApplyEvilEyeConditional(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // We don't track exhausted-this-turn separately. Use CombatPlayerHpLossEvents
+        // as a weak proxy? No — better: check if hand has any EXHAUST_SELF
+        // cards expected to play this turn.
+        int handExhausters = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("EXHAUST_SELF") && c.IsPlayable)
+                handExhausters++;
+        }
+        if (handExhausters == 0 && state.ExhaustPileSize == 0)
+        {
+            // No exhaust source this turn — bonus likely won't trigger.
+            return;
+        }
+        // Probable trigger: +8 block × 30
+        int bonus = 8 * 30 / 2;  // half (might not actually trigger order-wise)
+        b += bonus;
+        parts.Add($"evilEye(conditional+8block={bonus})");
     }
 
     /// <summary>
