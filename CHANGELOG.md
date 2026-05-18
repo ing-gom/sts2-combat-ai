@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.7.40 (2026-05-18)
+
+**Thorns HP scaling + AI 멈춤 (mid-turn forfeit) 버그 fix.**
+
+### 배경
+
+사용자 보고 2건:
+1. 가시 적 공격 시 자해 인식 부족 → 방어카드 안 쓰고 공격하는 경우
+2. 카드 사용 가능한데 AI 가 mid-turn 멈춤
+
+### 변경 1: Thorns HP-fraction scaling (PlanScorer.cs)
+
+기존 thornsPenalty = -thorns × hits × 100 (절대값). 저HP 에서 2 자해가
+훨씬 치명적인데 동일 가중치.
+
+```csharp
+double hpFrac = thornsDamage / (double)playerHp;
+if (hpFrac >= 0.5)       thornsPenalty *= 3;   // 절반 HP 손실 = 3x
+else if (hpFrac >= 0.25) thornsPenalty *= 2;
+else if (hpFrac >= 0.10) thornsPenalty = thornsPenalty * 15 / 10;
+```
+
+### 변경 2: MinPlayScore floor 완화 (ActionPlanner.cs)
+
+`PlanNextStep` 의 `MinPlayScore = 80` floor 가 너무 보수적.
+- 1순위 카드 점수 60 → floor 미달 → 0-cost 대안 없음 → null 반환
+- 결과: 약-양수 카드 (block 작거나 weak attack) 못 쓰고 forfeit
+
+**Fix**: 0-cost fallback 다음에 한 layer 추가:
+```csharp
+if (bestFirstScore > 0)
+    return bestPlan;   // 약-양수 paid 카드도 play
+return null;            // 진짜 0 이하 (clearly bad) 만 stop
+```
+
+Floor 의미 보존 (clearly-bad 차단) + 사용자 의도 (mid-turn 멈춤 방지).
+
+---
+
 ## v0.7.39 (2026-05-18)
 
 **FrailPower handler — Weak 작업 잔여 처리.**
