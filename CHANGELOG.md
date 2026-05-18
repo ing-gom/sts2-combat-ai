@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.7.74 (2026-05-19)
+
+**Next-turn star producers — HIDDEN_CACHE / CONVERGENCE.**
+
+### 사용자 보고
+
+"별을 다음 턴에 주는 경우는?"
+
+### 진단 — 별 관련 카드 전체 scan 결과
+
+| 카드 | 메커니즘 | 처리 |
+|---|---|---|
+| GLOW | 이번 ★1 + 다음 turn draw 1 | catalog Stars=1 정확 |
+| **HIDDEN_CACHE** | 이번 ★1 + **다음 턴 ★★★** | 🔴 다음 턴 별 catalog 안 보임 |
+| **CONVERGENCE** | **다음 턴 ★1 + energy 1** + retain | 🔴 catalog 에 안 보임 |
+| GENESIS (Power) | 매 턴 시작 ★★ | ✅ Power lifecycle 자동 |
+| THE_SEALED_THRONE (Power) | 카드 사용 시 ★ | ✅ Power lifecycle 자동 |
+| ROYAL_GAMBLE | 이번 턴 ★9 - 5 cost | catalog 정확 |
+| 기타 21 (FALLING_STAR 등) | 이번 턴만 | catalog 정확 |
+
+**Power 형태**: 게임의 PowerActivation lifecycle 이 매 턴 자동 처리 → AI snapshot 에서 PlayerStars 누적값 그대로 보임. 추가 처리 불필요.
+
+**Skill 형태 next-turn**: catalog `vars["Stars"]` 가 이번 턴만 표시. 다음 턴 별은 별도 var field 없음 (게임 class 내부에 hardcode 된 듯).
+
+### v0.7.74 추가 handler
+
+**HIDDEN_CACHE** (B Skill, 1c):
+- 다음 턴 ★3 추가 가치
+- `3 × per-star (consumer 시 120, 아니면 30)` (cap 500)
+
+**CONVERGENCE** (S Skill, 1c):
+- 다음 턴 ★1 + ⚡1 + hand retain
+- `starValue + 400 (energy) + handCount × 80 (retain)` (cap 1200)
+
+### 게임 internal star 처리 확인
+
+Power lifecycle 이 매 턴 trigger 하는 mechanism (GENESIS / THE_SEALED_THRONE / 
+ArsenalPower 등) 은 게임 자체에서 처리. AI 의 PlayerStars snapshot 이 이미 정확.
+
+신규 next-turn star skill 추가 시 같은 패턴으로 handler 추가 필요.
+
+---
+
 ## v0.7.73 (2026-05-19)
 
 **Star chain unlock — catalog 기반 안전 재구현.**
