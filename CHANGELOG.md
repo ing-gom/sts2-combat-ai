@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.7.62 (2026-05-18)
+
+**Opportunity cost — alternative cards + runner-up delta.**
+
+### 변경
+
+DecisionLog.Entry 에 2 필드 추가:
+- `AlternativeCards`: top 3 후보 with score delta. 예:
+  `STRIKE@0=620,DEFEND@-1=480(-140),GLOW@-1=320(-300)`
+- `RunnerUpDelta`: 선택 카드 점수 - 2위 점수. 의사결정 신뢰도 지표.
+
+### NDJSON 필드
+
+```json
+"alternatives": "STRIKE@0=620,DEFEND@-1=480(-140),GLOW@-1=320(-300)",
+"runner_up_delta": 140
+```
+
+### 활용
+
+- **delta 큼 (≥ 200)**: 결정 압도적, 의문 없음
+- **delta 작음 (≤ 50)**: close-call. 다른 선택지도 거의 동가치
+- **post-game 분석**: 항상 close-call 인 결정들 → scoring 튜닝 필요 신호
+- **debug**: "왜 STRIKE 선택?" → "DEFEND 보다 140점 우위"
+
+### Vakuu 로그 (기존)
+
+기존에도 top candidates 로그 있었지만 (`[CombatAI]   top: ...`), 이제
+**영구 저장 NDJSON** 에도 포함 → post-game 분석 가능.
+
+---
+
 ## v0.7.61 (2026-05-18)
 
 **FinisherIdentifier — 현재 deck state 기준 finisher 식별.**
