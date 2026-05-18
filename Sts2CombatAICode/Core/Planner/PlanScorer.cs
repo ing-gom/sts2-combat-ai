@@ -255,6 +255,19 @@ internal static class PlanScorer
                 ? $"role({role}){roleBonus:+0;-0}"
                 : $"{comboDetail},role({role}){roleBonus:+0;-0}";
         }
+        // v0.7.61 — Finisher recognition. Identify top-3 cards in deck by
+        // estimated effective damage (state-aware). Bonus / penalty depends
+        // on whether NOW is the time to deploy the finisher (Cleanup/Burst
+        // = yes, Setup/Opening = hold).
+        var finishers = FinisherIdentifier.Identify(state);
+        int finisherBonus = FinisherIdentifier.FinisherBonus(card, finishers, planStage, raceProj);
+        if (finisherBonus != 0)
+        {
+            comboBonus += finisherBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"finisher{finisherBonus:+0;-0}"
+                : $"{comboDetail},finisher{finisherBonus:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable

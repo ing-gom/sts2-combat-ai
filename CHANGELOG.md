@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.7.61 (2026-05-18)
+
+**FinisherIdentifier — 현재 deck state 기준 finisher 식별.**
+
+기존 `DeckThroughput.CoreAttackers` 는 per-energy 효율 기반. Finisher 는
+**절대 데미지 잠재력** — 빌드 무관, 지금 deck state 에서 가장 큰 burst.
+
+### 식별 방식
+
+각 Attack 카드의 effective damage 계산:
+- Base damage + PlayerStrength bonus per hit
+- PlayerWeak 시 ×0.75
+- 적 Vuln 시 ×1.5
+- X-cost 시 hits = PlayerEnergy
+- card.Damage 이미 CardReflection 의 CalculatedDamage 반영
+
+Top-3 (min 10 dmg) 를 finisher 로 등록.
+
+### Per-card finisher bonus
+
+| Stage | Finisher 우대/페널티 |
+|---|---|
+| **Cleanup** | **+120** (지금 처치) |
+| **Burst** | **+80** |
+| Lockdown | +30 |
+| Setup | -40 (Winning) 또는 +50 (Losing — 어쩔 수 없음) |
+| Opening | -30 (보존) |
+
+### VakuuExecutor 로그
+
+```
+[CombatAI]   finishers: [KINGLY_PUNCH@hand=33, SOVEREIGN_BLADE@draw=45, PHOTON_CUT@disc=15]
+```
+
+각 finisher 위치 (hand/draw/disc) + 예상 effective damage. user 가 즉시 "다음
+turn 까지 SOVEREIGN_BLADE 뽑으면 burst 가능" 같은 판단 가능.
+
+### 동적 적응 예시
+
+- **빈 deck**: PlayerStrength=0, no Vuln → KINGLY_PUNCH 8 dmg = finisher 아님
+- **Inflame 사용 후**: Strength=2 → KINGLY_PUNCH 10 dmg = finisher 등재
+- **Bash 적용 후**: Vuln 있음 → KINGLY_PUNCH 15 dmg (×1.5) = top finisher
+
+---
+
 ## v0.7.60 (2026-05-18)
 
 **CardRole — per-card 역할 분류.**
