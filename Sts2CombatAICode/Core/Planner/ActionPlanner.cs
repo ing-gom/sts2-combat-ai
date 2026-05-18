@@ -14,6 +14,41 @@ namespace Sts2CombatAI.Planner;
 /// </summary>
 internal static class ActionPlanner
 {
+    /// <summary>
+    /// v0.7.73 — Catalog-derived star_cost lookup per card-id. Used by
+    /// EnumerateCandidates to detect when a card's snapshot-time IsPlayable
+    /// was false purely due to insufficient stars — in which case the
+    /// AnalyticalSimulator's depth-N state (with updated PlayerStars) may
+    /// have made it playable.
+    ///
+    /// Generated from scripts/cards_catalog.json (star_cost field). Update
+    /// when STS2 patches add new star-cost cards.
+    /// </summary>
+    private static readonly System.Collections.Generic.Dictionary<string, int> StarCostByCardId = new()
+    {
+        ["CARD.CLOAK_OF_STARS"] = 1,
+        ["CARD.CRESCENT_SPEAR"] = 1,
+        ["CARD.FALLING_STAR"] = 2,
+        ["CARD.GUIDING_STAR"] = 2,
+        ["CARD.METEOR_SHOWER"] = 2,
+        ["CARD.PARTICLE_WALL"] = 2,
+        ["CARD.QUASAR"] = 2,
+        ["CARD.ALIGNMENT"] = 3,
+        ["CARD.ASTRAL_PULSE"] = 3,
+        ["CARD.DYING_STAR"] = 3,
+        ["CARD.GAMMA_BLAST"] = 3,
+        ["CARD.REFLECT"] = 3,
+        ["CARD.RESONANCE"] = 3,
+        ["CARD.THE_SEALED_THRONE"] = 3,
+        ["CARD.DEVASTATE"] = 4,
+        ["CARD.THE_SMITH"] = 4,
+        ["CARD.COMET"] = 5,
+        ["CARD.NEUTRON_AEGIS"] = 5,
+        ["CARD.ROYAL_GAMBLE"] = 5,
+        ["CARD.DECISIONS_DECISIONS"] = 6,
+        ["CARD.SEVEN_STARS"] = 7,
+    };
+
     public readonly record struct PlanStep(SimCard Card, int TargetIdx, int Score, string Reason);
 
     /// <summary>
@@ -268,7 +303,22 @@ internal static class ActionPlanner
     {
         foreach (var card in state.Hand)
         {
-            if (!card.IsPlayable) continue;        // Unplayable (curse/status/conditional)
+            // v0.7.73 — IsPlayable is snapshot-time. For star-cost cards, the
+            // simulator's depth-N state may have updated PlayerStars; re-check
+            // against current state. For NON-star-cost cards, IsPlayable=false
+            // means genuinely unplayable (curse / status / conditional), so skip.
+            if (!card.IsPlayable)
+            {
+                if (StarCostByCardId.TryGetValue(card.Id ?? "", out int starCost))
+                {
+                    if (state.PlayerStars < starCost) continue;  // still insufficient
+                    // else: stars sufficient now, allow lookahead to evaluate
+                }
+                else
+                {
+                    continue;  // not a star-cost card → genuinely unplayable
+                }
+            }
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
             // v0.5 — Free*Power lets us play expensive cards over the energy budget.
             // v0.7.21 — CorruptionPower makes Skill cards combat-wide 0-cost.
