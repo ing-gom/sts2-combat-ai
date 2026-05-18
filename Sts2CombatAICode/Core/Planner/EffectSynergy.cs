@@ -1271,20 +1271,44 @@ internal static class EffectSynergy
             }
             case "CARD.FOREGONE_CONCLUSION":
             {
-                // 2 cards from draw to hand NEXT turn. Mean × 2.
-                int sum = 0;
-                foreach (var c in state.DrawPile) sum += EstimateCardPower(c, state, freeUse: false);
-                int mean = sum / state.DrawPile.Count;
-                int v = (int)(mean * 1.5);   // discount for next-turn delay
+                // v0.7.47 — Player CHOOSES 2 from draw next turn. Use top-2
+                // positives × 0.75 (next-turn delay discount).
+                if (state.DrawPile.Count == 0) { b -= 50; parts.Add("foregoneEmpty=-50"); break; }
+                var ranked = new List<int>(state.DrawPile.Count);
+                foreach (var c in state.DrawPile) ranked.Add(EstimateCardPower(c, state, freeUse: false));
+                ranked.Sort((x, y) => y.CompareTo(x));
+                int sum = 0, taken = 0;
+                foreach (int p in ranked)
+                {
+                    if (p <= 0) break;
+                    if (taken >= 2) break;
+                    sum += p; taken++;
+                }
+                int v = (int)(sum * 0.75);
                 b += v;
-                parts.Add($"foregone(mean{mean})=+{v}");
+                parts.Add($"foregoneBest{taken}*0.75=+{v}");
                 break;
             }
             case "CARD.ANOINTED":
             {
-                int v = state.DrawPile.Count > 5 ? 280 : 100;
+                // v0.7.47 — "All Rare cards from draw to hand. Exhaust."
+                // We don't have rarity at runtime, but high-EstimateCardPower
+                // values usually correlate with rare cards. Use top-3 average
+                // as proxy for "rare cards" pulled.
+                if (state.DrawPile.Count == 0) { b -= 50; parts.Add("anointedEmpty=-50"); break; }
+                var ranked = new List<int>(state.DrawPile.Count);
+                foreach (var c in state.DrawPile) ranked.Add(EstimateCardPower(c, state, freeUse: false));
+                ranked.Sort((x, y) => y.CompareTo(x));
+                int sum = 0, taken = 0;
+                foreach (int p in ranked)
+                {
+                    if (p <= 250) break;  // threshold: high-value proxy for rare
+                    if (taken >= 4) break;
+                    sum += p; taken++;
+                }
+                int v = sum > 0 ? sum : 100;  // floor 100 if no rare-proxy hits
                 b += v;
-                parts.Add($"anointed=+{v}");
+                parts.Add($"anointed(rareProxy{taken}=+{v})");
                 break;
             }
             case "CARD.WISH":
