@@ -263,6 +263,16 @@ internal static class EffectSynergy
             ApplyStormOfSteelShivs(card, state, ref b, parts);
         else if (card.Id == "CARD.SHADOW_STEP")
             ApplyShadowStepDoubleDmg(card, state, ref b, parts);
+        // v0.7.48 — Retain skill specific mechanics (batch 3/7).
+        // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
+        // RESTLESSNESS: conditional empty-hand trigger.
+        // PURITY: variable hand-exhaust value.
+        else if (card.Id == "CARD.SACRIFICE")
+            ApplySacrificeBlock(card, state, ref b, parts);
+        else if (card.Id == "CARD.RESTLESSNESS")
+            ApplyRestlessnessConditional(card, state, ref b, parts);
+        else if (card.Id == "CARD.PURITY")
+            ApplyPurityHandClean(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -3057,6 +3067,107 @@ internal static class EffectSynergy
         int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
         b += v;
         parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.48 — SACRIFICE (Necrobinder, B, 1c, Retain): "If a skeleton is
+    /// alive, gain block equal to skeleton's max HP × 2." State-dependent on
+    /// Allies collection (skeleton ally HP).
+    /// </summary>
+    private static void ApplySacrificeBlock(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Find best alive skeleton ally's max HP.
+        int bestSkeletonHp = 0;
+        foreach (var a in state.Allies)
+        {
+            if (!a.IsAlive) continue;
+            if (a.Hp > bestSkeletonHp) bestSkeletonHp = a.Hp;
+        }
+        if (bestSkeletonHp == 0)
+        {
+            // No skeleton — Retain holds it for later. Mild penalty so it
+            // doesn't surface as a leading play.
+            b -= 200;
+            parts.Add("sacrificeNoSkeleton=-200");
+            return;
+        }
+
+        // Block = skeleton max HP × 2. Sacrifice kills the skeleton — losing
+        // its damage contribution counts as opportunity cost (~150 per ally).
+        int blockGained = bestSkeletonHp * 2;
+        int v = blockGained * 30 - 150;  // 30 = BlockPerPointBonus, -150 ally loss
+        const int Cap = 1500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"sacrifice(skHp{bestSkeletonHp}x2={blockGained}block, -150ally)=+{v}");
+    }
+
+    /// <summary>
+    /// v0.7.48 — RESTLESSNESS (Shared, A, 0c, Retain): "If hand is empty,
+    /// draw 2 cards and gain 2 energy." Hand 비었을 때만 trigger. Retain
+    /// 덕분에 hand 비울 때까지 다른 카드 먼저 사용 가능.
+    /// </summary>
+    private static void ApplyRestlessnessConditional(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Count other playable cards in hand. If 0 others, this triggers NOW.
+        // Otherwise, it'll trigger later (after we play the others).
+        int otherPlayable = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            otherPlayable++;
+        }
+
+        if (otherPlayable == 0)
+        {
+            // Trigger now: draw 2 + energy 2. Big payoff.
+            const int v = 900;  // draw 2 ~400 + energy 2 ~500
+            b += v;
+            parts.Add($"restlessnessNow(emptyHand)=+{v}");
+        }
+        else
+        {
+            // Will trigger after current hand exhausted. Discount per other
+            // card waiting (each delays the trigger).
+            int v = System.Math.Max(0, 700 - otherPlayable * 100);
+            b += v;
+            parts.Add($"restlessnessLater(others{otherPlayable})=+{v}");
+        }
+    }
+
+    /// <summary>
+    /// v0.7.48 — PURITY (Shared, B, 0c, Retain): "Exhaust up to 3 hand cards.
+    /// Exhaust self." Value depends on whether hand has trash (curses/status)
+    /// or useless cards (low-value cards in a bad turn).
+    /// </summary>
+    private static void ApplyPurityHandClean(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Count curses/status in hand — primary purity targets.
+        int curses = 0;
+        int veryLowValueCards = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) curses++;
+            else
+            {
+                int v = EstimateCardPower(c, state, freeUse: false);
+                if (v <= 50) veryLowValueCards++;  // junk-tier
+            }
+        }
+        int exhausts = System.Math.Min(3, curses + veryLowValueCards);
+        if (exhausts == 0)
+        {
+            // No targets — Retain holds it for later (when we draw curses).
+            b += 50;
+            parts.Add("purityNoTargets=+50");
+            return;
+        }
+        // Each cursed/junk card exhausted = ~250 (cleared from cycling pool).
+        int v2 = exhausts * 250;
+        b += v2;
+        parts.Add($"purity(exhaust{exhausts}x250)=+{v2}");
     }
 
     /// <summary>
