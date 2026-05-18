@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.7.66 (2026-05-19)
+
+**SUMMON_FORTH (대령하라) 가치 평가 추가.**
+
+### 사용자 보고
+
+"CARD.SUMMON_FORTH 같은 카드의 가치는 어떻게 측정되고있어?"
+
+### 진단
+
+기존 처리 부분적:
+- ✅ FORGE/LORDS_BLADE 4 axes 의 BuildSynergy cross-axis (~400-600점)
+- ❌ **vars.Forge: 8 자체 가치** — CardEffectSummary 에 Forge field 없음
+- ❌ **"Sovereign Blade 어디서든 hand 로"** fetch 효과
+- ❌ Blade 부재 시 무용함 페널티
+
+### 수정
+
+`ApplySummonForthForge` handler:
+- **SovereignBladeCount == 0**: -300 (Blade 없으면 무용)
+- **Forge 8 가치**: `8 × projectedBladePlays(min 3) × 50 / 10` (Blade 활용 비례)
+- **Fetch 가치**: Blade 가 hand 에 없으면 +350 (즉시 burst access)
+
+### 영향 예시
+
+Regent Forge 빌드, 4턴 fight:
+- 이전: ~500 점 (axes 만)
+- v0.7.66: 500 + Forge(8×2×5=80) + fetch 350 = **~930 점**
+
+Blade 없는 deck (실수로 받은 SUMMON_FORTH):
+- 이전: ~400 점
+- v0.7.66: 400 - 300 = **100 점** (페널티)
+
+---
+
 ## v0.7.65 (2026-05-19)
 
 **Skill-attack linkage audit — EXPOSE + CONQUEROR specific handlers.**
