@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.37 (2026-05-18)
+
+**Self-harm trigger preview — InfernoPower / RupturePower.**
+
+HP_LOSS_SELF 카드 play 시 InfernoPower 활성 → AOE 6 자동 trigger.
+RupturePower 활성 → 영구 +1 Str trigger. 이 정보 정적 baseline 에 묻혀
+있어서 같은 HP_LOSS 카드도 Inferno/Rupture 보유 시 가치 급상승 못 봤음.
+
+### 변경
+
+`ApplySelfHarmTriggerPreview(card, state)` 신규 — HpLossAmount > 0 또는
+HP_LOSS axis 카드에서 호출. PlayerPowers 읽어서:
+- InfernoPower N → AOE 6×N × aliveCount × DamagePerPoint
+- RupturePower N → turns × 3 attacks × N × DamagePerPoint
+
+순수 현재 visible state, 미래시 X.
+
+---
+
 ## v0.7.36 (2026-05-18)
 
 **적 passive (PlatedArmor / Metallicize / Regen) RemainingTurns 통합.**
