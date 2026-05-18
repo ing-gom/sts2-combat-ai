@@ -1,5 +1,187 @@
 # Changelog
 
+## v0.7.22 (2026-05-18)
+
+**Power activation condition penalties — S+ Power cards 의 조건부 가치 인지.**
+
+### 배경
+
+PowerCatalog 가 BarricadePower 1200, EchoFormPower 1500 등 절대값 큰 점수
+부여. 하지만 다음 조건들 미충족 시 실제 활성 가치는 훨씬 낮음:
+- EchoForm 마지막 카드로 깔면 → 이번 턴 echo 0
+- Barricade 0 block → 운반할 게 없음 (다음 턴부터 활성)
+- MachineLearning 손 cap (10) → 추가 draw 못 받음
+- Cruelty Vuln 적 없고 hand 에 Vuln producer 도 없음 → +25% 부스트 안 됨
+
+기존엔 fightCtx 가 부분적으로 short-fight 만 보정. 이번 핸들러는 **board state
+specific 조건** 점수화.
+
+### 변경 (`PlanScorer.ComputePowerActivationPenalty`)
+
+PlanScorer Power branch 의 PowerCatalog credit 직후 호출. 4가지 검사:
+
+#### 1. EchoForm / Burst
+```
+energyAfter = state.PlayerEnergy - card.Cost
+playablesAfter = count(other playable cards with cost <= energyAfter or cost == 0)
+if playablesAfter == 0: penalty -= 400
+```
+첫 echo 가 다음 턴으로 deferred → 30% 가치 감산 (1500 → 1100).
+
+#### 2. Barricade
+```
+if state.PlayerBlock == 0 && !HasBlockSourceInHand(hand): penalty -= 200
+```
+운반할 block 도, 만들 카드도 없으면 1200 → 1000. 다음 턴 block 빌드 시
+활성하지만 지연.
+
+#### 3. MachineLearning
+```
+if state.Hand.Count >= 10: penalty -= 250
+```
+손 가득이면 draw 못 받아 wasted → 900 → 650.
+
+#### 4. Cruelty
+```
+if !anyVulnEnemy && !HasVulnProducerInHand(hand): penalty -= 200
+```
+Vuln 적용 못 받으면 25% 부스트 0 → 600 → 400.
+
+### 검증 (`scripts/_inspect_v0_7_22.py`)
+
+```
+=== EchoForm ===
+normal play (cards left to echo)            penalty=  +0  net=1500
+LAST card, 0 energy, 0 other plays          penalty= -400 net=1100
+0-cost echoform-class with cards            penalty=  +0  net=1500
+
+=== Barricade ===
+normal: 10 block already                    penalty=  +0  net=1200
+0 block + Defend in hand                    penalty=  +0  net=1200
+0 block + NO block cards                    penalty= -200 net=1000
+
+=== MachineLearning ===
+normal: hand 5 cards                        penalty=  +0  net=900
+nearly full: 9 cards                        penalty=  +0  net=900
+AT cap: 10 cards                            penalty= -250 net=650
+
+=== Cruelty ===
+normal: Vuln target available               penalty=  +0  net=600
+Bash in hand (Vuln producer)                penalty=  +0  net=600
+NO Vuln + NO producer (wasted now)          penalty= -200 net=400
+```
+
+### 의도
+
+- **조건부 가치 인지** — Power score 가 실제 활용도와 일치
+- **타이밍 가이드** — Barricade 는 block 카드 함께 들렸을 때 / EchoForm 은
+  energy 있을 때 우선 선택
+- **보수적 페널티** — 활성 가능성이 있으면 0 페널티 (HasBlockSource /
+  HasVulnProducer / playablesAfter > 0 등 분기로 conditions met 인지)
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_v0_7_22.py`: 4 카드 × 3 시나리오 모두 예상치.
+
+## v0.7.21 (2026-05-18)
+
+**Combat length estimator 정교화 + CORRUPTION cost-reduction + DOOM
+self-risk handler.**
+
+### 1. RemainingTurnsEstimator 정교화
+
+기존 `enemy_hp / playerDpt` clamp [1,10] 단순 모델을 다음 세 차원으로 확장:
+
+#### Effective enemy HP
+```
+eff_hp = sum(alive enemy hp + block / 2)
+```
+적 block 의 50% 만 HP-equivalent 로 카운트 (block 은 매 턴 reset/regen 되므로
+single-hit absorption 의 평균 가치).
+
+#### DoT parallel damage stream
+```
+total_dot = sum(PoisonAmount + ConstrictAmount + DoomAmount)
+total_dpt = playerDpt + total_dot
+```
+Poison/Constrict/Doom 이 매 턴 enemy HP 차감 → playerDpt 와 합산. 자해 안 하는
+독 빌드도 컴뱃 길이 단축 인지.
+
+#### EstimatePlayerDpt 확장
+- **Strength projection** — `DemonFormPower / RitualPower / ArsenalPower` 보유 시
+  미래 Strength 성장 가산. DemonForm N → +N str/turn 누적
+- **Vulnerable multiplier** — alive enemies 의 Vuln 비율에 따라 ×1.0~1.5
+  (1 of 1 → 1.5×, 1 of 2 → 1.25×)
+- **Player Weak** — outgoing damage ×0.75 (Weak 적용)
+
+#### 효과
+시나리오별 turn estimate 변화 (`scripts/_inspect_v0_7_21.py`):
+```
+boss 250hp, no buffs                                       10
+boss 250 + DemonForm 2 (str grow)                          10 (capped)
+boss 250 + Vuln (×1.5 dmg)                                 10 (capped)
+boss 250 + Poison 10/turn (DoT)                            10 (capped)
+composite: Vuln + Poison + Str 4                            6
+```
+
+Single-buff 들은 starter-vs-boss 시나리오에선 cap (10) 에 묶여 큰 차이 안 나지만
+**stack 조합 시 6 으로 단축** — Power 패시브 가치 비례 조정 ↓.
+
+### 2. CORRUPTION / global cost-reduction
+
+`CorruptionPower` (Ironclad S+): 모든 Skill 카드 combat-wide 0-cost (+ Exhaust).
+기존: 게임에서 적용되지만 시뮬레이터는 cost 그대로 차감 → 손해 시뮬.
+
+#### 변경
+- **`ActionPlanner.EnumerateCandidates`** — `state.PlayerPowers["CorruptionPower"] > 0`
+  + `card.IsSkill` 시 energy check 우회 (`corruptionFreeSkill` flag)
+- **`AnalyticalSimulator.ApplyCardPlay`** — 같은 조건에서 energy 차감 안 함
+- per-card `FreeSkillPower` counter 와 달리 persistent (decrement 안 함)
+
+#### 효과
+CORRUPTION 활성 후:
+- 3-cost Skill (e.g., GHOSTLY_ARMOR) 도 후보로 enumerated
+- depth=3 beam 이 Skill 다수-play 시나리오 평가
+- ENLIGHTENMENT (이미 처리) 와 같은 패턴
+
+### 3. DOOM self-risk handler
+
+Necrobinder `DOOM_SELF_PRODUCER` 카드 (NEUROSURGE 등 2장) — 플레이어에게 Doom
+스택 추가. 매 턴 stack 만큼 HP 차감 (enemy Doom 와 동일 메커니즘).
+
+#### 변경
+- **`SimState.PlayerDoom`** — DoomPower stack on player
+- **`StateSnapshotter`** — `creature.Powers.DoomPower` 캡쳐
+- **`AnalyticalSimulator.AdvanceTurn`** — `newPlayerHp -= state.PlayerDoom` tick
+- **`EffectSynergy.ApplyDoomSelfRisk`** 핸들러 — DOOM_SELF_PRODUCER 축 카드
+  점수에 위험 페널티
+
+#### 페널티 공식
+```
+newDoom = currentDoom + cardDoomDelta
+projectedHpLoss = newDoom × RemainingTurnsEstimator
+if projectedHpLoss > playerHp / 2:
+    penalty = clamp(-projectedHpLoss × 5, -500, 0)
+```
+
+#### 검증
+```
+low Doom + 1 added, HP 70                      penalty=  +0
+Doom 3 + 2 added (proj 5×5=25, < 35 threshold) penalty=  +0
+Doom 5 + 2 added, HP 40 (proj 7×5=35 > 20)    penalty=-175
+Doom 9 + 2 added, HP 20 (proj 11×4=44)        penalty=-220
+```
+
+낮은 Doom 은 무시, HP 의 50% 이상 위협 시 점수 페널티. Necrobinder 자해
+빌드의 한도 인지.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_v0_7_21.py`: 7 turn-estimate 시나리오 + 5 doom-risk
+  시나리오 모두 예상치.
+
 ## v0.7.20 (2026-05-18)
 
 **BuildSynergy: role_needs.json 기반 cross-axis lookup.**

@@ -33,18 +33,26 @@ internal static class AnalyticalSimulator
         // 1. Spend energy unless a Free*Power counter covers this card's type.
         // v0.5 — Free counters decrement here so subsequent depth-2 cards see the
         // updated count and don't double-consume the same free play.
+        // v0.7.21 — CorruptionPower: Skill cards cost 0 combat-wide. Persistent
+        // (no decrement); checked as a global flag on the state.
         int newFreeAttacks = next.PlayerFreeAttacks;
         int newFreeSkills = next.PlayerFreeSkills;
         int newFreePowers = next.PlayerFreePowers;
+        bool corruptionFreeSkill = card.IsSkill
+            && next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("CorruptionPower", out var corStack)
+            && corStack > 0;
         bool freeApplied =
             (card.IsAttack && newFreeAttacks > 0) ||
             (card.IsSkill && newFreeSkills > 0) ||
-            (card.IsPower && newFreePowers > 0);
+            (card.IsPower && newFreePowers > 0) ||
+            corruptionFreeSkill;
         int energy = freeApplied
             ? next.PlayerEnergy
             : System.Math.Max(0, next.PlayerEnergy - card.Cost);
-        if (freeApplied)
+        if (freeApplied && !corruptionFreeSkill)
         {
+            // Per-card counters decrement; persistent CorruptionPower doesn't.
             if (card.IsAttack) newFreeAttacks--;
             else if (card.IsSkill) newFreeSkills--;
             else if (card.IsPower) newFreePowers--;
@@ -615,6 +623,12 @@ internal static class AnalyticalSimulator
         int newPlayerWeak = System.Math.Max(0, state.PlayerWeak - 1);
         int newPlayerFrail = System.Math.Max(0, state.PlayerFrail - 1);
         int newPlayerIntangible = System.Math.Max(0, state.PlayerIntangible - 1);
+
+        // v0.7.21 — DoomPower tick on player (Necrobinder self-doom).
+        // Adds N damage to player at turn-end where N = stack. Stack persists
+        // (no decrement) — Doom only goes up.
+        if (state.PlayerDoom > 0)
+            newPlayerHp = System.Math.Max(0, newPlayerHp - state.PlayerDoom);
 
         // v0.7.12 — Player Power per-turn passives (Phase 2b). The full
         // PlayerPowers dict is consulted for persistent powers that don't have

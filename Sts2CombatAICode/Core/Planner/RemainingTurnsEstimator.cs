@@ -40,21 +40,29 @@ internal static class RemainingTurnsEstimator
     {
         if (state == null) return FallbackTurns;
 
-        int enemyHp = 0;
+        // v0.7.21 — Effective enemy HP now factors in:
+        //   • Block as ~50% of an HP slice (it absorbs once per round but
+        //     enemies reset / regen block — averages out to ~half value).
+        //   • Per-turn DoT (Poison + Constrict + Doom) is treated as a
+        //     parallel damage stream added to playerDpt downstream.
+        int effectiveEnemyHp = 0;
+        int totalDotPerTurn = 0;
         foreach (var e in state.Enemies)
         {
-            if (e.Hp <= 0) continue;   // already dead — skip
-            enemyHp += e.Hp;
+            if (e.Hp <= 0) continue;
+            effectiveEnemyHp += e.Hp + e.Block / 2;
+            totalDotPerTurn += e.PoisonAmount + e.ConstrictAmount + e.DoomAmount;
         }
-        if (enemyHp <= 0) return MinTurns;
+        if (effectiveEnemyHp <= 0) return MinTurns;
 
         int playerDpt = EstimatePlayerDpt(state);
-        // 0-dpt = Power-only opener / pure-block turn. Hand will draw attacks
-        // next turn so MaxTurns over-credits passives here — fall back to the
-        // historical static value instead.
-        if (playerDpt <= 0) return FallbackTurns;
+        int totalDpt = playerDpt + totalDotPerTurn;
+        // 0-dpt = Power-only opener / pure-block turn AND no DoT active.
+        // Hand will draw attacks next turn so MaxTurns over-credits passives
+        // here — fall back to the historical static value instead.
+        if (totalDpt <= 0) return FallbackTurns;
 
-        int estimate = enemyHp / playerDpt;
+        int estimate = effectiveEnemyHp / totalDpt;
         if (estimate < MinTurns) return MinTurns;
         if (estimate > MaxTurns) return MaxTurns;
         return estimate;
@@ -68,19 +76,63 @@ internal static class RemainingTurnsEstimator
         // from each Strength point). v0.7.11 — also add ally per-turn damage
         // (Necrobinder skeletons): each alive ally contributes its declared
         // intent damage every turn for free.
+        //
+        // v0.7.21 refinements:
+        //   • Project Strength growth from DemonFormPower / RitualPower /
+        //     ArsenalPower — these add +1 Str per turn. Use 1.5-turn lookahead
+        //     average (half of current + projected future).
+        //   • Apply Vulnerable multiplier when alive enemies have Vuln stacks
+        //     (1.5× damage). Averaged across alive enemies so multi-enemy
+        //     fights with partial Vuln coverage scale proportionally.
+        //   • Apply Weak self-debuff (player Weak → outgoing ×0.75).
         int handAttackDamage = 0;
         foreach (var c in state.Hand)
         {
             if (!c.IsAttack || c.IsCurseOrStatus) continue;
             handAttackDamage += c.TotalDamage;
         }
-        int strengthBonus = Math.Max(0, state.PlayerStrength) * 2;
+
+        // Strength growth projection — for permanent-stacking Power passives.
+        int strengthProjection = Math.Max(0, state.PlayerStrength);
+        if (state.PlayerPowers != null)
+        {
+            if (state.PlayerPowers.TryGetValue("DemonFormPower", out var df) && df > 0)
+                strengthProjection += df;        // +N already accumulated next turn
+            if (state.PlayerPowers.TryGetValue("RitualPower", out var rit) && rit > 0)
+                strengthProjection += rit / 2;   // smaller per-turn buff (Ritual is enemy variant typically)
+            if (state.PlayerPowers.TryGetValue("ArsenalPower", out var arsenal) && arsenal > 0)
+                strengthProjection += arsenal;   // Regent +1/card-generated
+        }
+        int strengthBonus = strengthProjection * 2;
+
         int allyDamage = 0;
         foreach (var ally in state.Allies)
         {
             if (!ally.IsAlive || !ally.HasAttackIntent) continue;
             allyDamage += ally.TotalIntentDamage;
         }
-        return handAttackDamage / 2 + strengthBonus + allyDamage;
+
+        int baseDpt = handAttackDamage / 2 + strengthBonus + allyDamage;
+
+        // Vulnerable multiplier — fraction of alive enemies with Vuln.
+        int aliveCount = 0, vulnCount = 0;
+        foreach (var e in state.Enemies)
+        {
+            if (e.Hp <= 0) continue;
+            aliveCount++;
+            if (e.VulnerableAmount > 0) vulnCount++;
+        }
+        if (aliveCount > 0 && vulnCount > 0)
+        {
+            // 1 of 1 → 1.5×, 1 of 2 → 1.25×, etc.
+            double vulnMul = 1.0 + 0.5 * vulnCount / aliveCount;
+            baseDpt = (int)(baseDpt * vulnMul);
+        }
+
+        // Player Weak → outgoing damage ×0.75 (rounded down per-hit in STS).
+        if (state.PlayerWeak > 0)
+            baseDpt = (int)(baseDpt * 0.75);
+
+        return baseDpt;
     }
 }

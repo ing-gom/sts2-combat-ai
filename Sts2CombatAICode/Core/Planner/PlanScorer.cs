@@ -211,6 +211,20 @@ internal static class PlanScorer
                     }
                 }
             }
+
+            // v0.7.22 — Power activation condition penalty. Some S+ Powers
+            // (EchoForm / Barricade / MachineLearning / Cruelty) have specific
+            // board-state conditions to generate value. When those aren't met,
+            // PowerCatalog's flat credit overrates the play. Penalty applied
+            // here (after PowerCatalog credit) so the net score reflects the
+            // delayed / wasted activation.
+            int activationPenalty = ComputePowerActivationPenalty(card, state);
+            if (activationPenalty != 0)
+            {
+                effect += activationPenalty;
+                details.Add($"actCond={activationPenalty}");
+            }
+
             // v0.2.6 — Energy gain context: low energy + expensive cards waiting → urgent.
             int energyBonus = EvaluateEnergyGain(card, state, w);
             if (energyBonus != 0) details.Add($"energyCtx={energyBonus}");
@@ -1640,5 +1654,105 @@ internal static class PlanScorer
         }
         sb.Append("Power");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// v0.7.22 — Penalize S+/S Power cards whose activation conditions aren't
+    /// met. PowerCatalog credits these at high absolute values (BarricadePower
+    /// 1200, EchoFormPower 1500 etc.) regardless of board state. When the
+    /// condition that makes the Power useful THIS turn / immediately is
+    /// missing, the credit is misleading.
+    ///
+    /// Each branch returns a negative score adjustment per the listed
+    /// condition. The penalties are conservative (small relative to PowerCatalog
+    /// value) so the Power is still preferred when conditions are partially
+    /// met; only the no-condition case takes a meaningful hit.
+    /// </summary>
+    private static int ComputePowerActivationPenalty(SimCard card, SimState state)
+    {
+        if (!card.IsPower) return 0;
+
+        int penalty = 0;
+        string idDerived = IdToPowerName(card.Id);
+        var apps = card.PowerApps;
+
+        // EchoFormPower / BurstPower: first N cards each turn play twice.
+        // Wasted if no cards left to play after this Power is dropped.
+        if (apps.ContainsKey("EchoFormPower") || idDerived == "EchoFormPower"
+            || apps.ContainsKey("BurstPower")  || idDerived == "BurstPower")
+        {
+            int energyAfter = state.PlayerEnergy - System.Math.Max(0, card.Cost);
+            int playablesAfter = 0;
+            for (int i = 0; i < state.Hand.Count; i++)
+            {
+                var c = state.Hand[i];
+                if (ReferenceEquals(c, card)) continue;
+                if (c.IsCurseOrStatus || !c.IsPlayable) continue;
+                if (c.Cost == 0 || c.Cost <= energyAfter) playablesAfter++;
+            }
+            if (playablesAfter == 0)
+            {
+                // No echoes this turn. First trigger deferred to next turn.
+                penalty -= 400;
+            }
+        }
+
+        // BarricadePower: block carries over. Wasted if no block this turn AND
+        // no block-generating cards in hand to feed it.
+        if (apps.ContainsKey("BarricadePower") || idDerived == "BarricadePower")
+        {
+            if (state.PlayerBlock == 0 && !HasBlockSourceInHand(state.Hand, card))
+                penalty -= 200;
+        }
+
+        // MachineLearningPower: +1 card draw per turn. Hand-cap (10) waste.
+        if (apps.ContainsKey("MachineLearningPower") || idDerived == "MachineLearningPower")
+        {
+            if (state.Hand.Count >= 10)
+                penalty -= 250;
+        }
+
+        // CrueltyPower: +25% dmg vs Vuln targets. Wasted with no Vuln AND no
+        // Vuln-producer in hand to set up.
+        if (apps.ContainsKey("CrueltyPower") || idDerived == "CrueltyPower")
+        {
+            bool anyVuln = false;
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                var e = state.Enemies[i];
+                if (e.IsAlive && e.VulnerableAmount > 0) { anyVuln = true; break; }
+            }
+            if (!anyVuln && !HasVulnProducerInHand(state.Hand, card))
+                penalty -= 200;
+        }
+
+        // TheSealedThronePower: Star per card play. Wasted if combat is over
+        // (no more plays). Less of a per-card check — fightCtx mostly covers.
+
+        return penalty;
+    }
+
+    private static bool HasBlockSourceInHand(System.Collections.Generic.IReadOnlyList<SimCard> hand, SimCard self)
+    {
+        for (int i = 0; i < hand.Count; i++)
+        {
+            var c = hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Block > 0) return true;
+            if (c.Axes != null && c.Axes.Contains("BLOCK")) return true;
+        }
+        return false;
+    }
+
+    private static bool HasVulnProducerInHand(System.Collections.Generic.IReadOnlyList<SimCard> hand, SimCard self)
+    {
+        for (int i = 0; i < hand.Count; i++)
+        {
+            var c = hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("VULN_PRODUCER")) return true;
+            if (c.PowerApps != null && c.PowerApps.ContainsKey("VulnerablePower")) return true;
+        }
+        return false;
     }
 }

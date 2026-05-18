@@ -262,10 +262,16 @@ internal static class ActionPlanner
             if (!card.IsPlayable) continue;        // Unplayable (curse/status/conditional)
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
             // v0.5 — Free*Power lets us play expensive cards over the energy budget.
+            // v0.7.21 — CorruptionPower makes Skill cards combat-wide 0-cost.
+            bool corruptionFreeSkill = card.IsSkill
+                && state.PlayerPowers != null
+                && state.PlayerPowers.TryGetValue("CorruptionPower", out var corStack)
+                && corStack > 0;
             bool freeCovers =
                 (card.IsAttack && state.PlayerFreeAttacks > 0) ||
                 (card.IsSkill && state.PlayerFreeSkills > 0) ||
-                (card.IsPower && state.PlayerFreePowers > 0);
+                (card.IsPower && state.PlayerFreePowers > 0) ||
+                corruptionFreeSkill;
             if (!freeCovers && card.Cost > state.PlayerEnergy) continue;
             // Note: star-cost cards are filtered by CanPlay() already if no stars; we trust it.
 
