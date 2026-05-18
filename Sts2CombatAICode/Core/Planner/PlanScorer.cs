@@ -221,6 +221,17 @@ internal static class PlanScorer
                 ? $"race({raceProj.Race}){raceBonus:+0;-0}"
                 : $"{comboDetail},race({raceProj.Race}){raceBonus:+0;-0}";
         }
+        // v0.7.58 — Deck quality nudge. Adjusts for polluted / bloated /
+        // heavy-cost / light deck states. Modest magnitudes.
+        var quality = DeckQuality.Compute(state);
+        int qualityBonus = DeckQuality.QualityBonus(card, quality);
+        if (qualityBonus != 0)
+        {
+            comboBonus += qualityBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"quality({quality.Health})+{qualityBonus}"
+                : $"{comboDetail},quality({quality.Health})+{qualityBonus}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable

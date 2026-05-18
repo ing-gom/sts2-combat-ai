@@ -115,6 +115,9 @@ internal static class VakuuExecutor
                     MainFile.Logger.Info(
                         $"[CombatAI]   race: {proj.Race} ttd={proj.TurnsToDeath} ttk={proj.TurnsToKill} " +
                         $"hpLoss/turn={proj.NetHpLossPerTurn} dmg/turn={proj.NetDamagePerTurn}");
+                    // v0.7.58 — Deck quality diagnostic
+                    var quality = Sts2CombatAI.Planner.DeckQuality.Compute(snapshot);
+                    MainFile.Logger.Info($"[CombatAI]   quality: {Sts2CombatAI.Planner.DeckQuality.Describe(quality)}");
                 }
 
                 var plan = ActionPlanner.PlanNextStep(snapshot);
