@@ -252,6 +252,11 @@ internal static class EffectSynergy
             ApplyDirgeXSouls(card, state, ref b, parts);
         else if (card.Id == "CARD.MODDED")
             ApplyModdedReplay(card, state, ref b, parts);
+        // v0.7.45 — PROLONG (연장, Shared, A): next turn, gain block equal to
+        // current block. EXHAUST_SELF. Pure state-dependent (PlayerBlock); the
+        // BLOCK axis alone doesn't see this since card.Block == 0.
+        else if (card.Id == "CARD.PROLONG")
+            ApplyProlongCarryover(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -1156,11 +1161,27 @@ internal static class EffectSynergy
             }
             case "CARD.PHOTON_CUT":
             case "CARD.GLIMMER":
-                // Hand → top-of-draw (deck order manipulation). Modest bonus —
-                // damage / draw already valued by base scoring.
-                b += 100;
-                parts.Add("topDeck=+100");
+            {
+                // v0.7.45 — Hand → top-of-draw scales with hand quality. Player
+                // picks the BEST hand card to top-deck, guaranteeing it as next
+                // turn's first draw. Base damage / draw already valued.
+                int bestHandScore = 0;
+                foreach (var c in state.Hand)
+                {
+                    if (ReferenceEquals(c, self)) continue;
+                    if (c.IsCurseOrStatus || !c.IsPlayable) continue;
+                    int v = EstimateCardPower(c, state, freeUse: false);
+                    if (v > bestHandScore) bestHandScore = v;
+                }
+                // Effective top-deck guarantee = ~30% of best card's value
+                // (covers "definitely drawn next turn" vs "might draw anyway")
+                // Cap at 400 so a high-cost Power doesn't make this card overpriced.
+                int bonus = System.Math.Min(400, (int)(bestHandScore * 0.30));
+                if (bonus < 100) bonus = 100;  // floor — at least the old constant
+                b += bonus;
+                parts.Add($"topDeck(bestHand={bestHandScore}*.3=+{bonus})");
                 break;
+            }
             case "CARD.ANOINTED":
             {
                 // "All Rare cards from draw pile to hand". We don't know rarity
@@ -2974,6 +2995,47 @@ internal static class EffectSynergy
         int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
         b += v;
         parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.45 — PROLONG (연장, Shared, A, 0c): "Next turn, gain block equal to
+    /// your current block. Exhaust." Pure state-dependent — credits as next-
+    /// turn block carryover at BlockPerPointBonus per current block point.
+    ///
+    /// Empty / zero-block plays self-penalize (no carryover, just exhaust loss).
+    /// Threat-aware: if next turn has no incoming damage, carryover is wasted.
+    /// </summary>
+    private static void ApplyProlongCarryover(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int currentBlock = state.PlayerBlock;
+        if (currentBlock <= 0)
+        {
+            // No block to carry. Exhausts self for no value — small penalty so
+            // AI doesn't pick this as a "free 0-cost play".
+            b -= 200;
+            parts.Add("prolongNoBlock=-200");
+            return;
+        }
+
+        // Approximate value: current block × 30 (BlockPerPointBonus). This
+        // matches how DEFEND-equivalent block is scored elsewhere.
+        const int BlockPerPoint = 30;
+        int carryValue = currentBlock * BlockPerPoint;
+
+        // Discount when next turn has no significant incoming threat. Without
+        // intent visibility into the NEXT enemy turn (current intent only),
+        // use the THIS-turn threat as a coarse proxy — if enemies are all
+        // inert or buffing now, they're often also low-threat next.
+        bool anyAttacker = false;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive && !e.IsInert && (e.HasAttackIntent || e.HasDeathBlowIntent))
+            { anyAttacker = true; break; }
+        if (!anyAttacker) carryValue = carryValue / 2;  // halve when low-threat
+
+        const int Cap = 900;
+        if (carryValue > Cap) carryValue = Cap;
+        b += carryValue;
+        parts.Add($"prolong(block{currentBlock}x30={carryValue})");
     }
 
     /// <summary>
