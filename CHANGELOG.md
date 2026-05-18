@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.7.39 (2026-05-18)
+
+**FrailPower handler — Weak 작업 잔여 처리.**
+
+v0.7.25 (Weak coverage) 직후 식별된 잔여 작업. HandSynergy 가 Vulnerable
+와 Weak 는 케이스 있는데 **Frail 은 빠져 있었음** → 모든 Frail-applying
+카드가 baseline 만 받음.
+
+### 변경
+
+```csharp
+"FrailPower" => ComputeFrailSavings(amount, state),
+```
+
+`ComputeFrailSavings(stacks, state)` 신규:
+- 각 alive non-inert 적의 per-turn block-gen = `EnemyAutoBlock(e) + DefendBlockProxy(6)`
+- 25% reduction (Frail effect) = `perTurnBlock / 4`
+- `min(stacks, remainingTurns, 4)` 만큼 누적
+- `× FrailSavingsPerBlockPoint(30)` 변환
+
+### 효과
+
+| 시나리오 | 이전 | v0.7.39 |
+|---|---:|---:|
+| PlatedArmor 8 boss, Frail 2, 6턴 fight | 0 | (8×0.25)×2 × 30 = **120** |
+| PlatedArmor 12 boss + Defend 6, Frail 3, 7턴 | 0 | ((12+6)×0.25)×3 × 30 = **360** |
+| Multi-enemy (3-block × 3 alive), Frail 2 | 0 | (3×0.25)×2×3 × 30 = **90** |
+| Block-less enemy | 0 | 0 (Frail 무용) |
+
+### 참고
+
+Vulnerable IntentRepeats 는 이미 `RemainingHits` 사용 중이라 처리됨 (v0.6).
+
+---
+
 ## v0.7.38 (2026-05-18)
 
 **Explicit hand-sequence recipes — known pair bonuses.**
