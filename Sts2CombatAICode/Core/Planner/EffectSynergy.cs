@@ -274,6 +274,14 @@ internal static class EffectSynergy
         // generic flow ignored both effects. Specific handler captures both.
         else if (card.Id == "CARD.SUMMON_FORTH")
             ApplySummonForthForge(card, state, ref b, parts);
+        // v0.7.67 — Archetype-magnitude cards: vars 에 magnitude 가 있지만
+        // CardEffectSummary 가 안 추적 → score 에서 magnitude 무시.
+        else if (card.Id == "CARD.THE_SMITH")
+            ApplyTheSmithForge30(card, state, ref b, parts);
+        else if (card.Id == "CARD.AFTERLIFE")
+            ApplySkeletonSummon6(card, state, ref b, parts, cost: 1);
+        else if (card.Id == "CARD.LEGION_OF_BONE")
+            ApplySkeletonSummon6(card, state, ref b, parts, cost: 2);
         // v0.7.48 — Retain skill specific mechanics (batch 3/7).
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
@@ -3510,6 +3518,68 @@ internal static class EffectSynergy
         int v2 = exhausts * 250;
         b += v2;
         parts.Add($"purity(exhaust{exhausts}x250)=+{v2}");
+    }
+
+    /// <summary>
+    /// v0.7.67 — THE_SMITH (Regent A, 1c): "Forge 30". Single largest one-shot
+    /// Forge in the game. CardEffectSummary doesn't extract Forge var.
+    ///
+    /// Value: Forge 30 means next Blade play deals ~30 extra. With multiple
+    /// Blade plays in combat, gains accumulate. Gated on Blade presence.
+    /// </summary>
+    private static void ApplyTheSmithForge30(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.SovereignBladeCount == 0)
+        {
+            b -= 400;
+            parts.Add("theSmithNoBlade=-400");
+            return;
+        }
+        int turns = RemainingTurnsEstimator.From(state);
+        int projectedBladePlays = System.Math.Min(4, System.Math.Max(1, turns / 2));
+        const int ForgeAmount = 30;
+        // Forge 30 distributes across plays: each play uses ~Forge/N. Conservative:
+        // first play gets bulk of the Forge effect.
+        int forgeValue = ForgeAmount * projectedBladePlays * 50 / 12;  // /12 calibration
+        const int Cap = 1800;
+        if (forgeValue > Cap) forgeValue = Cap;
+        b += forgeValue;
+        parts.Add($"theSmith(Forge30x{projectedBladePlays}={forgeValue})");
+    }
+
+    /// <summary>
+    /// v0.7.67 — Generic Skeleton Summon-N handler. AFTERLIFE / LEGION_OF_BONE
+    /// share the "summon 6 skeletons, exhaust" pattern with different costs.
+    ///
+    /// Value: each skeleton ally provides ~150 (attack + body to soak hits).
+    /// Capped at deck space + skeleton archetype synergy.
+    /// </summary>
+    private static void ApplySkeletonSummon6(SimCard self, SimState state, ref int b, List<string> parts, int cost)
+    {
+        const int SummonCount = 6;
+        const int PerSkeletonValue = 150;
+        // Check SKELETON_CONSUMER axis presence: skeletons have extra value
+        // when the deck has cards that consume / amplify them.
+        int consumers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && (c.Axes.Contains("SKELETON_CONSUMER")
+                                    || c.Axes.Contains("SKELETON_AMPLIFIER")
+                                    || c.Axes.Contains("OSTY")))
+                consumers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("SKELETON_CONSUMER")
+                                    || c.Axes.Contains("SKELETON_AMPLIFIER")
+                                    || c.Axes.Contains("OSTY")))
+                consumers++;
+
+        int v = SummonCount * PerSkeletonValue + consumers * 60;
+        const int Cap = 1500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"skeletonSummon({SummonCount}x{PerSkeletonValue}+cons{consumers}={v})");
     }
 
     /// <summary>
