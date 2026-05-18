@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.7.65 (2026-05-19)
+
+**Skill-attack linkage audit — EXPOSE + CONQUEROR specific handlers.**
+
+### 배경
+
+사용자 요청: skill 카드와 attack 연계 검증. 232 skill 중 attack 연계
+종류 분석:
+- TempStr/Dex/Vigor: HandSynergy 처리 ✓
+- VULN/WEAK/FRAIL producer: HandSynergy + BuildSynergy ✓
+- SHIV producer: 개별 handler ✓
+- Cost enabler (UNRELENTING 등): ATTACK_COST_ENABLER axis ✓
+- Lord's Blade amp: 부분 처리
+
+### 발견된 misprice 2종
+
+**EXPOSE** (Regent, A, 0c) — axes 가 VULN_PRODUCER 만, 실제 효과는
+"artifact + block 전체 제거 + Vuln 2". artifact-strip 가치 무시.
+
+`ApplyExposeStripArtifact`: `bestArtifact × 150 + bestBlock × 30` (cap 1200).
+Awakened One artifact 6 = +900. Hexaghost block phase = +block × 30.
+
+**CONQUEROR** (Regent, D, 1c) — "Forge 3 + 이번 턴 적이 Lord's Blade
+로 받는 damage 2배". Forge axis 처리되지만 2× damage 효과 미평가.
+
+`ApplyConquerorBladeDouble`: SovereignBlade 없으면 -100. 있으면 추정
+Blade damage × 0.5 × 50 (cap 800). 1턴 한정 amp.
+
+### Skill-attack 연계 검증 결과 (수정 없음 OK)
+
+| 메커니즘 | 카드 | 상태 |
+|---|---|---|
+| TemporaryStrengthPower → attack +Str | INFLAME, FLEX | HandSynergy ✓ |
+| VigorPower → next attack | TERRAFORMING, PATTER | HandSynergy ✓ |
+| Vuln applier | TREMBLE, TAUNT, PUTREFY, SHOCKWAVE | HandSynergy ✓ |
+| Weak applier | LEG_SWEEP, DEFY, MALAISE | HandSynergy + 일부 ID ✓ |
+| Shiv producer | BLADE_DANCE, BLADE_OF_INK | 개별 handler ✓ |
+| Free attack | UNRELENTING, INFERNAL_BLADE | ATTACK_COST_ENABLER ✓ |
+
+---
+
 ## v0.7.64 (2026-05-19)
 
 **Fix: RANDOM-target attack 의 단일적 상황 = deterministic.**
