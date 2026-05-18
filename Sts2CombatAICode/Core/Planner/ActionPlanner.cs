@@ -321,6 +321,14 @@ internal static class ActionPlanner
             if (isOrbEvokeOnly && state.PlayerOrbCount == 0)
                 continue;
 
+            // v0.7.42 — STAR_X_COST: card cost is 0 but the effect scales with
+            // X = stars consumed at play time (STARDUST = "deal 5 dmg X times").
+            // With PlayerStars == 0 the card resolves to X=0 → no effect → wasted
+            // slot. CanPlay() lets it through (cost=0/star_cost=0); we filter
+            // here so the AI doesn't pick a card that will evaporate.
+            if (card.Axes.Contains("STAR_X_COST") && state.PlayerStars == 0)
+                continue;
+
             switch (card.Target)
             {
                 case TargetType.AnyEnemy:
