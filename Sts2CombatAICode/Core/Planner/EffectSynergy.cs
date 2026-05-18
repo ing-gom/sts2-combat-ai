@@ -269,6 +269,11 @@ internal static class EffectSynergy
             ApplyExposeStripArtifact(card, state, ref b, parts);
         else if (card.Id == "CARD.CONQUEROR")
             ApplyConquerorBladeDouble(card, state, ref b, parts);
+        // v0.7.66 — SUMMON_FORTH (Regent C 1c): Forge 8 + fetch Sovereign
+        // Blade. vars.Forge isn't in CardEffectSummary so PlanScorer's
+        // generic flow ignored both effects. Specific handler captures both.
+        else if (card.Id == "CARD.SUMMON_FORTH")
+            ApplySummonForthForge(card, state, ref b, parts);
         // v0.7.48 — Retain skill specific mechanics (batch 3/7).
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
@@ -3505,6 +3510,61 @@ internal static class EffectSynergy
         int v2 = exhausts * 250;
         b += v2;
         parts.Add($"purity(exhaust{exhausts}x250)=+{v2}");
+    }
+
+    /// <summary>
+    /// v0.7.66 — SUMMON_FORTH (Regent, C, 1c): "Forge 8. Fetch the Sovereign
+    /// Blade (anywhere) to hand."
+    ///
+    /// Generic axis flow misses two things:
+    ///   1. vars.Forge: 8 — CardEffectSummary doesn't carve out a Forge
+    ///      field, so PlanScorer never sees the magnitude.
+    ///   2. Blade fetch — pile-to-hand mechanic. If Blade is in draw/discard/
+    ///      exhaust, this play surfaces it for immediate burst.
+    ///
+    /// Both effects gated on SovereignBlade presence anywhere; otherwise the
+    /// card is just an axis-matching skill with no payoff.
+    /// </summary>
+    private static void ApplySummonForthForge(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.SovereignBladeCount == 0)
+        {
+            // No Blade in deck — Forge stacks but nothing to upgrade, fetch
+            // has no target. The axis bonuses still credit the card (~400);
+            // strip a chunk so it isn't picked over real plays.
+            b -= 300;
+            parts.Add("summonForthNoBlade=-300");
+            return;
+        }
+
+        // Forge 8: significant Blade buff. Each Forge point ≈ +1 dmg on next
+        // Blade play. Estimate Blade plays this combat (~2-3) × 8 forge ×
+        // DamagePerPoint (50) / calibration.
+        int turns = RemainingTurnsEstimator.From(state);
+        int projectedBladePlays = System.Math.Min(3, System.Math.Max(1, turns / 2));
+        const int ForgeAmount = 8;
+        int forgeValue = ForgeAmount * projectedBladePlays * 50 / 10;
+
+        // Blade fetch: if Blade is NOT already in hand, the fetch effect
+        // adds significant immediate-access value.
+        bool bladeInHand = false;
+        foreach (var c in state.Hand)
+        {
+            if (c.Axes != null
+                && (c.Axes.Contains("LORDS_BLADE_PRODUCER")
+                    || c.Axes.Contains("LORDS_BLADE_AMPLIFIER"))
+                && c.Id != null && c.Id.Contains("SOVEREIGN_BLADE"))
+            {
+                bladeInHand = true;
+                break;
+            }
+        }
+        int fetchValue = bladeInHand ? 0 : 350;  // Blade fetched-into-hand = enabling burst
+
+        const int Cap = 1500;
+        int v = System.Math.Min(Cap, forgeValue + fetchValue);
+        b += v;
+        parts.Add($"summonForth(forge8x{projectedBladePlays}={forgeValue}+fetch{fetchValue}={v})");
     }
 
     /// <summary>
