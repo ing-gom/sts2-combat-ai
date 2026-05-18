@@ -212,6 +212,19 @@ internal static class EffectSynergy
             ApplyLethalityTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.DEMESNE")
             ApplyDemesneTickValue(card, state, ref b, parts);
+        // v0.7.31 — Cross-character impact residuals. Five high-priority
+        // Powers across multiple characters: each gates on a different state
+        // signal (turns / HP_LOSS cards / aliveEnemies / draw rate / hand size).
+        else if (card.Id == "CARD.PYRE")
+            ApplyPyreTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.INFERNO")
+            ApplyInfernoTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.AUTOMATION")
+            ApplyAutomationTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.OUTBREAK")
+            ApplyOutbreakTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.PALE_BLUE_DOT")
+            ApplyPaleBlueDotTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -2562,6 +2575,179 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"demesneTick(turns={turns}x{NetPerTurn})={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.31 — Cross-character impact Powers ───────────────────────────────
+    //
+    // Final mechanic-coverage batch. Each Power gates on a distinct signal —
+    // grouped here because they don't share a stem.
+
+    /// <summary>
+    /// v0.7.31 — PyrePower (Ironclad, B): permanent +1 energy / turn for the
+    /// rest of combat. Pure RemainingTurns scaling. Energy value ~500/point.
+    /// </summary>
+    private static void ApplyPyreTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int EnergyValue = 500;
+        const int Cap = 1500;
+        int baked = PowerCatalog.LookupSelfBuff("PyrePower");
+
+        // Pyre's value is "rest of combat" — earlier the better. -1 for cur
+        // turn cost amortisation.
+        int effTurns = System.Math.Max(0, turns - 1);
+        int tick = effTurns * EnergyValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"pyreTick(effTurns={effTurns}x{EnergyValue})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.31 — InfernoPower (Ironclad, A): HP loss event → AOE 6 dmg.
+    /// HP_LOSS cards in deck × aliveEnemies × 6 × DamagePerPoint.
+    /// </summary>
+    private static void ApplyInfernoTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int DmgPerTrigger = 6;
+        const int Cap = 1200;
+        int baked = PowerCatalog.LookupSelfBuff("InfernoPower");
+
+        int hpLossCards = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("HP_LOSS_SELF") || c.Axes.Contains("HP_LOSS")) hpLossCards++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("HP_LOSS_SELF") || c.Axes.Contains("HP_LOSS"))) hpLossCards++;
+
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0 || hpLossCards == 0)
+        {
+            b -= baked;
+            parts.Add($"infernoNoTriggerOrTarget=-{baked}");
+            return;
+        }
+
+        // Project HP-loss triggers across combat (cycle the deck).
+        int projTriggers = System.Math.Min(hpLossCards * (turns + 1) / 4, hpLossCards * 3);
+        int tick = projTriggers * aliveCount * DmgPerTrigger * 50 / 10;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"infernoTick(hpLoss={hpLossCards},alive={aliveCount},triggers~{projTriggers})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.31 — AutomationPower (Shared, A): +1 energy per 10 cards drawn.
+    /// Standard draw rate ≈ 5 cards/turn → 1 trigger per 2 turns.
+    /// </summary>
+    private static void ApplyAutomationTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int EnergyValue = 500;
+        const int Cap = 900;
+        int baked = PowerCatalog.LookupSelfBuff("AutomationPower");
+
+        // Expected energy triggers = turns × 5 cards/turn / 10
+        int triggers = (turns * 5) / 10;
+        int tick = triggers * EnergyValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"automationTick(turns={turns},triggers~{triggers})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.31 — OutbreakPower (Silent, D): every 3 Poison applications → AOE
+    /// 11 dmg. Trigger count ≈ POISON_PRODUCER plays / 3.
+    /// </summary>
+    private static void ApplyOutbreakTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int DmgPerTrigger = 11;
+        const int Cap = 900;
+        int baked = PowerCatalog.LookupSelfBuff("OutbreakPower");
+
+        int poisonProducers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("POISON_PRODUCER")) poisonProducers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("POISON_PRODUCER")) poisonProducers++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && c.Axes.Contains("POISON_PRODUCER")) poisonProducers++;
+
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) aliveCount++;
+        if (poisonProducers == 0 || aliveCount == 0)
+        {
+            b -= baked;
+            parts.Add($"outbreakNoTrigger=-{baked}");
+            return;
+        }
+
+        // Project poison applications over combat: each producer plays
+        // ~once per (5 turns / draw cycle).
+        int projApplications = poisonProducers + (poisonProducers * turns) / 4;
+        int triggers = projApplications / 3;
+        int tick = triggers * aliveCount * DmgPerTrigger * 50 / 10;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"outbreakTick(poisonProd={poisonProducers},apps~{projApplications},triggers~{triggers})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.31 — PaleBlueDotPower (Regent, B): bonus draw on 5+ card turns.
+    /// Hand size proxy: high-draw decks trigger every turn, low-draw rarely.
+    /// </summary>
+    private static void ApplyPaleBlueDotTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerDrawValue = 200;
+        const int Cap = 600;
+        int baked = PowerCatalog.LookupSelfBuff("PaleBlueDotPower");
+
+        // Check draw axis cards in deck — proxy for "5+ cards/turn" likelihood
+        int drawAxisCards = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("DRAW") || c.Axes.Contains("DRAW_CONDITIONAL")
+                || c.Axes.Contains("DRAW_ON_DRAW") || c.Axes.Contains("DRAW_AMPLIFIER"))
+                drawAxisCards++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("DRAW") || c.Axes.Contains("DRAW_AMPLIFIER")))
+                drawAxisCards++;
+
+        // Trigger rate ≈ min(1, drawAxis / 3); base 0.5 (standard 5-card turns).
+        double rate = System.Math.Min(1.0, 0.5 + drawAxisCards * 0.15);
+        int tick = (int)(turns * rate * PerDrawValue);
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"paleBlueDotTick(drawAxis={drawAxisCards},rate={rate:F2})={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────
