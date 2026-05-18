@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.7.44 (2026-05-18)
+
+**미스코어 Skill 카드 6종 handler.**
+
+사용자 요청 ("DECISIONS_DECISIONS 처럼 누락된 카드 더 있나?") → 232 skill
+카드 audit 결과 6종이 진짜 misprice:
+
+| 카드 | Tier | 누락 mechanism | Handler |
+|---|---|---|---|
+| QUADCAST | S | 상단 orb 4번 evoke | 4 × evokeValue |
+| MULTI_CAST | B | X+1번 evoke (X-cost) | (X+1) × evokeValue |
+| TEMPEST | B | X+1 Lightning channel | (X+1) × per-orb-value |
+| MALAISE | S | -X+1 energy, Weak X+1 | 350 + (X) × 200 (energy cost 차감) |
+| DIRGE | A | Skeleton 3 + Soul X+1 | 200 + (X+1) × per-soul (consumer 의존) |
+| MODDED | S | Channel + Draw + 1번 더 | (180+200) × 2 |
+
+특히:
+- **MALAISE**: 적 공격 intent 없으면 -500 페널티 (energy 낭비 검출)
+- **DIRGE**: SOUL_CONSUMER 부재면 per-soul 가치 30 (vs 120)
+- **TEMPEST/MULTI_CAST/MALAISE**: 모두 X = PlayerEnergy 로 평가
+
+### 232 skills 검사 결과 (전체)
+- 35개 ID dispatch 기존 처리
+- 6개 v0.7.44 신규 추가
+- 4개 minor (DEATHS_DOOR/CHAOS/BOUNCING_FLASK/ROYAL_GAMBLE) — axis 로 부분 처리, 만족
+- 187개 충분히 잘 처리됨 (block/draw/buff/debuff axis 로 커버)
+
+---
+
 ## v0.7.43 (2026-05-18)
 
 **DECISIONS_DECISIONS (어려운 결정) REPEAT 가치 추가.**
