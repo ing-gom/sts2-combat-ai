@@ -29,40 +29,47 @@ internal static class EnemyTurnSimulator
                 if (e.HasAttackIntent || e.HasDeathBlowIntent)
                     hits += Math.Max(1, e.IntentRepeats);
             }
+            // v0.7.83 — Buffer cancels hits before block applies. Each Buffer
+            // stack absorbs 1 incoming hit (each hit is 1 damage under Intangible).
+            int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
             // v0.7.35 — Player DoT bypasses Intangible (not "hit damage").
-            return Math.Max(0, hits - intangibleBlock) + s.PlayerBurn + s.PlayerConstrict;
+            return Math.Max(0, hitsAfterBuffer - intangibleBlock) + s.PlayerBurn + s.PlayerConstrict;
         }
 
-        int total = 0;
+        // v0.7.83 — Collect per-enemy attack damage instances so Buffer can
+        // cancel the LARGEST hits first (canonical STS Buffer behavior: negates
+        // a damage instance regardless of magnitude).
+        var dmgInstances = new System.Collections.Generic.List<int>();
         // v0.5 — incoming damage is amplified ×1.5 if the player is Vulnerable.
-        // PredictPlayerDmg used to skip this multiplier entirely, so the threat
-        // estimate undercounted damage on turns where we'd been Vulnerabled by an
-        // enemy debuff intent (Cultist's Dark Strike with Vuln rider, etc.).
-        // Pre-compute once outside the loop so per-enemy cost stays cheap.
         bool playerVulnerable = s.PlayerVulnerable > 0;
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
-            // v0.5 — DoT pre-kill: Poison + Constrict tick at start of enemy turn
-            // before any intent fires, so enemies whose DoT covers their HP die
-            // before attacking and contribute 0 threat. Burn left out because its
-            // tick timing varies between STS variants.
             int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
             if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
 
-            // Per-hit base = IntentDamage + Strength (Strength rides on every hit).
-            // Weak rounds DOWN per hit in STS — multi-hit attacks lose proportionally
-            // more — so apply ×0.75 BEFORE multiplying by IntentRepeats.
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
             if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
-            int dmg = perHit * Math.Max(1, e.IntentRepeats);
-
-            // v0.5 — Vulnerable on the player ×1.5 incoming. Applied after per-enemy
-            // Weak so the multiplier chain matches in-game order.
-            if (playerVulnerable) dmg = (int)(dmg * StatusMath.VulnerableMult);
-            total += dmg;
+            // v0.7.83 — Multi-hit attacks (IntentRepeats > 1) yield separate
+            // damage instances. Buffer absorbs ONE instance, not the whole multi-hit.
+            int repeats = Math.Max(1, e.IntentRepeats);
+            for (int r = 0; r < repeats; r++)
+            {
+                int dmg = playerVulnerable ? (int)(perHit * StatusMath.VulnerableMult) : perHit;
+                if (dmg > 0) dmgInstances.Add(dmg);
+            }
         }
+        // v0.7.83 — Buffer cancels largest instances first. Greedy + sort.
+        int bufferLeft = s.PlayerBuffer;
+        if (bufferLeft > 0 && dmgInstances.Count > 0)
+        {
+            dmgInstances.Sort((a, b) => b.CompareTo(a));
+            int absorb = Math.Min(bufferLeft, dmgInstances.Count);
+            dmgInstances.RemoveRange(0, absorb);
+        }
+        int total = 0;
+        foreach (var d in dmgInstances) total += d;
         // v0.5 — fold the end-of-turn block bonus (Metallicize + PlatedArmor) into the
         // effective block. Enemies attack AFTER our end-of-turn step adds these blocks,
         // so they cushion the leak before HP loss.
@@ -104,11 +111,14 @@ internal static class EnemyTurnSimulator
                 if (e.HasAttackIntent || e.HasDeathBlowIntent)
                     hits += Math.Max(1, e.IntentRepeats);
             }
+            // v0.7.83 — Buffer absorbs 1 hit per stack (Intangible: each hit = 1 dmg).
+            int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-            return Math.Max(0, hits - blkIntangible) + s.PlayerBurn + s.PlayerConstrict;
+            return Math.Max(0, hitsAfterBuffer - blkIntangible) + s.PlayerBurn + s.PlayerConstrict;
         }
 
-        int total = 0;
+        // v0.7.83 — Collect instances for Buffer to cancel the largest first.
+        var dmgInstances = new System.Collections.Generic.List<int>();
         bool playerVuln = s.PlayerVulnerable > 0;
         foreach (var e in s.Enemies)
         {
@@ -117,10 +127,22 @@ internal static class EnemyTurnSimulator
             if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
             if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
-            int dmg = perHit * Math.Max(1, e.IntentRepeats);
-            if (playerVuln) dmg = (int)(dmg * StatusMath.VulnerableMult);
-            total += dmg;
+            int repeats = Math.Max(1, e.IntentRepeats);
+            for (int r = 0; r < repeats; r++)
+            {
+                int dmg = playerVuln ? (int)(perHit * StatusMath.VulnerableMult) : perHit;
+                if (dmg > 0) dmgInstances.Add(dmg);
+            }
         }
+        int bufferLeft = s.PlayerBuffer;
+        if (bufferLeft > 0 && dmgInstances.Count > 0)
+        {
+            dmgInstances.Sort((a, b) => b.CompareTo(a));
+            int absorb = Math.Min(bufferLeft, dmgInstances.Count);
+            dmgInstances.RemoveRange(0, absorb);
+        }
+        int total = 0;
+        foreach (var d in dmgInstances) total += d;
         int blk = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
         // v0.7.35 — Player-side DoT bypasses block (same as PredictPlayerDmg).
         return Math.Max(0, total - blk) + s.PlayerBurn + s.PlayerConstrict;

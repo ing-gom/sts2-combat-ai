@@ -21,6 +21,41 @@ internal static class StatusMath
     public const double WeakMult = 0.75;
     public const double FrailMult = 0.75;
 
+    // v0.7.84 — Damage multiplier powers (Silent Volatile / passive).
+    public const double LethalityMult = 1.5;   // first attack/turn (single-shot)
+    public const double TrackingMult  = 2.0;   // vs Weak target (passive)
+    public const double CrueltyMult   = 1.25;  // vs Vulnerable target (passive)
+
+    /// <summary>
+    /// v0.7.84 — Apply per-target conditional damage multipliers (Tracking,
+    /// Cruelty, Lethality). Returns the multiplied damage. Lethality is
+    /// single-shot: the caller MUST gate it (first attack of the turn) by
+    /// passing <paramref name="lethalityActive"/>=true only for the first call.
+    /// </summary>
+    public static int ApplyDamageMultipliers(int damage, SimState state, bool defenderVulnerable,
+        bool defenderWeak, bool lethalityActive)
+    {
+        if (damage <= 0) return 0;
+        double v = damage;
+        if (state.PlayerTracking > 0 && defenderWeak) v *= TrackingMult;
+        if (state.PlayerCruelty > 0 && defenderVulnerable) v *= CrueltyMult;
+        if (state.PlayerLethality > 0 && lethalityActive) v *= LethalityMult;
+        return Math.Max(0, (int)Math.Floor(v));
+    }
+
+    /// <summary>
+    /// v0.7.86 — Apply card-id-specific damage adders before the multiplier
+    /// chain. Currently: AccuracyPower → +N damage per Shiv card. Returns
+    /// adjusted base damage to feed into EffectiveAttackDmg / EffectivePerEnemyTotal.
+    /// </summary>
+    public static int ApplyCardSpecificDamageBonus(int baseDamage, string? cardId, SimState state)
+    {
+        if (string.IsNullOrEmpty(cardId)) return baseDamage;
+        if (state.PlayerAccuracy > 0 && cardId == "SHIV")
+            return baseDamage + state.PlayerAccuracy;
+        return baseDamage;
+    }
+
     // v0.7.82 — Vigor-aware overload. Adds attackerVigor to the additive part
     // (same step as Strength). 0-arg legacy overload preserved below for callers
     // that don't track Vigor.
