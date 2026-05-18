@@ -243,6 +243,18 @@ internal static class PlanScorer
                 ? $"stage({planStage}){stageBonus:+0;-0}"
                 : $"{comboDetail},stage({planStage}){stageBonus:+0;-0}";
         }
+        // v0.7.60 — Card role classification + phase coherence. Tag the card
+        // as Carry/Setup/Support/Defensive/Cycler/Tech/Filler and add a
+        // coherence bonus when the role fits the current plan stage.
+        var role = CardRole.Classify(card);
+        int roleBonus = CardRole.CoherenceBonus(role, planStage);
+        if (roleBonus != 0)
+        {
+            comboBonus += roleBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"role({role}){roleBonus:+0;-0}"
+                : $"{comboDetail},role({role}){roleBonus:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable
