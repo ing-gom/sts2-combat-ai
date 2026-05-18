@@ -177,6 +177,28 @@ internal static class EffectSynergy
         else if (card.Id == "CARD.THRUMMING_HATCHET")
             ApplyThrummingHatchetChain(card, state, ref b, parts);
 
+        // v0.7.19 — B-tier 1-path coverage. 9 mechanic-bearing B-tier cards
+        // (FINISHER/BOLAS/etc.) whose value depends on hand/turn state
+        // unavailable to pure direct-stat scoring.
+        else if (card.Id == "CARD.FINISHER")
+            ApplyFinisherAttackScaling(card, state, ref b, parts);
+        else if (card.Id == "CARD.BOLAS")
+            ApplyBolasChain(card, state, ref b, parts);
+        else if (card.Id == "CARD.FOLLOW_THROUGH")
+            ApplyFollowThroughRepeat(card, state, ref b, parts);
+        else if (card.Id == "CARD.EXPECT_A_FIGHT")
+            ApplyExpectAFightEnergy(card, state, ref b, parts);
+        else if (card.Id == "CARD.SPITE")
+            ApplySpiteHpLossBonus(card, state, ref b, parts);
+        else if (card.Id == "CARD.HEADBUTT")
+            ApplyHeadbuttDeckPick(card, state, ref b, parts);
+        else if (card.Id == "CARD.REBOUND")
+            ApplyReboundSkillReclaim(card, state, ref b, parts);
+        else if (card.Id == "CARD.OUTMANEUVER")
+            ApplyOutmaneuverNextTurnEnergy(card, state, ref b, parts);
+        else if (card.Id == "CARD.SEEKER_STRIKE")
+            ApplySeekerStrikePick(card, state, ref b, parts);
+
         // Cost-enabler: UNRELENTING (next Attack 0-cost), SYNTHESIS (next Power
         // 0-cost), POUNCE (next Skill 0-cost). Combat-wide enablers (CORRUPTION,
         // ENLIGHTENMENT, BULLET_TIME) are Powers/Skills covered elsewhere.
@@ -1704,6 +1726,155 @@ internal static class EffectSynergy
         if (v > Cap) v = Cap;
         b += v;
         parts.Add($"thrummingChain(plays={futurePlays}xperPlay={perPlay}x{Discount})=+{v}");
+    }
+
+    // ─── v0.7.19 — B-tier 1-path coverage (9 cards) ────────────────────────
+
+    /// <summary>FINISHER (B, Silent, 1c 6d): 5 dmg per Attack played this turn.</summary>
+    private static void ApplyFinisherAttackScaling(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int played = state.TurnAttacksPlayed;
+        if (played <= 0) return;
+        // Card base already credits 6 × 1 = 6 dmg. Extra hits per past-played attack.
+        int extra = played;
+        int v = extra * 6 * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"finisher(prevAttacks={played}x6x{EffectScoringWeights.DamageInHand})=+{v}");
+    }
+
+    /// <summary>BOLAS (B, Shared, 0c 3d): return-to-hand at end of turn.</summary>
+    private static void ApplyBolasChain(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        int futurePlays = System.Math.Max(0, turns - 1);
+        if (futurePlays <= 0) return;
+        int perPlay = 3 * EffectScoringWeights.DamageFree + EffectScoringWeights.Cost0Bonus;
+        const double Discount = 0.5;
+        int v = (int)(futurePlays * perPlay * Discount);
+        const int Cap = 500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"bolasChain(plays={futurePlays}xperPlay={perPlay}x{Discount})=+{v}");
+    }
+
+    /// <summary>FOLLOW_THROUGH (B, Silent, 1c 7d): +1 hit if 5+ other cards in hand.</summary>
+    private static void ApplyFollowThroughRepeat(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int others = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) continue;
+            others++;
+        }
+        if (others < 5) return;
+        int v = 7 * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"followThroughRepeat(others={others})=+{v}");
+    }
+
+    /// <summary>EXPECT_A_FIGHT (B, Ironclad, 2c Skill): gain energy per Power in hand.</summary>
+    private static void ApplyExpectAFightEnergy(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int powers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus) continue;
+            if (c.IsPower) powers++;
+        }
+        if (powers <= 0) return;
+        // 1 energy per Power. Cost 2 to play, so net energy = powers - 2.
+        int v = powers * EffectScoringWeights.EnergyInHand;
+        b += v;
+        parts.Add($"expectAFight(powersInHand={powers}x{EffectScoringWeights.EnergyInHand})=+{v}");
+    }
+
+    /// <summary>SPITE (B, Ironclad, 0c 5d): +2 dmg if HP lost this combat.</summary>
+    private static void ApplySpiteHpLossBonus(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.CombatPlayerHpLossEvents <= 0) return;
+        // +2 damage when HP loss event happened. The "이번 턴" qualifier is
+        // tricky to track turn-scoped; CombatPlayerHpLossEvents > 0 is a
+        // conservative proxy (combat-wide).
+        int v = 2 * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"spiteHpLoss(+2dmg)=+{v}");
+    }
+
+    /// <summary>HEADBUTT (B, Ironclad, 1c 9d): move 1 card from discard to top of draw.</summary>
+    private static void ApplyHeadbuttDeckPick(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.DiscardPile.Count == 0) return;
+        // Player picks best card from discard → top of draw. Will be drawn
+        // next turn (small probability boost over random draw). Value =
+        // (best discard card value − pile mean) × small factor.
+        int best = 0, sum = 0, count = 0;
+        foreach (var c in state.DiscardPile)
+        {
+            if (c.IsCurseOrStatus) continue;
+            int v0 = EstimateCardPower(c, state, freeUse: false);
+            if (v0 > best) best = v0;
+            sum += v0;
+            count++;
+        }
+        if (count == 0 || best == 0) return;
+        int mean = sum / count;
+        // Top-of-draw guarantee = +1 turn earlier than random reshuffle ≈ 20% of card value differential.
+        int v = (int)((best - mean) * 0.2);
+        if (v <= 0) return;
+        b += v;
+        parts.Add($"headbuttPick(best={best},mean={mean})=+{v}");
+    }
+
+    /// <summary>REBOUND (B, Shared, 1c 9d): next Skill played goes to top of draw.</summary>
+    private static void ApplyReboundSkillReclaim(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Value = mean Skill in hand × 30% (top-of-draw 1-turn faster).
+        int sum = 0, count = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus || !c.IsSkill) continue;
+            sum += EstimateCardPower(c, state, freeUse: false);
+            count++;
+        }
+        if (count == 0) return;
+        int mean = sum / count;
+        int v = (int)(mean * 0.3);
+        b += v;
+        parts.Add($"reboundReclaim(skillMean={mean})=+{v}");
+    }
+
+    /// <summary>OUTMANEUVER (B, Shared, 1c Skill): +2 colorless energy next turn.</summary>
+    private static void ApplyOutmaneuverNextTurnEnergy(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // 2 energy next turn = 2 × EnergyInHand × NextTurn discount.
+        // Use 0.6 discount since the energy IS guaranteed (not RNG).
+        int v = (int)(2 * EffectScoringWeights.EnergyInHand * 0.6);
+        b += v;
+        parts.Add($"outmaneuverNextE(2x{EffectScoringWeights.EnergyInHand}x0.6)=+{v}");
+    }
+
+    /// <summary>SEEKER_STRIKE (B, Shared, 1c 9d): pick 1 of 3 random cards from draw pile.</summary>
+    private static void ApplySeekerStrikePick(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.DrawPile.Count == 0) return;
+        // Top-1-of-3 from draw pile → take best of 3 random samples.
+        // For simplicity, use mean ×1.4 as the order-statistic approximation
+        // (similar to v0.7.2 PoolMeans top1of3 which is ~1.4× pile mean).
+        int sum = 0, count = 0;
+        foreach (var c in state.DrawPile)
+        {
+            if (c.IsCurseOrStatus) continue;
+            sum += EstimateCardPower(c, state, freeUse: false);
+            count++;
+        }
+        if (count == 0) return;
+        int mean = sum / count;
+        int v = (int)(mean * 1.4 * 0.6);  // top-of-3 value × discount (player picks)
+        b += v;
+        parts.Add($"seekerStrikePick(drawMean={mean})=+{v}");
     }
 
     private static void ApplyNextCardCostEnabler(SimCard self, SimState state, ref int b, List<string> parts)
