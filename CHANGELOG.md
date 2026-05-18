@@ -1,5 +1,86 @@
 # Changelog
 
+## v0.7.16 (2026-05-18)
+
+**AGGRESSION turn-start hand addition — Phase 4 마무리.**
+
+### 배경
+
+v0.7.13 changelog 에서 명시적으로 "AGGRESSION 은 합성-평균 hand 모델에서
+distinguishable 안 함" 으로 미반영. 이제 (v0.7.14 Monte Carlo + v0.7.15
+MachineLearning) 으로 hand 모델이 정교해져, 1 장의 합성 카드 추가가 의미
+있는 단계.
+
+### 변경 (`AnalyticalSimulator.AdvanceTurnInternal`)
+
+`newHand = nextHand` 직후, `state.PlayerPowers["AggressionPower"]` 검사:
+
+```csharp
+if (aggStacks > 0 && state.DiscardPile.Count > 0)
+{
+    // discard 의 평균 attack 통계
+    avgDmg = mean(c.Damage * max(1, c.Hits)) for non-curse attacks
+    avgCost = mean(c.Cost) clamped >= 0
+    upgradedDmg = (int)(avgDmg * 1.3)  // +30% upgrade approx
+
+    recalled = new SimCard {
+        Id = "<aggression-recall>",
+        Kind = CardType.Attack,
+        Cost = avgCost,
+        Effect = { Damage = upgradedDmg, Hits = 1 },
+    }
+    for i in 0..aggStacks: newHand.Add(recalled)
+}
+```
+
+### 검증 (`scripts/_inspect_aggression_handrecall.py`)
+
+```
+scenario                                     avgDmg  cost  stacks
+no discard attacks                              -     -      1   (no add)
+1 Strike (6d/1c)                                7     1      1   +1×7dmg
+Strike + Bash (6d/1c + 8d/2c)                   9     1      1   +1×9dmg
+3 attacks mid-game                             11     1      1   +1×11dmg
+AGGRESSION 2 stacks                            11     1      2   +2×11dmg
+strong discard (Bludgeon/HeavyBlade/IronWave)  19     1      1   +1×19dmg
+multi-hit (Sword Boomerang 3×4d)               15     1      1   +1×15dmg
+```
+
+### 효과
+
+- AGGRESSION 활성화된 next-turn projection 시 hand 가 6 → 7 cards (MachineLearning
+  과 별개 추가)
+- 추가 카드의 damage 가 discard 의 평균 attack × 1.3 → 강한 attack 덱에서
+  더 큰 가치
+- Monte Carlo N=3 의 각 sample 마다 동일 카드 추가 (deterministic — 합성 변형)
+
+### Forward sim coverage — v0.7.16 최종
+
+| 영역 | 상태 |
+|---|---|
+| 단일턴 depth=3 beam search | ✅ |
+| 멀티턴 AdvanceTurn projection + Monte Carlo N=3 | ✅ |
+| Power 패시브 PowerCatalog 도달 (24장 fallback) | ✅ |
+| HP_LOSS producer/consumer | ✅ |
+| Self-copy chain 6장 | ✅ |
+| Skeleton ally damage + split-fire | ✅ |
+| DemonForm/Regen/Barricade per-turn passive | ✅ |
+| ReaperForm Doom on enemies | ✅ |
+| MAYHEM/STAMPEDE 실제 auto-trigger | ✅ |
+| Monte Carlo next-turn hand sampling | ✅ |
+| EchoForm next-turn 2x first-card | ✅ |
+| MachineLearning +1 hand size | ✅ |
+| **AGGRESSION turn-start hand 추가** | ✅ **v0.7.16** |
+
+### 남은 영역
+
+- CombatAdvisor 자매 모드 포트 (sim 인프라 활용 1턴 위험도 표시 MVP)
+- 게임 실플레이 검증 (사용자)
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+
 ## v0.7.15 (2026-05-18)
 
 **EchoForm / MachineLearning multi-turn 시그널 통합.**
