@@ -140,6 +140,25 @@ internal static class EffectSynergy
             ApplyHellraiserTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.JUGGLING")
             ApplyJugglingTickValue(card, state, ref b, parts);
+        // v0.7.26 — per-turn / trigger-based Power passives whose value depends
+        // on deck composition or enemy state. Same delta pattern as MAYHEM:
+        //   delta = clamp(state_derived − baked, −baked, +Cap)
+        else if (card.Id == "CARD.DARK_EMBRACE")
+            ApplyDarkEmbraceTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.VICIOUS")
+            ApplyViciousTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.ACCELERANT")
+            ApplyAccelerantTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.ENVENOM")
+            ApplyEnvenomTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.SUBROUTINE")
+            ApplySubroutineTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.PREP_TIME")
+            ApplyPrepTimeTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.STORM")
+            ApplyStormTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.TOOLS_OF_THE_TRADE")
+            ApplyToolsOfTheTradeTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -1448,6 +1467,260 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"jugglingTick(handAtkMean={mean}x{RemainingTurnsProxy}x{HitRate}={tick},baked={baked})={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.26 — Per-turn / trigger-based Power passives ─────────────────────
+    //
+    // Each handler reads state, projects expected per-turn ticks across the
+    // remaining-combat horizon, then commits a clamped delta vs the PowerCatalog
+    // baseline. Pattern intentionally mirrors MAYHEM/STAMPEDE/CALAMITY so a
+    // tuning change to one is recognizable across the others.
+
+    /// <summary>
+    /// v0.7.26 — DarkEmbracePower (Ironclad, A-tier): exhaust 시 카드 1장 draw.
+    /// Value scales with exhaust frequency proxy: in-hand EXHAUST_SELF/EXHAUST
+    /// axis cards + estimated future exhausts from deck × remaining turns.
+    /// </summary>
+    private static void ApplyDarkEmbraceTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerExhaustDraw = 200;   // approx value of a free draw
+        const int Cap = 900;
+        int baked = PowerCatalog.LookupSelfBuff("DarkEmbracePower");
+
+        int handExhausts = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("EXHAUST_SELF") || c.Axes.Contains("EXHAUST")) handExhausts++;
+        }
+        int deckExhausts = 0;
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && (c.Axes.Contains("EXHAUST_SELF") || c.Axes.Contains("EXHAUST")))
+                deckExhausts++;
+
+        // Estimate exhausts this combat: current hand (likely played) + ~30% of
+        // draw-pile exhausts per turn for remaining turns, capped at deck total.
+        int futureExhausts = handExhausts + System.Math.Min(deckExhausts, (int)(deckExhausts * 0.3 * turns));
+        int tick = futureExhausts * PerExhaustDraw;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"darkEmbraceTick(exh={handExhausts}+~{futureExhausts - handExhausts},perDraw={PerExhaustDraw})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — ViciousPower (Ironclad, B): Vuln 적용 시 1 draw. Hand 내
+    /// VULN_PRODUCER × per-vuln-draw × turns.
+    /// </summary>
+    private static void ApplyViciousTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerVulnDraw = 180;
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("ViciousPower");
+
+        int vulnProducers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("VULN_PRODUCER")) vulnProducers++;
+        }
+        int deckVulnProducers = 0;
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("VULN_PRODUCER")) deckVulnProducers++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && c.Axes.Contains("VULN_PRODUCER")) deckVulnProducers++;
+
+        // Hand producers are likely-played; deck producers spread over turns.
+        int proj = vulnProducers + (deckVulnProducers * turns) / 5;  // ~1/5 cycle per turn
+        int tick = proj * PerVulnDraw;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"viciousTick(vulnProd={vulnProducers}+deck~{deckVulnProducers}/5={proj})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — AccelerantPower (Silent, B): Poison apply 시 +1 추가 stack.
+    /// Hand 내 POISON_PRODUCER + RemainingTurns. Each producer's poison gets
+    /// +1 effective stack, worth ~PoisonPower (700) baseline / 4 stack curve.
+    /// </summary>
+    private static void ApplyAccelerantTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerPoisonProc = 120;   // +1 extra stack value (1 dmg/turn × ~5 turns × 30 per HP)
+        const int Cap = 800;
+        int baked = PowerCatalog.LookupSelfBuff("AccelerantPower");
+
+        int poisonProducers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("POISON_PRODUCER")) poisonProducers++;
+        }
+        int deckPoison = 0;
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("POISON_PRODUCER")) deckPoison++;
+
+        int proj = poisonProducers + (deckPoison * turns) / 5;
+        int tick = proj * PerPoisonProc;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"accelerantTick(poisonProd={poisonProducers}+deck~{deckPoison}/5={proj})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — EnvenomPower (Silent, C): unblocked attack 시 +1 Poison 적용.
+    /// Hand 내 attack 수 × per-attack-poison-value × turns. Discount for
+    /// "unblocked" condition (~70% of attacks land at least partially).
+    /// </summary>
+    private static void ApplyEnvenomTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerAttackPoison = 60;  // 1 poison × ~3 turn ticks × 30 per HP × 0.7 land rate
+        const int Cap = 800;
+        int baked = PowerCatalog.LookupSelfBuff("EnvenomPower");
+
+        int handAttacks = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsAttack && !c.IsCurseOrStatus) handAttacks++;
+        }
+        int deckAttacks = 0;
+        foreach (var c in state.DrawPile)
+            if (c.IsAttack && !c.IsCurseOrStatus) deckAttacks++;
+
+        // Project attacks played over remaining turns: hand-now + ~half of deck attacks per turn
+        int projAttacks = handAttacks + (deckAttacks * turns) / 3;
+        int tick = projAttacks * PerAttackPoison;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"envenomTick(handAtk={handAttacks}+deck~{deckAttacks}/3={projAttacks})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — SubroutinePower (Defect, B): Power play 시 +1 energy.
+    /// Hand + deck 내 Power card 수 × 500 (energy 단위). Self 제외 (Subroutine
+    /// 자기 자신은 trigger 안함).
+    /// </summary>
+    private static void ApplySubroutineTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int EnergyValue = 500;
+        const int Cap = 1500;
+        int baked = PowerCatalog.LookupSelfBuff("SubroutinePower");
+
+        int handPowers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsPower) handPowers++;
+        }
+        int deckPowers = 0;
+        foreach (var c in state.DrawPile)
+            if (c.IsPower) deckPowers++;
+        foreach (var c in state.DiscardPile)
+            if (c.IsPower) deckPowers++;
+
+        // Assume most deck Powers get played eventually (Powers are sticky).
+        int projPlays = handPowers + (deckPowers * 3) / 4;
+        int tick = projPlays * EnergyValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"subroutineTick(handPow={handPowers}+deck~{deckPowers}*0.75={projPlays})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — PrepTimePower (Shared, B): turn-start Vigor 4. Vigor amplifies
+    /// next attack by 4. Tick = turns × VigorValue, no deck-dependence.
+    /// </summary>
+    private static void ApplyPrepTimeTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int VigorPerTurn = 4;
+        const int DamageBonusValue = 50;   // EffectScoringWeights.DamageInHand
+        const int Cap = 600;
+        int baked = PowerCatalog.LookupSelfBuff("PrepTimePower");
+
+        // Each turn Vigor 4 amplifies first attack (or wasted if no attack
+        // played that turn). Assume ~75% of turns have a first attack.
+        const double AttackTurnRate = 0.75;
+        int tick = (int)(turns * VigorPerTurn * DamageBonusValue * AttackTurnRate);
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"prepTimeTick(turns={turns}xVigor{VigorPerTurn}x{DamageBonusValue}x{AttackTurnRate})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — StormPower (Defect, B): Power play 시 Lightning orb channel.
+    /// Hand + deck Powers × LightningOrbValue (~ 90 per channel). Self 제외.
+    /// </summary>
+    private static void ApplyStormTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        const int LightningChannelValue = 90;
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("StormPower");
+
+        int handPowers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsPower) handPowers++;
+        }
+        int deckPowers = 0;
+        foreach (var c in state.DrawPile)
+            if (c.IsPower) deckPowers++;
+        foreach (var c in state.DiscardPile)
+            if (c.IsPower) deckPowers++;
+
+        int projPlays = handPowers + (deckPowers * 3) / 4;
+        int tick = projPlays * LightningChannelValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"stormTick(handPow={handPowers}+deck~{deckPowers}*0.75={projPlays}xLtn{LightningChannelValue})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.26 — ToolsOfTheTradePower (Silent, S): turn-start draw 1, discard 1.
+    /// Tick = turns × (drawValue − discardCost). Discard cost is small for
+    /// well-tuned decks (oldest hand card culled) but real for hand-cap or
+    /// retain decks. Conservative net value 250 per turn.
+    /// </summary>
+    private static void ApplyToolsOfTheTradeTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int NetPerTurn = 250;
+        const int Cap = 1200;
+        int baked = PowerCatalog.LookupSelfBuff("ToolsOfTheTradePower");
+
+        int tick = turns * NetPerTurn;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"toolsTick(turns={turns}x{NetPerTurn}={tick},baked={baked})={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────
