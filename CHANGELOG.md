@@ -1,5 +1,375 @@
 # Changelog
 
+## v0.7.81 (2026-05-19)
+
+**근본 원인 발견 — `Id.Entry` 에 `CARD.` prefix 가 없음. dict 키 형식 수정.**
+
+### v0.7.80 진단 결과 (godot.log:893)
+
+```
+[CombatAI]   stars: player=3 hand=[VENERATE(gain=0,cost=0),
+  STRIKE_REGENT(gain=0,cost=0),FALLING_STAR(gain=0,cost=0),...]
+```
+
+핵심 발견:
+1. `sc.Id = "VENERATE"` — **`CARD.` prefix 없음**. (`$"{sc.Id}(gain=...)"` 출력)
+2. 모든 별 카드의 `gain=0, cost=0` — reflection 도 fallback 도 둘 다 fail.
+
+### 원인
+
+- `card.Id.Entry` 가 STS2 에서 `"VENERATE"` 형식 (prefix 없는 short name) 을 반환.
+- v0.7.78 의 `ThisTurnStarsGain` dict 키 = `"CARD.VENERATE"` → never match.
+- v0.7.73 의 `StarCostByCardId` dict 키 = `"CARD.FALLING_STAR"` → never match.
+- 결과: simulator 의 `newPlayerStars` propagation 0, EnumerateCandidates 가
+  FALLING_STAR 를 항상 reject → VENERATE→FALLING_STAR chain 영영 못 찾음.
+
+부가 회귀: `EffectSynergy.cs:301-310` 의 `card.Id == "CARD.X"` 하드코딩
+핸들러들도 같은 prefix 버그로 never fire. (v0.7.81 에선 별 관련만 우선 fix,
+EffectSynergy 핸들러는 별도 sweep.)
+
+### 변경
+
+1. **`CardReflection.ThisTurnStarsGain`** 키 prefix 제거:
+   ```csharp
+   ["VENERATE"] = 2, ["GLOW"] = 1, ["SHINING_STRIKE"] = 2, ...
+   ```
+2. **`ActionPlanner.StarCostByCardId`** 키 prefix 제거:
+   ```csharp
+   ["FALLING_STAR"] = 2, ["METEOR_SHOWER"] = 2, ...
+   ```
+3. **`CardReflection.ResolveStarCost`** 신설 — `SafeStarCost` reflection 이 0
+   반환 시 동일 catalog dict (`StarCostByCardId`) 로 fallback. simulator 의
+   `card.StarCost` 가 진짜 catalog 값이 되도록.
+
+### 기대 효과
+
+step 2 combat 4 (FALLING_STAR(|X) + VENERATE in hand) lookahead:
+1. VENERATE.StarsGain = 2 ✓ (dict match)
+2. simulator: `nextState.PlayerStars = 0 + 2 - 0 = 2`
+3. EnumerateCandidates(nextState): FALLING_STAR.IsPlayable=false. StarCostByCardId
+   ["FALLING_STAR"] = 2 (dict match). state.PlayerStars=2, 2<2 false → 통과.
+4. BestContinuation 평가: FALLING_STAR dmg=8 vs hp=3 → **LETHAL +5000**.
+5. VENERATE@-1=1st:~600+2nd:~5500→FALLING_STAR → bestPlan = VENERATE.
+
+### 사용자 액션
+
+게임 종료 → 다시 시작 → init 로그 `manifest=v0.7.81` 확인 → 시나리오 재현 →
+`stars: player=X hand=[VENERATE(gain=2,cost=0),FALLING_STAR(gain=0,cost=2)...]`
+로 나오면 fix 동작.
+
+---
+
+## v0.7.80 (2026-05-19)
+
+**버전 마커 + 무조건 stars 진단 — dll 로드 여부 검증.**
+
+### 사용자 보고
+
+v0.7.79 배포 후 게임 재시작했는데도 godot.log 에 `stars:` 진단 라인 없음.
+v0.7.78 fix 미발사 의심.
+
+### 진단 원인
+
+1. **init 로그가 매니페스트 버전을 안 보여줌** — `asmVer = 1.0.0.0` 은 csproj
+   `AssemblyVersion` (고정). 매니페스트 v0.7.79 와 무관하므로 로드된 dll 의
+   실제 버전 확인 불가.
+2. **v0.7.79 의 stars 진단이 조건부** — `StarsGain != 0 || StarCost != 0`
+   필터. 두 reflection 모두 0 반환 시 라인 자체가 안 찍힘 → "안 보임" 해석이
+   "안 동작" 인지 "동작했지만 모든 값 0" 인지 구별 불가.
+
+### 변경
+
+1. `MainFile.cs:52` — init 로그에 매니페스트 버전 마커 string 리터럴 추가:
+   ```csharp
+   const string ManifestVersionMarker = "v0.7.80";
+   Logger.Info($"[CombatAI] initialized (asm={asmVer}, manifest={ManifestVersionMarker}).");
+   ```
+   로그에 `manifest=v0.7.80` 보이면 새 dll 로드된 것. 다른 값이면 stale.
+
+2. `VakuuExecutor.cs:97-` — stars 진단을 **무조건** 출력 (step==0 한정):
+   ```csharp
+   if (step == 0)
+   {
+       var starParts = new List<string>();
+       foreach (var sc in snapshot.Hand)
+           starParts.Add($"{sc.Id}(gain={sc.StarsGain},cost={sc.StarCost})");
+       Logger.Info($"[CombatAI]   stars: player={...} hand=[{string.Join(",", starParts)}]");
+   }
+   ```
+   모든 카드의 (id, gain, cost) 노출. FALLING_STAR 가 `cost=0` 으로 나오면
+   SafeStarCost 실패. VENERATE 가 `gain=0` 으로 나오면 ThisTurnStarsGain
+   fallback 실패 (id 매칭 안 됨 등).
+
+### 사용자 액션
+
+게임 **완전 종료** (작업관리자에서 SlayTheSpire2.exe 프로세스 확인) → 다시
+시작 → init 로그에서 `manifest=v0.7.80` 확인 → Vakuu 시나리오 재현 →
+`stars:` 라인의 (gain, cost) 값 캡처.
+
+---
+
+## v0.7.79 (2026-05-19)
+
+**별 자원 진단 로그 — v0.7.78 fix 가 런타임에 적용되는지 검증.**
+
+### 사용자 보고
+
+v0.7.78 배포 후 재현 로그 (godot.log:967):
+
+```
+top: DEFEND_REGENT@-1=1st:2447+2nd:2312→DEFEND_REGENT=6532
+     VENERATE@-1=1st:442+2nd:2422→DEFEND_REGENT=4645
+```
+
+VENERATE 의 lookahead 2nd-best 가 **여전히 DEFEND_REGENT** (FALLING_STAR 가 아님).
+v0.7.78 의 `ThisTurnStarsGain[VENERATE]=2` fallback 이 실제로 동작하는지 불명.
+
+### 진단
+
+`VakuuExecutor` 의 `step N snapshot` 직후, 매 step 별로 hand 의 각 카드의
+실제 `StarsGain` / `StarCost` 값과 player.PlayerStars 값을 로그:
+
+```csharp
+foreach (var sc in snapshot.Hand)
+{
+    if (sc.StarsGain != 0 || sc.StarCost != 0)
+        starParts.Add($"{sc.Id}(gain={sc.StarsGain},cost={sc.StarCost})");
+}
+MainFile.Logger.Info($"[CombatAI]   stars: player={snapshot.PlayerStars} hand=[...]");
+```
+
+기대 로그 (fix 동작 시):
+```
+stars: player=0 hand=[CARD.VENERATE(gain=2,cost=0),CARD.FALLING_STAR(gain=0,cost=2)]
+```
+
+만약 VENERATE 가 `gain=0` 으로 나오면 v0.7.78 fallback 미발사 (id 매칭 실패 등).
+gain=2 인데 lookahead 가 여전히 FALLING_STAR 를 못 찾으면 다른 곳 (simulator
+propagation, EnumerateCandidates 추가 필터) 문제.
+
+### 사용자 액션
+
+**게임을 재시작** 한 후 동일 시나리오 재현해서 위 `stars:` 라인 확인 요청.
+재시작 없이는 v0.7.78 dll 이 로드되지 않아 fix 가 적용 안 됨 (Godot mod 시스템
+의 한계).
+
+---
+
+## v0.7.78 (2026-05-19)
+
+**별 chain 미발사 버그 — `CardReflection.StarsGain` extraction 누락 보완.**
+
+### 사용자 보고
+
+`step 2 snapshot: hand=[DEFEND_REGENT,VENERATE,FALLING_STAR(|X),DEFEND_REGENT] enemy hp=3 ttk=1`
+
+기대: VENERATE(+2 stars) → FALLING_STAR(d8 lethal) chain → 적 처치.
+실제: `VENERATE@-1=1st:442+2nd:2422→DEFEND_REGENT` — depth-2 lookahead 가
+2nd-best 로 **DEFEND_REGENT** 를 선택. FALLING_STAR 가 lookahead 후보에서 사라짐.
+
+### 원인 추적
+
+depth-2 lookahead 의 EnumerateCandidates(nextState) flow:
+
+1. `card.IsPlayable == false` (snapshot 시점 PlayerStars=0)
+2. `StarCostByCardId[FALLING_STAR] = 2`
+3. `state.PlayerStars < 2`? — **VENERATE 시뮬레이션 직후의 nextState.PlayerStars 값에 의존.**
+
+AnalyticalSimulator (v0.7.71):
+```csharp
+int newPlayerStars = next.PlayerStars + card.StarsGain - card.StarCost;
+```
+
+`card.StarsGain` 은 `CardEffectSummary.StarsGain` → `CardReflection.starsGain`.
+추출 분기 (line 228):
+```csharp
+else if (v.Name == "Stars") starsGain += amount;
+```
+
+→ **STS2 의 VENERATE DynamicVar 가 `Name == "Stars"` 가 아니어서 추출 실패.**
+`card.StarsGain = 0` → `newPlayerStars = 0 + 0 - 0 = 0` → FALLING_STAR
+여전히 `state.PlayerStars(0) < starCost(2)` → continue → 후보에서 제외.
+
+정황 증거: `EffectSynergy.cs:301-310` 에 GLOW/VENERATE/SHINING_STRIKE 등을
+**하드코딩**으로 `ApplyStarsGain(..., N)` 호출. 작성자가 이미 reflection
+미스매치를 알고 있었으나 EffectSynergy 한 곳만 cover 한 것.
+
+### 변경
+
+`CardReflection.cs` 에 catalog 기반 `ThisTurnStarsGain` 하드코딩 dict 추가,
+reflection 이 0 을 반환할 때만 fallback 적용:
+
+```csharp
+private static readonly Dictionary<string, int> ThisTurnStarsGain = new()
+{
+    ["CARD.GLOW"] = 1,
+    ["CARD.GATHER_LIGHT"] = 1,
+    ["CARD.RADIATE"] = 1,
+    ["CARD.VENERATE"] = 2,
+    ["CARD.SHINING_STRIKE"] = 2,
+    ["CARD.SOLAR_STRIKE"] = 1,
+    ["CARD.KNOCKOUT_BLOW"] = 5,
+    ["CARD.ROYAL_GAMBLE"] = 9,
+};
+
+// GetEffectSummary 끝에:
+if (starsGain == 0 && card?.Id.Entry is { } cardIdEntry
+    && ThisTurnStarsGain.TryGetValue(cardIdEntry, out int catalogStars))
+{
+    starsGain = catalogStars;
+}
+```
+
+**NEXT-TURN gains 제외** (HIDDEN_CACHE, CONVERGENCE) — 이번 턴에 별을
+부여하지 않는 카드는 simulator 의 this-turn FALLING_STAR unlock 용 propagation
+에서 사용하면 안 됨.
+
+### 기대 효과
+
+위 시나리오에서 simulator 의 VENERATE 시뮬레이션 → `newPlayerStars = 0+2 = 2`
+→ FALLING_STAR EnumerateCandidates 통과 → BestContinuation 평가 →
+적 hp=3 vs dmg=8 = **LETHAL +5000** → VENERATE 의 2nd-best score 가
+~5000+ 으로 점프 → bestPlan = VENERATE → 다음 step 에서 FALLING_STAR 자동
+플레이 → 처치.
+
+### 후속
+
+EffectSynergy 의 ApplyStarsGain 하드코딩과 CardReflection 의 ThisTurnStarsGain
+dict 는 **같은 catalog** 를 두 곳에서 유지. 새 별-부여 카드 추가 시 양쪽
+업데이트 필요. (장기적으로 단일 catalog 로 통합 검토.)
+
+---
+
+## v0.7.77 (2026-05-19)
+
+**Lookahead-induced AI 정지 버그 수정 — firstScore 음수가 양수를 이기지 못하도록 강제.**
+
+### v0.7.76 진단 결과
+
+step 3 재현 로그 (godot.log:880):
+
+```
+plan NULL (bestFirstScore<=0):
+  DEFEND_REGENT       (f=+2317 s=0    tot=3947)  ← 즉시 가치 +2317
+  GLOW                (f= -880 s=1880 tot=2480)
+  FOREGONE_CONCLUSION (f= -705 s=5085 tot=6000)  ← total 1위, but f<0
+```
+
+가설(`TargetType.AnyPlayer` strict 비교)은 **틀렸음**. DEFEND_REGENT 의
+firstScore 는 +2317 로 멀쩡했다. 실제 원인은 depth-2 lookahead total 비교
+로직 결함.
+
+### 버그 시나리오
+
+`PlanNextStep` 의 `wins` 판정 (v0.5 ~ v0.7.76):
+```csharp
+bool wins = total > bestTotal
+         || (total == bestTotal && firstScore > bestFirstScore);
+```
+
+순회 진행:
+1. DEFEND_REGENT 평가 → bestTotal=3947, bestFirstScore=+2317 ✓
+2. FOREGONE_CONCLUSION 평가 → tot=6000 > 3947 → **WIN!**
+   bestFirstScore=-705
+
+→ floor check (line 261): `-705 < 80` 진입.
+→ 0-cost 검색: 후보 중 0-cost 없음.
+→ v0.7.40 fallback `if (bestFirstScore > 0)` → -705 ≤ 0 → **return null**.
+
+결과: DEFEND_REGENT 가 +2317 로 충분히 양수였는데, FOREGONE 의 **lookahead
+가짜 점수**(s=5085, 미래에 플레이할 카드들의 가치) 가 DEFEND 의 진짜
+즉시 가치를 덮어버렸다.
+
+핵심: planner 는 **first card 만** 이번 step 에 플레이한다 (다음 step
+에서 re-snapshot 후 재평가). 따라서 첫 카드가 즉시 손해(음수)인데
+lookahead 만 좋다고 그 카드를 골라서는 안 된다.
+
+### 변경
+
+`ActionPlanner.PlanNextStep` 의 tie-break 규칙에 **hard rule** 추가:
+
+```csharp
+bool wins;
+if (firstScore >= 0 && bestFirstScore < 0) wins = true;      // 양수가 음수를 무조건 이긴다
+else if (firstScore < 0 && bestFirstScore >= 0) wins = false; // 음수는 양수를 절대 못 이긴다
+else
+    wins = total > bestTotal
+        || (total == bestTotal && firstScore > bestFirstScore);
+```
+
+- 부호 다른 후보끼리 비교 시 lookahead total 무시 → first 카드 즉시 가치 우선.
+- 부호 같은 경우 (둘 다 양수 / 둘 다 음수) 기존 total 비교 유지.
+- 모두 음수: floor 가 정상 동작 → return null (의도된 forfeit).
+
+### 기대 효과
+
+위 시나리오에서 DEFEND_REGENT(+2317) 가 FOREGONE_CONCLUSION(-705) 을 누르고
+bestPlan 으로 확정 → bestFirstScore=2317 > 80 floor → DEFEND 플레이.
+
+다른 경우에도 lookahead 가 즉시 음수 카드를 인위적으로 부각시키는 일이 없음.
+
+### 후속
+
+v0.7.76 의 score-dump 진단(`plan NULL (bestFirstScore<=0)`) 은 유지 —
+다른 lookahead 관련 회귀가 발생하면 즉시 노출되도록.
+
+---
+
+## v0.7.76 (2026-05-19)
+
+**Score-dump 진단 — bestFirstScore ≤ 0 으로 plan NULL 반환 시 후보별 점수 로그.**
+
+### 사용자 보고 (v0.7.75 후속)
+
+v0.7.75 진단 배포 후 재현 로그:
+
+```
+step 3 snapshot: player[hp=33 block=0 energy=1] status=[AtkT:2]
+  hand=[DEFEND_REGENT(S1/b5),GLOW(S1),FOREGONE_CONCLUSION(S1)]
+  enemies=[Creature(hp=9/b0 Atk6+Buff threat=Critical)]
+step 3 no playable card, stopping
+```
+
+`candidates EMPTY despite hand:` 진단 라인 **없음** → candidates 는 비어있지
+않았는데 모든 후보의 `bestFirstScore ≤ 0` 이어서 v0.7.40 fallback (`> 0`) 마저
+탈락 → `return null`.
+
+즉, DEFEND_REGENT(b5) 가 에너지 1로 충분히 플레이 가능하고 적이 6 공격 예정인데도
+점수가 0 이하로 떨어졌다는 뜻.
+
+### 가설 (검증 대상)
+
+`PlanScorer.cs` 의 threatBonus / residual 계산은 `card.Target == TargetType.Self`
+**strict** 비교를 사용. 그러나 STS2 의 멀티플레이어-ready defensive 카드는
+`TargetType.AnyPlayer` 일 가능성. 그러면 threatBonus +2000 / neutralize bonus
+미발사 → 점수 폭락.
+
+(`HandSynergy.cs:81` 과 `AnalyticalSimulator.cs:257-258` 은 이미 `Self ||
+AnyPlayer` 처리. PlanScorer.cs:1086,1094,1112 만 strict.)
+
+### 변경
+
+`ActionPlanner.PlanNextStep` — `bestPlan` 존재하지만 `bestFirstScore ≤ 0` 으로
+return null 직전, `LastCandidates` 의 모든 entry 를 `LastEmptyReason` 에 dump:
+
+```
+[CombatAI] plan NULL (bestFirstScore<=0): 
+  CARD.DEFEND_REGENT(f=-300 s=120 tot=-180) 
+  CARD.GLOW(f=-50 s=80 tot=30)
+  ...
+```
+
+VakuuExecutor 가 plan null 시 `LastEmptyReason` 을 그대로 로그 출력하므로,
+재현 1회로 모든 후보의 firstScore / secondScore / total 가 노출됨.
+
+### 다음 단계
+
+재현 로그 기반 fix 후보 (v0.7.77):
+- `IsSelfTargetedTarget` 헬퍼를 PlanScorer 1086/1094/1112 에 적용 (가설 맞으면)
+- aggregate 페널티 stack 검토 (가설 틀리면)
+
+---
+
 ## v0.7.75 (2026-05-19)
 
 **Filter diagnostic — "no playable card" 원인 진단 로그.**

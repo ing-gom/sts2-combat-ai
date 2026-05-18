@@ -24,29 +24,31 @@ internal static class ActionPlanner
     /// Generated from scripts/cards_catalog.json (star_cost field). Update
     /// when STS2 patches add new star-cost cards.
     /// </summary>
+    // v0.7.81 — Keys are unprefixed Id.Entry values. v0.7.73 used "CARD." prefix and
+    // never matched (verified by v0.7.80 stars diagnostic showing sc.Id = "FALLING_STAR").
     private static readonly System.Collections.Generic.Dictionary<string, int> StarCostByCardId = new()
     {
-        ["CARD.CLOAK_OF_STARS"] = 1,
-        ["CARD.CRESCENT_SPEAR"] = 1,
-        ["CARD.FALLING_STAR"] = 2,
-        ["CARD.GUIDING_STAR"] = 2,
-        ["CARD.METEOR_SHOWER"] = 2,
-        ["CARD.PARTICLE_WALL"] = 2,
-        ["CARD.QUASAR"] = 2,
-        ["CARD.ALIGNMENT"] = 3,
-        ["CARD.ASTRAL_PULSE"] = 3,
-        ["CARD.DYING_STAR"] = 3,
-        ["CARD.GAMMA_BLAST"] = 3,
-        ["CARD.REFLECT"] = 3,
-        ["CARD.RESONANCE"] = 3,
-        ["CARD.THE_SEALED_THRONE"] = 3,
-        ["CARD.DEVASTATE"] = 4,
-        ["CARD.THE_SMITH"] = 4,
-        ["CARD.COMET"] = 5,
-        ["CARD.NEUTRON_AEGIS"] = 5,
-        ["CARD.ROYAL_GAMBLE"] = 5,
-        ["CARD.DECISIONS_DECISIONS"] = 6,
-        ["CARD.SEVEN_STARS"] = 7,
+        ["CLOAK_OF_STARS"] = 1,
+        ["CRESCENT_SPEAR"] = 1,
+        ["FALLING_STAR"] = 2,
+        ["GUIDING_STAR"] = 2,
+        ["METEOR_SHOWER"] = 2,
+        ["PARTICLE_WALL"] = 2,
+        ["QUASAR"] = 2,
+        ["ALIGNMENT"] = 3,
+        ["ASTRAL_PULSE"] = 3,
+        ["DYING_STAR"] = 3,
+        ["GAMMA_BLAST"] = 3,
+        ["REFLECT"] = 3,
+        ["RESONANCE"] = 3,
+        ["THE_SEALED_THRONE"] = 3,
+        ["DEVASTATE"] = 4,
+        ["THE_SMITH"] = 4,
+        ["COMET"] = 5,
+        ["NEUTRON_AEGIS"] = 5,
+        ["ROYAL_GAMBLE"] = 5,
+        ["DECISIONS_DECISIONS"] = 6,
+        ["SEVEN_STARS"] = 7,
     };
 
     public readonly record struct PlanStep(SimCard Card, int TargetIdx, int Score, string Reason);
@@ -244,8 +246,21 @@ internal static class ActionPlanner
             // second=200 vs B first=600 second=600) prefer the candidate with higher
             // immediate value. Resolves the case where iteration order alone determined
             // the winner of equal-total candidates.
-            bool wins = total > bestTotal
-                     || (total == bestTotal && firstScore > bestFirstScore);
+            //
+            // v0.7.77 — Hard rule: a candidate with negative firstScore must NEVER
+            // beat a candidate with non-negative firstScore, regardless of total.
+            // The first card is the only one we actually play this step; a high
+            // lookahead total can't justify spending energy on a NOW-hurts move.
+            // Observed bug: FOREGONE_CONCLUSION(f=-705 tot=6000) beat
+            // DEFEND_REGENT(f=2317 tot=3947) under Critical threat, then floor
+            // tripped (bestFirstScore=-705) and the AI stopped with playable
+            // defense in hand.
+            bool wins;
+            if (firstScore >= 0 && bestFirstScore < 0) wins = true;
+            else if (firstScore < 0 && bestFirstScore >= 0) wins = false;
+            else
+                wins = total > bestTotal
+                    || (total == bestTotal && firstScore > bestFirstScore);
             if (wins)
             {
                 bestTotal = total;
@@ -289,6 +304,18 @@ internal static class ActionPlanner
             if (bestFirstScore > 0)
                 return bestPlan;
 
+            // v0.7.76 — Candidates were non-empty but every first-card score
+            // bottomed out at ≤ 0. Dump per-candidate (firstScore, secondScore,
+            // total, bestNextId) so we can diagnose which scoring layer is
+            // dragging the score down (most likely culprit: threatBonus not
+            // firing for AnyPlayer-targeted defends, or aggregate penalties
+            // overrunning legitimate value).
+            {
+                var sb = new System.Text.StringBuilder("[CombatAI] plan NULL (bestFirstScore<=0): ");
+                foreach (var t in LastCandidates)
+                    sb.Append($"{t.id}(f={t.firstScore} s={t.secondScore} tot={t.total}) ");
+                LastEmptyReason = sb.ToString();
+            }
             return null;  // genuinely no positive play
         }
 
