@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.7.29 (2026-05-18)
+
+**Forge stem Power passives — 5 handlers (Regent Lord's Blade).**
+
+| Power | Tier | Scaling factor |
+|---|---|---|
+| FurnacePower | C | turns × PerForgeValue (blade 부재: 차감) |
+| HammerTimePower | A | turns × forgeRate × PartyForgeValue |
+| SeekingEdgePower | C | turns × Forge + (alive enemies − 1) × AOE bonus |
+| SwordSagePower | C | blade plays × extra-hit bonus |
+| ParryPower | C | blade plays × 10 block × 30 |
+
+핵심 gate: **SovereignBladeCount == 0 시 baseline 차감**. Lord's Blade 없는
+deck 에서 Forge stem 무의미.
+
+---
+
 ## v0.7.28 (2026-05-18)
 
 **Star stem Power passives — 5 handlers (Regent archetype).**
