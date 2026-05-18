@@ -45,18 +45,32 @@ internal static class RemainingTurnsEstimator
         //     enemies reset / regen block — averages out to ~half value).
         //   • Per-turn DoT (Poison + Constrict + Doom) is treated as a
         //     parallel damage stream added to playerDpt downstream.
+        // v0.7.36 — Enemy auto-block + regen as DPT drag:
+        //   • PlatedArmorPower / MetallicizePower → block gained every enemy
+        //     turn (block resets each player turn but Barricade keeps it).
+        //     Adds to effective HP we have to chew through.
+        //   • RegenPower → HP gain every enemy turn — subtracts from net DPT.
+        //   • Visible determinism, not future-sim: stacks already on creature.
         int effectiveEnemyHp = 0;
         int totalDotPerTurn = 0;
+        int enemyAutoBlockPerTurn = 0;
+        int enemyRegenPerTurn = 0;
         foreach (var e in state.Enemies)
         {
             if (e.Hp <= 0) continue;
             effectiveEnemyHp += e.Hp + e.Block / 2;
             totalDotPerTurn += e.PoisonAmount + e.ConstrictAmount + e.DoomAmount;
+            enemyAutoBlockPerTurn += EnemyAutoBlock(e);
+            enemyRegenPerTurn += EnemyRegen(e);
         }
         if (effectiveEnemyHp <= 0) return MinTurns;
 
         int playerDpt = EstimatePlayerDpt(state);
-        int totalDpt = playerDpt + totalDotPerTurn;
+        // Auto-block drag: each enemy turn, ~autoBlock points of our damage
+        // get absorbed. Subtract from net DPT (clamped non-negative).
+        // Regen drag: each enemy turn, regen HP gets added back.
+        int netDpt = Math.Max(0, playerDpt - enemyAutoBlockPerTurn - enemyRegenPerTurn);
+        int totalDpt = netDpt + totalDotPerTurn;
         // 0-dpt = Power-only opener / pure-block turn AND no DoT active.
         // Hand will draw attacks next turn so MaxTurns over-credits passives
         // here — fall back to the historical static value instead.
@@ -66,6 +80,31 @@ internal static class RemainingTurnsEstimator
         if (estimate < MinTurns) return MinTurns;
         if (estimate > MaxTurns) return MaxTurns;
         return estimate;
+    }
+
+    /// <summary>
+    /// v0.7.36 — Enemy's automatic block-per-turn from passive Powers.
+    /// PlatedArmor + Metallicize add fixed block at turn end; Barricade keeps
+    /// it from resetting. Visible from SimEnemy.Powers dict.
+    /// </summary>
+    public static int EnemyAutoBlock(SimEnemy e)
+    {
+        if (e.Powers == null) return 0;
+        int v = 0;
+        if (e.Powers.TryGetValue("PlatedArmorPower", out var pa)) v += pa;
+        if (e.Powers.TryGetValue("MetallicizePower", out var mt)) v += mt;
+        // Backline / Crimson Mantle style fixed block grant — generic catch-all
+        // for the most common per-turn block powers.
+        return v;
+    }
+
+    /// <summary>
+    /// v0.7.36 — Enemy's automatic HP regen per turn. Visible state.
+    /// </summary>
+    public static int EnemyRegen(SimEnemy e)
+    {
+        if (e.Powers == null) return 0;
+        return e.Powers.TryGetValue("RegenPower", out var r) ? r : 0;
     }
 
     private static int EstimatePlayerDpt(SimState state)
