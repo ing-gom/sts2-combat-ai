@@ -1,5 +1,96 @@
 # Changelog
 
+## v0.7.13 (2026-05-18)
+
+**ReaperForm Doom on enemies + MAYHEM/STAMPEDE 실제 AdvanceTurn 발화.**
+
+### ReaperForm Doom — Necrobinder doom 빌드 완성
+
+이전: REAPER_FORM 의 PowerCatalog 800 baseline 만 점수화. 실제 enemy 누적
+Doom 데미지는 simulator 에서 안 보임. doom 빌드 (REAPER_FORM + DOOM_CONSUMER)
+의 컴뱃 길이 단축 미반영.
+
+**변경**:
+
+- **`SimEnemy.DoomAmount`** 신규 필드. 누적 Doom 스택.
+- **`AnalyticalSimulator.ApplyCardPlay`** attack 분기:
+  - `state.PlayerPowers["ReaperFormPower"]` active + attack damage > 0 일 때
+  - 명중한 enemy 의 `DoomAmount += reaperStacks × max(1, card.Hits)`
+  - 멀티-hit 카드는 hit 별 스택 (3-hit 공격 = +3 Doom)
+- **`AnalyticalSimulator.AdvanceTurn`** enemy DoT 루프:
+  - 기존 `Poison + Constrict` → `Poison + Constrict + Doom`
+  - Doom 은 self-decrement 없음 (Poison 처럼 stack 유지)
+
+### MAYHEM / STAMPEDE 실제 발화
+
+이전: PowerCatalog + EffectSynergy 가 score 보너스만 줌. AdvanceTurn 에서
+실제 auto-play 효과 미반영. 다음 턴 enemy HP 가 잘못 계산됨.
+
+**변경** (`AnalyticalSimulator.AdvanceTurn` 새 블록):
+
+```
+mayhemStacks + stampedeStacks = autoTriggers
+if autoTriggers > 0:
+    avgAuto = MakeAverageDrawCard(state)   # 합성 평균 draw 카드
+    perDmg = avgAuto.IsAttack ? avgAuto.TotalDamage : 0
+    totalDmg = perDmg × autoTriggers
+    apply to weakest alive enemy (block-first)
+```
+
+- MAYHEM 1 stack + STAMPEDE 1 stack → 2 auto-trigger 발화
+- 합성 평균 attack 카드의 데미지를 약한 적에 적용
+- 비-attack 평균 카드의 경우 데미지 0 (block/draw 가치는 별도)
+
+### AGGRESSION 미반영 이유
+
+AGGRESSION 의 turn-start 효과 = "random Attack from discard → hand".
+- 우리의 next-turn hand 는 5 장의 synthetic average card 로 모델링됨
+- 여기 1 장 더해도 평균에 묻혀 distinguishable 안 함
+- 이미 v0.7.4 의 EffectSynergy bonus 로 적절히 credited
+- 본 패스에서 추가 시뮬은 의도적으로 미반영
+
+### 검증 (`scripts/_inspect_v0_7_13.py`)
+
+```
+ReaperForm Doom (HP 50, 3 turn ticks):
+  reaper=0 hits=1 → doom=0,  HP after = 50
+  reaper=1 hits=1 → doom=1,  HP after = 47
+  reaper=1 hits=3 → doom=3,  HP after = 41
+  reaper=2 hits=1 → doom=2,  HP after = 44
+  reaper=3 hits=4 → doom=12, HP after = 14
+
+MAYHEM/STAMPEDE auto-trigger:
+  m=0 s=0 → HP unchanged
+  m=1 s=0 avgDmg=12 → 40 HP → 28 HP
+  m=1 s=1 → 40 HP → 16 HP (24 damage)
+  m=2 s=0 → 40 HP → 16 HP
+  m=1 s=0 with 15 block → block absorbs (40 HP → 40, block 15 → 3)
+  m=3 s=0 avgDmg=30 over-dmg → 30 HP → 0 (kill)
+```
+
+### Forward sim coverage — v0.7.13 후
+
+| 영역 | 상태 |
+|---|---|
+| Power 패시브 (S/A/B/C/D) PowerCatalog 도달 | ✅ v0.7.7 |
+| HP_LOSS producer/consumer | ✅ v0.7.7/v0.7.8 |
+| 단일턴 depth=3 beam search | ✅ v0.7.9 |
+| 멀티턴 AdvanceTurn projection | ✅ v0.7.10 |
+| Self-copy chain 6장 | ✅ v0.7.11 |
+| Skeleton ally damage contribution | ✅ v0.7.11 |
+| Skeleton split-fire defense | ✅ v0.7.12 |
+| DemonForm/Regen/Barricade per-turn passive | ✅ v0.7.12 |
+| **ReaperForm Doom on enemies** | ✅ **v0.7.13** |
+| **MAYHEM/STAMPEDE 실제 auto-trigger** | ✅ **v0.7.13** |
+| AGGRESSION turn-start hand addition | ⊘ EffectSynergy credit only |
+| Monte Carlo draw RNG | ❌ Phase 2c |
+| EchoForm hand mutation | ❌ Phase 4 |
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_v0_7_13.py`: 11 시나리오 모두 예상.
+
 ## v0.7.12 (2026-05-18)
 
 **Phase 3c — Skeleton split-fire defense. Phase 2b — Player Powers
