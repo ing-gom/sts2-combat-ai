@@ -30,6 +30,15 @@ internal static class HandSynergy
                                                           // mis-orderings.
     private const int WeakSavingsPerHpPoint    = 30;     // score per HP of enemy damage prevented
     private const int WeakSavingsTurnCap       = 2;      // future turns to count
+    // v0.6.8 — RagePower (Ironclad RAGE): +N block per attack played this turn,
+    // for the rest of the turn. Total expected block = N × (remaining attacks
+    // in hand). Same beneficiary-count pattern as Dexterity, but the per-card
+    // bonus is "block per attack" not "block per block-skill".
+    private const int RageSynergyPerAttack     = 30;     // block point per attack × amount
+    // v0.6.9 — FocusPower (Defect): each orb-evoking/channeling card in hand
+    // gets +N damage/block when Focus is N. Each orb application (channel
+    // start, passive tick, evoke) reads Focus at trigger time.
+    private const int FocusSynergyPerOrbCard   = 80;     // approximate per-card payoff × amount
 
     /// <summary>
     /// Bonus added to a power-apply's value based on hand composition.
@@ -52,6 +61,11 @@ internal static class HandSynergy
         int remainingSelfBlocks = state.Hand.Count(c =>
             !ReferenceEquals(c, self) && c.IsSkill && c.Block > 0
             && (c.Target == TargetType.Self || c.Target == TargetType.AnyPlayer));
+        // v0.6.9 — orb-card beneficiaries: anything that channels OR evokes
+        // benefits from Focus stacks at trigger time.
+        int remainingOrbCards = state.Hand.Count(c =>
+            !ReferenceEquals(c, self) && c.IsPlayable
+            && (c.ChannelCount > 0 || c.EvokeCount > 0));
 
         // Subtract the single beneficiary the depth-2 lookahead will independently
         // credit. Negative-clamp so a hand with 0–1 beneficiaries returns 0.
@@ -78,6 +92,24 @@ internal static class HandSynergy
             // enemies lose proportionally more damage than the flat estimate.
             // Enemy-state-based — not subject to the hand-card lookahead double-count.
             "WeakPower" => ComputeWeakSavings(amount, state),
+
+            // v0.6.8 — RagePower. Block per attack played for the rest of this turn.
+            // Beneficiaries = attacks still in hand (past attacks don't retroactively
+            // benefit — RagePower applies forward only). Subtract 1 to stay
+            // consistent with the depth-2 lookahead double-count correction.
+            "RagePower" => System.Math.Max(0, remainingAttacks - 1) * amount * RageSynergyPerAttack,
+
+            // v0.6.9 — FocusPower (Defect). Beneficiaries = orb cards (channel
+            // or evoke) still playable. Permanent Focus persists across turns
+            // so even small in-hand orb count is high value.
+            "FocusPower"          => System.Math.Max(0, remainingOrbCards - 1) * amount * FocusSynergyPerOrbCard,
+            "TemporaryFocusPower" => System.Math.Max(0, remainingOrbCards - 1) * amount * FocusSynergyPerOrbCard,
+
+            // v0.6.9 — VigorPower (TERRAFORMING etc.): next attack +N damage,
+            // single-shot. Beneficiary = 1 attack in hand (the next one played).
+            // PowerCatalog already values Vigor ~250 for stack; HandSynergy
+            // adds a per-shot scaling when an attack is queued.
+            "VigorPower" => remainingAttacks > 0 ? amount * 50 : -100,
 
             _ => 0,
         };

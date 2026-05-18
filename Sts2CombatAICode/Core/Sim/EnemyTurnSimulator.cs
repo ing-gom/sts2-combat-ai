@@ -66,7 +66,82 @@ internal static class EnemyTurnSimulator
         // effective block. Enemies attack AFTER our end-of-turn step adds these blocks,
         // so they cushion the leak before HP loss.
         int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-        return Math.Max(0, total - effectivePlayerBlock);
+        int rawLeak = Math.Max(0, total - effectivePlayerBlock);
+
+        // v0.7.12 — ally split-fire absorption (Necrobinder skeletons).
+        // Allies share the aggro with the player: per-leak point, the chance
+        // of landing on an ally is approximately #allies / (1 + #allies),
+        // capped at the allies' combined HP. Reduces the threat we surface
+        // to the planner / survival-urgency math.
+        int allyAbsorbed = ComputeAllyAbsorption(s, rawLeak);
+        return rawLeak - allyAbsorbed;
+    }
+
+    /// <summary>
+    /// v0.7.12 — Pre-block raw leak (post-block, pre-ally-absorption). Used by
+    /// AdvanceTurn so the simulator knows how much damage is *available* to
+    /// distribute between player and allies before they actually share it.
+    /// </summary>
+    public static int PredictRawLeak(SimState s)
+    {
+        // Mirror of PredictPlayerDmg without the ally-absorption tail. The
+        // duplication is intentional — both call paths must stay in lockstep,
+        // and inlining is cheaper than a flag parameter.
+        if (s.PlayerIntangible > 0)
+        {
+            int hits = 0;
+            foreach (var e in s.Enemies)
+            {
+                if (!e.IsAlive) continue;
+                int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+                if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
+                if (e.HasAttackIntent || e.HasDeathBlowIntent)
+                    hits += Math.Max(1, e.IntentRepeats);
+            }
+            int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+            return Math.Max(0, hits - blkIntangible);
+        }
+
+        int total = 0;
+        bool playerVuln = s.PlayerVulnerable > 0;
+        foreach (var e in s.Enemies)
+        {
+            if (!e.IsAlive) continue;
+            int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
+            if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
+            int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
+            if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
+            int dmg = perHit * Math.Max(1, e.IntentRepeats);
+            if (playerVuln) dmg = (int)(dmg * StatusMath.VulnerableMult);
+            total += dmg;
+        }
+        int blk = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+        return Math.Max(0, total - blk);
+    }
+
+    /// <summary>
+    /// v0.7.12 — How much of <paramref name="rawLeak"/> alive allies will soak
+    /// before it reaches the player. Heuristic: aggro is split evenly among
+    /// player + alive allies, capped at combined ally HP. Returns 0 when no
+    /// allies are alive or leak is zero.
+    /// </summary>
+    public static int ComputeAllyAbsorption(SimState s, int rawLeak)
+    {
+        if (rawLeak <= 0) return 0;
+        int aliveAllies = 0;
+        int totalAllyHp = 0;
+        foreach (var a in s.Allies)
+        {
+            if (!a.IsAlive) continue;
+            aliveAllies++;
+            totalAllyHp += a.Hp;
+        }
+        if (aliveAllies == 0) return 0;
+
+        // Absorption fraction = allies / (1 + allies). 1 ally → 50%, 2 → 67%, 3 → 75%.
+        double absorption = aliveAllies / (1.0 + aliveAllies);
+        int pool = (int)(rawLeak * absorption);
+        return Math.Min(pool, totalAllyHp);
     }
 
     public static int CountIncomingAttackers(SimState s) =>

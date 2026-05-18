@@ -75,6 +75,13 @@ internal static class AnalyticalSimulator
         bool playerWeak = next.PlayerWeak > 0;
         bool playerFrail = next.PlayerFrail > 0;
 
+        // v0.7.9 — Self-damage on play. Cards expose HpLoss via CardEffectSummary
+        // (BLOODLETTING 3, OFFERING 6, HEMOKINESIS 2 etc.). Subtract before any
+        // turn-resolution math so subsequent depth-N candidates see the lower HP
+        // and the HpLoss penalty band in EstimateCardPower fires correctly.
+        if (card.HpLossAmount > 0)
+            newPlayerHp = System.Math.Max(0, newPlayerHp - card.HpLossAmount);
+
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
         if (card.IsPower)
         {
@@ -179,7 +186,20 @@ internal static class AnalyticalSimulator
                 int newPoison = enemy.PoisonAmount;
                 int newConstrict = enemy.ConstrictAmount;
                 int newBurn = enemy.BurnAmount;
+                int newDoom = enemy.DoomAmount;
                 int artifactLeft = enemy.ArtifactAmount;
+
+                // v0.7.13 — REAPER_FORM applies DoomPower stack on every attack
+                // hit. Add 1 stack per hit (multi-hit attacks apply multiple
+                // stacks). Artifact does NOT intercept self-buff-driven debuffs
+                // (Doom is added on hit, not via a debuff PowerVar).
+                if (next.PlayerPowers != null
+                    && next.PlayerPowers.TryGetValue("ReaperFormPower", out var reaperStacks)
+                    && reaperStacks > 0
+                    && card.Damage > 0)
+                {
+                    newDoom += reaperStacks * System.Math.Max(1, card.Hits);
+                }
                 foreach (var (powerName, amount) in card.PowerApps)
                 {
                     if (!IsEnemyDebuff(powerName)) continue;
@@ -210,6 +230,7 @@ internal static class AnalyticalSimulator
                     PoisonAmount = newPoison,
                     ConstrictAmount = newConstrict,
                     BurnAmount = newBurn,
+                    DoomAmount = newDoom,
                     ArtifactAmount = artifactLeft,
                     HardenedShellRemaining = shellLeft,
                 });
@@ -413,6 +434,346 @@ internal static class AnalyticalSimulator
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,
+        };
+    }
+
+    /// <summary>
+    /// v0.7.10 (Forward Sim Phase 2a) — Advance state to the next player turn.
+    /// Combines (a) end-of-turn block bonuses, (b) enemy intent resolution
+    /// (damage applied through block, leak to HP), (c) enemy turn-start buffs +
+    /// DoT ticks, (d) per-turn status decrement (Vuln/Weak/Frail/Intangible -1
+    /// for both sides + Poison -1), (e) player block reset, (f) energy reset to
+    /// base 3, (g) synthetic next-turn hand from current deck pool.
+    ///
+    /// Approximations (Phase 2a):
+    ///   • PredictPlayerDmg used directly for the lump leak (block consumed
+    ///     atomically). Per-hit accounting deferred.
+    ///   • Energy resets to a flat 3. Per-character base + EnergyNextTurnPower
+    ///     / Pyre / Berserk bonuses not folded in (no SimState field).
+    ///   • Barricade / Calipers not modeled — block always resets fully.
+    ///   • Hand draw uses one synthetic average card duplicated × 5
+    ///     (matches AnalyticalSimulator's intra-turn draw model).
+    /// </summary>
+    public static SimState AdvanceTurn(SimState state)
+        => AdvanceTurnInternal(state, BuildSyntheticHand(state, ComputeNextTurnHandSize(state)));
+
+    /// <summary>
+    /// v0.7.14 (Phase 2c) — AdvanceTurn variant whose next-turn hand is drawn
+    /// via Monte Carlo sampling from the actual deck pool (DrawPile +
+    /// DiscardPile) rather than 5× synthetic average cards. Lets the planner
+    /// evaluate "what if I draw a Strike heavy hand next turn" vs "what if
+    /// I draw a defensive hand" — variance the synthetic average smooths out.
+    ///
+    /// Caller is responsible for averaging scores across N samples for noise
+    /// reduction (ActionPlanner uses N=3).
+    /// </summary>
+    public static SimState AdvanceTurnSampled(SimState state, System.Random rng)
+        => AdvanceTurnInternal(state, BuildSampledHand(state, ComputeNextTurnHandSize(state), rng));
+
+    /// <summary>
+    /// v0.7.15 — Next-turn hand size. STS2 default = 5, plus
+    /// <c>MachineLearningPower</c> stacks ("at start of turn, draw +1 card per
+    /// stack"). Used by both synthetic and sampled hand builders so the
+    /// multi-turn projection correctly inflates Machine Learning's value.
+    /// </summary>
+    private const int BaseNextTurnHandSize = 5;
+    private static int ComputeNextTurnHandSize(SimState state)
+    {
+        int size = BaseNextTurnHandSize;
+        if (state.PlayerPowers != null
+            && state.PlayerPowers.TryGetValue("MachineLearningPower", out var ml)
+            && ml > 0)
+        {
+            size += ml;
+        }
+        return size;
+    }
+
+    /// <summary>
+    /// Synthetic next-turn hand: handSize copies of the pile's average card.
+    /// Kept as the default <see cref="AdvanceTurn"/> behavior — deterministic,
+    /// noise-free, suitable for non-Monte-Carlo callers.
+    /// </summary>
+    private static System.Collections.Generic.List<SimCard> BuildSyntheticHand(SimState state, int handSize)
+    {
+        var hand = new System.Collections.Generic.List<SimCard>();
+        if (state.DrawPile.Count + state.DiscardPile.Count > 0)
+        {
+            var avg = MakeAverageDrawCard(state);
+            for (int i = 0; i < handSize; i++) hand.Add(avg);
+        }
+        return hand;
+    }
+
+    /// <summary>
+    /// Monte Carlo next-turn hand: <paramref name="handSize"/> distinct cards
+    /// drawn uniformly without replacement from <c>DrawPile + DiscardPile</c>.
+    /// Fisher–Yates partial shuffle keeps the sample O(handSize) rather than
+    /// O(pile-size). Returns the full pool when it's smaller than handSize.
+    /// </summary>
+    private static System.Collections.Generic.List<SimCard> BuildSampledHand(
+        SimState state, int handSize, System.Random rng)
+    {
+        var hand = new System.Collections.Generic.List<SimCard>(handSize);
+        int poolSize = state.DrawPile.Count + state.DiscardPile.Count;
+        if (poolSize == 0) return hand;
+
+        if (poolSize <= handSize)
+        {
+            foreach (var c in state.DrawPile) hand.Add(c);
+            foreach (var c in state.DiscardPile) hand.Add(c);
+            return hand;
+        }
+
+        // Copy combined pool into a mutable array, then Fisher–Yates the
+        // first `handSize` indices. Cheaper than a full shuffle.
+        var copy = new SimCard[poolSize];
+        int w = 0;
+        foreach (var c in state.DrawPile) copy[w++] = c;
+        foreach (var c in state.DiscardPile) copy[w++] = c;
+        for (int i = 0; i < handSize; i++)
+        {
+            int j = i + rng.Next(poolSize - i);
+            (copy[i], copy[j]) = (copy[j], copy[i]);
+            hand.Add(copy[i]);
+        }
+        return hand;
+    }
+
+    private static SimState AdvanceTurnInternal(SimState state, System.Collections.Generic.List<SimCard> nextHand)
+    {
+        // (a)+(b) Resolve enemy intents — PredictPlayerDmg already factors
+        // block (incl. EOT bonus), Vulnerable on player, Weak on enemies, and
+        // Intangible cap.
+        //
+        // v0.7.12 — split the raw post-block leak between player and allies
+        // (skeleton split-fire defense). Allies take the absorption pool
+        // proportional to their Hp share; overflow returns to player.
+        int rawLeak = EnemyTurnSimulator.PredictRawLeak(state);
+        int allyAbsorbed = EnemyTurnSimulator.ComputeAllyAbsorption(state, rawLeak);
+        int playerLeak = rawLeak - allyAbsorbed;
+        int newPlayerHp = System.Math.Max(0, state.PlayerHp - playerLeak);
+
+        // v0.7.11 — Ally attacks fire after player turn ends but before
+        // enemy intents resolve (in practice STS2 allies act on the player's
+        // EOT). Their damage applies to the weakest live enemy each turn.
+        // Block-absorbed-first matches enemy attack handling.
+        int totalAllyDmg = 0;
+        foreach (var ally in state.Allies)
+        {
+            if (!ally.IsAlive || !ally.HasAttackIntent) continue;
+            totalAllyDmg += ally.TotalIntentDamage;
+        }
+        // Apply ally damage to weakest live enemy (single-target heuristic).
+        int weakestIdx = -1;
+        int weakestHp = int.MaxValue;
+        for (int i = 0; i < state.Enemies.Count; i++)
+        {
+            var e = state.Enemies[i];
+            if (!e.IsAlive) continue;
+            if (e.Hp < weakestHp) { weakestHp = e.Hp; weakestIdx = i; }
+        }
+
+        // (c) Enemies: turn-start Strength gain (Ritual etc.), DoT ticks, and
+        // per-turn debuff decrement on the enemy itself.
+        var newEnemies = new System.Collections.Generic.List<SimEnemy>(state.Enemies.Count);
+        for (int idx = 0; idx < state.Enemies.Count; idx++)
+        {
+            var e = state.Enemies[idx];
+            if (!e.IsAlive) { newEnemies.Add(e); continue; }
+            var ne = e;
+
+            // Apply ally damage to weakest enemy (block-first).
+            if (idx == weakestIdx && totalAllyDmg > 0)
+            {
+                int newBlock = System.Math.Max(0, ne.Block - totalAllyDmg);
+                int leakToEnemy = System.Math.Max(0, totalAllyDmg - ne.Block);
+                ne = ne with { Block = newBlock, Hp = System.Math.Max(0, ne.Hp - leakToEnemy) };
+            }
+            if (e.HasTurnStartStrengthBuff)
+                ne = ne with { StrengthAmount = ne.StrengthAmount + 1 };
+
+            // DoT ticks (Poison + Constrict + Doom). Burn timing varies — left out.
+            // v0.7.13 — DoomPower from REAPER_FORM ticks alongside other DoT.
+            int dotTick = ne.PoisonAmount + ne.ConstrictAmount + ne.DoomAmount;
+            if (dotTick > 0)
+                ne = ne with { Hp = System.Math.Max(0, ne.Hp - dotTick) };
+
+            ne = ne with
+            {
+                VulnerableAmount = System.Math.Max(0, ne.VulnerableAmount - 1),
+                WeakAmount       = System.Math.Max(0, ne.WeakAmount - 1),
+                FrailAmount      = System.Math.Max(0, ne.FrailAmount - 1),
+                PoisonAmount     = System.Math.Max(0, ne.PoisonAmount - 1),
+                Block            = 0, // enemies' block also resets each turn
+            };
+            newEnemies.Add(ne);
+        }
+
+        // (d) Player status decrement.
+        int newPlayerVuln = System.Math.Max(0, state.PlayerVulnerable - 1);
+        int newPlayerWeak = System.Math.Max(0, state.PlayerWeak - 1);
+        int newPlayerFrail = System.Math.Max(0, state.PlayerFrail - 1);
+        int newPlayerIntangible = System.Math.Max(0, state.PlayerIntangible - 1);
+
+        // v0.7.12 — Player Power per-turn passives (Phase 2b). The full
+        // PlayerPowers dict is consulted for persistent powers that don't have
+        // a dedicated SimState field. Each adds its turn-start effect on top
+        // of what's already credited via PowerCatalog scoring.
+        int newPlayerStr = state.PlayerStrength;
+        int newPlayerHpAfterPassives = newPlayerHp;
+        bool barricadeActive = false;
+        if (state.PlayerPowers != null && state.PlayerPowers.Count > 0)
+        {
+            // DemonFormPower N → +N Strength every turn-start.
+            if (state.PlayerPowers.TryGetValue("DemonFormPower", out var df) && df > 0)
+                newPlayerStr += df;
+            // RegenPower N → restore N HP at turn-start (capped by absolute heal).
+            if (state.PlayerPowers.TryGetValue("RegenPower", out var rg) && rg > 0)
+                newPlayerHpAfterPassives += rg;
+            // BarricadePower → block carries over instead of resetting.
+            if (state.PlayerPowers.TryGetValue("BarricadePower", out var brc) && brc > 0)
+                barricadeActive = true;
+            // ReaperFormPower 는 ApplyCardPlay 의 attack 분기에서 적 DoomAmount 누적
+            // (v0.7.13). 여기서는 별도 처리 없음 — AdvanceTurn 의 enemy DoT loop 가
+            // PoisonAmount + ConstrictAmount + DoomAmount 합산해 tick.
+        }
+
+        // (e)+(f) Block reset (unless Barricade) + energy reset (flat 3 base).
+        int newPlayerBlock = barricadeActive ? state.PlayerBlock : 0;
+        const int BaseTurnEnergy = 3;
+
+        // (g) New hand from deck pool — provided by caller. Caller picks
+        // synthetic-avg (BuildSyntheticHand, default AdvanceTurn) or Monte
+        // Carlo sampling (BuildSampledHand, AdvanceTurnSampled).
+        // Existing hand is conceptually discarded — we don't track which
+        // cards survive via Ethereal exhaust / Retain (Phase 2a simplification).
+        var newHand = nextHand;
+
+        // v0.7.16 — AGGRESSION turn-start hand addition. The Power recalls a
+        // random Attack from the discard pile (upgraded for one turn) per
+        // stack. Synthesize the recalled card as an "average attack" from the
+        // discard with a +30% damage boost approximating the temporary upgrade.
+        if (state.PlayerPowers != null
+            && state.PlayerPowers.TryGetValue("AggressionPower", out var aggStacks)
+            && aggStacks > 0
+            && state.DiscardPile.Count > 0)
+        {
+            int totalDmg = 0, count = 0;
+            int totalCost = 0;
+            foreach (var c in state.DiscardPile)
+            {
+                if (!c.IsAttack || c.IsCurseOrStatus) continue;
+                totalDmg += c.Damage * System.Math.Max(1, c.Hits);
+                totalCost += System.Math.Max(0, c.Cost);
+                count++;
+            }
+            if (count > 0)
+            {
+                int avgDmg = (int)(totalDmg / (double)count * 1.3); // +30% upgrade
+                int avgCost = System.Math.Max(0, totalCost / count);
+                var recalled = new SimCard
+                {
+                    Id = "<aggression-recall>",
+                    Cost = avgCost,
+                    Kind = CardType.Attack,
+                    Target = TargetType.AnyEnemy,
+                    SourceRef = null,
+                    Effect = new CardEffectSummary
+                    {
+                        Damage = avgDmg,
+                        Hits = 1,
+                    },
+                    IsPlayable = true,
+                };
+                for (int i = 0; i < aggStacks; i++) newHand.Add(recalled);
+            }
+        }
+
+        int newDrawPileSize = System.Math.Max(0, state.DrawPileSize + state.DiscardPileSize - newHand.Count);
+        int newDiscardPileSize = 0;
+
+        // v0.7.13 — MAYHEM / STAMPEDE turn-start auto-play. Each stack auto-
+        // plays a card (MAYHEM: top of draw pile, STAMPEDE: random Attack from
+        // draw). Both modeled as free-use damage from the synthetic average
+        // draw card landing on the weakest alive enemy.
+        //
+        // v0.7.16 — AGGRESSION 의 hand-addition 효과는 위쪽 newHand 빌드 직후
+        // 처리됨 (discard pile 의 평균 attack +30% upgrade 를 합성해 nextHand
+        // 에 추가). MAYHEM/STAMPEDE 와 달리 enemy 데미지가 아닌 next-turn
+        // hand 옵션 증가 — 별도 코드 경로.
+        int mayhemStacks = 0, stampedeStacks = 0;
+        if (state.PlayerPowers != null)
+        {
+            state.PlayerPowers.TryGetValue("MayhemPower", out mayhemStacks);
+            state.PlayerPowers.TryGetValue("StampedePower", out stampedeStacks);
+        }
+        int autoTriggers = mayhemStacks + stampedeStacks;
+        if (autoTriggers > 0)
+        {
+            var avgAuto = MakeAverageDrawCard(state);
+            int perTriggerDmg = avgAuto.IsAttack ? avgAuto.TotalDamage : 0;
+            int totalAutoDmg = perTriggerDmg * autoTriggers;
+            if (totalAutoDmg > 0)
+            {
+                int wIdx = -1; int wHp = int.MaxValue;
+                for (int i = 0; i < newEnemies.Count; i++)
+                {
+                    if (!newEnemies[i].IsAlive) continue;
+                    if (newEnemies[i].Hp < wHp) { wHp = newEnemies[i].Hp; wIdx = i; }
+                }
+                if (wIdx >= 0)
+                {
+                    var t = newEnemies[wIdx];
+                    int blkAfter = System.Math.Max(0, t.Block - totalAutoDmg);
+                    int leakToE = System.Math.Max(0, totalAutoDmg - t.Block);
+                    newEnemies[wIdx] = t with
+                    {
+                        Block = blkAfter,
+                        Hp = System.Math.Max(0, t.Hp - leakToE),
+                    };
+                }
+            }
+        }
+
+        // v0.7.12 — distribute allyAbsorbed across alive allies proportional
+        // to their HP share. Allies whose Hp drops to 0 become inert (dead).
+        var newAllies = new System.Collections.Generic.List<SimAlly>(state.Allies.Count);
+        if (allyAbsorbed > 0)
+        {
+            int totalAllyHp = 0;
+            foreach (var a in state.Allies) if (a.IsAlive) totalAllyHp += a.Hp;
+            foreach (var a in state.Allies)
+            {
+                if (!a.IsAlive) { newAllies.Add(a); continue; }
+                // Each ally absorbs in proportion to its HP share.
+                int share = totalAllyHp > 0
+                    ? (int)((long)allyAbsorbed * a.Hp / totalAllyHp)
+                    : 0;
+                int newHp = System.Math.Max(0, a.Hp - share);
+                newAllies.Add(a with { Hp = newHp });
+            }
+        }
+        else
+        {
+            newAllies.AddRange(state.Allies);
+        }
+
+        return state with
+        {
+            PlayerHp = newPlayerHpAfterPassives,
+            PlayerBlock = newPlayerBlock,
+            PlayerEnergy = BaseTurnEnergy,
+            PlayerStrength = newPlayerStr,
+            PlayerVulnerable = newPlayerVuln,
+            PlayerWeak = newPlayerWeak,
+            PlayerFrail = newPlayerFrail,
+            PlayerIntangible = newPlayerIntangible,
+            Enemies = newEnemies,
+            Allies = newAllies,
+            Hand = newHand,
+            DrawPileSize = newDrawPileSize,
+            DiscardPileSize = newDiscardPileSize,
         };
     }
 

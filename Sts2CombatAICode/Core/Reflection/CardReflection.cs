@@ -109,6 +109,7 @@ internal static class CardReflection
         try
         {
             int damage = 0, block = 0, hits = 1, energyGain = 0, drawCount = 0;
+            int strengthDown = 0, heal = 0, maxHp = 0, hpLoss = 0;
             bool hasCalcDamage = false, hasCalcBlock = false;
             Dictionary<string, int>? powerApps = null;
 
@@ -167,6 +168,22 @@ internal static class CardReflection
                     if (amount > 0) hits = amount;
                     continue;
                 }
+                // v0.6.9 — CalculatedFocus (SYNCHRONIZE: orb-variety × 2 → TempFocus).
+                // The card applies TemporaryFocusPower with the calculated amount,
+                // not as a PowerVar<T>. Surface it as TemporaryFocusPower so the
+                // FocusPower HandSynergy/PowerCatalog paths fire.
+                if (typeName == "CalculatedVar" && v.Name == "CalculatedFocus")
+                {
+                    if (amount > 0)
+                    {
+                        powerApps ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                        if (powerApps.TryGetValue("TemporaryFocusPower", out var ex))
+                            powerApps["TemporaryFocusPower"] = ex + amount;
+                        else
+                            powerApps["TemporaryFocusPower"] = amount;
+                    }
+                    continue;
+                }
                 if (v is EnergyVar) { energyGain += amount; continue; }
                 if (v is CardsVar) { drawCount += amount; continue; }
 
@@ -195,6 +212,33 @@ internal static class CardReflection
                         powerApps[v.Name] = existing + amount;
                     else
                         powerApps[v.Name] = amount;
+                    continue;
+                }
+
+                // v0.6.7 — plain DynamicVar by name: StrengthLoss (DARK_SHACKLES /
+                // PIERCING_WAIL / ENFEEBLING_TOUCH / etc.) and Heal (NOT_YET / SPUR).
+                // Neither uses PowerVar so they'd otherwise be invisible to scoring.
+                if (typeName == "DynamicVar")
+                {
+                    if (v.Name == "StrengthLoss" || v.Name == "EnemyStrengthLoss") strengthDown += amount;
+                    else if (v.Name == "Heal") heal += amount;
+                    else if (v.Name == "MaxHp") maxHp += amount;     // v0.6.9 — BRIGHTEST_FLAME, FEED
+                    else if (v.Name == "HpLoss") hpLoss += amount;   // v0.7.8 — BLOODLETTING, OFFERING, HEMOKINESIS
+                    // v0.6.8 — RAGE applies RagePower with stack = DynamicVar("Power", N).
+                    // Not a PowerVar<T> in the catalog (Rage.cs uses
+                    // `PowerCmd.Apply<RagePower>(creature, DynamicVars["Power"].BaseValue, ...)`)
+                    // so we promote it to PowerApps here so HandSynergy / PowerCatalog
+                    // pipelines see RagePower:N. Card-id gated to avoid colliding
+                    // with other generic "Power" vars (Power-type cards' own stacks
+                    // are already covered by PowerCatalog id-derived lookup).
+                    else if (v.Name == "Power" && card.Id.Entry == "CARD.RAGE")
+                    {
+                        powerApps ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                        if (powerApps.TryGetValue("RagePower", out var ex))
+                            powerApps["RagePower"] = ex + amount;
+                        else
+                            powerApps["RagePower"] = amount;
+                    }
                     continue;
                 }
             }
@@ -259,6 +303,10 @@ internal static class CardReflection
                 DrawCount = drawCount,
                 PowerApps = (IReadOnlyDictionary<string, int>?)powerApps
                             ?? CardEffectSummary.Empty.PowerApps,
+                StrengthDownAmount = strengthDown,
+                HealAmount = heal,
+                MaxHpAmount = maxHp,
+                HpLossAmount = hpLoss,
             };
         }
         catch (Exception ex)

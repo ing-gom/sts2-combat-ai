@@ -19,6 +19,17 @@ internal sealed record SimState
     public required List<SimEnemy> Enemies { get; init; }
     public required List<SimCard> Hand { get; init; }
 
+    /// <summary>
+    /// v0.7.2 — Player character entry id (e.g. "IRONCLAD", "SILENT", "DEFECT",
+    /// "WATCHER", "NECROBINDER", "REGENT"). Captured from <c>player.Character.Id.Entry</c>.
+    /// Used by <see cref="Sts2CombatAI.Planner.PoolMeans"/> to look up the static
+    /// value distribution of the active character's card pool — driving Level 4
+    /// pool-based random card evaluation (WHITE_NOISE / DISCOVERY / CREATIVE_AI / …).
+    /// Empty string if the snapshotter couldn't read it (test fixtures, mid-screen
+    /// transitions) — handlers must fall back to the per-card-id flat magnitude.
+    /// </summary>
+    public string CharacterId { get; init; } = string.Empty;
+
     // v0.2.4 — player status powers (Strength/Dexterity/Vulnerable/Weak/Frail).
     public int PlayerStrength { get; init; }
     public int PlayerDexterity { get; init; }
@@ -107,6 +118,101 @@ internal sealed record SimState
     /// kinds use 0. Used to value evoking dark orbs realistically.
     /// </summary>
     public IReadOnlyList<int> OrbEvokeValues { get; init; } = System.Array.Empty<int>();
+
+    // v0.6.7 — Player-side mechanic stacks for fine-grained consumer/amplifier scoring.
+    // Each field represents the "stack" a consumer/amplifier card scales on. Zero
+    // means "mechanism absent or not yet active" — consumer cards then fall back to
+    // BuildSynergy's flat in-hand-producer bonus instead.
+
+    /// <summary>
+    /// Soul token cards (CARD.SOUL) across hand + draw + discard. SOUL_CONSUMER /
+    /// SOUL_AMPLIFIER cards (REAVE, SOUL_STORM, DEVOUR_LIFE, HAUNT) scale with the
+    /// total count of soul cards present.
+    /// </summary>
+    public int SoulInPiles { get; init; }
+
+    /// <summary>
+    /// Shiv token cards (CARD.SHIV) across hand + draw + discard. SHIV_CONSUMER
+    /// (KNIFE_TRAP) scales with the count; SHIV_AMPLIFIER powers (Accuracy / Fan
+    /// of Knives) also benefit from a larger shiv pool.
+    /// </summary>
+    public int ShivInPiles { get; init; }
+
+    /// <summary>
+    /// Alive Osty (skeleton) ally creatures owned by the player. SKELETON_CONSUMER
+    /// cards (BONE_SHARDS, PROTECTOR, SQUEEZE) are gated by skeleton presence —
+    /// they typically read "if Osty is alive" and scale with skeleton stats.
+    /// </summary>
+    public int SkeletonCount { get; init; }
+
+    /// <summary>
+    /// v0.7.11 — Per-ally projection (Necrobinder skeletons + any other
+    /// player-side summons). Replaces the bare SkeletonCount for damage-
+    /// contribution accounting: each ally adds its declared intent damage to
+    /// the player's outgoing-per-turn estimate, used by RemainingTurnsEstimator
+    /// and AdvanceTurn. Empty when no allies / capture failure — handlers
+    /// then fall back to SkeletonCount-only gating.
+    /// </summary>
+    public IReadOnlyList<SimAlly> Allies { get; init; } = System.Array.Empty<SimAlly>();
+
+    /// <summary>
+    /// v0.7.12 — All Power instances active on the player (name → stack count).
+    /// Captured by StateSnapshotter from <c>creature.Powers</c> so handlers
+    /// can detect persistent passives (DemonFormPower, RegenPower, BarricadePower,
+    /// EchoFormPower, MachineLearningPower, etc.) without inflating SimState
+    /// with one field per power.
+    ///
+    /// AdvanceTurn consults this for per-turn passive effects (Strength gain
+    /// from DemonForm, HP regen from RegenPower, block-carry from Barricade).
+    /// Explicit fields like PlayerStrength / PlayerFocus / PlayerIntangible
+    /// remain primary — the dict catches the long-tail powers that don't have
+    /// a dedicated field.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> PlayerPowers { get; init; }
+        = new Dictionary<string, int>();
+
+    /// <summary>
+    /// Cards in the Exhaust pile. EXHAUST_CONSUMER cards (PACTS_END, ASHEN_STRIKE,
+    /// SOUL_STORM, EVIL_EYE, DARK_EMBRACE-as-Power-payoff) scale with the count
+    /// of cards that have been exhausted this combat. Captured separately from
+    /// Draw/Discard since exhausted cards don't return to play.
+    /// </summary>
+    public int ExhaustPileSize { get; init; }
+
+    /// <summary>
+    /// Number of SovereignBlade card instances across all piles (hand + draw +
+    /// discard + exhaust). Proxy for FORGE / LORDS_BLADE state — when ≥ 1 the
+    /// player has an active blade, and FORGE_AMPLIFIER / LORDS_BLADE_AMPLIFIER
+    /// cards (HAMMER_TIME, CONQUEROR) have something to stack on.
+    /// </summary>
+    public int SovereignBladeCount { get; init; }
+
+    // v0.6.8 — Turn / combat history counters from CombatHistory. Captured so
+    // cards whose value scales on "what's already happened this turn / combat"
+    // (RAGE: block per past attack; TEAR_ASUNDER: hits = 1 + HP-loss events
+    // this combat) can be evaluated correctly without runtime forward-sim.
+
+    /// <summary>
+    /// Number of Attack cards the player has finished playing this turn.
+    /// Computed from `CombatHistory.CardPlaysFinished` filtered by current
+    /// round + side + CardType.Attack. STOMP-style cost-discount cards already
+    /// reflect this via `EnergyCost.GetAmountToSpend()` so the counter mainly
+    /// serves future passes (RAGE-power scaling, etc.).
+    /// </summary>
+    public int TurnAttacksPlayed { get; init; }
+
+    /// <summary>
+    /// Number of Skill cards the player has finished playing this turn. Used
+    /// by PINPOINT-equivalent gates and any "play after N skills" payoff.
+    /// </summary>
+    public int TurnSkillsPlayed { get; init; }
+
+    /// <summary>
+    /// Number of times the player has taken unblocked damage during this
+    /// combat (one entry per DamageReceived event with UnblockedDamage > 0).
+    /// TEAR_ASUNDER scales hits with this — `Hits = 1 + this`.
+    /// </summary>
+    public int CombatPlayerHpLossEvents { get; init; }
 
     /// <summary>
     /// Deep clone for forward simulation. Records have an auto-generated Clone() that

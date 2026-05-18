@@ -53,6 +53,14 @@ internal sealed record SimEnemy
     public int ConstrictAmount { get; init; }
     public int BurnAmount { get; init; }
 
+    /// <summary>
+    /// v0.7.13 — Doom stacks on this enemy. Necrobinder's REAPER_FORM applies
+    /// DoomPower on attack-hit; the stack ticks turn-start damage equal to the
+    /// stack count (like Poison) without self-decrement. ApplyCardPlay grows
+    /// the stack per hit when ReaperFormPower is active; AdvanceTurn ticks it.
+    /// </summary>
+    public int DoomAmount { get; init; }
+
     // v0.4 — damage / counter-attack powers that affect *our* attack decisions.
     /// <summary>
     /// Per-hit damage cap from IntangiblePower (1, or 5 with TheBoot) or HardToKillPower

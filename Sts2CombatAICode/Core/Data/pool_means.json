@@ -1,0 +1,345 @@
+{
+  "_schema": 1,
+  "characters": {
+    "DEFECT": {
+      "all": {
+        "n": 82,
+        "mean": 192,
+        "top1of3": 356,
+        "top1of5": 441
+      },
+      "attack": {
+        "n": 28,
+        "mean": 369,
+        "top1of3": 555,
+        "top1of5": 658
+      },
+      "skill": {
+        "n": 35,
+        "mean": 102,
+        "top1of3": 187,
+        "top1of5": 230
+      },
+      "power": {
+        "n": 19,
+        "mean": 96,
+        "top1of3": 175,
+        "top1of5": 213
+      },
+      "common": {
+        "n": 20,
+        "mean": 216,
+        "top1of3": 290,
+        "top1of5": 321
+      },
+      "common_any": {
+        "n": 20,
+        "mean": 216,
+        "top1of3": 290,
+        "top1of5": 321
+      },
+      "all_free": {
+        "n": 82,
+        "mean": 236,
+        "top1of3": 483,
+        "top1of5": 625
+      },
+      "skill_free": {
+        "n": 35,
+        "mean": 80,
+        "top1of3": 179,
+        "top1of5": 234
+      },
+      "power_free": {
+        "n": 19,
+        "mean": 116,
+        "top1of3": 226,
+        "top1of5": 279
+      },
+      "attack_free": {
+        "n": 28,
+        "mean": 512,
+        "top1of3": 823,
+        "top1of5": 985
+      },
+      "colorless": {
+        "n": 64,
+        "mean": 214,
+        "top1of3": 477,
+        "top1of5": 633
+      }
+    },
+    "IRONCLAD": {
+      "all": {
+        "n": 82,
+        "mean": 207,
+        "top1of3": 373,
+        "top1of5": 453
+      },
+      "attack": {
+        "n": 34,
+        "mean": 317,
+        "top1of3": 485,
+        "top1of5": 560
+      },
+      "skill": {
+        "n": 28,
+        "mean": 142,
+        "top1of3": 263,
+        "top1of5": 330
+      },
+      "power": {
+        "n": 20,
+        "mean": 109,
+        "top1of3": 222,
+        "top1of5": 276
+      },
+      "common": {
+        "n": 20,
+        "mean": 242,
+        "top1of3": 372,
+        "top1of5": 421
+      },
+      "common_any": {
+        "n": 20,
+        "mean": 242,
+        "top1of3": 371,
+        "top1of5": 420
+      },
+      "all_free": {
+        "n": 82,
+        "mean": 261,
+        "top1of3": 510,
+        "top1of5": 633
+      },
+      "skill_free": {
+        "n": 28,
+        "mean": 134,
+        "top1of3": 291,
+        "top1of5": 382
+      },
+      "power_free": {
+        "n": 20,
+        "mean": 140,
+        "top1of3": 292,
+        "top1of5": 370
+      },
+      "attack_free": {
+        "n": 34,
+        "mean": 436,
+        "top1of3": 702,
+        "top1of5": 825
+      },
+      "colorless": {
+        "n": 64,
+        "mean": 214,
+        "top1of3": 478,
+        "top1of5": 631
+      }
+    },
+    "NECROBINDER": {
+      "all": {
+        "n": 82,
+        "mean": 185,
+        "top1of3": 374,
+        "top1of5": 485
+      },
+      "attack": {
+        "n": 32,
+        "mean": 314,
+        "top1of3": 584,
+        "top1of5": 735
+      },
+      "skill": {
+        "n": 33,
+        "mean": 86,
+        "top1of3": 165,
+        "top1of5": 202
+      },
+      "power": {
+        "n": 17,
+        "mean": 132,
+        "top1of3": 249,
+        "top1of5": 298
+      },
+      "common": {
+        "n": 20,
+        "mean": 234,
+        "top1of3": 394,
+        "top1of5": 469
+      },
+      "common_any": {
+        "n": 20,
+        "mean": 234,
+        "top1of3": 394,
+        "top1of5": 468
+      },
+      "all_free": {
+        "n": 82,
+        "mean": 234,
+        "top1of3": 511,
+        "top1of5": 688
+      },
+      "skill_free": {
+        "n": 33,
+        "mean": 86,
+        "top1of3": 188,
+        "top1of5": 241
+      },
+      "power_free": {
+        "n": 17,
+        "mean": 160,
+        "top1of3": 318,
+        "top1of5": 388
+      },
+      "attack_free": {
+        "n": 32,
+        "mean": 427,
+        "top1of3": 842,
+        "top1of5": 1087
+      },
+      "colorless": {
+        "n": 64,
+        "mean": 214,
+        "top1of3": 478,
+        "top1of5": 631
+      }
+    },
+    "REGENT": {
+      "all": {
+        "n": 82,
+        "mean": 227,
+        "top1of3": 449,
+        "top1of5": 574
+      },
+      "attack": {
+        "n": 29,
+        "mean": 458,
+        "top1of3": 736,
+        "top1of5": 879
+      },
+      "skill": {
+        "n": 35,
+        "mean": 122,
+        "top1of3": 225,
+        "top1of5": 274
+      },
+      "power": {
+        "n": 18,
+        "mean": 59,
+        "top1of3": 122,
+        "top1of5": 158
+      },
+      "common": {
+        "n": 20,
+        "mean": 230,
+        "top1of3": 365,
+        "top1of5": 418
+      },
+      "common_any": {
+        "n": 20,
+        "mean": 230,
+        "top1of3": 366,
+        "top1of5": 418
+      },
+      "all_free": {
+        "n": 82,
+        "mean": 281,
+        "top1of3": 598,
+        "top1of5": 791
+      },
+      "skill_free": {
+        "n": 35,
+        "mean": 108,
+        "top1of3": 233,
+        "top1of5": 299
+      },
+      "power_free": {
+        "n": 18,
+        "mean": 72,
+        "top1of3": 163,
+        "top1of5": 213
+      },
+      "attack_free": {
+        "n": 29,
+        "mean": 621,
+        "top1of3": 1035,
+        "top1of5": 1251
+      },
+      "colorless": {
+        "n": 64,
+        "mean": 214,
+        "top1of3": 477,
+        "top1of5": 633
+      }
+    },
+    "SILENT": {
+      "all": {
+        "n": 82,
+        "mean": 185,
+        "top1of3": 368,
+        "top1of5": 471
+      },
+      "attack": {
+        "n": 25,
+        "mean": 377,
+        "top1of3": 638,
+        "top1of5": 794
+      },
+      "skill": {
+        "n": 39,
+        "mean": 109,
+        "top1of3": 212,
+        "top1of5": 264
+      },
+      "power": {
+        "n": 18,
+        "mean": 86,
+        "top1of3": 164,
+        "top1of5": 202
+      },
+      "common": {
+        "n": 20,
+        "mean": 210,
+        "top1of3": 319,
+        "top1of5": 366
+      },
+      "common_any": {
+        "n": 20,
+        "mean": 210,
+        "top1of3": 320,
+        "top1of5": 365
+      },
+      "all_free": {
+        "n": 82,
+        "mean": 231,
+        "top1of3": 488,
+        "top1of5": 641
+      },
+      "skill_free": {
+        "n": 39,
+        "mean": 111,
+        "top1of3": 251,
+        "top1of5": 336
+      },
+      "power_free": {
+        "n": 18,
+        "mean": 120,
+        "top1of3": 241,
+        "top1of5": 298
+      },
+      "attack_free": {
+        "n": 25,
+        "mean": 499,
+        "top1of3": 872,
+        "top1of5": 1090
+      },
+      "colorless": {
+        "n": 64,
+        "mean": 214,
+        "top1of3": 477,
+        "top1of5": 634
+      }
+    }
+  }
+}
