@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.7.49 (2026-05-18)
+
+**Scaling/Upgrade stem audit (Batch 4/7).**
+
+16 SCALING 카드 검증. **4개** specific handler 추가:
+
+- **APOTHEOSIS** (A, 2c): 전체 deck upgrade. `upgradable × turns × 4 plays × 80`
+- **DOMINATE** (S, 1c): Vuln 1 to all + 모든 Strike +1 dmg. `vuln_part + strike × turns × 0.5 × 50`
+- **BRAND** (A, 0c): -1 HP + exhaust 1 + Str +1 영구. `turns × 3 × 50 + exhaust_value`
+- **STOKE** (B, 1c): hand exhaust → upgraded random. `exh × 200 - trashCost`
+
+12개 (ANTICIPATE/FEEDING_FRENZY/PATTER/TERRAFORMING 등 stat-buff 계열) 은
+PowerApps (TemporaryStr/Dex/Vigor) 로 이미 처리됨.
+
+---
+
 ## v0.7.48 (2026-05-18)
 
 **Retain stem audit (Batch 3/7).**
