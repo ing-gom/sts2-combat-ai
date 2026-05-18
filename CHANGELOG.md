@@ -1,5 +1,65 @@
 # Changelog
 
+## v0.7.19 (2026-05-18)
+
+**B-tier 1-path coverage — 9 mechanic 핸들러.**
+
+### 배경
+
+v0.7.18 audit 후 B-tier 1-path 20장 검토. 11장은 direct-stat 충분
+(BLUDGEON 32dmg 단순 / BYRD_SWOOP 14dmg / multiplayer 카드 / 등),
+**9장은 특수 메커니즘 미반영**.
+
+### 추가 핸들러 (9)
+
+| 카드 | char | cost/dmg | 메커니즘 | 공식 |
+|---|---|---|---|---|
+| **FINISHER** | Silent | 1c 6d | 이번턴 Attack 당 +6dmg | TurnAttacksPlayed × 6 × 35 |
+| **BOLAS** | Shared | 0c 3d | 턴말 hand 복귀 | (turns−1) × perPlay × 0.5, cap 500 |
+| **FOLLOW_THROUGH** | Silent | 1c 7d | 5+ 손에 → +1 hit | hand≥5 → 7×35 = 245 |
+| **EXPECT_A_FIGHT** | Ironclad | 2c Skill | hand Power 당 +1 energy | powers × 60 |
+| **SPITE** | Ironclad | 0c 5d | HP 손실 시 +2dmg | events>0 → 2×35 = 70 |
+| **HEADBUTT** | Ironclad | 1c 9d | discard 1장 → top of draw | (best − mean) × 0.2 |
+| **REBOUND** | Shared | 1c 9d | 다음 Skill → top of draw | skill mean × 0.3 |
+| **OUTMANEUVER** | Shared | 1c Skill | 다음 턴 +2 energy | 2 × 60 × 0.6 = 72 |
+| **SEEKER_STRIKE** | Shared | 1c 9d | 3장 중 1장 손에 | draw mean × 1.4 × 0.6 |
+
+### 검증 (`scripts/_inspect_btier_9_handlers.py`)
+
+```
+FINISHER:        attacks=4 → +840 (확실한 finisher)
+BOLAS:           turns=7 → +500 (cap)
+FOLLOW_THROUGH:  others=5+ → +245
+EXPECT_A_FIGHT:  powers=3 → +180
+SPITE:           events>0 → +70
+OUTMANEUVER:     +72 (constant)
+```
+
+### 의도된 의사결정 영향
+
+- **FINISHER**: turn 후반 (4+ attacks 후) 점수 +840 — combo deck 핵심 카드
+- **BOLAS**: 보스전 (10+ turns) 누적 +500. 단기 컴뱃엔 약함
+- **FOLLOW_THROUGH**: hand 큰 상황 (5+) 우대 — 카드 사이클 빌드
+- **EXPECT_A_FIGHT**: hand Power 다수 시 net energy gain — Power 빌드
+- **SPITE**: 자해 빌드와 자연 시너지
+
+### 종합 Coverage — v0.7.19 후
+
+| Path 수 | 카드 | % |
+|---:|---:|---:|
+| 0 (UNPLAYABLE auto-skip) | 28 | 4.9% |
+| 1 (direct-stat 충분) | 45 | 7.8% |
+| 2+ | 504 | 87.3% |
+
+- **S-tier 1-path**: 0 ✓
+- **A-tier 1-path**: 2 (DEVASTATE/VOLLEY — 진짜 direct-stat 충분)
+- **B-tier 1-path**: 11 (11장 — 진짜 direct-stat 충분 카드만 남음)
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_btier_9_handlers.py`: 9 카드 × 시나리오 모두 예상.
+
 ## v0.7.18 (2026-05-18)
 
 **A-tier 1-path coverage — 5 mechanic 핸들러.**

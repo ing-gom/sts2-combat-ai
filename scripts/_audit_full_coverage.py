@@ -127,6 +127,11 @@ def main() -> None:
     for c, paths in sorted(by_paths.get(1, []), key=lambda x: x[0]["id"]):
         if c.get("tier") == "A":
             print(f"  {c['character']:<11} {c['id']:<28} type={c['type']:<6} -> {paths}")
+    print()
+    print(f"=== B-tier 1-path (all) ===")
+    for c, paths in sorted(by_paths.get(1, []), key=lambda x: x[0]["id"]):
+        if c.get("tier") == "B":
+            print(f"  {c['character']:<11} {c['id']:<28} type={c['type']:<6} axes={c.get('axes', [])}")
 
 
 if __name__ == "__main__":
