@@ -47,6 +47,10 @@ internal static class StateSnapshotter
             int playerFreeAttacks = CombatReflection.GetPowerAmount(creature, "FreeAttackPower");
             int playerFreeSkills = CombatReflection.GetPowerAmount(creature, "FreeSkillPower");
             int playerFreePowers = CombatReflection.GetPowerAmount(creature, "FreePowerPower");
+            // v0.7.12 — capture all player powers as a single dict so
+            // AdvanceTurn can apply persistent passives (DemonForm, Regen,
+            // Barricade, EchoForm etc.) without one field per power.
+            var playerPowerDict = CombatReflection.GetAllPowers(creature);
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
 
             int orbCount = 0, orbCapacity = 0;
@@ -274,6 +278,7 @@ internal static class StateSnapshotter
                 PlayerFreeAttacks = playerFreeAttacks,
                 PlayerFreeSkills = playerFreeSkills,
                 PlayerFreePowers = playerFreePowers,
+                PlayerPowers = playerPowerDict,
                 SoulInPiles = soulInPiles,
                 ShivInPiles = shivInPiles,
                 SkeletonCount = skeletonCount,

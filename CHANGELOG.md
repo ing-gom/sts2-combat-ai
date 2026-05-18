@@ -1,5 +1,100 @@
 # Changelog
 
+## v0.7.12 (2026-05-18)
+
+**Phase 3c — Skeleton split-fire defense. Phase 2b — Player Powers
++ AdvanceTurn auto-trigger.**
+
+### Phase 3c — Skeleton split-fire defense
+
+이전: AdvanceTurn 의 적 데미지는 모두 player HP 로 흡수. ally HP 가 따로 있어도
+무시. Necrobinder 스켈레톤이 적 공격을 흡수하는 split-fire 미반영.
+
+**변경**:
+
+- `EnemyTurnSimulator.PredictRawLeak` 신규 — post-block, pre-ally-absorption
+  leak 반환. AdvanceTurn 이 split-fire 분배 전 raw leak 알아야 해서 필요.
+- `EnemyTurnSimulator.ComputeAllyAbsorption(s, rawLeak)` 신규 헬퍼:
+  ```
+  absorption = aliveAllies / (1 + aliveAllies)
+  pool = rawLeak × absorption
+  return min(pool, totalAllyHp)
+  ```
+  - 1 ally → 50% aggro, 2 → 67%, 3 → 75% (대칭적 share)
+  - Ally 총 HP 로 cap → overflow 는 player 에게 복귀
+- `EnemyTurnSimulator.PredictPlayerDmg` 는 이제 absorption 후 leak 반환 (planner /
+  survival-urgency 가 ally 흡수 반영해 정확한 threat 인식).
+- `AnalyticalSimulator.AdvanceTurn` 가:
+  - raw leak 으로 absorbed 계산
+  - ally 별 HP 비율로 흡수 데미지 분배 (총 HP 비례)
+  - 0 HP 가 된 ally 는 dead (다음 턴부터 attack 기여 X)
+
+### Phase 2b — Player Powers + AdvanceTurn auto-trigger
+
+이전: SimState 에 PlayerStrength / PlayerDexterity 등 explicit 필드만. 그 외
+DemonFormPower / RegenPower / BarricadePower 같은 persistent passive 가 active
+인지 알 수 없음. AdvanceTurn 이 per-turn 효과를 시뮬 못 함.
+
+**변경**:
+
+- **`SimState.PlayerPowers`** — `IReadOnlyDictionary<string, int>`. 모든 player
+  Power 의 (name → stack) 매핑. SimEnemy.Powers 와 대칭.
+- **`StateSnapshotter`** — `CombatReflection.GetAllPowers(playerCreature)` 호출
+  로 populate.
+- **`AdvanceTurn`** per-turn passive 처리:
+  - **DemonFormPower N** → `PlayerStrength += N` (스케일링 빌드)
+  - **RegenPower N** → `PlayerHp += N` (sustain)
+  - **BarricadePower** → block 유지 (보통 reset 0 → 그대로 보존)
+
+ReaperFormPower (Doom on enemies) 은 SimEnemy 의 DoomPower 필드가 없어 본
+패스에서 미반영 — follow-up 영역.
+
+### 검증 (`scripts/_inspect_phase3c_2b.py`)
+
+```
+3c: 1 skeleton (HP 30), boss 20 dmg            rawLeak=20  absorb=10  plyrLeak=10  newHp=50
+3c: 2 skeletons (HP 60), boss 30 dmg           rawLeak=30  absorb=20  plyrLeak=10  newHp=50
+3c: 3 skeletons (HP 90), big hit 50            rawLeak=50  absorb=37  plyrLeak=13  newHp=47
+3c: 1 skeleton, ally HP only 5 (overflow)      rawLeak=40  absorb= 5  plyrLeak=35  newHp= 5
+2b: DemonForm 2                                rawLeak= 0  absorb= 0  plyrLeak= 0  newHp=60  str=7
+2b: Regen 4 after 10 dmg                       rawLeak=10  absorb= 0  plyrLeak=10  newHp=34
+2b: Barricade preserves block                  rawLeak= 0  absorb= 0  plyrLeak= 0  newHp=60  blk=15
+```
+
+- absorption 비율 정확 (1 ally 50% / 2 allies 67% / 3 allies 75%)
+- ally HP cap overflow 도 정확 (5 HP ally → 5 흡수, 35 player 로 leak)
+- DemonForm/Regen/Barricade 모두 의도대로 동작
+
+### 의도적으로 안 한 부분
+
+- **ReaperFormPower** — DoomPower 가 SimEnemy 에 없음. enemy.Powers dict 에
+  추가하는 follow-up 작업.
+- **EchoFormPower / MachineLearningPower** — per-turn effect 는 PowerCatalog 가
+  이미 잡고 있음 (900 baseline). AdvanceTurn 의 hand-mutation 까지 가는 건
+  큰 작업 영역 (Phase 4).
+- **Aggro priority** — STS2 실제 게임이 ally 우선 공격 / player 우선 공격을
+  결정하는 정확한 룰 unknown. 50/50 비율 휴리스틱은 conservative.
+
+### 검증
+
+- `dotnet build`: 0 errors, 4 pre-existing warnings.
+- `python scripts/_inspect_phase3c_2b.py`: 7 시나리오 모두 예상.
+
+### Forward sim coverage — v0.7.12 후
+
+| 영역 | 상태 |
+|---|---|
+| Power 패시브 (S/A/B/C/D) PowerCatalog 도달 | ✅ v0.7.7 |
+| HP_LOSS producer/consumer | ✅ v0.7.7/v0.7.8 |
+| 단일턴 depth=3 beam search | ✅ v0.7.9 |
+| 멀티턴 AdvanceTurn projection | ✅ v0.7.10 |
+| Self-copy chain 6장 | ✅ v0.7.11 |
+| Skeleton ally damage contribution | ✅ v0.7.11 |
+| **Skeleton split-fire defense** | ✅ **v0.7.12** |
+| **DemonForm/Regen/Barricade per-turn passive** | ✅ **v0.7.12** |
+| ReaperForm Doom on enemies | ❌ follow-up |
+| Monte Carlo draw RNG | ❌ Phase 2c |
+
 ## v0.7.11 (2026-05-18)
 
 **Phase 3 — Self-copy chain 6장 + Skeleton ally 모델링.**
