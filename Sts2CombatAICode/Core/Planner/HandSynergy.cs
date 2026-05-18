@@ -37,6 +37,17 @@ internal static class HandSynergy
     // visibility into those turns, fall back to a conservative average.
     private const int WeakNonAttackBaselineDmg = 8;
     private const int WeakNonAttackBaselineHits = 1;
+
+    // v0.7.39 — FrailPower (on enemy): enemy block gain ×0.75 → block lost is
+    // damage we get to deliver instead. Score-per-block-reduction at 30 (same
+    // as Weak's HP-savings scale) since each absorbed-block-not-gained is
+    // ~1 HP we'd otherwise need extra damage for.
+    private const int FrailSavingsPerBlockPoint = 30;
+    private const int FrailSavingsTurnCap       = 4;
+    // Defend-intent block proxy when enemy.HasDefendIntent is true but exact
+    // block amount isn't snapshotted. Typical STS block intents fall in 5-12;
+    // conservative midpoint.
+    private const int DefendIntentBlockProxy    = 6;
     // v0.6.8 — RagePower (Ironclad RAGE): +N block per attack played this turn,
     // for the rest of the turn. Total expected block = N × (remaining attacks
     // in hand). Same beneficiary-count pattern as Dexterity, but the per-card
@@ -99,6 +110,12 @@ internal static class HandSynergy
             // enemies lose proportionally more damage than the flat estimate.
             // Enemy-state-based — not subject to the hand-card lookahead double-count.
             "WeakPower" => ComputeWeakSavings(amount, state),
+
+            // v0.7.39 — FrailPower (on enemy): enemy block gain reduced 25%.
+            // Value scales with how much block enemies actually generate this
+            // combat: auto-block passives (PlatedArmor/Metallicize) × turns,
+            // plus current-turn Defend intent block proxy.
+            "FrailPower" => ComputeFrailSavings(amount, state),
 
             // v0.6.8 — RagePower. Block per attack played for the rest of this turn.
             // Beneficiaries = attacks still in hand (past attacks don't retroactively
@@ -204,5 +221,36 @@ internal static class HandSynergy
             hpSaved += contribution;
         }
         return hpSaved * WeakSavingsPerHpPoint;
+    }
+
+    /// <summary>
+    /// v0.7.39 — Estimated value of FrailPower applied to enemies. Frail
+    /// reduces enemy block gain by 25%. Per-turn block savings =
+    /// 0.25 × (auto-block from passives + Defend-intent block).
+    ///
+    /// Cap at FrailSavingsTurnCap × stacks (matches Weak's pattern).
+    /// Inert enemies skipped (won't generate block while stunned/escaping).
+    /// </summary>
+    private static int ComputeFrailSavings(int frailStacks, SimState state)
+    {
+        if (frailStacks <= 0) return 0;
+        int remainingTurns = RemainingTurnsEstimator.From(state);
+        int turnCap = System.Math.Min(frailStacks, System.Math.Min(remainingTurns, FrailSavingsTurnCap));
+        if (turnCap <= 0) return 0;
+
+        int blockSaved = 0;
+        foreach (var e in state.Enemies)
+        {
+            if (!e.IsAlive || e.IsInert) continue;
+            int autoBlock = RemainingTurnsEstimator.EnemyAutoBlock(e);
+            int defendBlock = e.HasDefendIntent ? DefendIntentBlockProxy : 0;
+            int perTurnBlock = autoBlock + defendBlock;
+            if (perTurnBlock <= 0) continue;
+
+            int turnSavings = perTurnBlock / 4;          // 25% reduction (×0.25)
+            if (turnSavings <= 0) continue;
+            blockSaved += turnSavings * turnCap;
+        }
+        return blockSaved * FrailSavingsPerBlockPoint;
     }
 }
