@@ -237,6 +237,21 @@ internal static class EffectSynergy
         // unscored — the card looked like a plain draw card to the AI.
         else if (card.Id == "CARD.DECISIONS_DECISIONS")
             ApplyDecisionsDecisionsRepeat(card, state, ref b, parts);
+        // v0.7.44 — Skill cards with mechanics not captured by generic axes.
+        // X-cost skills (MALAISE/DIRGE/MULTI_CAST/TEMPEST) scale with remaining
+        // energy. REPEAT/replay skills (QUADCAST/MODDED) multiply per-card effect.
+        else if (card.Id == "CARD.QUADCAST")
+            ApplyQuadcastEvoke(card, state, ref b, parts);
+        else if (card.Id == "CARD.MULTI_CAST")
+            ApplyMultiCastEvoke(card, state, ref b, parts);
+        else if (card.Id == "CARD.TEMPEST")
+            ApplyTempestChannel(card, state, ref b, parts);
+        else if (card.Id == "CARD.MALAISE")
+            ApplyMalaiseXWeak(card, state, ref b, parts);
+        else if (card.Id == "CARD.DIRGE")
+            ApplyDirgeXSouls(card, state, ref b, parts);
+        else if (card.Id == "CARD.MODDED")
+            ApplyModdedReplay(card, state, ref b, parts);
         // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
         // queue being active (PlayerOrbCapacity > 0). Each scales with the
         // relevant orb-color count or evoke rate.
@@ -2833,6 +2848,150 @@ internal static class EffectSynergy
 
     private static string Short(string id) =>
         id == null ? "?" : (id.StartsWith("CARD.") ? id.Substring(5) : id);
+
+    // ─── v0.7.44 — Skill cards with X-cost or REPEAT mechanics ────────────────
+
+    /// <summary>
+    /// v0.7.44 — QUADCAST (Defect, S, 1c): evoke top orb 4 times. Fixed repeat,
+    /// scales with current top orb evoke value × 4.
+    /// </summary>
+    private static void ApplyQuadcastEvoke(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.OrbQueue == null || state.OrbQueue.Count == 0) return;
+        int aliveCount = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+        // Evoke top orb (queue[0]) 4 times. Each evoke gives full orb evoke value.
+        var topKind = state.OrbQueue[0];
+        int evokeVal = OrbValueCatalog.EvokeValue(topKind, aliveCount,
+            darkAccumulated: state.OrbEvokeValues.Count > 0 ? state.OrbEvokeValues[0] : 6,
+            focus: state.PlayerFocus);
+        // 4× evokes. Cap to avoid runaway with high-Focus Dark stacks.
+        const int Cap = 1800;
+        int v = System.Math.Min(Cap, evokeVal * 4);
+        b += v;
+        parts.Add($"quadcast({topKind}x4={v})");
+    }
+
+    /// <summary>
+    /// v0.7.44 — MULTI_CAST (Defect, B, 0c, X-cost): evoke top orb X+1 times.
+    /// X = remaining energy. Use PlayerEnergy as proxy.
+    /// </summary>
+    private static void ApplyMultiCastEvoke(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        if (state.OrbQueue == null || state.OrbQueue.Count == 0) return;
+        int x = System.Math.Max(0, state.PlayerEnergy);
+        int evokes = x + 1;
+        int aliveCount = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+        var topKind = state.OrbQueue[0];
+        int evokeVal = OrbValueCatalog.EvokeValue(topKind, aliveCount,
+            darkAccumulated: state.OrbEvokeValues.Count > 0 ? state.OrbEvokeValues[0] : 6,
+            focus: state.PlayerFocus);
+        const int Cap = 1500;
+        int v = System.Math.Min(Cap, evokeVal * evokes);
+        b += v;
+        parts.Add($"multiCast({topKind}x{evokes}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.44 — TEMPEST (Defect, B, 0c, X-cost): channel X+1 Lightning orbs.
+    /// Channeled orbs deal passive damage end-of-turn + can be evoked later.
+    /// </summary>
+    private static void ApplyTempestChannel(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int x = System.Math.Max(0, state.PlayerEnergy);
+        int channels = x + 1;
+        int aliveCount = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0) return;
+        // Each Lightning passive ~3 dmg + future evoke value
+        int lightningPassive = (3 + state.PlayerFocus);
+        // Per-orb total value ~ passive + 0.5 evoke (orb may be evoked later)
+        int perOrb = lightningPassive * 50 + 100;  // 50 dmg/point + part of future evoke
+        const int Cap = 1200;
+        int v = System.Math.Min(Cap, perOrb * channels);
+        b += v;
+        parts.Add($"tempest(Lightx{channels}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.44 — MALAISE (Silent, S, 0c, X-cost): lose X+1 energy, apply Weak
+    /// X+1 to all enemies. Net: energy is sunk but huge Weak coverage.
+    /// </summary>
+    private static void ApplyMalaiseXWeak(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int x = System.Math.Max(0, state.PlayerEnergy);
+        int weakStacks = x + 1;
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive && !e.IsInert && (e.HasAttackIntent || e.HasDeathBlowIntent)) aliveCount++;
+        if (aliveCount == 0)
+        {
+            // No attackers to weaken — Malaise just burns energy. Big penalty.
+            b -= 500;
+            parts.Add("malaiseNoAttacker=-500");
+            return;
+        }
+        // Per-enemy Weak value uses HandSynergy-style turn savings × 30 / point.
+        // Single hand-level estimate: weak X+1 stacks × ~3 turns × estimated dmg savings.
+        // Use baseline: WeakPower stack value ~350, scaled by stacks beyond 1.
+        int perEnemy = 350 + (weakStacks - 1) * 200;  // approximate stack curve
+        const int Cap = 1500;
+        int v = System.Math.Min(Cap, perEnemy * aliveCount);
+        // Energy sink penalty — losing X+1 energy this turn means we play
+        // fewer follow-ups. Discount ~150 per energy lost.
+        int energyCost = weakStacks * 150;
+        v = System.Math.Max(0, v - energyCost);
+        b += v;
+        parts.Add($"malaise(Weak{weakStacks}x{aliveCount}-energy{energyCost}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.44 — DIRGE (Necrobinder, A, 0c, X-cost): summon 3 + add X+1 Souls
+    /// to discard. EXHAUST_SELF.
+    /// </summary>
+    private static void ApplyDirgeXSouls(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int x = System.Math.Max(0, state.PlayerEnergy);
+        int souls = x + 1;
+        // Each Soul = SOUL_CONSUMER fuel. Value depends on SOUL_CONSUMER presence.
+        int soulConsumers = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes != null && c.Axes.Contains("SOUL_CONSUMER")) soulConsumers++;
+        }
+        foreach (var c in state.DrawPile)
+            if (c.Axes != null && c.Axes.Contains("SOUL_CONSUMER")) soulConsumers++;
+        foreach (var c in state.DiscardPile)
+            if (c.Axes != null && c.Axes.Contains("SOUL_CONSUMER")) soulConsumers++;
+
+        // Per-Soul value: depends on consumer presence. With consumers, ~120 each.
+        int perSoul = soulConsumers > 0 ? 120 : 30;
+        // 3 summon (Skeleton) base value too
+        const int SummonValue = 200;  // 3 skeletons
+        const int Cap = 1400;
+        int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
+        b += v;
+        parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+    }
+
+    /// <summary>
+    /// v0.7.44 — MODDED (Defect, S, 0c, REPEAT:1): channel 1 orb + draw 1 +
+    /// play this card 1 more time. Self-replay = effective 2× channel + 2× draw.
+    /// </summary>
+    private static void ApplyModdedReplay(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Self-replay credit: equivalent to playing channel + draw twice.
+        // Channel value depends on what gets channeled; use baseline orb value.
+        const int ChannelValue = 180;  // typical orb passive + part of evoke
+        const int DrawValue = 200;
+        const int RepeatMultiplier = 2;  // base + 1 repeat
+        const int Cap = 1200;
+        int v = System.Math.Min(Cap, (ChannelValue + DrawValue) * RepeatMultiplier);
+        b += v;
+        parts.Add($"modded(channel+draw x{RepeatMultiplier}={v})");
+    }
 
     // ─── v0.7.32 — Defect orb stem Power passives ──────────────────────────────
     //
