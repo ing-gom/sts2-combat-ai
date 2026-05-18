@@ -172,6 +172,19 @@ internal static class EffectSynergy
             ApplyMasterPlannerTickValue(card, state, ref b, parts);
         else if (card.Id == "CARD.INFINITE_BLADES")
             ApplyInfiniteBladesTickValue(card, state, ref b, parts);
+        // v0.7.28 — Star stem Power passives (Regent archetype). Stars =
+        // player resource pool. Powers either generate per-trigger or convert
+        // Stars to damage/block. All scale with star generation rate × turns.
+        else if (card.Id == "CARD.GENESIS")
+            ApplyGenesisTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.ORBIT")
+            ApplyOrbitTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.BLACK_HOLE")
+            ApplyBlackHoleTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.CHILD_OF_THE_STARS")
+            ApplyChildOfTheStarsTickValue(card, state, ref b, parts);
+        else if (card.Id == "CARD.THE_SEALED_THRONE")
+            ApplyTheSealedThroneTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
@@ -1942,6 +1955,203 @@ internal static class EffectSynergy
 
         b += delta;
         parts.Add($"infiniteBladesTick(turns={turns}x{BaseShivValue}={turns*BaseShivValue},consumers={consumers})={delta:+#;-#;0}");
+    }
+
+    // ─── v0.7.28 — Star stem Power passives (Regent) ───────────────────────────
+    //
+    // Stars = Regent's resource pool. Star-stem Powers either generate Stars
+    // per trigger or amplify the Star → damage/block conversion. Common
+    // signals: PlayerStars (current count), STAR_PRODUCER/CONSUMER axis cards,
+    // RemainingTurns.
+
+    /// <summary>
+    /// v0.7.28 — Helper: count STAR_PRODUCER/CONSUMER cards across piles.
+    /// Excludes the Power itself.
+    /// </summary>
+    private static (int producers, int consumers) CountStarStem(SimCard self, SimState state)
+    {
+        int prod = 0, cons = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("STAR_PRODUCER")) prod++;
+            if (c.Axes.Contains("STAR_CONSUMER")) cons++;
+        }
+        foreach (var c in state.DrawPile)
+        {
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("STAR_PRODUCER")) prod++;
+            if (c.Axes.Contains("STAR_CONSUMER")) cons++;
+        }
+        foreach (var c in state.DiscardPile)
+        {
+            if (c.Axes == null) continue;
+            if (c.Axes.Contains("STAR_PRODUCER")) prod++;
+            if (c.Axes.Contains("STAR_CONSUMER")) cons++;
+        }
+        return (prod, cons);
+    }
+
+    /// <summary>
+    /// v0.7.28 — GenesisPower (Regent, B): +1 Star at turn start. Pure
+    /// per-turn tick; value depends on consumers in deck (Stars unused = waste).
+    /// </summary>
+    private static void ApplyGenesisTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerStarValue = 150;   // 1 Star ≈ small damage / block boost via consumer
+        const int Cap = 700;
+        int baked = PowerCatalog.LookupSelfBuff("GenesisPower");
+
+        var (prod, cons) = CountStarStem(self, state);
+        if (cons == 0)
+        {
+            // No way to spend Stars — Power gives currency without sink.
+            b -= baked;
+            parts.Add($"genesisNoConsumer=-{baked}");
+            return;
+        }
+
+        int tick = turns * PerStarValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"genesisTick(turns={turns}x{PerStarValue},cons={cons})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.28 — OrbitPower (Regent, B): every 4 energy spent → +1 Star. Energy
+    /// expenditure per turn ≈ 3 (player base) × turns / 4 ≈ ~0.75 stars/turn.
+    /// </summary>
+    private static void ApplyOrbitTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerStarValue = 150;
+        const int Cap = 600;
+        int baked = PowerCatalog.LookupSelfBuff("OrbitPower");
+
+        var (prod, cons) = CountStarStem(self, state);
+        if (cons == 0)
+        {
+            b -= baked;
+            parts.Add($"orbitNoConsumer=-{baked}");
+            return;
+        }
+
+        // ~0.75 Stars per turn (3 energy spent on average, 4-threshold)
+        int projStars = (turns * 3) / 4;
+        int tick = projStars * PerStarValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"orbitTick(stars~{projStars}x{PerStarValue},cons={cons})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.28 — BlackHolePower (Regent, B): Star consume/gain 시 AOE 3 dmg.
+    /// Value = (producer + consumer plays) × aliveEnemyCount × 3 dmg × 50.
+    /// </summary>
+    private static void ApplyBlackHoleTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int DmgPerTrigger = 3;
+        const int Cap = 1000;
+        int baked = PowerCatalog.LookupSelfBuff("BlackHolePower");
+
+        int aliveCount = 0;
+        foreach (var e in state.Enemies)
+            if (e.IsAlive) aliveCount++;
+        if (aliveCount == 0) return;
+
+        var (prod, cons) = CountStarStem(self, state);
+        // Each producer/consumer play triggers once. Project hand+deck plays.
+        int triggers = prod + cons;
+        if (triggers == 0)
+        {
+            b -= baked;
+            parts.Add($"blackHoleNoStarFlow=-{baked}");
+            return;
+        }
+
+        int tick = triggers * aliveCount * DmgPerTrigger * 50 / 10;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"blackHoleTick(triggers={triggers},alive={aliveCount})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.28 — ChildOfTheStarsPower (Regent, S): each Star consumed adds
+    /// block. Value = projected STAR_CONSUMER plays × per-Star-block × 30.
+    /// </summary>
+    private static void ApplyChildOfTheStarsTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int BlockPerStar = 5;     // canonical amount
+        const int Cap = 1200;
+        int baked = PowerCatalog.LookupSelfBuff("ChildOfTheStarsPower");
+
+        var (prod, cons) = CountStarStem(self, state);
+        if (cons == 0)
+        {
+            b -= baked;
+            parts.Add($"childOfTheStarsNoConsumer=-{baked}");
+            return;
+        }
+
+        // Hand consumers fire immediately; deck consumers per turn at ~1/4 cycle
+        int projConsumes = cons + (cons * (turns - 1)) / 4;
+        int tick = projConsumes * BlockPerStar * 30;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"childOfTheStarsTick(cons={cons},projConsumes={projConsumes})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// v0.7.28 — TheSealedThronePower (Regent, S): +1 Star per card play.
+    /// Massive Star inflation power. Value depends on card-play rate × turns,
+    /// gated by consumer presence. Estimate ~4 cards / turn.
+    /// </summary>
+    private static void ApplyTheSealedThroneTickValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int turns = RemainingTurnsEstimator.From(state);
+        const int PerStarValue = 150;
+        const int Cap = 1500;
+        int baked = PowerCatalog.LookupSelfBuff("TheSealedThronePower");
+
+        var (prod, cons) = CountStarStem(self, state);
+        if (cons == 0)
+        {
+            // Massive Star generation without sink — still has minor value for
+            // STAR_CONSUMER potential in future draws, but heavily discount.
+            b -= baked * 3 / 4;
+            parts.Add($"sealedThroneNoConsumer=-{baked * 3 / 4}");
+            return;
+        }
+
+        // ~4 cards/turn × turns × per-star
+        int projStars = turns * 4;
+        // Cap by consumer throughput — can't usefully bank more Stars than
+        // consumers in deck can spend.
+        int consumerCapPerTurn = System.Math.Max(1, cons / 2);
+        int usableStars = System.Math.Min(projStars, consumerCapPerTurn * turns);
+        int tick = usableStars * PerStarValue;
+        int delta = tick - baked;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+
+        b += delta;
+        parts.Add($"sealedThroneTick(stars~{usableStars},cons={cons})={delta:+#;-#;0}");
     }
 
     // ─── v0.7.11 — Self-copy chain handlers ────────────────────────────────────
