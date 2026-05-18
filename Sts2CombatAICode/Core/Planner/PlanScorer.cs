@@ -171,6 +171,19 @@ internal static class PlanScorer
                 ? archTag
                 : $"{comboDetail},{archTag}";
         }
+        // v0.7.53 — Combat-specific situational bonus. Profile the current
+        // encounter (multi-hit / big-burst / AOE / long / short / artifact /
+        // thorns / buffing) and award per-card bonuses for cards that match
+        // the encounter shape. Modest magnitudes (50-150).
+        var combatProfile = CombatContext.Profile(state);
+        int ctxBonus = CombatContext.ContextBonus(card, combatProfile);
+        if (ctxBonus != 0)
+        {
+            comboBonus += ctxBonus;
+            comboDetail = string.IsNullOrEmpty(comboDetail)
+                ? $"ctx{ctxBonus:+0;-0}"
+                : $"{comboDetail},ctx{ctxBonus:+0;-0}";
+        }
 
         // v0.6.2 — Energy monopoly penalty. When the current card consumes
         // ALL remaining energy AND there are other meaningful playable
