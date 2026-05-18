@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.7.71 (2026-05-19)
+
+**Star simulator — depth-N lookahead 의 star resource 추적.**
+
+### 사용자 보고
+
+"FALLING_STAR (star_cost 2) 못 쓰는데 VENERATE (Stars 2 gain) 로 스타 얻을
+수 있는데 왜 못 쓴거지?"
+
+→ 14 dmg lethal chain (VENERATE → FALLING_STAR → STRIKE) 미발견.
+
+### 진단
+
+`AnalyticalSimulator.ApplyCardPlay` 가 PlayerStars 업데이트 없음 →
+depth-2 lookahead 에서 VENERATE 후 PlayerStars=0 그대로 → FALLING_STAR
+unlock 인식 못함.
+
+`SimCard.IsPlayable` 도 snapshot-time 고정 → 시뮬레이션 중 stars 늘어도
+재계산 안 됨.
+
+### 수정
+
+**CardEffectSummary.cs**:
+- `StarsGain` field (vars["Stars"] 추출)
+- `StarCost` field (Card.StarCost reflection)
+
+**CardReflection.cs**:
+- `v.Name == "Stars"` → starsGain accumulate
+- `SafeStarCost(card)` 추가 (try/catch reflection)
+
+**AnalyticalSimulator.cs**:
+- `newPlayerStars = state.PlayerStars + card.StarsGain - card.StarCost`
+- ApplyCardPlay 결과 state 에 propagate
+
+**ActionPlanner.EnumerateCandidates**:
+- `card.StarCost > 0 && state.PlayerStars < card.StarCost` → filter
+- IsPlayable 의 stale 값 대신 current state 우선
+
+### 결과
+
+이제 depth-2 lookahead 가:
+1. VENERATE play → newState.PlayerStars = 0+2 = 2
+2. EnumerateCandidates(newState) → FALLING_STAR.StarCost=2 ≤ 2 → unlocked
+3. FALLING_STAR (8 dmg) lookahead 평가 → chain 점수 정확
+
+예시 (방금 user 보고 case):
+- 이전: STRIKE 9027 (depth-2 picks DEFEND 4759) vs VENERATE 442
+- v0.7.71 (예상): VENERATE depth-2 picks FALLING_STAR (8 dmg + Stars unlock) → ~8000+ → lethal chain 발견
+
+---
+
 ## v0.7.70 (2026-05-19)
 
 **Star chain enabler + Thorns block-alternative bias.**
