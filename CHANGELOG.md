@@ -1,5 +1,77 @@
 # Changelog
 
+## v0.7.73 (2026-05-19)
+
+**Star chain unlock — catalog 기반 안전 재구현.**
+
+### v0.7.71 의 실패 원인
+
+`SafeStarCost` reflection 이 STS2 CardModel 의 wrapped StarCost type 에서
+잘못된 값 추출 → 정상 카드 filtered.
+
+### v0.7.73 의 안전 접근
+
+`ActionPlanner` 에 **catalog 기반 hardcoded dict** 추가 (21 star-cost 카드):
+
+```csharp
+private static readonly Dictionary<string, int> StarCostByCardId = new()
+{
+    ["CARD.CLOAK_OF_STARS"] = 1, ["CARD.CRESCENT_SPEAR"] = 1,
+    ["CARD.FALLING_STAR"] = 2, ["CARD.GUIDING_STAR"] = 2,
+    ["CARD.METEOR_SHOWER"] = 2, ["CARD.PARTICLE_WALL"] = 2,
+    ["CARD.QUASAR"] = 2, ["CARD.ALIGNMENT"] = 3,
+    ["CARD.ASTRAL_PULSE"] = 3, ["CARD.DYING_STAR"] = 3,
+    ["CARD.GAMMA_BLAST"] = 3, ["CARD.REFLECT"] = 3,
+    ["CARD.RESONANCE"] = 3, ["CARD.THE_SEALED_THRONE"] = 3,
+    ["CARD.DEVASTATE"] = 4, ["CARD.THE_SMITH"] = 4,
+    ["CARD.COMET"] = 5, ["CARD.NEUTRON_AEGIS"] = 5,
+    ["CARD.ROYAL_GAMBLE"] = 5, ["CARD.DECISIONS_DECISIONS"] = 6,
+    ["CARD.SEVEN_STARS"] = 7,
+};
+```
+
+### EnumerateCandidates 새 logic
+
+```csharp
+if (!card.IsPlayable)
+{
+    if (StarCostByCardId.TryGetValue(card.Id ?? "", out int starCost))
+    {
+        if (state.PlayerStars < starCost) continue;
+        // else: stars sufficient now (depth-N state)
+    }
+    else
+    {
+        continue;  // 다른 사유로 unplayable → skip
+    }
+}
+```
+
+- **정상 카드** (DEFEND/GLOW 등): dict 에 없음 → `continue` (기존 동작 유지)
+- **Star-cost 카드 + 충분한 stars**: dict 매칭 + state check 통과 → unlock 평가
+- **Star-cost 카드 + 부족한 stars**: 여전히 skip
+
+### 효과 (예상)
+
+방금 user 시나리오 (PlayerStars=0, hand=VENERATE+FALLING_STAR+STRIKE+DEFEND):
+
+**VENERATE depth-2** (v0.7.73):
+1. ApplyCardPlay(VENERATE) → newState.PlayerStars = 0+2 = 2
+2. EnumerateCandidates(newState):
+   - FALLING_STAR: IsPlayable=false but StarCostByCardId[FALLING_STAR]=2 ≤ 2 → **unlock**
+   - 평가 후보에 포함됨
+3. Lookahead 점수: FALLING_STAR (8 dmg) lethal vs 적 → chain detect
+
+이제 14 dmg chain (VENERATE→FALLING_STAR→STRIKE) 정확히 평가됨.
+
+### 안전성
+
+- 정상 카드 영향 **없음** (dict 에 없음 → 기존 흐름)
+- Reflection 의존 **없음** (catalog 값 hardcode)
+- 신규 star-cost 카드 추가 시 dict 업데이트 필요 (catalog 21 카드 기반)
+
+---
+
 ## v0.7.72 (2026-05-19) — HOTFIX
 
 **CRITICAL: v0.7.71 의 StarCost filter 가 정상 카드까지 차단.**
