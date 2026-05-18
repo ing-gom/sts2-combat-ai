@@ -3763,28 +3763,65 @@ internal static class EffectSynergy
     }
 
     /// <summary>
-    /// v0.7.68 — Generic Star gain handler. Star value depends on STAR_CONSUMER
-    /// presence (no consumers = star wasted).
+    /// v0.7.68 — Generic Star gain handler.
+    /// v0.7.70 — Star-cost card enabler bonus. When gaining stars unlocks
+    /// previously-unplayable star-cost cards (PlayerStars + gained ≥ card's
+    /// required star_cost), award an unlock bonus. Plus considers in-hand
+    /// star-cost cards specifically (immediate-use enabler).
     /// </summary>
     private static void ApplyStarsGain(SimCard self, SimState state, ref int b, List<string> parts, int starsGained)
     {
         int consumers = 0;
-        foreach (var c in state.Hand)
-        {
-            if (ReferenceEquals(c, self)) continue;
-            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
-        }
-        foreach (var c in state.DrawPile)
-            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
-        foreach (var c in state.DiscardPile)
-            if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+        // v0.7.70 — Also track star-cost cards currently locked by insufficient stars
+        int unlockedInHand = 0;
+        int unlockedDeck = 0;
+        int currentStars = state.PlayerStars;
+        int newStarTotal = currentStars + starsGained;
 
-        int perStar = consumers > 0 ? 150 : 40;  // big drop without sink
+        void ScanForConsumers(IReadOnlyList<SimCard> pile, bool isHand)
+        {
+            foreach (var c in pile)
+            {
+                if (ReferenceEquals(c, self)) continue;
+                if (c.Axes != null && c.Axes.Contains("STAR_CONSUMER")) consumers++;
+                // v0.7.70 — star_cost is per-card via SourceRef game data;
+                // not directly on SimCard. Approximate via STAR axis cards.
+                bool hasStarCost = c.Axes != null
+                    && (c.Axes.Contains("STAR") || c.Axes.Contains("STAR_CONSUMER")
+                        || c.Axes.Contains("STAR_X_COST"));
+                if (!hasStarCost) continue;
+                // Heuristic star_cost — STARDUST/STAR_X_COST is 0 required (scales);
+                // most STAR-axis cards have 2-3 star_cost. Treat as needing 2 stars
+                // as conservative threshold. AI doesn't have direct star_cost field.
+                const int AssumedStarCost = 2;
+                bool wasLocked = currentStars < AssumedStarCost;
+                bool nowUnlocked = newStarTotal >= AssumedStarCost;
+                if (wasLocked && nowUnlocked)
+                {
+                    if (isHand) unlockedInHand++;
+                    else unlockedDeck++;
+                }
+            }
+        }
+        ScanForConsumers(state.Hand, isHand: true);
+        ScanForConsumers(state.DrawPile, isHand: false);
+        ScanForConsumers(state.DiscardPile, isHand: false);
+
+        int perStar = consumers > 0 ? 150 : 40;
         int v = starsGained * perStar;
-        const int Cap = 1000;
+
+        // v0.7.70 — Unlock bonuses
+        if (unlockedInHand > 0)
+            v += unlockedInHand * 200;  // immediate-use enabler
+        if (unlockedDeck > 0)
+            v += unlockedDeck * 60;  // future-draw enabler
+
+        const int Cap = 1200;
         if (v > Cap) v = Cap;
         b += v;
-        parts.Add($"starsGain(S{starsGained}x{perStar},cons{consumers}={v})");
+        string unlockTag = (unlockedInHand + unlockedDeck) > 0
+            ? $",unlk[H{unlockedInHand}/D{unlockedDeck}]" : "";
+        parts.Add($"starsGain(S{starsGained}x{perStar},cons{consumers}{unlockTag}={v})");
     }
 
     /// <summary>

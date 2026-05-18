@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.70 (2026-05-19)
+
+**Star chain enabler + Thorns block-alternative bias.**
+
+### 사용자 보고
+
+1. "별 + 부가효과 카드 — 에너지 남으면 사용 기준?"
+2. "별 코스트 카드 시나리오 — energy 로 star 수급 chain 미흡"
+3. "가시 적 공격 시 방어 안 쓰는 case"
+
+### Star producer enabler bonus
+
+`ApplyStarsGain` 확장: PlayerStars + 새 stars 가 star-cost 카드 unlock 시:
+- Hand 내 unlock: +200/장 (즉시 사용)
+- Deck 내 unlock: +60/장 (미래 draw)
+
+### Thorns block-alternative penalty
+
+Attack 카드 thornsDamage > 0 + non-lethal + hand 에 block ≥ 5 가능 +
+target near-kill 아님 시 추가 -150 → AI 가 block 우선.
+
+---
+
 ## v0.7.69 (2026-05-19)
 
 **Exhaust 카드 audit — 사용자 요청.**
