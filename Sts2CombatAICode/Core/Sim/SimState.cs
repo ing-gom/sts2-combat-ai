@@ -33,6 +33,10 @@ internal sealed record SimState
     // v0.2.4 — player status powers (Strength/Dexterity/Vulnerable/Weak/Frail).
     public int PlayerStrength { get; init; }
     public int PlayerDexterity { get; init; }
+    // v0.7.82 — VigorPower stack. Adds +N damage to the next attack played
+    // this turn, then consumed (reset to 0). Unlike Strength which persists,
+    // Vigor is one-shot.
+    public int PlayerVigor { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
