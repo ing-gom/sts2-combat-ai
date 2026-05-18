@@ -246,6 +246,12 @@ internal static class EffectSynergy
             && !axes.Contains("SKELETON_PRODUCER"))
             ApplyOstyConditional(state, ref b, parts);
 
+        // v0.7.21 — DOOM_SELF_PRODUCER: card adds Doom to player. High Doom
+        // = existential risk (turn-end tick scales with stack). Penalize
+        // proportional to how close (PlayerDoom + new) gets to PlayerHp.
+        if (axes.Contains("DOOM_SELF_PRODUCER"))
+            ApplyDoomSelfRisk(card, state, ref b, parts);
+
         // v0.6.9 — ENLIGHTENMENT: combat-wide cost reduction (all hand cards
         // cost 1). Value = sum of cost reductions in current + future hands.
         if (card.Id == "CARD.ENLIGHTENMENT")
@@ -2137,6 +2143,43 @@ internal static class EffectSynergy
             b -= 350;
             parts.Add("ostyDead=-350");
         }
+    }
+
+    /// <summary>
+    /// v0.7.21 — DOOM_SELF_PRODUCER risk handler. Adding Doom to the player
+    /// queues turn-end self-damage that compounds across turns: 5 Doom ticks
+    /// 5 HP every turn = 25 over 5 turns. The card's PowerCatalog credit
+    /// already values Doom's payoff; this handler penalizes when projected
+    /// total Doom damage threatens lethal.
+    ///
+    /// Heuristic:
+    ///   newDoom = state.PlayerDoom + estimatedDoomFromCard
+    ///   projectedHpLoss = newDoom × remaining-turns
+    ///   penalty = clamp(-(projectedHpLoss × 5), -500, 0) when
+    ///             projectedHpLoss > playerHp × 0.5
+    /// </summary>
+    private static void ApplyDoomSelfRisk(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Estimate the Doom added — fall back to 1 stack when card.vars is
+        // unavailable. Most DOOM_SELF_PRODUCER cards add 1-2 stacks.
+        int doomDelta = 1;
+        if (self.PowerApps.TryGetValue("DoomPower", out var d) && d > 0) doomDelta = d;
+
+        int newDoom = state.PlayerDoom + doomDelta;
+        if (newDoom <= 0) return;
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int projectedHpLoss = newDoom * turns;
+
+        // Only penalize when this clearly threatens HP — sub-50% of HP is
+        // background noise (the existing power-catalog credit covers small
+        // doom).
+        if (projectedHpLoss < state.PlayerHp / 2) return;
+
+        int penalty = -projectedHpLoss * 5;
+        if (penalty < -500) penalty = -500;
+        b += penalty;
+        parts.Add($"doomSelfRisk(stack={newDoom},turns={turns},lossEst={projectedHpLoss})={penalty}");
     }
 
     private static void ApplyEnlightenmentBonus(SimCard self, SimState state, ref int b, List<string> parts)
