@@ -1,5 +1,98 @@
 # Changelog
 
+## v0.7.15 (2026-05-18)
+
+**EchoForm / MachineLearning multi-turn 시그널 통합.**
+
+### 배경
+
+v0.7.10 의 multi-turn projection 이 다음 턴 hand 와 첫 카드 점수를 모델링하지만,
+S+ tier persistent passive 두 개를 무시:
+
+- **EchoFormPower** — 매 턴 첫 N 카드 두 번 발동. depth=1 next-turn lookahead 의
+  첫 카드 점수가 실제론 2배. 가치 누락
+- **MachineLearningPower** — 매 턴 +1 카드 draw. next-turn hand size 가 5 가 아닌
+  5+N. 더 큰 hand 의 옵션 다양성 무시
+
+### 변경
+
+**`AnalyticalSimulator.cs`**:
+
+- `ComputeNextTurnHandSize(state)` 신규 — `5 + MachineLearningPower stack`
+- `BuildSyntheticHand(state)` → `BuildSyntheticHand(state, handSize)` 시그니처
+  확장. handSize 만큼 평균 카드 복제
+- `AdvanceTurn` / `AdvanceTurnSampled` 가 호출 시 `ComputeNextTurnHandSize`
+  결과 전달
+
+**`ActionPlanner.cs`** MC 루프:
+
+```csharp
+echoMultiplier = (PlayerPowers["EchoFormPower"] > 0) ? 2.0 : 1.0
+nextTurnBonus = (int)(nextTurnAvg * echoMultiplier * NextTurnDiscount)
+```
+
+EchoForm 의 진짜 효과는 stack 별로 "첫 N 카드" 가 echo 되지만, 우리는 depth=1
+만 평가 → 첫 카드 echo (×2) 로 saturate. 더 깊은 lookahead 가 필요해야 stack 2,
+3 의 가산이 의미있음.
+
+### 검증 (`scripts/_inspect_echoform_machinelearning.py`)
+
+```
+=== Next-turn hand size (MachineLearningPower) ===
+stacks  handSize
+     0         5
+     1         6
+     2         7
+     3         8
+
+=== Next-turn first-card bonus (EchoFormPower) ===
+baseScore  echo=0  echo>=1  shift
+      100      30       60    +30
+      300      90      180    +90
+      600     180      360   +180
+     1000     300      600   +300
+     1500     450      900   +450
+```
+
+EchoForm 의 multi-turn 가산이 첫 카드 점수에 비례. 강한 카드 (1500) 가 손에 들어
+오면 +450 bonus. MachineLearning 으로 hand 6 → MC sample 의 옵션 +1.
+
+### 의도된 시나리오
+
+| 카드 | EchoForm 없음 | EchoForm 1 |
+|---|---|---|
+| EchoForm 자체 (S+, +1500 mc-credit) | 0.7.10 처럼 단일 projection | 2× projection — 자체 가치 visible |
+| Bludgeon (300 base) | 90 next-turn bonus | 180 next-turn bonus |
+| Power 카드 (200 base) | 60 next-turn bonus | 120 next-turn bonus |
+
+MachineLearning:
+- 손이 6장이라면 BestContinuation 에 더 많은 후보 (1 candidate 추가) → 더 정확
+  한 best-first-card 평가
+
+### 비용
+
+추가 비용 ~0% — 동일 코드 경로, hand size 변수화. ML stacks=3 일 때만 +3 cards
+샘플링 (perf 영향 미미).
+
+### Forward sim coverage — v0.7.15 후
+
+| 영역 | 상태 |
+|---|---|
+| 단일턴 depth=3 beam search | ✅ |
+| 멀티턴 AdvanceTurn projection + Monte Carlo (N=3) | ✅ |
+| Power 패시브 PowerCatalog 도달 | ✅ |
+| HP_LOSS producer/consumer | ✅ |
+| Self-copy chain 6장 | ✅ |
+| Skeleton ally damage + split-fire | ✅ |
+| DemonForm/Regen/Barricade per-turn passive | ✅ |
+| ReaperForm Doom on enemies | ✅ |
+| MAYHEM/STAMPEDE 실제 auto-trigger | ✅ |
+| Monte Carlo next-turn hand sampling | ✅ |
+| **EchoForm next-turn first-card 2x score** | ✅ **v0.7.15** |
+| **MachineLearning +1 hand size** | ✅ **v0.7.15** |
+| AGGRESSION 손에 카드 추가 | ⊘ EffectSynergy credit |
+| CombatAdvisor 자매 모드 포트 | ❌ |
+
 ## v0.7.14 (2026-05-18)
 
 **Forward Simulator Phase 2c — Monte Carlo next-turn hand sampling.**

@@ -455,7 +455,7 @@ internal static class AnalyticalSimulator
     ///     (matches AnalyticalSimulator's intra-turn draw model).
     /// </summary>
     public static SimState AdvanceTurn(SimState state)
-        => AdvanceTurnInternal(state, BuildSyntheticHand(state));
+        => AdvanceTurnInternal(state, BuildSyntheticHand(state, ComputeNextTurnHandSize(state)));
 
     /// <summary>
     /// v0.7.14 (Phase 2c) — AdvanceTurn variant whose next-turn hand is drawn
@@ -468,20 +468,39 @@ internal static class AnalyticalSimulator
     /// reduction (ActionPlanner uses N=3).
     /// </summary>
     public static SimState AdvanceTurnSampled(SimState state, System.Random rng)
-        => AdvanceTurnInternal(state, BuildSampledHand(state, 5, rng));
+        => AdvanceTurnInternal(state, BuildSampledHand(state, ComputeNextTurnHandSize(state), rng));
 
     /// <summary>
-    /// Synthetic next-turn hand: 5 copies of the pile's average card. Kept as
-    /// the default <see cref="AdvanceTurn"/> behavior — deterministic,
+    /// v0.7.15 — Next-turn hand size. STS2 default = 5, plus
+    /// <c>MachineLearningPower</c> stacks ("at start of turn, draw +1 card per
+    /// stack"). Used by both synthetic and sampled hand builders so the
+    /// multi-turn projection correctly inflates Machine Learning's value.
+    /// </summary>
+    private const int BaseNextTurnHandSize = 5;
+    private static int ComputeNextTurnHandSize(SimState state)
+    {
+        int size = BaseNextTurnHandSize;
+        if (state.PlayerPowers != null
+            && state.PlayerPowers.TryGetValue("MachineLearningPower", out var ml)
+            && ml > 0)
+        {
+            size += ml;
+        }
+        return size;
+    }
+
+    /// <summary>
+    /// Synthetic next-turn hand: handSize copies of the pile's average card.
+    /// Kept as the default <see cref="AdvanceTurn"/> behavior — deterministic,
     /// noise-free, suitable for non-Monte-Carlo callers.
     /// </summary>
-    private static System.Collections.Generic.List<SimCard> BuildSyntheticHand(SimState state)
+    private static System.Collections.Generic.List<SimCard> BuildSyntheticHand(SimState state, int handSize)
     {
         var hand = new System.Collections.Generic.List<SimCard>();
         if (state.DrawPile.Count + state.DiscardPile.Count > 0)
         {
             var avg = MakeAverageDrawCard(state);
-            for (int i = 0; i < 5; i++) hand.Add(avg);
+            for (int i = 0; i < handSize; i++) hand.Add(avg);
         }
         return hand;
     }
