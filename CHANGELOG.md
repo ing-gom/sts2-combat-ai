@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.7.48 (2026-05-18)
+
+**Retain stem audit (Batch 3/7).**
+
+6 RETAIN_SELF 카드 검증. 3개 specific mechanic 추가:
+
+- **SACRIFICE** (Necrobinder, B, 1c): block = Skeleton max HP × 2.
+  Skeleton 부재 시 -200. 있으면 `bestSkeletonHp × 60 - 150 (ally 손실)`
+- **RESTLESSNESS** (Shared, A, 0c): hand 비었을 때 draw 2 + energy 2.
+  empty 시 +900, others 1 +600, others 2 +500, ...
+- **PURITY** (Shared, B, 0c): hand 최대 3장 exhaust.
+  curses/junk 카드 수 × 250 (max 3).
+
+기존 axis 처리 충분:
+- LUMINESCE (energy_producer) / SNAKEBITE (poison_producer) / SPUR (heal+summon)
+
+---
+
 ## v0.7.47 (2026-05-18)
 
 **Pile manipulation stem audit (Batch 2/7).**
