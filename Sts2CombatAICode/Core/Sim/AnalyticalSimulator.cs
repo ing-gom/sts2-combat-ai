@@ -78,6 +78,22 @@ internal static class AnalyticalSimulator
         // skill that grants Vigor lifts the next attack's damage, then is
         // consumed when an attack plays.
         int newPlayerVigor = next.PlayerVigor;
+        // v0.7.83 — BufferPower stacks. Each stack negates one incoming damage
+        // instance. Propagated so depth-N lookahead sees the cushion.
+        int newPlayerBuffer = next.PlayerBuffer;
+        // v0.7.84 — Damage multiplier powers. Lethality is single-shot
+        // (first-attack-this-turn) so the attack path consumes it; Tracking
+        // and Cruelty are passive and just carried.
+        int newPlayerLethality = next.PlayerLethality;
+        int newPlayerTracking = next.PlayerTracking;
+        int newPlayerCruelty = next.PlayerCruelty;
+        // v0.7.85 — Block-side reactive / multiplier powers.
+        int newPlayerRage = next.PlayerRage;
+        int newPlayerAfterimage = next.PlayerAfterimage;
+        int newPlayerUnmovable = next.PlayerUnmovable;
+        bool newUnmovableUsedThisTurn = next.UnmovableUsedThisTurn;
+        // v0.7.86 — Shiv damage bonus (Silent passive).
+        int newPlayerAccuracy = next.PlayerAccuracy;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -124,6 +140,22 @@ internal static class AnalyticalSimulator
                     // PREP_TIME-derived buffs etc.) grant Vigor; the next attack
                     // lookahead must see the boost.
                     case "VigorPower": newPlayerVigor += amount; break;
+                    // v0.7.83 — BufferPower propagation (Buffer, etc.). Each stack
+                    // negates one incoming damage instance — depth-N threat estimate
+                    // sees the cushion.
+                    case "BufferPower": newPlayerBuffer += amount; break;
+                    // v0.7.84 — Damage multiplier powers. PlanScorer uses these
+                    // via ApplyDamageMultipliers; propagation here lets the depth-N
+                    // lookahead see the same buff after a setup Power is played.
+                    case "LethalityPower": newPlayerLethality += amount; break;
+                    case "TrackingPower": newPlayerTracking += amount; break;
+                    case "CrueltyPower": newPlayerCruelty += amount; break;
+                    // v0.7.85 — Block-side reactive / multiplier powers.
+                    case "RagePower": newPlayerRage += amount; break;
+                    case "AfterimagePower": newPlayerAfterimage += amount; break;
+                    case "UnmovablePower": newPlayerUnmovable += amount; break;
+                    // v0.7.86 — Shiv damage bonus.
+                    case "AccuracyPower": newPlayerAccuracy += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -171,8 +203,18 @@ internal static class AnalyticalSimulator
                 // v0.7.82 — Apply Vigor to damage. Consumption happens once after
                 // the attack resolves (after the enemy loop) so each enemy in AOE
                 // sees the same Vigor amount, matching STS canonical behavior.
+                // v0.7.86 — AccuracyPower → +N damage for Shiv. Folded into base.
+                int adjustedBase = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, next);
                 int totalDmg = StatusMath.EffectivePerEnemyTotal(
-                    card.Damage, card.Hits, newPlayerStr, newPlayerVigor, enemy, playerWeak);
+                    adjustedBase, card.Hits, newPlayerStr, newPlayerVigor, enemy, playerWeak);
+                // v0.7.84 — Apply damage multipliers. Lethality fires on first
+                // attack only; the next attack in depth-N lookahead sees
+                // newPlayerLethality=0 below.
+                totalDmg = StatusMath.ApplyDamageMultipliers(totalDmg,
+                    next with { PlayerLethality = newPlayerLethality, PlayerTracking = newPlayerTracking, PlayerCruelty = newPlayerCruelty },
+                    defenderVulnerable: enemy.VulnerableAmount > 0,
+                    defenderWeak: enemy.WeakAmount > 0,
+                    lethalityActive: newPlayerLethality > 0);
 
                 // Block-first absorption
                 int blockAfter = System.Math.Max(0, enemy.Block - totalDmg);
@@ -264,6 +306,12 @@ internal static class AnalyticalSimulator
             // v0.7.82 — Vigor is single-shot: consumed when this attack resolves.
             // Subsequent attacks in the depth-N lookahead chain see Vigor=0.
             newPlayerVigor = 0;
+            // v0.7.84 — Lethality is "first attack of the turn ×1.5" → after the
+            // first attack, drop to 0. (Tracking/Cruelty are passive — keep.)
+            newPlayerLethality = 0;
+            // v0.7.85 — RagePower: gain N block per attack played.
+            if (newPlayerRage > 0)
+                newPlayerBlock += StatusMath.EffectiveBlock(newPlayerRage, newPlayerDex, playerFrail);
         }
 
         // 3c. Skill: self block (only when self-targeted) + apply powers to target if any
@@ -275,6 +323,13 @@ internal static class AnalyticalSimulator
             if (selfTarget && card.Block > 0)
             {
                 int eff = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
+                // v0.7.85 — UnmovablePower: first block card/turn ×2. Single-shot
+                // per turn (canonical STS). Consume the flag on use.
+                if (newPlayerUnmovable > 0 && !newUnmovableUsedThisTurn)
+                {
+                    eff *= 2;
+                    newUnmovableUsedThisTurn = true;
+                }
                 newPlayerBlock += eff;
             }
 
@@ -300,6 +355,18 @@ internal static class AnalyticalSimulator
                             newPlayerFocus += amount; break;
                         // v0.7.82 — Skill-granted Vigor (rare but exists in STS2).
                         case "VigorPower": newPlayerVigor += amount; break;
+                        // v0.7.83 — Skill-granted Buffer (e.g., Buffer card itself).
+                        case "BufferPower": newPlayerBuffer += amount; break;
+                        // v0.7.84 — Skill-granted damage multipliers.
+                        case "LethalityPower": newPlayerLethality += amount; break;
+                        case "TrackingPower": newPlayerTracking += amount; break;
+                        case "CrueltyPower": newPlayerCruelty += amount; break;
+                        // v0.7.85 — Skill-granted block-side powers.
+                        case "RagePower": newPlayerRage += amount; break;
+                        case "AfterimagePower": newPlayerAfterimage += amount; break;
+                        case "UnmovablePower": newPlayerUnmovable += amount; break;
+                        // v0.7.86 — Skill-granted Shiv damage bonus.
+                        case "AccuracyPower": newPlayerAccuracy += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -448,6 +515,11 @@ internal static class AnalyticalSimulator
         if (!card.IsExhaust)
             discardAfter += 1;
 
+        // v0.7.85 — AfterimagePower: gain N block on every card played (including
+        // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
+        if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
+            newPlayerBlock += StatusMath.EffectiveBlock(newPlayerAfterimage, newPlayerDex, playerFrail);
+
         return next with
         {
             PlayerHp = newPlayerHp,
@@ -455,6 +527,15 @@ internal static class AnalyticalSimulator
             PlayerStrength = newPlayerStr,
             PlayerDexterity = newPlayerDex,
             PlayerVigor = newPlayerVigor,
+            PlayerBuffer = newPlayerBuffer,
+            PlayerLethality = newPlayerLethality,
+            PlayerTracking = newPlayerTracking,
+            PlayerCruelty = newPlayerCruelty,
+            PlayerRage = newPlayerRage,
+            PlayerAfterimage = newPlayerAfterimage,
+            PlayerUnmovable = newPlayerUnmovable,
+            UnmovableUsedThisTurn = newUnmovableUsedThisTurn,
+            PlayerAccuracy = newPlayerAccuracy,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
@@ -586,6 +667,24 @@ internal static class AnalyticalSimulator
         int allyAbsorbed = EnemyTurnSimulator.ComputeAllyAbsorption(state, rawLeak);
         int playerLeak = rawLeak - allyAbsorbed;
         int newPlayerHp = System.Math.Max(0, state.PlayerHp - playerLeak);
+
+        // v0.7.83 — Buffer consumption after turn resolves. Each stack absorbed
+        // one damage instance; count attack instances this turn (capped at stack
+        // count). Approximation: ignores per-enemy dead/alive subtleties already
+        // checked in PredictRawLeak.
+        int bufferConsumed = 0;
+        if (state.PlayerBuffer > 0)
+        {
+            int attackInstances = 0;
+            foreach (var e in state.Enemies)
+            {
+                if (!e.IsAlive) continue;
+                if (e.HasAttackIntent || e.HasDeathBlowIntent)
+                    attackInstances += System.Math.Max(1, e.IntentRepeats);
+            }
+            bufferConsumed = System.Math.Min(state.PlayerBuffer, attackInstances);
+        }
+        int newPlayerBufferEot = System.Math.Max(0, state.PlayerBuffer - bufferConsumed);
 
         // v0.7.11 — Ally attacks fire after player turn ends but before
         // enemy intents resolve (in practice STS2 allies act on the player's
@@ -804,6 +903,14 @@ internal static class AnalyticalSimulator
             PlayerBlock = newPlayerBlock,
             PlayerEnergy = BaseTurnEnergy,
             PlayerStrength = newPlayerStr,
+            // v0.7.83 — Carry Buffer minus instances consumed this turn.
+            PlayerBuffer = newPlayerBufferEot,
+            // v0.7.84 — Lethality re-arms each turn (it's "first attack/turn"
+            // multiplier; AdvanceTurn refreshes Lethality to its full stack value).
+            // Tracking and Cruelty are passive — preserved via `state with`.
+            PlayerLethality = state.PlayerLethality,
+            // v0.7.85 — Unmovable re-arms each turn (single-shot per turn).
+            UnmovableUsedThisTurn = false,
             PlayerVulnerable = newPlayerVuln,
             PlayerWeak = newPlayerWeak,
             PlayerFrail = newPlayerFrail,

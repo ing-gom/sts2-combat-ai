@@ -38,6 +38,18 @@ internal static class StateSnapshotter
             int playerDex = CombatReflection.GetPowerAmount(creature, "DexterityPower");
             // v0.7.82 — VigorPower: next attack +N damage, then consumed.
             int playerVigor = CombatReflection.GetPowerAmount(creature, "VigorPower");
+            // v0.7.83 — BufferPower: negates next damage instance.
+            int playerBuffer = CombatReflection.GetPowerAmount(creature, "BufferPower");
+            // v0.7.84 — Damage multiplier powers (Silent).
+            int playerLethality = CombatReflection.GetPowerAmount(creature, "LethalityPower");
+            int playerTracking = CombatReflection.GetPowerAmount(creature, "TrackingPower");
+            int playerCruelty = CombatReflection.GetPowerAmount(creature, "CrueltyPower");
+            // v0.7.85 — Block-side reactive / multiplier powers.
+            int playerRage = CombatReflection.GetPowerAmount(creature, "RagePower");
+            int playerAfterimage = CombatReflection.GetPowerAmount(creature, "AfterimagePower");
+            int playerUnmovable = CombatReflection.GetPowerAmount(creature, "UnmovablePower");
+            // v0.7.86 — Shiv damage bonus (Silent).
+            int playerAccuracy = CombatReflection.GetPowerAmount(creature, "AccuracyPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -269,6 +281,20 @@ internal static class StateSnapshotter
                 PlayerStrength = playerStr,
                 PlayerDexterity = playerDex,
                 PlayerVigor = playerVigor,
+                PlayerBuffer = playerBuffer,
+                PlayerLethality = playerLethality,
+                PlayerTracking = playerTracking,
+                PlayerCruelty = playerCruelty,
+                PlayerRage = playerRage,
+                PlayerAfterimage = playerAfterimage,
+                PlayerUnmovable = playerUnmovable,
+                PlayerAccuracy = playerAccuracy,
+                // Snapshot: Unmovable starts un-used each turn; conservative — if
+                // mid-turn we re-snapshot, the live game state's first-block-played
+                // bit isn't easily readable so we assume not-yet-used. The next
+                // block card will then double; if game actually used it, the planner
+                // over-estimates block until consumed in the simulator.
+                UnmovableUsedThisTurn = false,
                 PlayerVulnerable = playerVuln,
                 PlayerWeak = playerWeak,
                 PlayerFrail = playerFrail,

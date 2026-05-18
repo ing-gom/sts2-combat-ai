@@ -1,5 +1,139 @@
 # Changelog
 
+## v0.7.86 (2026-05-19)
+
+**AccuracyPower — Silent Shiv 데미지 보정 (+N per Shiv).**
+
+### 이전 상태
+
+PowerCatalog 400 가치만 부여, 실 데미지 미반영. Silent Shiv 빌드 (INFINITE_BLADES,
+ACCURACY 등) 의 핵심 곱셈이 점수에 안 들어가 Shiv 카드 underweight.
+
+### 변경
+
+- `SimState.PlayerAccuracy` 신설.
+- `StateSnapshotter` 가 AccuracyPower stack 주입.
+- `StatusMath.ApplyCardSpecificDamageBonus(baseDamage, cardId, state)` 헬퍼 —
+  현재 Shiv 만 (id == "SHIV") 대응; 향후 다른 카드 특화 buff 도 같은 자리에.
+- `PlanScorer` 의 attack 평가에서 base damage 를 adjusted (+Accuracy) 로 교체
+  후 Vigor/Strength/multiplier 체인 적용.
+- `AnalyticalSimulator` 의 공격 데미지 계산도 동일하게 처리. PlayerAccuracy
+  propagation + final state 에 carry.
+
+### 기대 효과
+
+Accuracy 4 stack + Shiv (d4) → 실 데미지 8 (이전엔 4). Shiv-spam 빌드 점수 정확화.
+
+---
+
+## v0.7.85 (2026-05-19)
+
+**블록 multiplier / reactive power 3종 — Unmovable / Rage / Afterimage.**
+
+### 이전 상태
+
+- UnmovablePower (첫 block card/턴 ×2)
+- RagePower (공격당 N block)
+- AfterimagePower (카드당 N block)
+
+PowerCatalog 값만 부여, 실제 block 계산 미반영. RagePower 는 HandSynergy 가
+간접 추정만, 시뮬레이터에서 nextState block 증가 미반영.
+
+### 변경
+
+- `SimState.PlayerRage / PlayerAfterimage / PlayerUnmovable` + `UnmovableUsedThisTurn` 신설.
+- `StateSnapshotter` — 세 power 모두 GetPowerAmount 로 주입. UnmovableUsedThisTurn
+  은 매 snapshot 시 false (conservative; 실제로 게임에서 이미 사용했으면 시뮬과
+  실 block 차이 발생 가능 — 첫 block card play 한 번까지).
+- `AnalyticalSimulator`:
+  - Power / Skill self-apply switch 에 3 power 케이스 추가.
+  - **Attack resolve 시**: `newPlayerRage > 0` 이면 `newPlayerBlock += EffectiveBlock(Rage)`.
+  - **Skill self-block 시**: `newPlayerUnmovable > 0 && !UnmovableUsedThisTurn` →
+    block ×2 + flag set.
+  - **카드 resolve 끝**: `newPlayerAfterimage > 0 && !curse/status` → 모든 카드에
+    +Afterimage block.
+  - `AdvanceTurn`: `UnmovableUsedThisTurn = false` (매 턴 첫 block 재충전).
+- `PlanScorer`:
+  - 스킬 block 평가에 Unmovable ×2 + Afterimage block 가산.
+  - 공격 평가에 reactiveBlockBonus 추가 (`Rage + Afterimage`) × BlockPerPointBonus —
+    RAGE / AFTERIMAGE 빌드가 공격을 정량적으로 defensive 가치까지 인식.
+
+### 기대 효과
+
+- Ironclad RagePower 1 stack + 공격 카드 → 공격이 `+blockBonus` 까지 받아
+  defensive 우선순위 정확화.
+- Watcher AfterimagePower 2 stack + 카드 → 매 카드 +2 block 시뮬에 반영,
+  threat 추정 보다 정확.
+- Unmovable 활성 + DEFEND 카드 → block 5 → 10 인식, threatBonus 와 결합해 더
+  강한 defensive 우선.
+
+---
+
+## v0.7.84 (2026-05-19)
+
+**데미지 multiplier power 3종 — Lethality / Tracking / Cruelty (Silent).**
+
+### 이전 상태
+
+- LethalityPower (첫 공격/턴 ×1.5)
+- TrackingPower (Weak 적 ×2)
+- CrueltyPower (Vulnerable 적 ×1.25)
+
+PowerCatalog 값만 부여, 실제 데미지 공식 미반영. Silent ATK + DEBUFF 빌드의 핵심 루프가 어긋남.
+
+### 변경
+
+- `SimState.PlayerLethality / PlayerTracking / PlayerCruelty` 신설.
+- `StateSnapshotter` 가 세 power 모두 GetPowerAmount 로 주입.
+- `StatusMath.ApplyDamageMultipliers(damage, state, defenderVuln, defenderWeak, lethalityActive)`
+  헬퍼 신설 — Tracking/Cruelty/Lethality 곱셈 일괄 적용.
+- `PlanScorer` 의 4 곳 (single-target, AOE, random multi-hit, random lethal-prob,
+  AOE per-enemy) 데미지 계산 후 ApplyDamageMultipliers 호출.
+- `IsLethalThisTurn` 체인 추정기: Lethality 첫 공격만, Tracking/Cruelty 매 공격
+  적용. multiplier 적용 후 enemy 처치 여부 재평가.
+- `AnalyticalSimulator`:
+  - Power / Skill self-apply switch 에 3 power 케이스 추가.
+  - 공격 데미지 계산 시 multiplier 적용.
+  - 공격 resolve 시 Lethality → 0 (단발 소비). Tracking/Cruelty 유지.
+  - `AdvanceTurn`: Lethality 매 턴 원래 stack 값으로 재충전 (첫 공격/턴 이므로).
+
+### 기대 효과
+
+- Silent: Tracking 1 + Weak 적용 적 → STRIKE 데미지 ×2 인식 → STRIKE 우선순위
+  상승. Vuln 적 + Cruelty → ×1.25 추가.
+- Lethality 활성 시 첫 공격 lethal 윈도우 감지 ×1.5 효과로 캐치.
+
+---
+
+## v0.7.83 (2026-05-19)
+
+**BufferPower — 다음 받는 damage instance 무효 (Watcher Buffer).**
+
+### 이전 상태
+
+`PowerCatalog` 800 가치만 부여, 실 효과 미적용. `PredictPlayerDmg` 가 Buffer
+무시 → threat 과대평가 → 방어 카드 과추천.
+
+### 변경
+
+- `SimState.PlayerBuffer` 신설.
+- `StateSnapshotter` — BufferPower 스택 snapshot 시 주입.
+- `EnemyTurnSimulator.PredictPlayerDmg` / `PredictRawLeak` 두 경로 모두 hit
+  instance 들을 수집 → Buffer 스택만큼 **가장 큰 instance 부터 cancel**
+  (canonical STS Buffer 동작) → 남은 damage 합산. Intangible 경로는 hit 카운트
+  기준으로 cancel.
+- `AnalyticalSimulator` — Power/Skill self-apply switch 에 `case "BufferPower"`
+  추가. `AdvanceTurnInternal` 에서 매 턴 attack instance 수만큼 Buffer 소비
+  후 다음 턴으로 carry.
+
+### 기대 효과
+
+Watcher Buffer 1 stack + 적 단일 강타 30dmg → leak 0 (Buffer cancel). 이전엔
+30 leak 으로 보여 DEFEND 강제 → 이번엔 다른 효과 카드 우선. Race/SurvivalProjection
+정확도 상승.
+
+---
+
 ## v0.7.82 (2026-05-19)
 
 **Vigor (활력) 메커니즘 구현 — 데미지 적용 + 소비.**
