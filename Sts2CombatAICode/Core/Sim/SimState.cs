@@ -84,6 +84,9 @@ internal sealed record SimState
     // (Card-side thorns reflection on attacking thorn enemies is handled
     // separately by SimEnemy.ThornsAmount in AnalyticalSimulator.)
     public int PlayerThorns { get; init; }
+    // v0.7.97 — FeelNoPainPower: when player exhausts a card (Exhaust keyword
+    // OR force-exhaust path), gain N block. Reactive trigger on card resolve.
+    public int PlayerFeelNoPain { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
