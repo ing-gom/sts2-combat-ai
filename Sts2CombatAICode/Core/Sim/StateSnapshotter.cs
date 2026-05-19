@@ -59,6 +59,9 @@ internal static class StateSnapshotter
             int playerThorns = CombatReflection.GetPowerAmount(creature, "ThornsPower");
             // v0.7.97 — FeelNoPainPower (Ironclad reactive: exhaust → block).
             int playerFeelNoPain = CombatReflection.GetPowerAmount(creature, "FeelNoPainPower");
+            // v0.7.98 — EchoFormPower raw stack (remaining echoes computed below
+            // after turnAttacksPlayed/turnSkillsPlayed counters are populated).
+            int echoStack = CombatReflection.GetPowerAmount(creature, "EchoFormPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -303,6 +306,8 @@ internal static class StateSnapshotter
                 PlayerBurst = playerBurst,
                 PlayerThorns = playerThorns,
                 PlayerFeelNoPain = playerFeelNoPain,
+                // v0.7.98 — remaining echoes this turn.
+                PlayerEchoForm = System.Math.Max(0, echoStack - (turnAttacksPlayed + turnSkillsPlayed)),
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next
