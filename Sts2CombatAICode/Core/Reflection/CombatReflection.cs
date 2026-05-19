@@ -58,7 +58,7 @@ internal static class CombatReflection
                 }
             }
         }
-        catch { }
+        catch (System.Exception ex) { LogReflectionFailureOnce($"power/{powerTypeName}", ex); }
         return 0;
     }
 
@@ -87,8 +87,17 @@ internal static class CombatReflection
                 dict[name] = amt;
             }
         }
-        catch { }
+        catch (System.Exception ex) { LogReflectionFailureOnce("powers-dump", ex); }
         return dict;
+    }
+
+    // v0.8.5 — One-shot logger to surface STS2 field-rename issues without
+    // flooding godot.log every frame.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _loggedFailures = new();
+    private static void LogReflectionFailureOnce(string site, System.Exception ex)
+    {
+        if (_loggedFailures.TryAdd(site, 0))
+            MainFile.Logger.Warn($"[CombatAI] reflection/{site} failed: {ex.Message}");
     }
 
     // AttackIntent — STS2 stores damage as `DamageCalc: Func<int>` (computed

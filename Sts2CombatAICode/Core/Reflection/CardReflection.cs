@@ -162,11 +162,12 @@ internal static class CardReflection
         ["SEVEN_STARS"] = 7,
     };
 
-    private static int ResolveStarCost(CardModel card)
+    private static int ResolveStarCost(CardModel? card)
     {
+        if (card == null) return 0;
         int reflected = SafeStarCost(card);
         if (reflected != 0) return reflected;
-        if (card?.Id.Entry is { } entry && StarCostByCardId.TryGetValue(entry, out int catalogCost))
+        if (card.Id.Entry is { } entry && StarCostByCardId.TryGetValue(entry, out int catalogCost))
             return catalogCost;
         return 0;
     }
@@ -429,7 +430,12 @@ internal static class CardReflection
                 if (raw is int i) return i;
             }
         }
-        catch { }
+        catch (System.Exception ex)
+        {
+            // v0.8.5 — Surface STS2 field-rename issues. Uses LogWarn sink that
+            // MainFile wires up at init (null in test builds → silent).
+            LogWarn?.Invoke($"SafeStarCost failed for {card?.Id.Entry}: {ex.Message}");
+        }
         return 0;
     }
 

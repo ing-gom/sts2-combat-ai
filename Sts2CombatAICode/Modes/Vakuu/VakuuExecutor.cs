@@ -396,7 +396,8 @@ internal static class VakuuExecutor
             var line = hitLimit
                 ? new LocString("relics", "WHISPERING_EARRING.warning")
                 : new LocString("relics", "WHISPERING_EARRING.approval");
-            TalkCmd.Play(line, player.Creature, VfxColor.Purple);
+            if (player.Creature != null)
+                TalkCmd.Play(line, player.Creature, VfxColor.Purple);
         }
 
         // If Vakuu killed every enemy this turn the engine doesn't auto-advance:
@@ -435,10 +436,11 @@ internal static class VakuuExecutor
         if (plan.TargetIdx >= 0 && plan.TargetIdx < snapshot.Enemies.Count)
         {
             var picked = snapshot.Enemies[plan.TargetIdx].SourceRef;
-            if (picked.IsAlive) return picked;
+            if (picked != null && picked.IsAlive) return picked;
         }
 
         var card = plan.Card.SourceRef;
+        if (card == null) return null;
         return card.TargetType switch
         {
             TargetType.AnyEnemy => combatState.HittableEnemies.FirstOrDefault(),
