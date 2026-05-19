@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.7.94 (2026-05-19)
+
+**EnragePower (Ironclad reactive) + CorruptionPower propagation.**
+
+### 변경
+
+- `SimState.PlayerEnrage`, `SimState.PlayerCorruption` 신설.
+- `StateSnapshotter` 가 두 power stack 모두 주입.
+- `AnalyticalSimulator`:
+  - Power / Skill self-apply switch 에 `EnragePower` / `CorruptionPower` 케이스 추가.
+  - `card.IsSkill` 블록 시작에 `if (newPlayerEnrage > 0) newPlayerStr += newPlayerEnrage` —
+    Skill 1장 플레이당 +Enrage Strength 적용. 다중 스킬 시 누적.
+  - Final `state with` 에 새 두 필드 carry.
+- `ActionPlanner.EnumerateCandidates` + `WhyFiltered`:
+  - `corruptionFreeSkill` 판정에 `state.PlayerCorruption > 0` 도 인정. depth-N
+    nextState 에서 Corruption 부여 후 Skill 들이 자동 free 인식.
+
+### 기대 효과
+
+- **Ironclad Enrage 빌드**: Inflame → Strike 시퀀스에서 simulator 가 Strike 의
+  Strength 를 +N 으로 평가 (이전엔 동일 Strength). 다중 Skill 사이클 시
+  Enrage stack 만큼 누적 Strength → 마지막 공격이 lethal 윈도우 진입 가능.
+- **Watcher Corruption + Inflame combo**: Power 카드로 Corruption 부여 →
+  depth-2 lookahead 가 후속 Skill 들의 Cost=0 인식 → energy-bound 시너지 정확화.
+
+### Note: Watcher 캐릭터
+
+본 mod 는 STS2 의 game source 에 정의된 PowerName 문자열 (예: `"CorruptionPower"`,
+`"EnragePower"`) 을 reflection 으로 읽음. STS2 base 캐릭터에 해당 power 가
+없더라도, 같은 이름의 power 를 사용하는 커스텀 mod 캐릭터가 있다면 이 wiring
+이 자동 적용됨.
+
+---
+
 ## v0.7.93 (2026-05-19)
 
 **EffectSynergy 최종 sweep — 나머지 57개 prefix 모두 fix. EffectSynergy 의 `card.Id == "CARD.X"` dead code 완전 제거.**
