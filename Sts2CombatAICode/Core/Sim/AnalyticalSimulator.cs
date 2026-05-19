@@ -101,6 +101,8 @@ internal static class AnalyticalSimulator
         int newPlayerBurst = next.PlayerBurst;
         // v0.7.96 — Player Thorns (reflect damage on hit).
         int newPlayerThorns = next.PlayerThorns;
+        // v0.7.97 — FeelNoPainPower (block on Exhaust trigger).
+        int newPlayerFeelNoPain = next.PlayerFeelNoPain;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -170,6 +172,8 @@ internal static class AnalyticalSimulator
                     case "BurstPower": newPlayerBurst += amount; break;
                     // v0.7.96 — Player Thorns reflect.
                     case "ThornsPower": newPlayerThorns += amount; break;
+                    // v0.7.97 — FeelNoPain (block on Exhaust).
+                    case "FeelNoPainPower": newPlayerFeelNoPain += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -407,6 +411,8 @@ internal static class AnalyticalSimulator
                         case "BurstPower": newPlayerBurst += amount; break;
                         // v0.7.96 — Skill-granted Thorns.
                         case "ThornsPower": newPlayerThorns += amount; break;
+                        // v0.7.97 — Skill-granted FeelNoPain.
+                        case "FeelNoPainPower": newPlayerFeelNoPain += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -569,6 +575,12 @@ internal static class AnalyticalSimulator
         if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
             newPlayerBlock += StatusMath.EffectiveBlock(newPlayerAfterimage, newPlayerDex, playerFrail);
 
+        // v0.7.97 — FeelNoPainPower: gain N block when a card is exhausted.
+        // Only fires for cards with the Exhaust keyword (catalog flag); status /
+        // curse Ethereal exhaust at turn-end, not on play.
+        if (newPlayerFeelNoPain > 0 && card.IsExhaust)
+            newPlayerBlock += StatusMath.EffectiveBlock(newPlayerFeelNoPain, newPlayerDex, playerFrail);
+
         return next with
         {
             PlayerHp = newPlayerHp,
@@ -589,6 +601,7 @@ internal static class AnalyticalSimulator
             PlayerCorruption = newPlayerCorruption,
             PlayerBurst = newPlayerBurst,
             PlayerThorns = newPlayerThorns,
+            PlayerFeelNoPain = newPlayerFeelNoPain,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
