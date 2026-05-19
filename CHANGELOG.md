@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.7.91 (2026-05-19)
+
+**EffectSynergy 배치 4 — Star stem (Regent) + Forge stem (Lord's Blade) 10개 revive.**
+
+### 변경
+
+**v0.7.28 Star stem (5)**: GENESIS, ORBIT, BLACK_HOLE, CHILD_OF_THE_STARS, THE_SEALED_THRONE.
+**v0.7.29 Forge stem (5)**: FURNACE, HAMMER_TIME, SEEKING_EDGE, SWORD_SAGE, PARRY.
+
+Star 카드는 PlayerStars 생성률 × 턴 수 / 적 수에 비례하여 score 조정.
+Forge 카드는 SovereignBlade 진행도 + Lord's Blade 카드 비율에 비례.
+
+이전엔 모두 dead → baked PowerCatalog 값으로만 평가. 이제 archetype-specific
+deck composition 이 반영.
+
+### 잔여 dead handler
+
+EffectSynergy 의 나머지 **86개** — 다음 배치 (Doom/Volatile, Sealed Throne combo, Misc Powers, Exhaust, Variance).
+
+---
+
 ## v0.7.90 (2026-05-19)
 
 **EffectSynergy 배치 3 — Archetype Power 18개 revive.**
