@@ -1355,7 +1355,8 @@ internal static class PlanScorer
             // X doubles. Per game source `if (num >= Energy) num *= 2`. Hardcoded
             // id-check is fine — this is the only card with the threshold-double
             // pattern in v0.103.2.
-            if (card.Id == "CARD.HEAVENLY_DRILL" && x >= 4)
+            // v0.7.87 — Strip CARD. prefix; SimCard.Id is the short entry name.
+            if (card.Id == "HEAVENLY_DRILL" && x >= 4)
                 x *= 2;
             return x;
         }
@@ -1365,7 +1366,8 @@ internal static class PlanScorer
         // CombatHistory at OnPlay time. PreviewValue may or may not invoke it
         // reliably during snapshot, so override here using CombatPlayerHpLossEvents
         // captured in StateSnapshotter (same data source as the game's closure).
-        if (card.Id == "CARD.TEAR_ASUNDER")
+        // v0.7.87 — Strip CARD. prefix; SimCard.Id is the short entry name.
+        if (card.Id == "TEAR_ASUNDER")
             return 1 + state.CombatPlayerHpLossEvents;
 
         return 0;
