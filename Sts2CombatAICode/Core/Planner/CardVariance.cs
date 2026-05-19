@@ -47,12 +47,13 @@ internal static class CardVariance
         if (axes.Contains("CARD_GEN") && axes.Contains("RANDOM"))
             return Level.High;
         // Specific high-variance cards
-        if (card.Id == "CARD.CASCADE" || card.Id == "CARD.CATASTROPHE"
-            || card.Id == "CARD.UPROAR" || card.Id == "CARD.BEAT_DOWN"
-            || card.Id == "CARD.WISH" || card.Id == "CARD.LARGESSE"
-            || card.Id == "CARD.DISCOVERY" || card.Id == "CARD.DISTRACTION"
-            || card.Id == "CARD.WHITE_NOISE" || card.Id == "CARD.SPLASH"
-            || card.Id == "CARD.HIDDEN_GEM")
+        // v0.7.87 — Strip CARD. prefix; SimCard.Id is the short entry name.
+        if (card.Id == "CASCADE" || card.Id == "CATASTROPHE"
+            || card.Id == "UPROAR" || card.Id == "BEAT_DOWN"
+            || card.Id == "WISH" || card.Id == "LARGESSE"
+            || card.Id == "DISCOVERY" || card.Id == "DISTRACTION"
+            || card.Id == "WHITE_NOISE" || card.Id == "SPLASH"
+            || card.Id == "HIDDEN_GEM")
             return Level.High;
 
         // Medium: random-target attacks — but only when there are 2+ alive

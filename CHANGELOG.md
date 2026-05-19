@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.7.87 (2026-05-19)
+
+**Prefix bug 안전 영역 9개 fix — variance / drill 임계치 / RAGE Power 매핑.**
+
+### 배경
+
+v0.7.81 에서 `sc.Id` 가 `"VENERATE"` 형식 (prefix 없음) 임이 확정됨. v0.7.81/85
+패치에선 dict 키만 fix; 코드 곳곳의 `card.Id == "CARD.X"` 비교는 그대로
+남아 dead code. 총 **148곳**.
+
+이번 패치: risk-free 한 **9곳** 만 우선 fix. EffectSynergy 의 139개 핸들러는
+점수 균형 영향이 클 수 있어 분리 sweep 대상.
+
+### 변경
+
+1. **`CardVariance.cs:50-55`** — 11개 high-variance 카드 id 비교에서 prefix 제거.
+   CASCADE/CATASTROPHE/UPROAR/BEAT_DOWN/WISH/LARGESSE/DISCOVERY/DISTRACTION/
+   WHITE_NOISE/SPLASH/HIDDEN_GEM 의 variance Level=High 페널티가 비로소 동작.
+2. **`PlanScorer.cs:1358`** — HEAVENLY_DRILL의 `x>=4` 시 2× 보너스 (게임 소스
+   미러). prefix 없는 비교로 fix.
+3. **`PlanScorer.cs:1368`** — TEAR_ASUNDER 의 hits = `1 + CombatPlayerHpLossEvents`
+   런타임 override. fix.
+4. **`CardReflection.cs:303`** — RAGE 카드의 `Power` DynamicVar → RagePower
+   매핑. id prefix 비교 fix. (반대편: v0.7.85 의 simulator 가 RagePower self-apply
+   를 propagation 하므로 이제 RAGE 카드 reflection 도 정상 동작.)
+
+### 기대 효과
+
+- Variance High 카드 → 짧은 turn-to-death 시 underweight (의도된 페널티 적용).
+- HEAVENLY_DRILL 에너지 4↑ 보유 시 hits 2× 인식 → 점수 폭증.
+- TEAR_ASUNDER HP 손실 누적 카드 → 정확한 hit 수 평가.
+- RAGE 카드 플레이 시 RagePower 부여 → v0.7.85 의 block-per-attack chain 연동.
+
+### 후속 (skip in v0.7.87)
+
+`EffectSynergy.cs` 의 **139개** 하드코딩 핸들러 — 5-10개씩 묶어 회귀 테스트
+하며 활성화 필요. 일괄 fix 시 점수 균형 영향 큼.
+
+---
+
 ## v0.7.86 (2026-05-19)
 
 **AccuracyPower — Silent Shiv 데미지 보정 (+N per Shiv).**
