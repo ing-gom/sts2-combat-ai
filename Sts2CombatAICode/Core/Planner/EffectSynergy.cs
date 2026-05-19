@@ -297,22 +297,24 @@ internal static class EffectSynergy
         else if (card.Id == "CARD.WROUGHT_IN_WAR")    ApplyForgeGeneric(card, state, ref b, parts, 7);
         else if (card.Id == "CARD.BIG_BANG")          ApplyBigBangCombo(card, state, ref b, parts);
         else if (card.Id == "CARD.BULWARK")           ApplyForgeGeneric(card, state, ref b, parts, 10);
-        // Stars producers
-        else if (card.Id == "CARD.GLOW")              ApplyStarsGain(card, state, ref b, parts, 1);
-        else if (card.Id == "CARD.GATHER_LIGHT")      ApplyStarsGain(card, state, ref b, parts, 1);
-        else if (card.Id == "CARD.HIDDEN_CACHE")      ApplyStarsGain(card, state, ref b, parts, 1);
-        else if (card.Id == "CARD.RADIATE")           ApplyStarsGain(card, state, ref b, parts, 1);
-        else if (card.Id == "CARD.VENERATE")          ApplyStarsGain(card, state, ref b, parts, 2);
-        else if (card.Id == "CARD.SHINING_STRIKE")    ApplyStarsGain(card, state, ref b, parts, 2);
-        else if (card.Id == "CARD.SOLAR_STRIKE")      ApplyStarsGain(card, state, ref b, parts, 1);
-        else if (card.Id == "CARD.KNOCKOUT_BLOW")     ApplyStarsGain(card, state, ref b, parts, 5);
-        else if (card.Id == "CARD.CONVERGENCE")       ApplyStarsGain(card, state, ref b, parts, 1);
-        else if (card.Id == "CARD.ROYAL_GAMBLE")      ApplyStarsGain(card, state, ref b, parts, 9);
+        // v0.7.88 — Star producers (this-turn). Prefix stripped (v0.7.81 bug).
+        // HIDDEN_CACHE/CONVERGENCE are next-turn only — handled separately below;
+        // their previous immediate-stars entries here were wrong intent AND
+        // masked the next-turn handlers via else-if chain ordering.
+        else if (card.Id == "GLOW")              ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "GATHER_LIGHT")      ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "RADIATE")           ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "VENERATE")          ApplyStarsGain(card, state, ref b, parts, 2);
+        else if (card.Id == "SHINING_STRIKE")    ApplyStarsGain(card, state, ref b, parts, 2);
+        else if (card.Id == "SOLAR_STRIKE")      ApplyStarsGain(card, state, ref b, parts, 1);
+        else if (card.Id == "KNOCKOUT_BLOW")     ApplyStarsGain(card, state, ref b, parts, 5);
+        else if (card.Id == "ROYAL_GAMBLE")      ApplyStarsGain(card, state, ref b, parts, 9);
         // v0.7.74 — Next-turn star producers. Catalog vars["Stars"] captures
         // ONLY this-turn star gain; the "다음 턴에 ★" text is encoded
         // separately in the card class. Add delayed-star value explicitly.
-        else if (card.Id == "CARD.HIDDEN_CACHE")       ApplyHiddenCacheDelayedStars(card, state, ref b, parts);
-        else if (card.Id == "CARD.CONVERGENCE")        ApplyConvergenceNextTurn(card, state, ref b, parts);
+        // v0.7.88 — Prefix stripped; ordering preserved.
+        else if (card.Id == "HIDDEN_CACHE")       ApplyHiddenCacheDelayedStars(card, state, ref b, parts);
+        else if (card.Id == "CONVERGENCE")        ApplyConvergenceNextTurn(card, state, ref b, parts);
         // OrbSlots
         else if (card.Id == "CARD.BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
         // v0.7.69 — Exhaust-related card handlers. Specific mechanics not
