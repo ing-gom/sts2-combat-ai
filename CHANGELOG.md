@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.7.98 (2026-05-19)
+
+**EchoFormPower — 첫 N 장 ×2 within-turn multiplier (Watcher Echo Form).**
+
+### 이전 상태
+
+`ActionPlanner.cs` 의 next-turn projection 만 `echoMultiplier = 2.0` 부분 처리.
+within-turn (depth-N lookahead) 에서 Echo Form 미반영 → Inflame + Echo Form 같은
+combo 의 카드 가치 추정 부정확.
+
+### 변경
+
+- `SimState.PlayerEchoForm` 신설 (remaining echoes this turn).
+- `StateSnapshotter`:
+  - `EchoFormPower` stack 읽음.
+  - `playerEchoForm = max(0, echoStack - (turnAttacksPlayed + turnSkillsPlayed))`.
+  - 이미 사용한 echoes 차감.
+- `AnalyticalSimulator`:
+  - `echoActive = newPlayerEchoForm > 0`, `echoMul = echoActive ? 2 : 1`.
+  - **Power 자기-적용 buff amount × echoMul** (EchoFormPower 자체 제외 — self-recursive 방지).
+  - **Skill self-buff**: 기존 `burstMul` 에 `echoMul` 곱해서 compound (`skillMul * echoMul`).
+  - **Skill self-block** `eff *= burstMul * echoMul`.
+  - **Skill enemy-debuff** `amount *= burstMul * echoMul`.
+  - **Attack damage** `totalDmg *= echoMul` (data 멀티플라이어 체인 끝, 모든 곱셈 적용 후).
+  - **Attack attached debuffs** `amount *= echoMul`.
+  - 카드 resolve 끝: `if (echoActive) newPlayerEchoForm--` (1 charge 소비).
+  - Final state carry.
+- `PlanScorer`:
+  - 공격 평가: `if (state.PlayerEchoForm > 0) adjustedBaseDamage *= 2`.
+  - 스킬 block 평가: Burst 와 동일 패턴으로 ×2 보너스.
+
+### 메커니즘
+
+Watcher 의 Echo Form: "첫 N 카드 매 턴마다 2번 플레이됨". 카드 type 무관 (Attack/Skill/Power 모두 echo). EchoForm N stack 만큼 charges 가 매 턴 부여,
+카드 1장 플레이당 1 charge 소비.
+
+### 회귀 위험
+
+대규모 점수 변화. Echo Form active 시 :
+- 공격 카드의 데미지 score 가 2배 → lethal 윈도우 인식 정확화.
+- 스킬의 block / debuff score 가 2배 → defensive 우선순위 변화.
+- multi-hit / AOE 공격은 2배가 적용된 후 multipliers (Tracking, Cruelty, Lethality) 가 적용되므로 over-credit 가능. (Tracking ×2 + Echo ×2 = 4배 — 의도된 multiplicative compose.)
+
+---
+
 ## v0.7.97 (2026-05-19)
 
 **FeelNoPainPower — Exhaust 시 block N (Ironclad reactive).**
