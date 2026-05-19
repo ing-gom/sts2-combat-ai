@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.92 (2026-05-19)
+
+**EffectSynergy 배치 5 — Doom/Volatile + Cross-character + Skill mechanics 25개 revive.**
+
+### 변경
+
+`EffectSynergy.cs:214-340` 25개 핸들러 prefix 제거:
+
+**v0.7.30 Doom/Volatile stem (5)**: COUNTDOWN, RUPTURE, PAGESTORM, LETHALITY, DEMESNE.
+**v0.7.31 Cross-character (5)**: PYRE, INFERNO, AUTOMATION, OUTBREAK, PALE_BLUE_DOT.
+**v0.7.43 Repeat skill**: DECISIONS_DECISIONS.
+**v0.7.44 X-cost / replay (6)**: QUADCAST, MULTI_CAST, TEMPEST, MALAISE, DIRGE, MODDED.
+**v0.7.45 Block carryover**: PROLONG.
+**v0.7.46 Discard-all (2)**: STORM_OF_STEEL, SHADOW_STEP.
+**v0.7.65 Skill-attack linkage (2)**: EXPOSE, CONQUEROR.
+**v0.7.48 Retain skill (3)**: SACRIFICE, RESTLESSNESS, PURITY.
+
+### 잔여 dead handler
+
+EffectSynergy 의 나머지 **62개** — 다음 배치 (Scaling, Conditional/Heal, Self-growing, Defect orb, Exhaust, Variance).
+
+---
+
 ## v0.7.91 (2026-05-19)
 
 **EffectSynergy 배치 4 — Star stem (Regent) + Forge stem (Lord's Blade) 10개 revive.**
