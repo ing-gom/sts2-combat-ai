@@ -269,34 +269,35 @@ internal static class EffectSynergy
             ApplyExposeStripArtifact(card, state, ref b, parts);
         else if (card.Id == "CARD.CONQUEROR")
             ApplyConquerorBladeDouble(card, state, ref b, parts);
+        // v0.7.89 — Forge / Skeleton / Combo handlers. Prefix stripped (v0.7.81 bug).
         // v0.7.66 — SUMMON_FORTH (Regent C 1c): Forge 8 + fetch Sovereign
         // Blade. vars.Forge isn't in CardEffectSummary so PlanScorer's
         // generic flow ignored both effects. Specific handler captures both.
-        else if (card.Id == "CARD.SUMMON_FORTH")
+        else if (card.Id == "SUMMON_FORTH")
             ApplySummonForthForge(card, state, ref b, parts);
         // v0.7.67 — Archetype-magnitude cards: vars 에 magnitude 가 있지만
         // CardEffectSummary 가 안 추적 → score 에서 magnitude 무시.
-        else if (card.Id == "CARD.THE_SMITH")
+        else if (card.Id == "THE_SMITH")
             ApplyTheSmithForge30(card, state, ref b, parts);
-        else if (card.Id == "CARD.AFTERLIFE")
+        else if (card.Id == "AFTERLIFE")
             ApplySkeletonSummon6(card, state, ref b, parts, cost: 1);
-        else if (card.Id == "CARD.LEGION_OF_BONE")
+        else if (card.Id == "LEGION_OF_BONE")
             ApplySkeletonSummon6(card, state, ref b, parts, cost: 2);
         // v0.7.68 — Comprehensive archetype-magnitude handlers for Summon /
         // Forge / Stars / OrbSlots vars across all unhandled cards.
-        else if (card.Id == "CARD.CLEANSE")           ApplySkeletonSummonN(card, state, ref b, parts, 3);
-        else if (card.Id == "CARD.INVOKE")            ApplySkeletonSummonN(card, state, ref b, parts, 2);
-        else if (card.Id == "CARD.BODYGUARD")         ApplySkeletonSummonN(card, state, ref b, parts, 5);
-        else if (card.Id == "CARD.NECRO_MASTERY")     ApplySkeletonSummonN(card, state, ref b, parts, 5);
-        else if (card.Id == "CARD.PULL_AGGRO")        ApplySkeletonSummonN(card, state, ref b, parts, 4);
-        else if (card.Id == "CARD.SPUR")              ApplySkeletonSummonN(card, state, ref b, parts, 3);
-        else if (card.Id == "CARD.REANIMATE")         ApplySkeletonSummonN(card, state, ref b, parts, 20);
+        else if (card.Id == "CLEANSE")           ApplySkeletonSummonN(card, state, ref b, parts, 3);
+        else if (card.Id == "INVOKE")            ApplySkeletonSummonN(card, state, ref b, parts, 2);
+        else if (card.Id == "BODYGUARD")         ApplySkeletonSummonN(card, state, ref b, parts, 5);
+        else if (card.Id == "NECRO_MASTERY")     ApplySkeletonSummonN(card, state, ref b, parts, 5);
+        else if (card.Id == "PULL_AGGRO")        ApplySkeletonSummonN(card, state, ref b, parts, 4);
+        else if (card.Id == "SPUR")              ApplySkeletonSummonN(card, state, ref b, parts, 3);
+        else if (card.Id == "REANIMATE")         ApplySkeletonSummonN(card, state, ref b, parts, 20);
         // Forge generic — Blade required for value
-        else if (card.Id == "CARD.REFINE_BLADE")      ApplyForgeGeneric(card, state, ref b, parts, 9);
-        else if (card.Id == "CARD.SPOILS_OF_BATTLE")  ApplyForgeGeneric(card, state, ref b, parts, 5);
-        else if (card.Id == "CARD.WROUGHT_IN_WAR")    ApplyForgeGeneric(card, state, ref b, parts, 7);
-        else if (card.Id == "CARD.BIG_BANG")          ApplyBigBangCombo(card, state, ref b, parts);
-        else if (card.Id == "CARD.BULWARK")           ApplyForgeGeneric(card, state, ref b, parts, 10);
+        else if (card.Id == "REFINE_BLADE")      ApplyForgeGeneric(card, state, ref b, parts, 9);
+        else if (card.Id == "SPOILS_OF_BATTLE")  ApplyForgeGeneric(card, state, ref b, parts, 5);
+        else if (card.Id == "WROUGHT_IN_WAR")    ApplyForgeGeneric(card, state, ref b, parts, 7);
+        else if (card.Id == "BIG_BANG")          ApplyBigBangCombo(card, state, ref b, parts);
+        else if (card.Id == "BULWARK")           ApplyForgeGeneric(card, state, ref b, parts, 10);
         // v0.7.88 — Star producers (this-turn). Prefix stripped (v0.7.81 bug).
         // HIDDEN_CACHE/CONVERGENCE are next-turn only — handled separately below;
         // their previous immediate-stars entries here were wrong intent AND
@@ -315,8 +316,8 @@ internal static class EffectSynergy
         // v0.7.88 — Prefix stripped; ordering preserved.
         else if (card.Id == "HIDDEN_CACHE")       ApplyHiddenCacheDelayedStars(card, state, ref b, parts);
         else if (card.Id == "CONVERGENCE")        ApplyConvergenceNextTurn(card, state, ref b, parts);
-        // OrbSlots
-        else if (card.Id == "CARD.BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
+        // OrbSlots — v0.7.89 prefix fix
+        else if (card.Id == "BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
         // v0.7.69 — Exhaust-related card handlers. Specific mechanics not
         // captured by generic EXHAUST_CONSUMER (+20/exhausted, cap 320).
         else if (card.Id == "CARD.FEEL_NO_PAIN")      ApplyFeelNoPainPower(card, state, ref b, parts);
