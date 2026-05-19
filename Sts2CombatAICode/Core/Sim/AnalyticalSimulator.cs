@@ -341,6 +341,24 @@ internal static class AnalyticalSimulator
                 {
                     newDoom += reaperStacks * System.Math.Max(1, card.Hits);
                 }
+                // v0.8.3 — Enemy.Powers dict catch-all (mirror of v0.8.2 PlayerPowers).
+                // Lazy-built mutable copy; tracks debuffs without explicit field
+                // (Hex / DarkShackles / PiercingWail / Dampen / EnfeeblingTouch /
+                // Confused / Rupture / NoxiousFumes / etc.) so depth-N lookahead
+                // sees them via PowerCatalog / enemy.Powers consumers.
+                Dictionary<string, int>? newEnemyPowers = null;
+                void AddEnemyPower(string powerName, int delta)
+                {
+                    if (delta == 0) return;
+                    newEnemyPowers ??= enemy.Powers != null
+                        ? new Dictionary<string, int>(enemy.Powers, System.StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+                    if (newEnemyPowers.TryGetValue(powerName, out var cur))
+                        newEnemyPowers[powerName] = cur + delta;
+                    else
+                        newEnemyPowers[powerName] = delta;
+                }
+
                 foreach (var (powerName, rawAttachAmount) in card.PowerApps)
                 {
                     if (!IsEnemyDebuff(powerName)) continue;
@@ -352,6 +370,9 @@ internal static class AnalyticalSimulator
                     }
                     // v0.7.98 — EchoForm doubles attached-debuff stacks on attacks.
                     int amount = rawAttachAmount * echoMul;
+                    // v0.8.3 — Always update dict (catch-all). Explicit fields below
+                    // still update for tracked debuffs.
+                    AddEnemyPower(powerName, amount);
                     switch (powerName)
                     {
                         case "VulnerablePower": newVuln += amount; break;
@@ -376,6 +397,7 @@ internal static class AnalyticalSimulator
                     DoomAmount = newDoom,
                     ArtifactAmount = artifactLeft,
                     HardenedShellRemaining = shellLeft,
+                    Powers = newEnemyPowers ?? enemy.Powers,
                 });
             }
             next = next with { Enemies = newEnemies };
@@ -519,6 +541,19 @@ internal static class AnalyticalSimulator
                     int newConstrict = enemy.ConstrictAmount;
                     int newBurn = enemy.BurnAmount;
                     int artifactLeft = enemy.ArtifactAmount;
+                    // v0.8.3 — Enemy.Powers dict catch-all (mirror of attack path).
+                    Dictionary<string, int>? newEnemyPowers = null;
+                    void AddEnemyPower(string powerName, int delta)
+                    {
+                        if (delta == 0) return;
+                        newEnemyPowers ??= enemy.Powers != null
+                            ? new Dictionary<string, int>(enemy.Powers, System.StringComparer.OrdinalIgnoreCase)
+                            : new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+                        if (newEnemyPowers.TryGetValue(powerName, out var cur))
+                            newEnemyPowers[powerName] = cur + delta;
+                        else
+                            newEnemyPowers[powerName] = delta;
+                    }
                     foreach (var (powerName, rawAmount) in card.PowerApps)
                     {
                         if (!IsEnemyDebuff(powerName)) continue;
@@ -530,6 +565,9 @@ internal static class AnalyticalSimulator
                         // v0.7.95 — Burst doubles applied debuff amounts.
                         // v0.7.98 — Echo also multiplies (compounds with Burst).
                         int amount = rawAmount * burstMul * echoMul;
+                        // v0.8.3 — Catch-all dict update for any debuff (incl.
+                        // Hex / DarkShackles / NoxiousFumes / etc.).
+                        AddEnemyPower(powerName, amount);
                         switch (powerName)
                         {
                             case "VulnerablePower": newVuln += amount; break;
@@ -549,6 +587,7 @@ internal static class AnalyticalSimulator
                         ConstrictAmount = newConstrict,
                         BurnAmount = newBurn,
                         ArtifactAmount = artifactLeft,
+                        Powers = newEnemyPowers ?? enemy.Powers,
                     });
                 }
                 next = next with { Enemies = newEnemies };
