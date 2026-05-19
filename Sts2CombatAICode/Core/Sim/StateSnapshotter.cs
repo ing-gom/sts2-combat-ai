@@ -86,7 +86,34 @@ internal static class StateSnapshotter
             int playerIntangible = CombatReflection.GetPowerAmount(creature, "IntangiblePower");
             int playerMetallicize = CombatReflection.GetPowerAmount(creature, "MetallicizePower");
             int playerPlatedArmor = CombatReflection.GetPowerAmount(creature, "PlatedArmorPower");
-            int playerEotBlockBonus = playerMetallicize + playerPlatedArmor;
+            // v0.9 — PlatingPower (Regent CHILD_OF_THE_STARS payoff, STS2-specific):
+            // BeforeTurnEndEarly the player gains block = Amount, then decrements.
+            // Behaves identically to Metallicize / PlatedArmor for our threat
+            // estimation purposes (free block before enemy attacks). Previously
+            // omitted → AI saw 0 EOT block on Plating-buffed turns → over-
+            // defended into already-covered threat (decomp sts2.decompiled.cs
+            // :317136 — PlatingPower.BeforeTurnEndEarly → GainBlock).
+            int playerPlating = CombatReflection.GetPowerAmount(creature, "PlatingPower");
+            int playerEotBlockBonus = playerMetallicize + playerPlatedArmor + playerPlating;
+            // v0.9 — Enemy-applied shutdown debuffs (one-turn class-of-action
+            // disables). Captured here so PlanScorer can zero out the
+            // affected card category instead of scoring them at full value.
+            int playerNoBlock      = CombatReflection.GetPowerAmount(creature, "NoBlockPower");
+            int playerNoDraw       = CombatReflection.GetPowerAmount(creature, "NoDrawPower");
+            int playerNoEnergyGain = CombatReflection.GetPowerAmount(creature, "NoEnergyGainPower");
+            // v0.9 — Confused (random cost), Tender (per-card -Str/-Dex temp)
+            int playerConfused     = CombatReflection.GetPowerAmount(creature, "ConfusedPower");
+            int playerTender       = CombatReflection.GetPowerAmount(creature, "TenderPower");
+            // v0.9 — ShrinkPower (Tier B): outgoing damage × (100-N)/100.
+            // Read the DamageDecrease DynamicVar — defaults to 30 if absent.
+            // Most uses apply at 30; we use Amount > 0 as proxy for active
+            // and treat as 30% reduction.
+            int playerShrinkPct = CombatReflection.GetPowerAmount(creature, "ShrinkPower") > 0 ? 30 : 0;
+            int playerDebilitate = CombatReflection.GetPowerAmount(creature, "DebilitatePower");
+            // v0.9 — CalcifyPower (player Necrobinder buff): Osty (skeleton)
+            // attacks gain +N damage. Read here so SimAlly intent damage
+            // capture below can fold it in.
+            int playerCalcify    = CombatReflection.GetPowerAmount(creature, "CalcifyPower");
             int playerFreeAttacks = CombatReflection.GetPowerAmount(creature, "FreeAttackPower");
             int playerFreeSkills = CombatReflection.GetPowerAmount(creature, "FreeSkillPower");
             int playerFreePowers = CombatReflection.GetPowerAmount(creature, "FreePowerPower");
@@ -176,6 +203,15 @@ internal static class StateSnapshotter
                     hand.Add(BuildSimCard(card, requirePlayability: true));
             }
 
+            // NOTE: MasterPlannerPower grants Sly to Skills ON PLAY (per its
+            // description "When you play a Skill, it gains Sly"). That means
+            // the buff lands AFTER the card leaves hand — discarding a Skill
+            // before playing it doesn't trigger the Sly auto-play. We do NOT
+            // blanket-set IsSly for Skills here. Static Sly (CUNNING axis)
+            // and runtime HAND_TRICK temp-Sly (via CardReflection.HasSlyKeyword
+            // inside BuildSimCard) cover the cases that actually fire on
+            // discard.
+
             // v0.6.7 — Token / pile-based mechanic counters. Walk hand + draw +
             // discard + exhaust counting Soul, Shiv, SovereignBlade instances.
             // Type-name matching avoids hardcoding card ID format and survives
@@ -230,11 +266,18 @@ internal static class StateSnapshotter
                     }
                     catch { /* intent extraction is best-effort */ }
 
+                    // v0.9 — CalcifyPower (Necrobinder player buff): Osty
+                    // ally attacks gain +N damage per stack. Fold into the
+                    // ally's intent damage so survival/race calculations
+                    // see the boosted output.
+                    int allyEffectiveDmg = allyIntentDmg;
+                    if (playerCalcify > 0 && cls == "Osty" && allyIntentDmg > 0)
+                        allyEffectiveDmg += playerCalcify;
                     allies.Add(new SimAlly
                     {
                         Hp = allyHp,
                         Block = allyBlock,
-                        IntentDamage = allyIntentDmg,
+                        IntentDamage = allyEffectiveDmg,
                         IntentRepeats = System.Math.Max(1, allyIntentRepeats),
                         HasAttackIntent = allyHasAttack,
                         ClassName = cls,
@@ -262,6 +305,18 @@ internal static class StateSnapshotter
             catch { }
 
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            // v0.9 — Track whether any Bound card was already played this turn
+            // (ChainsOfBindingPower mechanic). When true, no further Bound
+            // cards may be played until next turn.
+            bool boundCardPlayedThisTurn = false;
+            // v0.9 — Per-target attack count this turn. Built alongside the
+            // total counters; keyed by enemy index in the `enemies` list so
+            // the simulator can compute BEAT_INTO_SHAPE's dynamic Forge
+            // bonus ("+5 per OTHER same-target attack this turn"). Reads
+            // CardPlay.Target (Creature?) and matches via SimEnemy.SourceRef.
+            // Skill-self / AOE / null-target plays don't contribute (they
+            // wouldn't count toward BEAT's same-target requirement anyway).
+            Dictionary<int, int>? turnAttacksByTargetIdx = null;
             try
             {
                 var history = CombatManager.Instance.History;
@@ -276,7 +331,35 @@ internal static class StateSnapshotter
                             // Owner check — only count this player's plays in multiplayer.
                             if (cpe.CardPlay?.Card?.Owner != player) continue;
                             var type = cpe.CardPlay.Card.Type;
-                            if (type == CardType.Attack) turnAttacksPlayed++;
+                            // v0.9 — Detect if a Bound card was played this
+                            // turn (ChainsOfBindingPower mechanic). Affliction
+                            // is per-card runtime state; check via reflection.
+                            if (!boundCardPlayedThisTurn
+                                && cpe.CardPlay.Card != null
+                                && CardReflection.HasBoundAffliction(cpe.CardPlay.Card))
+                            {
+                                boundCardPlayedThisTurn = true;
+                            }
+                            if (type == CardType.Attack)
+                            {
+                                turnAttacksPlayed++;
+                                // Map target Creature → SimEnemy idx via SourceRef.
+                                var target = cpe.CardPlay.Target;
+                                if (target != null)
+                                {
+                                    for (int i = 0; i < enemies.Count; i++)
+                                    {
+                                        if (ReferenceEquals(enemies[i].SourceRef, target))
+                                        {
+                                            turnAttacksByTargetIdx ??= new Dictionary<int, int>();
+                                            turnAttacksByTargetIdx[i] = turnAttacksByTargetIdx.TryGetValue(i, out var prev)
+                                                ? prev + 1
+                                                : 1;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                             else if (type == CardType.Skill) turnSkillsPlayed++;
                         }
                         else if (entry is DamageReceivedEntry dre)
@@ -366,7 +449,17 @@ internal static class StateSnapshotter
                 SovereignBladeCount = sovereignBladeCount,
                 TurnAttacksPlayed = turnAttacksPlayed,
                 TurnSkillsPlayed = turnSkillsPlayed,
+                TurnAttacksByTargetIdx = (IReadOnlyDictionary<int, int>?)turnAttacksByTargetIdx
+                    ?? new Dictionary<int, int>(),
                 CombatPlayerHpLossEvents = combatHpLossEvents,
+                PlayerNoBlock = playerNoBlock,
+                PlayerNoDraw = playerNoDraw,
+                PlayerNoEnergyGain = playerNoEnergyGain,
+                PlayerConfused = playerConfused,
+                PlayerTender = playerTender,
+                PlayerShrinkPercent = playerShrinkPct,
+                PlayerDebilitate = playerDebilitate,
+                BoundCardPlayedThisTurn = boundCardPlayedThisTurn,
             };
         }
         catch (System.Exception ex)
@@ -401,17 +494,28 @@ internal static class StateSnapshotter
             ChannelCount = orbMeta.ChannelCount,
             ChannelKind = orbMeta.ChannelKind,
         };
-        // v0.6.7 — Sly detection. Raw `CUNNING` axis (no _PRODUCER/_CONSUMER
-        // suffix) on a Silent card aligns 1:1 with CardKeyword.Sly in the
-        // current catalog. The runtime keyword check would be more authoritative
-        // (covers GiveSingleTurnSly temp-Sly cards) but card.Keywords isn't a
-        // public stable property — stick with the axis proxy until we need
-        // temp-Sly precision.
+
+        // Self-heal token-generator axes from runtime DynamicVars. The master
+        // catalog occasionally misses side-effect producers (LEADING_STRIKE,
+        // CLOAK_AND_DAGGER, STORM_OF_STEEL). Token counts on the live
+        // CardModel are authoritative; if the corresponding _PRODUCER /
+        // CARD_GEN axis is absent, add it. Build the augmented list once and
+        // reuse for downstream consumers.
+        axes = AugmentTokenProducerAxes(axes, effect);
+        // Sly detection — combined static (catalog) + runtime (CardKeyword
+        // reflection). The static CUNNING axis covers inherent Sly cards
+        // (TACTICIAN / REFLEX / ABRASIVE / ...); the runtime keyword check
+        // covers HAND_TRICK's "Add Sly to a Skill in hand this turn" which
+        // applies the keyword to a SPECIFIC card chosen at play time.
+        // Either signal is sufficient; reflection failure falls back to
+        // axis-only behavior.
         bool isSly = false;
         for (int i = 0; i < axes.Count; i++)
         {
             if (axes[i] == "CUNNING") { isSly = true; break; }
         }
+        if (!isSly && Reflection.CardReflection.HasSlyKeyword(card))
+            isSly = true;
 
         return new SimCard
         {
@@ -430,7 +534,63 @@ internal static class StateSnapshotter
             IsExhaust = catalogInfo?.Exhaust ?? false,
             IsFetchTrigger = catalogInfo?.FetchTrigger ?? false,
             IsSly = isSly,
+            // v0.9 — Bound affliction (ChainsOfBindingPower restriction).
+            IsBound = CardReflection.HasBoundAffliction(card),
         };
+    }
+
+    /// <summary>
+    /// Runtime axis self-healing for token producers. The master catalog
+    /// hand-tags _PRODUCER axes from description heuristics; side-effect
+    /// generators sometimes slip through (LEADING_STRIKE / CLOAK_AND_DAGGER
+    /// historically missed SHIV_PRODUCER). The live CardModel exposes the
+    /// token-count DynamicVars directly (Shivs / Skeletons / Souls / Forge),
+    /// and CardReflection surfaces them on <see cref="CardEffectSummary"/>.
+    /// When a count is positive but the matching _PRODUCER axis is absent,
+    /// add it (plus CARD_GEN) so the planner's ApplyCardGen / Shiv-stem
+    /// projections / Arsenal-Pillar trigger preview all fire correctly.
+    ///
+    /// Returns the original list unchanged when no augmentation is needed
+    /// (avoids allocating).
+    /// </summary>
+    internal static System.Collections.Generic.IReadOnlyList<string> AugmentTokenProducerAxes(
+        System.Collections.Generic.IReadOnlyList<string> axes,
+        CardEffectSummary effect)
+    {
+        // Quick-exit when no token vars present (the common case).
+        if (effect.ShivGen <= 0 && effect.SkeletonGen <= 0
+            && effect.SoulGen <= 0 && effect.ForgeGen <= 0)
+            return axes;
+
+        System.Collections.Generic.HashSet<string>? have = null;
+        System.Collections.Generic.List<string>? extra = null;
+
+        void EnsureHave()
+        {
+            if (have != null) return;
+            have = new System.Collections.Generic.HashSet<string>(axes,
+                System.StringComparer.OrdinalIgnoreCase);
+        }
+        void Add(string axis)
+        {
+            EnsureHave();
+            if (have!.Contains(axis)) return;
+            extra ??= new System.Collections.Generic.List<string>(2);
+            extra.Add(axis);
+            have.Add(axis);
+        }
+
+        if (effect.ShivGen > 0)     { Add("SHIV_PRODUCER"); }
+        if (effect.SkeletonGen > 0) { Add("SKELETON_PRODUCER"); }
+        if (effect.SoulGen > 0)     { Add("SOUL_PRODUCER"); }
+        if (effect.ForgeGen > 0)    { Add("FORGE_PRODUCER"); }
+        if (extra != null) Add("CARD_GEN");
+
+        if (extra == null) return axes;
+        var merged = new string[axes.Count + extra.Count];
+        for (int i = 0; i < axes.Count; i++) merged[i] = axes[i];
+        for (int i = 0; i < extra.Count; i++) merged[axes.Count + i] = extra[i];
+        return merged;
     }
 
     /// <summary>
@@ -487,6 +647,52 @@ internal static class StateSnapshotter
             damageCap = damageCap == 0 ? hard : System.Math.Min(damageCap, hard);
         int thorns = powerDict.TryGetValue("ThornsPower", out var t) ? t : 0;
 
+        // v0.9 — SkittishPower (Phantasmal Gardener etc.): when this enemy
+        // takes unblocked damage from a player CARD attack for the FIRST time
+        // each turn, gains Amount block (reactive). Read the live
+        // hasGainedBlockThisTurn flag via reflection on Data — when true,
+        // the trigger is already spent for this turn and Amount=0 effectively.
+        int skittish = powerDict.TryGetValue("SkittishPower", out var sk) ? sk : 0;
+        bool skittishUsed = false;
+        if (skittish > 0)
+        {
+            try
+            {
+                foreach (var p in enemy.Powers)
+                {
+                    if (p?.GetType().Name != "SkittishPower") continue;
+                    var dataField = p.GetType().GetField("_data",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    var dataObj = dataField?.GetValue(p);
+                    var flagProp = p.GetType().GetProperty("HasGainedBlockThisTurn");
+                    if (flagProp?.GetValue(p) is bool flag) { skittishUsed = flag; break; }
+                    // Fallback: try internal Data class field directly.
+                    var hasGainedField = dataObj?.GetType().GetField("hasGainedBlockThisTurn");
+                    if (hasGainedField?.GetValue(dataObj) is bool flag2) { skittishUsed = flag2; break; }
+                }
+            }
+            catch { /* reflection best-effort — fallback to "not used yet" */ }
+        }
+
+        // v0.9 — CurlUpPower (Louse-style one-shot reactive block). The power
+        // self-removes after triggering, so if present in the dict it hasn't
+        // fired yet this combat. Amount = block gained on first hit.
+        int curlUp = powerDict.TryGetValue("CurlUpPower", out var cu) ? cu : 0;
+
+        // v0.9 — ImbalancedPower (BowlbugRock self-stun-on-fully-blocked).
+        // Stack 1 by default (Single stack type). Captures presence.
+        int imbalanced = powerDict.TryGetValue("ImbalancedPower", out var ib) ? ib : 0;
+
+        // v0.9 — TerritorialPower (per-turn-end +N Strength). Captured for
+        // future multi-turn threat projection. Currently also folded into
+        // HasTurnStartStrengthBuff flag below for back-compat.
+        int territorial = powerDict.TryGetValue("TerritorialPower", out var tp) ? tp : 0;
+
+        // v0.9 — PaperCutsPower (Tier B): enemy gives player -N MaxHP per
+        // unblocked damage event landed. Long-term value loss; informs
+        // "kill this enemy first" prioritization.
+        int paperCuts = powerDict.TryGetValue("PaperCutsPower", out var pc) ? pc : 0;
+
         // HardenedShell — read live DisplayAmount (Amount − damageReceivedThisTurn).
         // The dict above only has the static Amount, not the live remaining cap.
         int hardenedShellRemaining = 0;
@@ -512,9 +718,11 @@ internal static class StateSnapshotter
         }
 
         // v0.2.9 — turn-start strength buffs make the enemy snowball (Ritual / Enrage / similar).
+        // v0.9 — also TerritorialPower (per-turn-end +Strength).
         bool hasRitual = CombatReflection.GetPowerAmount(enemy, "RitualPower") > 0
                       || CombatReflection.GetPowerAmount(enemy, "EnragePower") > 0
-                      || CombatReflection.GetPowerAmount(enemy, "FeralPower") > 0;
+                      || CombatReflection.GetPowerAmount(enemy, "FeralPower") > 0
+                      || territorial > 0;
 
         int totalDmg = 0;
         bool hasAtk = false, hasDeathBlow = false, hasBuff = false, hasDebuff = false;
@@ -592,6 +800,12 @@ internal static class StateSnapshotter
             ThornsAmount = thorns,
             Powers = powerDict,
             HardenedShellRemaining = hardenedShellRemaining,
+            SkittishAmount = skittish,
+            SkittishAlreadyTriggered = skittishUsed,
+            CurlUpAmount = curlUp,
+            ImbalancedAmount = imbalanced,
+            TerritorialAmount = territorial,
+            PaperCutsAmount = paperCuts,
         };
     }
 

@@ -71,7 +71,55 @@ internal static class PlanScorer
                 otherPlayable++;
             }
             if (otherPlayable > 0)
-                delta -= w.RetainDeferPenaltyPerAlternative * otherPlayable;
+            {
+                int perAlt = w.RetainDeferPenaltyPerAlternative;
+                // v0.9 — Retain attack cards lose value if deferred while
+                // this-turn debuffs are active on the target. Vulnerable /
+                // Weak decay by 1 at end of player turn, so saving a Retain
+                // attack for "later" forfeits the ×1.5 / -25% bonuses now
+                // baked into this card's expected damage. Halve the defer
+                // urge when any alive enemy carries Vuln OR Weak.
+                //
+                // Conditions kept narrow: attack cards only (Retain skills
+                // like Apparition still defer normally — their value isn't
+                // tied to ephemeral target debuffs); ANY alive enemy with the
+                // debuff is enough (single-target picker chooses the right
+                // one downstream).
+                if (card.IsAttack)
+                {
+                    // v0.9 — high-damage Retain attacks (d≥12, e.g. SOVEREIGN_BLADE
+                    // d=21..36) are the deck's finisher. The Retain keyword is meant
+                    // to "save the big play for the right moment", but the defer
+                    // penalty does the exact OPPOSITE by pushing the card past every
+                    // cheap alternative until it falls out of energy reach this
+                    // turn. Observed pattern (2026-05-19 19:37 log): SB stayed in
+                    // hand turn-after-turn at |R then |RX (unplayable) because
+                    // BEAT/DEFEND always out-scored it. Removing the defer penalty
+                    // for big-attack Retain lets it compete on its own merit
+                    // (raw damage + Vuln + buff target bonuses).
+                    if (card.Damage >= 12)
+                    {
+                        perAlt = 0;
+                    }
+                    else
+                    {
+                        bool anyVulnOrWeak = false;
+                        for (int i = 0; i < state.Enemies.Count; i++)
+                        {
+                            var e = state.Enemies[i];
+                            if (!e.IsAlive) continue;
+                            if (e.VulnerableAmount > 0 || e.WeakAmount > 0)
+                            {
+                                anyVulnOrWeak = true;
+                                break;
+                            }
+                        }
+                        if (anyVulnOrWeak)
+                            perAlt /= 2;       // halve defer penalty when debuffs would expire
+                    }
+                }
+                delta -= perAlt * otherPlayable;
+            }
         }
         if (card.IsEthereal)
         {
@@ -428,6 +476,20 @@ internal static class PlanScorer
             // AOE: damage applies to every alive enemy; sum target bonuses across all of them.
             // Single-target: damage * 1; target bonus from the chosen enemy.
             bool isAoe = card.Target == TargetType.AllEnemies;
+            // FanOfKnivesPower (Silent S): "Shivs hit all enemies" — converts
+            // every Shiv attack from single-target to AOE for the rest of
+            // combat. The static TargetType doesn't change, so the planner
+            // would otherwise score Shivs as single-target. Promote isAoe so
+            // downstream per-enemy aggregation, multi-target finisher logic,
+            // and lethal detection all see the correct shape.
+            if (!isAoe && card.Id == "SHIV"
+                && state.PlayerPowers != null
+                && state.PlayerPowers.TryGetValue("FanOfKnivesPower", out var fnkStack)
+                && fnkStack > 0)
+            {
+                isAoe = true;
+                details.Add("fanOfKnivesAoe");
+            }
             int aliveCount = state.Enemies.Count(e => e.IsAlive);
 
             // v0.2.4 — effective damage: (base + Strength) × Vulnerable × Weak
@@ -866,8 +928,20 @@ internal static class PlanScorer
             // v0.4 — Burst-damage window: not lethal, but chunks enough HP to flip the
             // attack-vs-block calculus. Pays out only for direct single-target burst
             // (AOE total-HP rules are noisier and the per-enemy bonus already adds up).
+            //
+            // v0.9 — Suppress when this turn can already lethal the whole combat.
+            // BURST's purpose is "set up next turn's kill" — but if we ALREADY have a
+            // lethal sequence available this turn, chipping at the target with a
+            // small attack doesn't help; it just inflates the small-attack's score
+            // past the lethal-capable card. Observed bug (logs 2026-05-19 21:11
+            // turn line 1433): hand had SB(d=21) lethal on HP=14 enemy, but
+            // STRIKE_REGENT got BURST70 +2000 each step (chunking 75% of post-
+            // STRIKE 8 HP) and beat SB-alone in the 2-card chain compare every
+            // re-evaluation. Plan: STRIKE→SB(LETHAL). Actual: STRIKE→STRIKE→
+            // DEFEND (enemy survived at 2 HP), SB stayed |RX.
             int burstBonus = 0;
-            if (!isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count)
+            if (!isAoe && !lethalThisTurn
+                && targetIdx >= 0 && targetIdx < state.Enemies.Count)
             {
                 var bt = state.Enemies[targetIdx];
                 if (bt.IsAlive && effectiveTotal > 0 && effectiveTotal < bt.EffectiveHp)
@@ -982,9 +1056,10 @@ internal static class PlanScorer
             int atkEnergyBonus = EvaluateEnergyGain(card, state, w);
             if (atkEnergyBonus != 0) details.Add($"energyCtx={atkEnergyBonus}");
 
-            // v0.5 — attack cards can also have draw (DrawCardPower in PowerApps,
-            // Mind Blast / cycle-attack hybrids). Same pattern: EvaluateDrawCard
-            // returns 0 for non-draw cards, so this is a no-op for plain attacks.
+            // v0.5 — attack cards can also draw (cycle-attack hybrids, or attacks
+            // that apply MachineLearningPower / DrawCardsNextTurnPower). Same
+            // pattern: EvaluateDrawCard returns 0 for non-draw cards, so this is
+            // a no-op for plain attacks.
             int atkDrawBonus = EvaluateDrawCard(card, state, w);
             if (atkDrawBonus != 0) details.Add($"drawCtx={atkDrawBonus}");
 
@@ -1088,7 +1163,27 @@ internal static class PlanScorer
                 details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage}+fnp{(card.IsExhaust ? state.PlayerFeelNoPain : 0)}+danse{(card.Cost >= 2 ? state.PlayerDanseMacabre : 0)}){capTag}={reactiveBlockBonus}");
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus;
+            // Threshold-trigger powers on the targeted enemy. ShriekPower
+            // (TerrorEel) and PlowPower (CeremonialBeast) STUN the enemy when
+            // a hit brings their HP ≤ Amount; DoomPower (player-applied)
+            // INSTAKILLS at turn end when HP ≤ Doom amount. The AI normally
+            // treats these enemies as ordinary HP pools and misses the
+            // high-leverage burst opportunity.
+            int thresholdTriggerBonus = ComputeThresholdTriggerBonus(
+                card, state, isAoe, targetIdx, effectiveTotal, w, details);
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus;
+            // v0.9 — Per-energy efficiency diagnostic. Shows BOTH raw dmg/E
+            // (Strength/Vigor/Enchant from PreviewValue) AND effective dmg/E
+            // (with Vuln/Weak/Echo/X-cost folded in). When they differ
+            // significantly, the gap indicates Power buffs / target debuffs
+            // changing the card's value beyond its printed damage. Tiebreaker
+            // uses Effective; this just informs the user reading the log.
+            double rawEff = card.DmgPerEnergy;
+            double effEff = card.EffectiveDmgPerEnergy(state);
+            details.Add(System.Math.Abs(rawEff - effEff) < 0.05
+                ? $"eff(d{rawEff:F1}/E)"
+                : $"eff(d{rawEff:F1}/E→{effEff:F1}/E)");
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
                 Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -1167,6 +1262,28 @@ internal static class PlanScorer
                 details.Add($"{blockLabel}*{w.BlockPerPointBonus}={effect}");
             }
 
+            // JuggernautPower (Ironclad reactive): each block-gain event deals
+            // N damage to a random alive enemy. Skill plays with block > 0
+            // count as block-gain events; Echo/Burst doubled plays fire
+            // multiple times. The simulator applies this at depth-N lookahead,
+            // but the immediate score skips it — block-heavy Juggernaut decks
+            // would otherwise under-rank Skills relative to Attacks of
+            // similar score.
+            if (state.PlayerJuggernaut > 0 && card.Block > 0)
+            {
+                int skillAliveCount = state.Enemies.Count(e => e.IsAlive);
+                if (skillAliveCount > 0)
+                {
+                    int triggers = plays;
+                    int dmgPerTrigger = state.PlayerJuggernaut;
+                    int juggernautBonus = triggers * dmgPerTrigger * w.DamagePerPointBonus;
+                    const int JuggCap = 400;
+                    if (juggernautBonus > JuggCap) juggernautBonus = JuggCap;
+                    effect += juggernautBonus;
+                    details.Add($"juggernaut(plays{triggers}×{dmgPerTrigger})=+{juggernautBonus}");
+                }
+            }
+
             bool isSelfApply = IsSelfTargetedTarget(card.Target);
             bool skillIsAoe = card.Target == TargetType.AllEnemies;
             int powerEffect = 0;
@@ -1219,10 +1336,58 @@ internal static class PlanScorer
                 }
             }
 
+            // v0.9 — NoBlockPower shutdown: block gain is suppressed THIS
+            // turn (Strangle / certain elite debuffs). DEFEND scoring should
+            // drop to ~base — no threatBonus, no neutralize bonus. Zero out
+            // effectiveBlock so downstream chained calculations see no block.
+            if (state.PlayerNoBlock > 0 && card.Block > 0)
+            {
+                effectiveBlock = 0;
+                details.Add($"NO_BLOCK(active{state.PlayerNoBlock})");
+            }
+
+            // v0.9 — ConfusedPower (Skill cost randomized 0..3 each draw).
+            // The printed cost is unreliable while Confused is active. For
+            // expensive (cost ≥ 2) Skills, factor in a small flat penalty
+            // since the realised cost may be unaffordable. 0/1-cost Skills
+            // are barely affected. Magnitude proportional to printed cost.
+            int confusedPenalty = 0;
+            if (state.PlayerConfused > 0 && card.Cost >= 2)
+            {
+                confusedPenalty = -150 * card.Cost;     // -300 for cost-2, -450 for cost-3+
+                details.Add($"CONFUSED(c{card.Cost})={confusedPenalty}");
+            }
             int threatBonus = 0;
             int residual = (card.Target == TargetType.Self && effectiveBlock > 0 && !allInert)
                 ? EnemyTurnSimulator.PredictPlayerDmg(state) : 0;
             bool neutralizes = residual > 0 && effectiveBlock >= residual;
+
+            // v0.9 — ImbalancedPower bonus: when any alive enemy has Imbalanced
+            // AND this block fully covers their attack, that enemy stuns
+            // itself next turn (skips attack). Worth ~stun bonus magnitude.
+            // Approximate via "block ≥ that enemy's intent damage"; we check
+            // ALL imbalanced enemies and add bonus for each whose intent we
+            // fully cover with this card's block alone (over-conservative —
+            // ignores existing player block, but avoids double-counting).
+            int imbalancedBonus = 0;
+            if (effectiveBlock > 0 && card.Target == TargetType.Self)
+            {
+                foreach (var e in state.Enemies)
+                {
+                    if (!e.IsAlive || e.ImbalancedAmount <= 0 || !e.HasAttackIntent) continue;
+                    if (effectiveBlock >= e.IntentDamage)
+                    {
+                        // Save that enemy's next-turn attack. Use similar scale
+                        // to stunBonus (DEFEND threatBonus + per-dmg block).
+                        int saveDmg = System.Math.Max(15, e.TotalIntentDamage);
+                        int bonus = w.BlockUnderThreatBonus + saveDmg * w.BlockPerPointBonus;
+                        const int ImbalancedCap = 3000;
+                        if (bonus > ImbalancedCap) bonus = ImbalancedCap;
+                        imbalancedBonus += bonus;
+                        details.Add($"imbalancedStun(e{e.IntentDamage}≤blk{effectiveBlock})=+{bonus}");
+                    }
+                }
+            }
 
             // BlockUnderThreatBonus only applies when the card *actually* blocks. Otherwise
             // a self-targeted skill with no block (Turbo / Inflame / energy-gain cards) would
@@ -1349,7 +1514,18 @@ internal static class PlanScorer
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + imbalancedBonus + confusedPenalty;
+            // v0.9 — Per-energy efficiency diagnostic (Skill: block/E).
+            // Raw block/E (Dex/Frail-naïve) → Effective block/E with Frail/
+            // Burst/Echo/Unmovable applied. Shows the live combat-aware value.
+            if (card.Block > 0)
+            {
+                double rawBlk = card.BlockPerEnergy;
+                double effBlk = card.EffectiveBlockPerEnergy(state);
+                details.Add(System.Math.Abs(rawBlk - effBlk) < 0.05
+                    ? $"eff(b{rawBlk:F1}/E)"
+                    : $"eff(b{rawBlk:F1}/E→{effBlk:F1}/E)");
+            }
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
                 Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
@@ -1376,6 +1552,230 @@ internal static class PlanScorer
     /// HEAVENLY_DRILL's "×2 if X ≥ 4" doubling is intentionally omitted — the
     /// card already scores significantly at base X.
     /// </summary>
+
+    /// <summary>
+    /// HP-threshold trigger bonus. Three enemy powers gate special effects on
+    /// dropping HP below their Amount stack:
+    ///   • ShriekPower (TerrorEel boss)  — STUN + remove self
+    ///   • PlowPower (Ceremonial Beast)  — STUN + remove StrengthPower + self
+    ///   • DoomPower (player-applied)    — INSTAKILL at turn end
+    /// All three previously invisible to scoring — the AI treated the enemy
+    /// as an ordinary HP pool and missed the high-leverage burst window
+    /// (e.g. preferring multi-hit Shivs over a single big-hit attack when
+    /// only the latter crosses the threshold).
+    ///
+    /// Damage estimate per enemy uses <paramref name="effectiveTotal"/> for
+    /// the single-target path (already block-adjusted by the upstream
+    /// scoring math) and per-enemy effective damage for the AOE path.
+    /// </summary>
+    private static int ComputeThresholdTriggerBonus(SimCard card, SimState state,
+        bool isAoe, int targetIdx, int effectiveTotal, PlanScorerWeights w,
+        List<string> details)
+    {
+        if (card.Damage <= 0) return 0;
+        if (state.Enemies.Count == 0) return 0;
+
+        int totalBonus = 0;
+
+        if (!isAoe)
+        {
+            if (targetIdx < 0 || targetIdx >= state.Enemies.Count) return 0;
+            var target = state.Enemies[targetIdx];
+            if (!target.IsAlive || target.Powers == null || target.Powers.Count == 0)
+                return 0;
+            totalBonus = ScoreThresholdsForEnemy(target, effectiveTotal, w, details);
+        }
+        else
+        {
+            bool playerIsWeak = state.PlayerWeak > 0;
+            int hits = System.Math.Max(1, card.Hits);
+            foreach (var e in state.Enemies)
+            {
+                if (!e.IsAlive || e.Powers == null || e.Powers.Count == 0) continue;
+                int perHit = StatusMath.EffectivePerHitCapped(card.Damage,
+                    state.PlayerStrength, state.PlayerVigor, e, playerIsWeak);
+                perHit = StatusMath.ApplyDamageMultipliers(perHit, state,
+                    e.VulnerableAmount > 0, e.WeakAmount > 0, lethalityActive: false);
+                int effTotalForE = perHit * hits;
+                totalBonus += ScoreThresholdsForEnemy(e, effTotalForE, w, details);
+            }
+        }
+        return totalBonus;
+    }
+
+    private static int ScoreThresholdsForEnemy(SimEnemy target, int effectiveTotal,
+        PlanScorerWeights w, List<string> details)
+    {
+        int currentHp = target.Hp;
+        int incomingDmg = System.Math.Max(0, effectiveTotal - target.Block);
+        int hpAfter = System.Math.Max(0, currentHp - incomingDmg);
+
+        int bonus = 0;
+
+        // TheBombPower: enemy attached a countdown to themselves (Amount =
+        // turns until detonation; Damage = 40 AOE to player side). The bomb
+        // is INVISIBLE to the AI's intent-based threat estimation. Two
+        // scoring nudges:
+        //   1. Kill-the-bomber bonus: if this attack would kill the carrier
+        //      AND the bomb is about to go off (counter ≤ 2), big bonus —
+        //      removing the carrier removes the bomb.
+        //   2. Damage-toward-killing-bomber priority: amortized bomb threat
+        //      proportional to imminence.
+        if (target.Powers.TryGetValue("TheBombPower", out var bombCounter) && bombCounter > 0)
+        {
+            const int BombDamage = 40;
+            if (hpAfter <= 0 && bombCounter <= 3)
+            {
+                // Bomb defused by killing the carrier within reach.
+                int saveValue = BombDamage * w.DamagePerPointBonus / 10;
+                const int DefuseCap = 1500;
+                if (saveValue > DefuseCap) saveValue = DefuseCap;
+                bonus += saveValue;
+                details.Add($"bombDefuse(counter{bombCounter},kill)=+{saveValue}");
+            }
+            else if (hpAfter < currentHp)
+            {
+                // Otherwise: priority push amortized by counter. counter=1
+                // (detonates this turn end) → full BombDamage saved per turn.
+                // counter=5 → 1/5 weight.
+                int amortizedDmg = BombDamage / System.Math.Max(1, bombCounter);
+                int v = amortizedDmg * w.DamagePerPointBonus / 10;
+                const int PriorityCap = 500;
+                if (v > PriorityCap) v = PriorityCap;
+                bonus += v;
+                details.Add($"bombPriority(counter{bombCounter})=+{v}");
+            }
+        }
+
+        // Stun threshold: ShriekPower (TerrorEel), PlowPower (CeremonialBeast).
+        int stunThreshold = 0;
+        string stunTag = "";
+        if (target.Powers.TryGetValue("ShriekPower", out var shriek) && shriek > 0)
+        {
+            stunThreshold = shriek;
+            stunTag = "shriek";
+        }
+        if (target.Powers.TryGetValue("PlowPower", out var plow) && plow > stunThreshold)
+        {
+            stunThreshold = plow;
+            stunTag = "plow";
+        }
+
+        if (stunThreshold > 0 && currentHp > stunThreshold && hpAfter <= stunThreshold && hpAfter > 0)
+        {
+            // v0.9 — Stun bonus restructured to match the "공격해서 맞지 않는다면
+            // 공격" intent. Previously stun was scored as `est × 5` (capped
+            // 1500, floor 400) — vs DEFEND scoring +2000 BlockUnderThreatBonus
+            // PLUS +1200 BlockNeutralizeBonus when threat is high. Result:
+            // DEFEND outscored Stun-via-attack by 4-8× even when stun would
+            // negate the SAME enemy attack DEFEND blocks.
+            //
+            // New formula mirrors the defense side:
+            //   • threat-tier base: matches BlockUnderThreatBonus (2000)
+            //   • per-dmg block-equivalent: est × BlockPerPointBonus (30)
+            //   • plow extra: +150 (Strength removal residual)
+            // Cap raised to 3500 — comparable to DEFEND threat+neutralize peak.
+            int est = System.Math.Max(15,
+                target.IntentDamage * System.Math.Max(1, target.IntentRepeats));
+            int stunBonus = w.BlockUnderThreatBonus
+                + est * w.BlockPerPointBonus;
+            const int StunCap = 3500;
+            if (stunBonus > StunCap) stunBonus = StunCap;
+            // PlowPower also removes Strength — extra credit for the
+            // permanent damage reduction on subsequent attacks.
+            if (stunTag == "plow") stunBonus += 150;
+            bonus += stunBonus;
+            details.Add($"{stunTag}Thresh(th{stunThreshold},hp{currentHp}→{hpAfter},est{est})=+{stunBonus}");
+        }
+        else if (stunThreshold > 0)
+        {
+            // Threshold detected but this card doesn't cross it — surface why
+            // for diagnostics. Helps verify ShriekPower recognition vs. the
+            // separate question of whether any single play actually triggers
+            // it. Uses Trace level so it stays out of normal logs but is
+            // available when investigating "AI saw Shriek but didn't react."
+            string reason;
+            if (currentHp <= stunThreshold)
+                reason = "alreadyBelow";          // boss already past the cross-line
+            else if (incomingDmg <= 0)
+                reason = "noDmg";                 // skill / blocked / 0-dmg attack
+            else if (hpAfter > stunThreshold)
+                reason = $"shortBy{hpAfter - stunThreshold}";   // not enough to cross
+            else if (hpAfter <= 0)
+                reason = "wouldKill";             // crosses AND kills — stun moot
+            else
+                reason = "unknown";
+            details.Add($"{stunTag}ThreshNoTrig({reason},th{stunThreshold},hp{currentHp}→{hpAfter})");
+        }
+
+        // v0.9 — AsleepPower (Lagavulin Matriarch): any unblocked damage wakes
+        // the boss AND stuns. While asleep the boss deals 0 damage; waking is
+        // when damage opportunity begins. The stun lets the player keep
+        // hitting for one more turn before retaliation. Treat the trigger
+        // identically to Shriek/Plow — saves one enemy attack-turn equivalent.
+        //
+        // Note: AsleepPower doesn't have an HP threshold. ANY hit that deals
+        // unblocked damage triggers it. We check `incomingDmg > 0` (damage
+        // after block) — if that's > 0, this card wakes the boss. Most
+        // attacks against a 0-block sleeping boss will land.
+        if (target.Powers.TryGetValue("AsleepPower", out var asleep) && asleep > 0
+            && incomingDmg > 0)
+        {
+            int est = System.Math.Max(15,
+                target.IntentDamage * System.Math.Max(1, target.IntentRepeats));
+            int stunBonus = w.BlockUnderThreatBonus + est * w.BlockPerPointBonus;
+            const int AsleepCap = 3500;
+            if (stunBonus > AsleepCap) stunBonus = AsleepCap;
+            bonus += stunBonus;
+            details.Add($"asleepWake(hp{currentHp}→{hpAfter},est{est})=+{stunBonus}");
+        }
+
+        // v0.9 — SlumberPower (Slumbering Beetle): counter starts at Amount,
+        // each damage event decrements by 1, stuns when 0. So this attack
+        // triggers stun IFF Amount == 1 at start of play. For Amount >= 2,
+        // award a partial-progress bonus proportional to "how much we
+        // advanced the wake-up state" — same magnitude/Amount but capped
+        // so deep counters (Amount=5) don't pay too much for a single hit.
+        if (target.Powers.TryGetValue("SlumberPower", out var slumber) && slumber > 0
+            && incomingDmg > 0)
+        {
+            int est = System.Math.Max(15,
+                target.IntentDamage * System.Math.Max(1, target.IntentRepeats));
+            if (slumber == 1)
+            {
+                // This hit triggers stun.
+                int stunBonus = w.BlockUnderThreatBonus + est * w.BlockPerPointBonus;
+                const int SlumberCap = 3500;
+                if (stunBonus > SlumberCap) stunBonus = SlumberCap;
+                bonus += stunBonus;
+                details.Add($"slumberWake(amt{slumber},est{est})=+{stunBonus}");
+            }
+            else
+            {
+                // Partial progress: amortize threshold bonus by 1/slumber.
+                int partial = (w.BlockUnderThreatBonus + est * w.BlockPerPointBonus) / slumber;
+                bonus += partial;
+                details.Add($"slumberProgress(amt{slumber}→{slumber - 1},est{est})=+{partial}");
+            }
+        }
+
+        // Doom kill: HP ≤ Doom at turn end → instakill.
+        if (target.Powers.TryGetValue("DoomPower", out var doom) && doom > 0)
+        {
+            if (hpAfter > 0 && hpAfter <= doom)
+            {
+                int killBonus = currentHp * w.DamagePerPointBonus / 10;
+                const int KillCap = 2000;
+                if (killBonus > KillCap) killBonus = KillCap;
+                if (killBonus < 800) killBonus = 800;
+                bonus += killBonus;
+                details.Add($"doomKill(d{doom},hp{currentHp}→{hpAfter})=+{killBonus}");
+            }
+        }
+
+        return bonus;
+    }
+
     private static int EstimateVariableHits(SimCard card, SimState state)
     {
         if (!card.IsAttack || card.Damage <= 0) return 0;
@@ -1470,40 +1870,40 @@ internal static class PlanScorer
     private static int EvaluateExhaustBurstSpecial(SimCard card, SimState state)
     {
         if (!card.IsSkill) return 0;
-        if (!card.Axes.Contains("EXHAUST_BURST") && card.Id != "CARD.PURITY") return 0;
+        if (!card.Axes.Contains("EXHAUST_BURST") && card.Id != "PURITY") return 0;
 
         switch (card.Id)
         {
-            case "CARD.EIDOLON":
+            case "EIDOLON":
             {
                 // Need ≥9 hand cards (including self) to fire Intangible.
                 int hand = state.Hand.Count;
                 const int threshold = 9;
+                int keystoneRisk = SumExhaustLossRiskExcludingSelf(card, state);
                 if (hand >= threshold)
                 {
                     // Approximate IntangiblePower 1 self-buff value. PowerCatalog
                     // values it at ~1500 for permanent stacks; the EIDOLON version
-                    // is single-turn (Apparition-like), so scale down.
-                    return 900;
+                    // is single-turn (Apparition-like), so scale down. Still
+                    // subtract keystone loss — Powers / Retain in hand cost a lot.
+                    return 900 - keystoneRisk;
                 }
-                // Below threshold the card just exhausts the hand — heavy loss.
-                int handExhausted = System.Math.Max(0, hand - 1);
-                return -handExhausted * 60;
+                // Below threshold the card just exhausts the hand — keystone-aware loss.
+                return -keystoneRisk;
             }
 
-            case "CARD.STOKE":
+            case "STOKE":
             {
-                // Replaces hand with N random cards. Each generated card is worth
-                // some fraction of an average draw — modest baseline. Net value
-                // depends on what's exhausted: cheap throwaways → positive; high-
-                // value retained cards → negative. Without per-hand-card scoring
-                // here, use a small flat per-card bonus.
+                // Replaces hand with N random cards. The generation value
+                // scales with handExhausted; the keystone loss for cards
+                // actually exhausted is subtracted on top.
                 int handExhausted = System.Math.Max(0, state.Hand.Count - 1);
                 if (handExhausted == 0) return -100;          // no hand → no point
-                return handExhausted * 40;                     // ~40pt per generated card
+                int keystoneRisk = SumExhaustLossRiskExcludingSelf(card, state);
+                return handExhausted * 40 - keystoneRisk;
             }
 
-            case "CARD.PURITY":
+            case "PURITY":
             {
                 // Target-selectable exhaust up to 3. Player picks curses / status
                 // first, then dead-weight cards. Score per curse/status in hand.
@@ -1525,6 +1925,25 @@ internal static class PlanScorer
             default:
                 return 0;
         }
+    }
+
+    /// <summary>
+    /// Sum of per-card exhaust loss risk for every hand card except `self`.
+    /// Delegates to <see cref="EffectSynergy.EstimateExhaustLossRisk"/>
+    /// (Power/Retain/SCALING/Curse weighted) so EIDOLON / STOKE penalty
+    /// scales with the actual hand composition instead of a flat per-card
+    /// cost.
+    /// </summary>
+    private static int SumExhaustLossRiskExcludingSelf(SimCard self, SimState state)
+    {
+        int risk = 0;
+        for (int i = 0; i < state.Hand.Count; i++)
+        {
+            var c = state.Hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            risk += EffectSynergy.EstimateExhaustLossRisk(c);
+        }
+        return risk;
     }
 
     /// <summary>
@@ -1613,6 +2032,19 @@ internal static class PlanScorer
         if (card.Cost <= 0) return 0;
         int afterPlay = state.PlayerEnergy - card.Cost;
         if (afterPlay > 0) return 0;
+
+        // v0.9 — Retain big-attack exemption. A Retain attack with high
+        // damage (≥12) is the deck's intended finisher / burst tool; the
+        // whole point of its Retain keyword is to wait for the right moment
+        // to dump all energy into it. Penalising it for "skipping 4 cheap
+        // alternatives" works directly against that intent. SOVEREIGN_BLADE
+        // (cost 2, d=21~36) was the observed offender — see 2026-05-19 19:37
+        // log where d31 SB was beaten by BEAT_INTO_SHAPE d22 across every
+        // turn for the entire combat. With this exemption, SB's scoring
+        // recovers ~100pt and the planner can finally pick it when it's the
+        // highest-damage play available.
+        if (card.IsRetain && card.IsAttack && card.Damage >= 12)
+            return 0;
 
         int skipped = 0;
         foreach (var c in state.Hand)
@@ -1785,6 +2217,26 @@ internal static class PlanScorer
         {
             s += w.RealLethalKillBonus;
             parts.Add($"LETHAL+{w.RealLethalKillBonus}");
+
+            // v0.9 — Intent-saved bonus: killing an enemy with an attack
+            // intent removes their next turn's damage. Scale by the saved
+            // intent dmg (×BlockPerPointBonus equivalent) capped at +2000.
+            // Especially valuable in multi-enemy fights where killing the
+            // big-attacker first matters most. Buff/Heal/Summon intents
+            // also worth killing — fold via additional flat bonuses.
+            if (target.HasAttackIntent && target.IntentDamage > 0)
+            {
+                int saved = target.IntentDamage * System.Math.Max(1, target.IntentRepeats);
+                int intentBonus = saved * w.BlockPerPointBonus;
+                const int IntentSaveCap = 2000;
+                if (intentBonus > IntentSaveCap) intentBonus = IntentSaveCap;
+                s += intentBonus;
+                parts.Add($"killIntentSave({saved}dmg)=+{intentBonus}");
+            }
+            if (target.HasBuffIntent)    { s += 600; parts.Add("killBuffer+600"); }
+            if (target.HasHealIntent)    { s += 800; parts.Add("killHealer+800"); }
+            if (target.HasSummonIntent)  { s += 700; parts.Add("killSummoner+700"); }
+            if (target.HasDebuffIntent)  { s += 400; parts.Add("killDebuffer+400"); }
         }
         else
         {
@@ -1937,11 +2389,12 @@ internal static class PlanScorer
     /// v0.2.9 — pile-aware: if DrawPileSize+DiscardPileSize == 0 → drawing is futile.
     ///
     /// v0.5 — only THIS-turn immediate draws (DrawCount > 0 via CardsVar) use the
-    /// hand-quality logic. DrawCardPower and DrawCardsNextTurnPower are per-turn /
-    /// next-turn buffs whose value is already in PowerCatalog (900/stack), so the
-    /// hand-quality bonus would double-credit. Conservative scope avoids the risk
-    /// of mis-categorising DrawCardPower as immediate when it's actually a per-turn
-    /// buff.
+    /// hand-quality logic. MachineLearningPower (per-turn perma draw) and
+    /// DrawCardsNextTurnPower (one-shot next-turn draw) are scored by their
+    /// PowerCatalog baseline + the pile-aware tick handlers in EffectSynergy
+    /// (ApplyMachineLearningTickValue / ApplyDrawCardsNextTurnTickValue), so
+    /// the hand-quality bonus here would double-credit. Conservative scope
+    /// avoids the risk of mis-categorising those as immediate draws.
     ///
     /// v0.5 — energy-after-draw + hand-cap checks:
     ///   • Playing a 1-cost draw with 1 energy leaves 0 energy. Unless a 0-cost or
@@ -1953,6 +2406,17 @@ internal static class PlanScorer
     private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w)
     {
         if (card.DrawCount <= 0) return 0;
+
+        // v0.9 — NoDrawPower shutdown: player can't draw cards THIS turn.
+        // Any draw effect is wasted — return a strong negative so the planner
+        // skips draw cards entirely. Magnitude matches DrawEmptyPilePenalty.
+        if (state.PlayerNoDraw > 0) return w.DrawEmptyPilePenalty;
+
+        // v0.9 — Hand size cap (STS2 max = 10) early-out. When hand is at
+        // or above cap, every drawn card is discarded directly. Reject.
+        // (Partial overflow is handled later at line ~2482 via handBonus
+        // wasted-frac reduction; this just short-circuits the worst case.)
+        if (state.Hand.Count >= 10) return w.DrawEmptyPilePenalty;
 
         // v0.2.9 — pile guard: nothing to draw means no value.
         int totalPile = state.DrawPileSize + state.DiscardPileSize;
@@ -2010,6 +2474,7 @@ internal static class PlanScorer
 
         // v0.5 — Hand-cap overflow: drawn cards over 10 are silently discarded.
         // Penalty proportional to the wasted fraction of the draw.
+        int effectiveDraws = card.DrawCount;
         if (card.DrawCount > 0)
         {
             int handAfterPlay = state.Hand.Count - 1;  // self consumed
@@ -2018,10 +2483,69 @@ internal static class PlanScorer
             {
                 int wastedFrac = System.Math.Min(100, (wasted * 100) / card.DrawCount);
                 handBonus -= (System.Math.Abs(handBonus) * wastedFrac) / 100;
+                effectiveDraws = System.Math.Max(0, card.DrawCount - wasted);
             }
         }
 
-        return handBonus;
+        // Pile-aware EV: drawn cards come from DrawPile first; once exhausted
+        // the discard pile reshuffles in. Adds a quality signal to the hand-
+        // state heuristic above — finisher-rich pile pushes draw value up,
+        // curse/Strike-heavy pile drags it down. Each card's
+        // EstimateCardPower is treated as "if played" value; we discount
+        // because (a) we don't know which specific cards land, (b) drawn
+        // cards typically resolve next turn or later.
+        int pileEv = EstimatePileDrawEv(effectiveDraws, state);
+
+        return handBonus + pileEv;
+    }
+
+    /// <summary>
+    /// Expected total value of <paramref name="drawCount"/> cards drawn from
+    /// the player's piles. STS reshuffle rules:
+    ///   • First min(drawCount, DrawPile.Count) cards come from DrawPile.
+    ///   • Remainder come from DiscardPile after a reshuffle.
+    /// Each pile contributes its mean per-card value × the number drawn from
+    /// it. Heavy 30% discount because we don't know identity of drawn cards
+    /// and they generally resolve later than this turn. Caps to avoid
+    /// flooding the score when a 5+ draw lands on a high-EV deck.
+    /// </summary>
+    internal static int EstimatePileDrawEv(int drawCount, SimState state)
+    {
+        if (drawCount <= 0) return 0;
+        if (state.DrawPile.Count + state.DiscardPile.Count == 0) return 0;
+
+        int fromDraw = System.Math.Min(drawCount, state.DrawPile.Count);
+        int fromDiscard = drawCount - fromDraw;
+
+        int drawMean = PileMeanCardPower(state.DrawPile, state);
+        int discardMean = fromDiscard > 0
+            ? PileMeanCardPower(state.DiscardPile, state)
+            : 0;
+
+        int total = fromDraw * drawMean + fromDiscard * discardMean;
+        // Discount + cap.
+        int v = total * 30 / 100;
+        const int Cap = 600;
+        if (v > Cap) v = Cap;
+        if (v < -Cap) v = -Cap;
+        return v;
+    }
+
+    private static int PileMeanCardPower(
+        System.Collections.Generic.IReadOnlyList<SimCard> pile, SimState state)
+    {
+        if (pile == null || pile.Count == 0) return 0;
+        int sum = 0;
+        int cnt = 0;
+        for (int i = 0; i < pile.Count; i++)
+        {
+            // EstimateCardPower returns a curse-floor value (CurseInHand) for
+            // curses/status, so they naturally drag the mean down for polluted
+            // decks — no separate filtering needed.
+            sum += EffectSynergy.EstimateCardPower(pile[i], state, freeUse: false);
+            cnt++;
+        }
+        return cnt > 0 ? sum / cnt : 0;
     }
 
     /// <summary>

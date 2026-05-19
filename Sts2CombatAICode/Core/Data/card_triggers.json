@@ -555,7 +555,8 @@
           "tag": "드로우 빌드",
           "role": "primary"
         }
-      ]
+      ],
+      "transform_trigger": true
     },
     "CARD.BELIEVE_IN_YOU": {
       "axes": [
@@ -1188,7 +1189,8 @@
           "tag": "골골이 빌드",
           "role": "secondary"
         }
-      ]
+      ],
+      "transform_trigger": true
     },
     "CARD.CHARGE_BATTERY": {
       "axes": [
@@ -1293,7 +1295,9 @@
     },
     "CARD.CLOAK_AND_DAGGER": {
       "axes": [
-        "BLOCK"
+        "BLOCK",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -1884,6 +1888,7 @@
           "role": "secondary"
         }
       ],
+      "select_play_trigger": true,
       "exhaust": true
     },
     "CARD.DEFEND_DEFECT": {
@@ -2151,6 +2156,7 @@
         }
       ],
       "fetch_trigger": true,
+      "select_play_trigger": true,
       "exhaust": true
     },
     "CARD.DISINTEGRATION": {
@@ -2671,7 +2677,9 @@
       "axes": [
         "AOE_OTHER",
         "SHIV",
-        "SHIV_AMPLIFIER"
+        "SHIV_AMPLIFIER",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -2767,7 +2775,9 @@
       "axes": [
         "DRAW_CONDITIONAL",
         "OSTY",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "SKELETON_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -3200,7 +3210,8 @@
           "tag": "압축덱",
           "role": "secondary"
         }
-      ]
+      ],
+      "select_topdeck_trigger": true
     },
     "CARD.GLIMPSE_BEYOND": {
       "axes": [
@@ -3573,7 +3584,9 @@
     "CARD.HIDDEN_DAGGERS": {
       "axes": [
         "SHIV",
-        "CUNNING_CONSUMER"
+        "CUNNING_CONSUMER",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -4089,7 +4102,9 @@
       "axes": [
         "SHIV",
         "DAMAGE",
-        "STRIKE_TYPE"
+        "STRIKE_TYPE",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -5181,7 +5196,8 @@
           "tag": "압축덱",
           "role": "secondary"
         }
-      ]
+      ],
+      "select_topdeck_trigger": true
     },
     "CARD.PIERCING_WAIL": {
       "axes": [
@@ -5845,7 +5861,9 @@
     "CARD.RIGHT_HAND_HAND": {
       "axes": [
         "OSTY",
-        "FREE_ATTACK"
+        "FREE_ATTACK",
+        "SKELETON_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -6605,7 +6623,8 @@
         "RETAIN_SELF",
         "DAMAGE",
         "REPEAT",
-        "RETAIN"
+        "RETAIN",
+        "LORDS_BLADE_PAYOFF"
       ],
       "builds": [
         {
@@ -6702,7 +6721,8 @@
         }
       ],
       "upgrade_trigger": true,
-      "fetch_trigger": true
+      "fetch_trigger": true,
+      "select_play_trigger": true
     },
     "CARD.SPOILS_MAP": {
       "axes": [
@@ -6879,7 +6899,9 @@
     },
     "CARD.STORM_OF_STEEL": {
       "axes": [
-        "CUNNING_CONSUMER"
+        "CUNNING_CONSUMER",
+        "SHIV_PRODUCER",
+        "CARD_GEN"
       ],
       "builds": [
         {
@@ -7328,6 +7350,7 @@
           "role": "secondary"
         }
       ],
+      "select_topdeck_trigger": true,
       "exhaust": true
     },
     "CARD.THRASH": {

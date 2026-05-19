@@ -330,16 +330,19 @@ internal static class AnalyticalSimulator
                 int newDoom = enemy.DoomAmount;
                 int artifactLeft = enemy.ArtifactAmount;
 
-                // v0.7.13 — REAPER_FORM applies DoomPower stack on every attack
-                // hit. Add 1 stack per hit (multi-hit attacks apply multiple
-                // stacks). Artifact does NOT intercept self-buff-driven debuffs
+                // REAPER_FORM: "Whenever Attacks deal damage, they also apply
+                // that much Doom" (per STS2 description). Per-hit Doom equals
+                // the attack's damage value, multiplied by hit count and the
+                // power's stack. Earlier formula used `stacks × hits` which
+                // ignored damage and severely under-credited big single hits.
+                // Artifact does NOT intercept self-buff-driven debuffs
                 // (Doom is added on hit, not via a debuff PowerVar).
                 if (next.PlayerPowers != null
                     && next.PlayerPowers.TryGetValue("ReaperFormPower", out var reaperStacks)
                     && reaperStacks > 0
                     && card.Damage > 0)
                 {
-                    newDoom += reaperStacks * System.Math.Max(1, card.Hits);
+                    newDoom += card.Damage * System.Math.Max(1, card.Hits) * reaperStacks;
                 }
                 // v0.8.3 — Enemy.Powers dict catch-all (mirror of v0.8.2 PlayerPowers).
                 // Lazy-built mutable copy; tracks debuffs without explicit field
@@ -747,6 +750,131 @@ internal static class AnalyticalSimulator
         if (newPlayerHunger > 0 && card.DrawCount > 0)
             newPlayerStr += newPlayerHunger * card.DrawCount;
 
+        // v0.9 — Forge propagation. STS2 Regent build: cards with FORGE_AMPLIFIER /
+        // LORDS_BLADE_PRODUCER axes "Forge" the SovereignBlade token in piles,
+        // permanently bumping its Damage. Previously the simulator missed this,
+        // so depth-2 lookahead never saw "play BEAT then play SB" with the
+        // boosted SB damage — SB scored at base d=10..21 forever and lost score
+        // races to BEAT_INTO_SHAPE every turn (logs 2026-05-19, full combat,
+        // SB never selected).
+        //
+        // Forge amount: prefer card.Effect.ForgeGen (runtime DynamicVar
+        // extracted by CardReflection, includes "+N per same-target attack
+        // already done" because PreviewValue is calculated live by the
+        // game). Fall back to known per-card baselines when ForgeGen is 0.
+        //
+        // For BEAT_INTO_SHAPE specifically — and any other card whose Forge
+        // amount scales on "attacks on this target THIS TURN" — we ALSO add
+        // the per-prior-attack bonus tracked in TurnAttacksByTargetIdx.
+        // ForgeGen from snapshot captures only the state at capture time;
+        // depth-2+ chains where we play FALLING_STAR(tgt) then BEAT(tgt)
+        // need this in-sim bump to score BEAT's true Forge value.
+        int forgeAmount = 0;
+        if (card.Effect.ForgeGen > 0) forgeAmount = card.Effect.ForgeGen;
+        else if (card.Axes != null
+                 && (card.Axes.Contains("LORDS_BLADE_PRODUCER")
+                     || card.Axes.Contains("FORGE_AMPLIFIER")))
+        {
+            forgeAmount = card.Id switch
+            {
+                "BEAT_INTO_SHAPE"  => 5,    // 5 base; per-attack bonus added below
+                "REFINE_BLADE"     => 9,
+                "SPOILS_OF_BATTLE" => 5,
+                "WROUGHT_IN_WAR"   => 7,
+                "BULWARK"          => 10,
+                "BIG_BANG"         => 5,
+                _                  => 5,   // unknown FORGE_AMPLIFIER → conservative 5
+            };
+        }
+        // v0.9 — Dynamic per-target attack bonus. BEAT_INTO_SHAPE's text:
+        // "단조 5. 이번 턴에 대상 적을 공격한 다른 횟수마다 추가로 단조 5."
+        // The +5 multiplier mirrors the base Forge amount (CalculationExtra=5).
+        // Upgraded BEAT base 7 + 7/atk. Generalised: extra bonus = base × prior
+        // attacks on target this turn. Use a per-card whitelist so unrelated
+        // FORGE_AMPLIFIER cards (BULWARK, REFINE_BLADE etc. — static amount)
+        // don't get spurious scaling.
+        if (forgeAmount > 0 && card.Id == "BEAT_INTO_SHAPE"
+            && targetIdx >= 0 && targetIdx < next.Enemies.Count
+            && next.TurnAttacksByTargetIdx.TryGetValue(targetIdx, out var priorAttacksOnTgt)
+            && priorAttacksOnTgt > 0)
+        {
+            // BEAT counts attacks "OTHER THAN THIS ONE" — priorAttacksOnTgt is
+            // exactly the count before this play (we haven't incremented yet).
+            int perAttackExtra = forgeAmount;     // base == per-attack bonus
+            forgeAmount += perAttackExtra * priorAttacksOnTgt;
+        }
+        int newSovereignBladeCount = next.SovereignBladeCount;
+        if (forgeAmount > 0)
+        {
+            // v0.9 — Auto-create SovereignBlade when none exists. Per game's
+            // ForgeCmd.Forge (sts2.decompiled.cs:398974): the first Forge with
+            // no SB in piles spawns SovereignBlade(d=10, cost=2, Retain) in
+            // hand AND then applies the Forge amount. So a hand without SB
+            // playing BEAT(5) ends with SB(d=15) in hand. Previously the
+            // simulator missed this entirely; the planner never saw the
+            // "Forge creates the win condition" pathway.
+            //
+            // Axes mirror card_triggers.json's SOVEREIGN_BLADE entry; cost 2
+            // matches the base card (upgraded variant is 1, but we can't
+            // distinguish without runtime info — use base for safety).
+            if (newSovereignBladeCount == 0)
+            {
+                var sbEffect = new CardEffectSummary
+                {
+                    Damage = 10,    // forgeAmount added in the loop below
+                    Hits  = 1,
+                };
+                var sbCard = new SimCard
+                {
+                    Id = "SOVEREIGN_BLADE",
+                    Cost = 2,
+                    Kind = CardType.Attack,
+                    Target = TargetType.AnyEnemy,
+                    Effect = sbEffect,
+                    IsPlayable = energy >= 2,
+                    Axes = new[]
+                    {
+                        "RETAIN_SELF", "DAMAGE", "REPEAT",
+                        "RETAIN", "LORDS_BLADE_PAYOFF"
+                    },
+                    PrimaryBuildTags = new[] { "압축덱" },
+                    IsRetain = true,
+                };
+                newHand.Add(sbCard);
+                newSovereignBladeCount = 1;
+            }
+
+            for (int i = 0; i < newHand.Count; i++)
+            {
+                var c = newHand[i];
+                if (c.Id == "SOVEREIGN_BLADE")
+                {
+                    // SimCard.Damage is a computed alias for Effect.Damage —
+                    // bump via Effect (CardEffectSummary record) using `with`.
+                    newHand[i] = c with
+                    {
+                        Effect = c.Effect with { Damage = c.Effect.Damage + forgeAmount }
+                    };
+                }
+            }
+        }
+
+        // v0.9 — Increment per-target attack counter for the played card so
+        // subsequent depth-N steps in the same simulation see the updated
+        // count. Mirrors the live game's tracking. Only updates when this is
+        // an actual attack with a single target (AOE / skill-self plays
+        // don't count toward BEAT's per-target Forge bonus).
+        IReadOnlyDictionary<int, int> newTurnAttacksByTgt = next.TurnAttacksByTargetIdx;
+        if (card.IsAttack && targetIdx >= 0 && targetIdx < next.Enemies.Count
+            && card.Target != TargetType.AllEnemies)
+        {
+            var newDict = new Dictionary<int, int>(next.TurnAttacksByTargetIdx);
+            newDict[targetIdx] = newDict.TryGetValue(targetIdx, out var prev)
+                ? prev + 1
+                : 1;
+            newTurnAttacksByTgt = newDict;
+        }
+
         return next with
         {
             PlayerHp = newPlayerHp,
@@ -791,6 +919,14 @@ internal static class AnalyticalSimulator
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,
+            // v0.9 — propagate per-target attack counter for depth-N forge math.
+            TurnAttacksByTargetIdx = newTurnAttacksByTgt,
+            // v0.9 — propagate updated SB count so a second Forge in the
+            // same turn doesn't trigger auto-create again.
+            SovereignBladeCount = newSovereignBladeCount,
+            // v0.9 — ChainsOfBindingPower: if the played card was Bound,
+            // set the flag so depth-N candidates filter further Bound cards.
+            BoundCardPlayedThisTurn = next.BoundCardPlayedThisTurn || card.IsBound,
         };
     }
 
@@ -1023,6 +1159,35 @@ internal static class AnalyticalSimulator
         // (e)+(f) Block reset (unless Barricade) + energy reset (flat 3 base).
         int newPlayerBlock = barricadeActive ? state.PlayerBlock : 0;
         const int BaseTurnEnergy = 3;
+        int newPlayerEnergy = BaseTurnEnergy;
+        int newPlayerStarsAtStart = state.PlayerStars;
+
+        // v0.9 — Tier A next-turn buffs / debuffs that fire at energy-reset
+        // or turn-start. All self-remove after applying, so they're single-
+        // shot one-turn-only effects.
+        if (state.PlayerPowers != null && state.PlayerPowers.Count > 0)
+        {
+            // EnergyNextTurnPower: +N energy at next turn start.
+            if (state.PlayerPowers.TryGetValue("EnergyNextTurnPower", out var ent) && ent > 0)
+                newPlayerEnergy += ent;
+
+            // BlockNextTurnPower: +N block at next turn start (AfterBlockCleared
+            // hook in real game; for AdvanceTurn we apply after block reset).
+            if (state.PlayerPowers.TryGetValue("BlockNextTurnPower", out var bnt) && bnt > 0)
+                newPlayerBlock += bnt;
+
+            // StarNextTurnPower: +N stars at next turn start (Regent token).
+            if (state.PlayerPowers.TryGetValue("StarNextTurnPower", out var snt) && snt > 0)
+                newPlayerStarsAtStart += snt;
+
+            // BorrowedTimePower (player DEBUFF — TryModifyEnergyCostInCombat
+            // adds Amount to every card's cost): treated as energy loss for
+            // next-turn budget. e.g. BorrowedTime:1 with 5 cards → 5 energy
+            // shortfall. Approximate as flat hand-size × Amount reduction
+            // from base energy, clamped at 0.
+            if (state.PlayerPowers.TryGetValue("BorrowedTimePower", out var bt) && bt > 0)
+                newPlayerEnergy = System.Math.Max(0, newPlayerEnergy - bt * nextHand.Count);
+        }
 
         // (g) New hand from deck pool — provided by caller. Caller picks
         // synthetic-avg (BuildSyntheticHand, default AdvanceTurn) or Monte
@@ -1140,11 +1305,40 @@ internal static class AnalyticalSimulator
             newAllies.AddRange(state.Allies);
         }
 
+        // v0.9 — SummonNextTurnPower: spawns Osty/Skeleton ally at start of
+        // next player turn. Approximate as a generic ally with avg HP/Atk
+        // (full mechanics requires per-character summon details; this
+        // captures the "I'll have a damage-contributor next turn" benefit).
+        if (state.PlayerPowers != null
+            && state.PlayerPowers.TryGetValue("SummonNextTurnPower", out var summon)
+            && summon > 0)
+        {
+            // Generic skeleton stat block (Necrobinder Osty baseline).
+            // Real Osty has variable HP/Atk; planner-level approximation suffices.
+            const int SkeletonHp = 15;
+            const int SkeletonAtk = 5;
+            for (int i = 0; i < summon; i++)
+            {
+                newAllies.Add(new SimAlly
+                {
+                    Hp = SkeletonHp,
+                    Block = 0,
+                    IntentDamage = SkeletonAtk,
+                    IntentRepeats = 1,
+                    HasAttackIntent = true,
+                    ClassName = "Osty",
+                    SourceRef = null,
+                });
+            }
+        }
+
         return state with
         {
             PlayerHp = newPlayerHpAfterPassives,
             PlayerBlock = newPlayerBlock,
-            PlayerEnergy = BaseTurnEnergy,
+            // v0.9 — Use newPlayerEnergy which folds in EnergyNextTurnPower
+            // (+N) and BorrowedTimePower (debuff cost adder).
+            PlayerEnergy = newPlayerEnergy,
             PlayerStrength = newPlayerStr,
             // v0.7.83 — Carry Buffer minus instances consumed this turn.
             PlayerBuffer = newPlayerBufferEot,
@@ -1160,6 +1354,12 @@ internal static class AnalyticalSimulator
             PlayerWeak = newPlayerWeak,
             PlayerFrail = newPlayerFrail,
             PlayerIntangible = newPlayerIntangible,
+            // v0.9 — StarNextTurnPower / BorrowedTimePower may have adjusted
+            // starting stars. Carry through.
+            PlayerStars = newPlayerStarsAtStart,
+            // v0.9 — ChainsOfBinding: flag resets at turn boundary (game
+            // resets boundCardPlayed in BeforeTurnEnd).
+            BoundCardPlayedThisTurn = false,
             Enemies = newEnemies,
             Allies = newAllies,
             Hand = newHand,

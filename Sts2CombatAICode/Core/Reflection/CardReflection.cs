@@ -96,6 +96,63 @@ internal static class CardReflection
     public static bool IsEnchanted(CardModel card) =>
         _enchantmentProp?.GetValue(card) != null;
 
+    // v0.9 — Affliction reflection. CardModel has an Affliction property
+    // (AfflictionModel? — Bound / Devoured / etc.). Used to detect Bound
+    // cards (ChainsOfBindingPower) for candidate filtering.
+    private static readonly PropertyInfo? _afflictionProp =
+        AccessTools.Property(typeof(CardModel), "Affliction");
+
+    /// <summary>
+    /// v0.9 — True when the card carries the Bound affliction (from
+    /// ChainsOfBindingPower). Only ONE Bound card may be played per turn.
+    /// Returns false if reflection fails or no affliction is set.
+    /// </summary>
+    public static bool HasBoundAffliction(CardModel card)
+    {
+        try
+        {
+            var aff = _afflictionProp?.GetValue(card);
+            if (aff == null) return false;
+            // Match by class name to avoid hard-binding to Bound type.
+            return aff.GetType().Name == "Bound";
+        }
+        catch { return false; }
+    }
+
+    // CardModel runtime keywords. Includes both inherent keywords (Strike,
+    // Minion, Exhaust on Shiv) and TEMPORARY keywords applied at runtime
+    // (HAND_TRICK's "Add Sly to a Skill in hand this turn" lands as a Sly
+    // keyword on the targeted card). Property name guess based on STS2
+    // convention — falls back gracefully if reflection misses.
+    private static readonly PropertyInfo? _keywordsProp =
+        AccessTools.Property(typeof(CardModel), "Keywords");
+
+    /// <summary>
+    /// True when the card has the Sly keyword at this very moment. Covers:
+    ///   • Inherent Sly cards (TACTICIAN / REFLEX / ABRASIVE / ...).
+    ///   • Runtime-granted Sly (HAND_TRICK target this turn).
+    /// Returns false when the Keywords reflection fails (missing property /
+    /// type mismatch). Callers should still fall back to the static CUNNING
+    /// axis check for inherent Sly.
+    /// </summary>
+    public static bool HasSlyKeyword(CardModel card)
+    {
+        if (_keywordsProp == null) return false;
+        try
+        {
+            var keywords = _keywordsProp.GetValue(card) as IEnumerable;
+            if (keywords == null) return false;
+            foreach (var kw in keywords)
+            {
+                // CardKeyword enum value or string — ToString covers both.
+                if (kw == null) continue;
+                if (kw.ToString() == "Sly") return true;
+            }
+        }
+        catch { /* reflection failure → caller falls back to axis */ }
+        return false;
+    }
+
     public static string? GetEnchantmentId(CardModel card)
     {
         var ench = _enchantmentProp?.GetValue(card);
@@ -179,6 +236,7 @@ internal static class CardReflection
             int damage = 0, block = 0, hits = 1, energyGain = 0, drawCount = 0;
             int strengthDown = 0, heal = 0, maxHp = 0, hpLoss = 0;
             int starsGain = 0;  // v0.7.71
+            int shivGen = 0, skeletonGen = 0, soulGen = 0, forgeGen = 0;
             bool hasCalcDamage = false, hasCalcBlock = false;
             Dictionary<string, int>? powerApps = null;
 
@@ -253,7 +311,40 @@ internal static class CardReflection
                     }
                     continue;
                 }
-                if (v is EnergyVar) { energyGain += amount; continue; }
+                // v0.9 — CalculatedForge: BEAT_INTO_SHAPE / similar Forge-on-
+                // attack cards expose the Forge amount via a CalculatedVar
+                // with Name "CalculatedForge". PreviewValue already folds in
+                // the "+5 per other same-target attack this turn" multiplier,
+                // so reading this is strictly better than the static 5
+                // fallback in AnalyticalSimulator. The DynamicVar branch
+                // below also catches a same-named plain DynamicVar; the two
+                // are mutually exclusive per card (game uses one or the
+                // other), so an accidental double-count cannot occur.
+                if (typeName == "CalculatedVar" && v.Name == "CalculatedForge")
+                {
+                    if (amount > 0) forgeGen += amount;
+                    continue;
+                }
+                if (v is EnergyVar)
+                {
+                    // v0.9 — Power cards' EnergyVar typically represents the
+                    // power's PER-TRIGGER amount (AutomationPower: +1 energy
+                    // per 10 cards drawn; not on play), NOT immediate energy
+                    // gained on play. Crediting it as immediate caused the
+                    // simulator to think AUTOMATION (cost 1, Power) leaves
+                    // PlayerEnergy unchanged → SB(cost 2) appeared playable
+                    // after AUTOMATION when in reality energy is 1 short.
+                    // Resulting bug (logs 2026-05-19 21:11): "AUTOMATION → SB"
+                    // chain scored 12141 → AUTOMATION beat SB-alone at step 2
+                    // → SB then sat at |RX (unplayable) for the rest of the
+                    // turn.
+                    //
+                    // Attacks/Skills with EnergyVar (Storm Of Spears /
+                    // Cleaver / Adrenaline-style) still gain immediate energy.
+                    if (card.Type == CardType.Power) continue;
+                    energyGain += amount;
+                    continue;
+                }
                 if (v is CardsVar) { drawCount += amount; continue; }
 
                 // Standalone OstyDamage (Necrobinder summon attack) treated like Damage.
@@ -294,6 +385,23 @@ internal static class CardReflection
                     else if (v.Name == "MaxHp") maxHp += amount;     // v0.6.9 — BRIGHTEST_FLAME, FEED
                     else if (v.Name == "HpLoss") hpLoss += amount;   // v0.7.8 — BLOODLETTING, OFFERING, HEMOKINESIS
                     else if (v.Name == "Stars") starsGain += amount;  // v0.7.71 — GLOW 1, VENERATE 2, ROYAL_GAMBLE 9
+                    // Token-card generation counts. Cards that add specific
+                    // tokens to hand expose them by name so the planner can
+                    // self-augment SHIV_PRODUCER / SKELETON_PRODUCER /
+                    // SOUL_PRODUCER / FORGE_PRODUCER axes at SimCard build
+                    // time even when the master catalog forgets to tag them.
+                    else if (v.Name == "Shivs")     shivGen += amount;
+                    else if (v.Name == "Skeletons") skeletonGen += amount;
+                    else if (v.Name == "Souls")     soulGen += amount;
+                    else if (v.Name == "Forge")     forgeGen += amount;
+                    // v0.9 — CalculatedForge: BEAT_INTO_SHAPE et al expose
+                    // the Forge amount as "CalculatedForge" (base + per-attack
+                    // bonus folded by PreviewValue). The simpler "Forge" name
+                    // covers static-amount cards (REFINE_BLADE / SPOILS) but
+                    // misses the dynamic-amount cards entirely. Both names
+                    // map to the same ForgeGen field so downstream code is
+                    // unchanged.
+                    else if (v.Name == "CalculatedForge") forgeGen += amount;
                     // v0.6.8 — RAGE applies RagePower with stack = DynamicVar("Power", N).
                     // Not a PowerVar<T> in the catalog (Rage.cs uses
                     // `PowerCmd.Apply<RagePower>(creature, DynamicVars["Power"].BaseValue, ...)`)
@@ -394,6 +502,12 @@ internal static class CardReflection
                 // star-cost cards (v0.7.80 diagnostic confirmed FALLING_STAR.cost=0).
                 // Use ActionPlanner's StarCostByCardId-equivalent table as fallback.
                 StarCost = ResolveStarCost(card),
+                // Token generation — used by StateSnapshotter to self-augment
+                // *_PRODUCER + CARD_GEN axes when the catalog misses them.
+                ShivGen = shivGen,
+                SkeletonGen = skeletonGen,
+                SoulGen = soulGen,
+                ForgeGen = forgeGen,
             };
         }
         catch (Exception ex)

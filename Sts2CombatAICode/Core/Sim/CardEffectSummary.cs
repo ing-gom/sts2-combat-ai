@@ -60,6 +60,19 @@ internal sealed record CardEffectSummary
     public int StarsGain { get; init; }
 
     /// <summary>
+    /// Token-card creation counts surfaced via runtime DynamicVar names.
+    /// Used by StateSnapshotter.BuildSimCard to self-heal catalog axes when
+    /// the master catalog forgets to tag a side-effect generator (e.g.
+    /// LEADING_STRIKE has DynamicVar "Shivs: 2" but historically axes missed
+    /// SHIV_PRODUCER). Each &gt; 0 count causes the matching _PRODUCER + CARD_GEN
+    /// axis to be added to SimCard.Axes if absent.
+    /// </summary>
+    public int ShivGen { get; init; }
+    public int SkeletonGen { get; init; }
+    public int SoulGen { get; init; }
+    public int ForgeGen { get; init; }
+
+    /// <summary>
     /// v0.7.71 — Star cost requirement to play (star_cost field). 0 for
     /// most cards. Star-cost cards (FALLING_STAR=2, COMET=5 etc.) are
     /// filtered from candidates when PlayerStars &lt; this value.
@@ -78,7 +91,7 @@ internal sealed record CardEffectSummary
     public bool IsDrawCard =>
         DrawCount > 0
         || PowerApps.ContainsKey("DrawCardsNextTurnPower")
-        || PowerApps.ContainsKey("DrawCardPower");
+        || PowerApps.ContainsKey("MachineLearningPower");
 
     public static readonly CardEffectSummary Empty = new();
 }

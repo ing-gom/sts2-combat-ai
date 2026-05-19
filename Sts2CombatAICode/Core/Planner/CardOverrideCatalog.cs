@@ -23,7 +23,8 @@ internal static class CardOverrideCatalog
 
         // — Fetch / dig cards that bring more cards into play —
         ["CARD.ANOINTED"]     = 300,   // pulls all rare from draw pile
-        ["CARD.HAVOC"]        = 200,
+        // HAVOC handled dynamically by EffectSynergy.ApplyAutoPlayFromPile —
+        // expected value of top-of-pile minus keystone exhaust risk.
         ["CARD.ALL_FOR_ONE"]  = 400,   // damage 10 + reclaim ALL 0-cost from discard
 
         // — Big-cost finishers (algorithm under-values when energy is rare) —

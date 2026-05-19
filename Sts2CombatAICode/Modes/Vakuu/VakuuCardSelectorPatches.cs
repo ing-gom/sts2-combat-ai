@@ -33,9 +33,12 @@ internal static class VakuuCardSelectorPatches
 
         try
         {
-            var mode = SelectorModeCatalog.Infer(VakuuExecutor.CurrentPlayingCardId);
+            var playingId = VakuuExecutor.CurrentPlayingCardId;
+            var mode = SelectorModeCatalog.Infer(playingId);
+            // Boost passes playingId so context-specific scoring fires
+            // (e.g. DECISIONS_DECISIONS values skills by 3-use payoff).
             List<CardModel> picked = mode == SelectorMode.Boost
-                ? SmartSelectorLogic.SelectBest(options, maxSelect, snapshot)
+                ? SmartSelectorLogic.SelectBest(options, maxSelect, snapshot, playingId)
                 : SmartSelectorLogic.SelectWorst(options, maxSelect, snapshot);
             __result = Task.FromResult((IEnumerable<CardModel>)picked);
             MainFile.Logger.Info($"[CombatAI] selector({mode} x{maxSelect}) " +

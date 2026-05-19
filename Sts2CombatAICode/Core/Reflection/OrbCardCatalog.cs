@@ -28,15 +28,15 @@ internal static class OrbCardCatalog
         // ---- Multi-evoke front-orb cards (orb amplifiers) ----
         switch (cardId)
         {
-            case "CARD.DUALCAST":
+            case "DUALCAST":
                 evokeCount = 2;
                 break;
-            case "CARD.QUADCAST":
+            case "QUADCAST":
                 evokeCount = 4;
                 channelCount = 0;
                 break;
-            case "CARD.MULTI_CAST":
-            case "CARD.MULTICAST":
+            case "MULTI_CAST":
+            case "MULTICAST":
                 // X-cost: evokes (X) times, +1 when upgraded. costSpent already reflects
                 // the live spend (ResolveEnergyXValue at play time). We treat it as base
                 // count — upgrade bump is handled in CardReflection by reading the card.
@@ -45,8 +45,10 @@ internal static class OrbCardCatalog
         }
 
         // ---- X-cost channelers ----
-        if (cardId == "CARD.CAPACITOR" || cardId == "CARD.CAPACITOR+1")
+        if (cardId == "CAPACITOR")
         {
+            // Upgrade variant tracked via Enchantment, not Id suffix —
+            // base check covers both forms.
             channelCount = System.Math.Max(0, costSpent);
             kind = OrbKind.Lightning; // Capacitor channels Lightning orbs
         }
@@ -55,17 +57,17 @@ internal static class OrbCardCatalog
         // Glacier: for (int i = 0; i < 2; i++) Channel<FrostOrb>  → 2 Frost orbs.
         // ConsumingShadow: RepeatVar(2) drives a 2× channel+evoke pair.
         // Refract: RepeatVar(2) — 2 Glass orbs.
-        if (cardId == "CARD.GLACIER")
+        if (cardId == "GLACIER")
         {
             channelCount = 2;
             kind = OrbKind.Frost;
         }
-        else if (cardId == "CARD.CONSUMING_SHADOW")
+        else if (cardId == "CONSUMING_SHADOW")
         {
             channelCount = 2;
             kind = OrbKind.Dark;
         }
-        else if (cardId == "CARD.REFRACT")
+        else if (cardId == "REFRACT")
         {
             channelCount = 2;
             kind = OrbKind.Glass;

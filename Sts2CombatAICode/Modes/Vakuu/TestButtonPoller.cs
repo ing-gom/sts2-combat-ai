@@ -46,20 +46,31 @@ internal sealed partial class TestButtonPoller : Node
             {
                 // No combat scene → reset so the next combat starts re-armed.
                 VakuuTestButtonPatch.ResetForNewCombat();
+                VakuuExecutor.ResetForNewCombat();
                 return;
             }
 
             VakuuTestButtonPatch.AttachIfMissing(endTurn);
 
-            // Toggle our button's Disabled state by combat phase + once-per-turn rule.
+            // Compute the shared "combat + player phase" gate once.
+            var cm = CombatManager.Instance;
+            int round = cm.IsInProgress ? (cm.DebugOnlyGetState()?.RoundNumber ?? -1) : -1;
+            bool combatActive = cm.IsInProgress && !cm.IsOverOrEnding;
+            bool playerPhase = cm.IsPlayPhase && !cm.EndingPlayerTurnPhaseOne && !cm.EndingPlayerTurnPhaseTwo;
+
+            // Play button: combat+phase gate plus once-per-turn lock.
             if (endTurn.GetNodeOrNull("VakuuTestButton") is Button vakuuBtn)
             {
-                var cm = CombatManager.Instance;
-                int round = cm.IsInProgress ? (cm.DebugOnlyGetState()?.RoundNumber ?? -1) : -1;
-                bool combatActive = cm.IsInProgress && !cm.IsOverOrEnding;
-                bool playerPhase = cm.IsPlayPhase && !cm.EndingPlayerTurnPhaseOne && !cm.EndingPlayerTurnPhaseTwo;
                 bool alreadyUsed = round > 0 && VakuuTestButtonPatch.LastUsedRound == round;
                 vakuuBtn.Disabled = !(combatActive && playerPhase) || alreadyUsed;
+            }
+
+            // Step button: combat+phase gate only. No round lock — the user is expected
+            // to click it repeatedly to play one card at a time. StepInFlight blocks
+            // overlapping clicks while a play is resolving.
+            if (endTurn.GetNodeOrNull("VakuuStepButton") is Button stepBtn)
+            {
+                stepBtn.Disabled = !(combatActive && playerPhase) || VakuuTestButtonPatch.StepInFlight;
             }
         }
         catch (Exception ex)

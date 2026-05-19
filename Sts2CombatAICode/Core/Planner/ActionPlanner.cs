@@ -182,7 +182,18 @@ internal static class ActionPlanner
             try
             {
                 var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
-                secondScore = BestContinuation(nextState, depth: 2, planWeights, beamK: 3, out bestNextId);
+                // v0.9 — beamK 3 → 5. K=3 was pruning setup cards (FALLING_STAR
+                // with d=8 base, VENERATE with 0 dmg, GLOW with 0 dmg) from the
+                // depth-2 beam because their immediate single-step score lost
+                // to DEFEND's threatBonus and SB's raw damage. The pruned
+                // setup cards are exactly the ones that unlock big-payoff
+                // chains (VEN→FS gives 2 stars + Vuln, then SB hits for
+                // d31×1.5 = 47 crossing Shriek's 70-HP stun threshold). K=5
+                // costs ~67% more sim time per first-card but captures combos
+                // the user manually identifies and the previous AI missed
+                // (see 2026-05-19 20:05 turn 5/6 logs — VEN→FS→SB stun never
+                // surfaced because FS lost the beam cut at 1670 vs DEFEND 2387).
+                secondScore = BestContinuation(nextState, depth: 2, planWeights, beamK: 5, out bestNextId);
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
 
                 // Next-turn projection — discounted because the projection
@@ -209,7 +220,7 @@ internal static class ActionPlanner
                         try
                         {
                             var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurnSampled(nextState, rng);
-                            int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: 3, out _);
+                            int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: 5, out _);
                             if (singleStep < 0) singleStep = 0;
                             sampleTotal += singleStep;
                             sampleCount++;
@@ -262,8 +273,92 @@ internal static class ActionPlanner
             if (firstScore >= 0 && bestFirstScore < 0) wins = true;
             else if (firstScore < 0 && bestFirstScore >= 0) wins = false;
             else
+            {
                 wins = total > bestTotal
                     || (total == bestTotal && firstScore > bestFirstScore);
+
+                // v0.9 — Dominant single-card protection (symmetric). The
+                // 2-step lookahead total can crown a "weak now + strong
+                // chain" candidate over a "strong now alone" candidate by a
+                // razor-thin margin, with the chain total inflated by an
+                // extra card play that won't always materialise in the real
+                // 13-step loop. When the single-play candidate's firstScore
+                // is genuinely dominant (≥ 3000 raw, ≥ 2× the chain's first
+                // card), insist on a meaningful total gap (> 10%) before the
+                // chain can replace it — and conversely, let the dominant
+                // single override a chain whose total is only marginally
+                // higher.
+                //
+                // Observed motivating case (logs 2026-05-19 20:05, turn 6):
+                //   SB(5646 alone, total 6369) lost to DEFEND→DEFEND
+                //   (2387, total 6598) by 3.6% total margin. Losing-race
+                //   combat never converted because the d31 finisher kept
+                //   getting deferred.
+                bool bestIsDominantSingle =
+                    bestFirstScore >= 3000
+                    && bestFirstScore >= firstScore * 2;
+                bool candIsDominantSingle =
+                    firstScore >= 3000
+                    && bestFirstScore > 0
+                    && firstScore >= bestFirstScore * 2;
+
+                if (wins && bestIsDominantSingle
+                    && total <= bestTotal + bestTotal / 10)
+                {
+                    // Incoming chain win is narrow — keep the dominant single.
+                    wins = false;
+                }
+                else if (!wins && candIsDominantSingle
+                    && bestTotal <= total + total / 10)
+                {
+                    // Incoming dominant single overrides slightly-higher chain.
+                    wins = true;
+                }
+
+                // v0.9 — Per-energy efficiency tiebreaker. When two candidates'
+                // totals are within 5% AND both are the same card kind
+                // (Attack/Skill), prefer the higher effective dmg/E (or
+                // block/E for skills). Rationale: a card that spends less
+                // energy per unit output leaves room for one more play this
+                // turn or next.
+                //
+                // Uses state-aware EffectiveDmgPerEnergy / EffectiveBlockPerEnergy
+                // which include Vuln/Weak/Burst/Echo/Unmovable/Vigor/X-cost on
+                // top of the PreviewValue (which already covers Strength/Dex/
+                // Enchantment numeric upgrades). So when a Power buff is
+                // active (e.g. enemy Vuln from a previously-played FALLING_STAR),
+                // a follow-up attack's efficiency correctly reflects the ×1.5
+                // multiplier and SB d=21 effective→47 (eff 23.5/E) decisively
+                // beats STRIKE d=6 effective→9 (eff 9.0/E).
+                //
+                // Observed motivating case (logs 2026-05-19 21:11 turn line
+                // 1433): STRIKE_REGENT (6 dmg/E raw) and SB (10.5 dmg/E raw)
+                // had close totals due to BURST inflation; efficiency would
+                // have flipped it. Even with BURST suppression, this remains
+                // a useful generic tiebreaker.
+                if (bestPlan != null
+                    && card.Kind == bestPlan.Value.Card.Kind
+                    && (card.IsAttack || (card.IsSkill && card.Block > 0)))
+                {
+                    bool within5 = System.Math.Abs(total - bestTotal) <= System.Math.Max(total, bestTotal) / 20;
+                    if (within5)
+                    {
+                        // v0.9 — target-aware EffectiveDmgPerEnergy. Single-
+                        // target attacks compare with exact target multipliers
+                        // (Intangible cap / HardenedShell / Cruelty per Vuln).
+                        // AOE / skill paths use the -1 sentinel (any-enemy).
+                        double candEff = card.IsAttack
+                            ? card.EffectiveDmgPerEnergy(state, targetIdx)
+                            : card.EffectiveBlockPerEnergy(state);
+                        double bestEff = bestPlan.Value.Card.IsAttack
+                            ? bestPlan.Value.Card.EffectiveDmgPerEnergy(state, bestPlan.Value.TargetIdx)
+                            : bestPlan.Value.Card.EffectiveBlockPerEnergy(state);
+                        // Need a meaningful efficiency edge — at least 20% better.
+                        if (candEff >= bestEff * 1.2) wins = true;
+                        else if (bestEff >= candEff * 1.2) wins = false;
+                    }
+                }
+            }
             if (wins)
             {
                 bestTotal = total;
@@ -365,6 +460,26 @@ internal static class ActionPlanner
         }
         // Top-K beam: keep only the best `beamK` by single-step score.
         scored.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+        // v0.9 — Dedupe duplicate card IDs before beam cut. Hands with 3×
+        // DEFEND_REGENT consumed all 5 beam slots with copies of the same
+        // play, pushing setup cards (FALLING_STAR, VENERATE, GLOW) past the
+        // cutoff and erasing the VEN→FS→SB stun combo from depth-2 search
+        // (logs 2026-05-19 20:21 turn 5 step 1: 3 DEFENDs at score 2387
+        // crowded out FS at 1670). Subsequent step explored chains found FS
+        // once the hand thinned. Deduping by Id keeps the beam slot count
+        // EFFECTIVE — once you've considered "play DEFEND now", you don't
+        // also need "play this OTHER DEFEND now"; the recursion will pick a
+        // second DEFEND from the post-play state if needed.
+        var unique = new List<(int Score, SimCard Card, int TargetIdx)>(scored.Count);
+        var seenIds = new HashSet<string>();
+        foreach (var s in scored)
+        {
+            string id = s.Card.Id ?? "";
+            if (id.Length == 0 || seenIds.Add(id))
+                unique.Add(s);
+        }
+        scored = unique;
         int keep = System.Math.Min(beamK, scored.Count);
 
         int best = int.MinValue;
@@ -411,6 +526,14 @@ internal static class ActionPlanner
                 }
             }
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
+
+            // v0.9 — ChainsOfBindingPower restriction: only ONE Bound card
+            // may be played per turn. Once a Bound card has been played
+            // (BoundCardPlayedThisTurn=true), filter all other Bound cards
+            // from the candidate set. Matches the game's ShouldPlay hook
+            // (decompile sts2.decompiled.cs:313044).
+            if (card.IsBound && state.BoundCardPlayedThisTurn) continue;
+
             // v0.5 — Free*Power lets us play expensive cards over the energy budget.
             // v0.7.21 — CorruptionPower makes Skill cards combat-wide 0-cost.
             // v0.7.94 — Also honor SimState.PlayerCorruption (propagated by simulator

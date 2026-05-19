@@ -33,8 +33,23 @@ internal static class SelectorModeCatalog
         var info = CardCatalog.Lookup(playingCardId);
         if (info == null) return SelectorMode.Burn; // unknown card → default Burn
 
+        // Transform-replace prompts (CHARGE → Minion Dive Bombs+, BEGONE →
+        // Minion Strike+). The chosen card is REPLACED, so picking the WORST
+        // maximizes the upgrade. Checked first so it overrides Boost-leaning
+        // DRAW_PILE_SEARCH / fetch_trigger / etc. axes that some transform
+        // cards happen to carry (CHARGE has DRAW_PILE_SEARCH).
+        if (info.TransformTrigger) return SelectorMode.Burn;
+
         if (info.UpgradeTrigger) return SelectorMode.Boost;
         if (info.FetchTrigger) return SelectorMode.Boost;
+        // "Select a card to play/copy" prompts (DECISIONS_DECISIONS — choose
+        // 1 Skill in hand and play it 3 times). The chosen card becomes the
+        // payoff, so pick the BEST candidate instead of the worst.
+        if (info.SelectPlayTrigger) return SelectorMode.Boost;
+        // "Select a hand card to top-deck" (GLIMMER, PHOTON_CUT). The chosen
+        // card is drawn first next turn — pick BEST to lock in a high-value
+        // play. Without this branch both cards hit the default Burn.
+        if (info.SelectTopdeckTrigger) return SelectorMode.Boost;
         foreach (var ax in info.Axes)
         {
             if (ax == "DRAW_PILE_SEARCH" || ax == "CARD_RETURN")

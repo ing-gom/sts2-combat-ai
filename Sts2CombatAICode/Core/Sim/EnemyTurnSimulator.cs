@@ -79,7 +79,13 @@ internal static class EnemyTurnSimulator
             }
             for (int r = 0; r < maxThornsHits; r++)
             {
-                int dmg = playerVulnerable ? (int)(perHit * StatusMath.VulnerableMult) : perHit;
+                // v0.9 — DebilitatePower (Tier B): when player is debuffed
+                // with Debilitate, incoming Vuln amplifier goes from 1.5 to 2.0
+                // (decompile sts2.decompiled.cs:ModifyVulnerableMultiplier).
+                double vulnMult = s.PlayerDebilitate > 0
+                    ? 2.0
+                    : StatusMath.VulnerableMult;
+                int dmg = playerVulnerable ? (int)(perHit * vulnMult) : perHit;
                 if (dmg > 0) dmgInstances.Add(dmg);
             }
         }

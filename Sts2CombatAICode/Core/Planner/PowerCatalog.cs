@@ -145,6 +145,10 @@ internal static class PowerCatalog
         // via vars match. PlatedArmorPower (existing) and PlatingPower may be
         // the same class with a name discrepancy; keeping both is harmless.
         { "PlatingPower",             400 },  // Plating block carryover (decays on hit)
+        // v0.9 — CalamityPower (player buff): Attack play → N random Attack
+        // cards added to hand. Setup tier — value scales with deck quality
+        // but generally adds attack volume. Baseline similar to NIGHTMARE.
+        { "CalamityPower",            450 },
 
         // ─── B tier ─────────────────────────────────────────────────────────
         // Defect

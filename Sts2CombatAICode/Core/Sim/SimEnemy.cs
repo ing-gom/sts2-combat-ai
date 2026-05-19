@@ -90,6 +90,62 @@ internal sealed record SimEnemy
     /// </summary>
     public int HardenedShellRemaining { get; init; }
 
+    /// <summary>
+    /// v0.9 — SkittishPower (Phantasmal Gardener and similar). When this enemy
+    /// takes unblocked damage from a CARD attack for the FIRST time each turn,
+    /// it gains Amount block. Multi-hit cards trigger only on the first hit;
+    /// subsequent hits deliver full damage. Visible as `Skittish:N` in
+    /// snapshot pow string. 0 means absent or already triggered this turn.
+    ///
+    /// Implication for scoring: first attack on a Skittish enemy effectively
+    /// loses up to Amount damage (eaten by reactive block). Single big-burst
+    /// finishers beat chip-damage sequences when this is active.
+    /// </summary>
+    public int SkittishAmount { get; init; }
+
+    /// <summary>
+    /// v0.9 — Already-triggered flag for SkittishPower. When true, the enemy
+    /// has already gained its Skittish block this turn; further attacks won't
+    /// trigger more. Read from runtime Data.hasGainedBlockThisTurn (reflection)
+    /// when available; defaults to false (over-conservative — assumes block
+    /// will fire on next hit).
+    /// </summary>
+    public bool SkittishAlreadyTriggered { get; init; }
+
+    /// <summary>
+    /// v0.9 — CurlUpPower (Louse-style reactive block). When this enemy takes
+    /// the FIRST damage from a player card, gains Amount block AND removes
+    /// the power. Same effective shape as Skittish but ONE-SHOT for the
+    /// combat (not per-turn).
+    /// </summary>
+    public int CurlUpAmount { get; init; }
+
+    /// <summary>
+    /// v0.9 — ImbalancedPower (BowlbugRock-style self-stun). When this enemy's
+    /// attack is FULLY BLOCKED by the player, the enemy stuns itself the
+    /// following turn (skip attack). For player DEFEND scoring this gives an
+    /// extra survival bonus when the block fully covers this specific enemy's
+    /// intent damage.
+    /// </summary>
+    public int ImbalancedAmount { get; init; }
+
+    /// <summary>
+    /// v0.9 — TerritorialPower (per-turn +N Strength). Causes monotone damage
+    /// scaling: every turn alive the enemy attack +N. Marks enemies that need
+    /// to be killed quickly. Captured for threat projection but currently
+    /// treated similar to HasTurnStartStrengthBuff (boolean flag) — explicit
+    /// amount enables per-turn projection in AdvanceTurn.
+    /// </summary>
+    public int TerritorialAmount { get; init; }
+
+    /// <summary>
+    /// v0.9 — PaperCutsPower (Tier B). When this enemy deals unblocked damage
+    /// to player, player loses Amount MaxHP per damage event. Long-term
+    /// survival concern beyond block — should make us value full block even
+    /// more (or kill this enemy faster). 0 = power absent.
+    /// </summary>
+    public int PaperCutsAmount { get; init; }
+
     // v0.1.2 — encounter-role classification (set by Snapshotter)
     public bool IsBoss { get; init; }      // boss-room top creature (highest HP in boss/elite encounter)
     public bool IsElite { get; init; }     // any creature in an elite encounter

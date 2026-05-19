@@ -23,6 +23,28 @@ internal sealed class CardTriggerInfo
     public IReadOnlyList<string> PrimaryBuildTags { get; init; } = System.Array.Empty<string>();
     public bool UpgradeTrigger { get; init; }
     public bool FetchTrigger { get; init; }
+    /// <summary>
+    /// Card prompts "select 1 card and use/copy it" (DECISIONS_DECISIONS pattern).
+    /// SelectorModeCatalog maps this to BOOST mode (pick the best card) since
+    /// the chosen card will be played, not discarded.
+    /// </summary>
+    public bool SelectPlayTrigger { get; init; }
+    /// <summary>
+    /// Card prompts "select N cards and transform them into X" (CHARGE →
+    /// Minion Dive Bombs+, BEGONE → Minion Strike+). SelectorModeCatalog maps
+    /// this to BURN — the chosen cards are REPLACED, so picking the worst
+    /// maximizes the upgrade. Overrides DRAW_PILE_SEARCH / CARD_RETURN axes
+    /// that would otherwise route to Boost.
+    /// </summary>
+    public bool TransformTrigger { get; init; }
+    /// <summary>
+    /// Card prompts "select 1 hand card to place on top of draw pile"
+    /// (GLIMMER / PHOTON_CUT). The chosen card is guaranteed to be drawn
+    /// first next turn — selector picks the BEST card so a high-value play
+    /// is locked in. Without this flag, both cards fall through to BURN
+    /// (default) and would top-deck the worst card.
+    /// </summary>
+    public bool SelectTopdeckTrigger { get; init; }
     public bool Exhaust { get; init; }
     public bool Ethereal { get; init; }
     public bool Retain { get; init; }
@@ -113,6 +135,9 @@ internal static class CardCatalog
                     PrimaryBuildTags = primaryBuilds,
                     UpgradeTrigger = GetBool(entry.Value, "upgrade_trigger"),
                     FetchTrigger = GetBool(entry.Value, "fetch_trigger"),
+                    SelectPlayTrigger = GetBool(entry.Value, "select_play_trigger"),
+                    TransformTrigger = GetBool(entry.Value, "transform_trigger"),
+                    SelectTopdeckTrigger = GetBool(entry.Value, "select_topdeck_trigger"),
                     Exhaust = GetBool(entry.Value, "exhaust"),
                     Ethereal = GetBool(entry.Value, "ethereal"),
                     Retain = GetBool(entry.Value, "retain"),

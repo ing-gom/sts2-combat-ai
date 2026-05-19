@@ -44,10 +44,23 @@ internal static class VakuuExecutor
     /// </summary>
     public static string? CurrentPlayingCardId { get; internal set; }
 
+    /// <summary>
+    /// Round number the planner most recently drove cards for. Stays set after
+    /// <see cref="CurrentSnapshot"/> clears, so end-of-turn hooks (e.g.
+    /// <see cref="WellLaidPlansAutoRetainPatch"/>) can tell "did Vakuu play this
+    /// turn?" — the snapshot is gone by then but the round number persists until
+    /// either a new combat starts or the planner runs again.
+    /// </summary>
+    public static int LastPlannedTurnRound { get; private set; } = -1;
+
+    public static void ResetForNewCombat() => LastPlannedTurnRound = -1;
+
     public static async Task RunPlannedTurn(
         Player player,
         PlayerChoiceContext ctx,
-        WhisperingEarring? relicForVfx = null)
+        WhisperingEarring? relicForVfx = null,
+        int maxSteps = 13,
+        bool isPartialTurn = false)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var combatState = player.Creature?.CombatState;
@@ -66,14 +79,18 @@ internal static class VakuuExecutor
         try { turnStartPlayerHp = (int)(CombatReflection.CreatureHpField?.GetValue(player.Creature) ?? 0); }
         catch { }
 
+        LastPlannedTurnRound = combatState.RoundNumber;
+
         relicForVfx?.Flash();
-        MainFile.Logger.Info($"[CombatAI] starting plan (style={PlaystyleState.Current})");
+        MainFile.Logger.Info(
+            $"[CombatAI] starting plan (style={PlaystyleState.Current}, " +
+            $"maxSteps={maxSteps}{(isPartialTurn ? ", partial" : "")})");
 
         try
         {
         using (CardSelectCmd.PushSelector(new VakuuCardSelector()))
         {
-            for (int step = 0; step < 13; step++)
+            for (int step = 0; step < maxSteps; step++)
             {
                 var stepWatch = System.Diagnostics.Stopwatch.StartNew();
                 if (CombatManager.Instance.IsOverOrEnding)
@@ -312,7 +329,7 @@ internal static class VakuuExecutor
                     enemyHpAfterSum, damageDealt,
                     selfDamage, killedEnemy);
             }
-            hitLimit = (cardsPlayed >= 13);
+            hitLimit = (cardsPlayed >= maxSteps);
 
             if (cardsPlayed == 0)
             {
@@ -329,6 +346,11 @@ internal static class VakuuExecutor
         // turn after all card plays. Enemy-turn incoming damage will land
         // between this entry and the next turn's first entry, so analyzers
         // can compute it from consecutive entries.
+        //
+        // Skipped in partial-turn mode (single-step manual play): the player
+        // is likely to click Step again, so this isn't a real turn boundary —
+        // logging TURN_END here would flood DecisionLog with spurious entries.
+        if (!isPartialTurn)
         try
         {
             int turnEndPlayerHp = (int)(CombatReflection.CreatureHpField?.GetValue(player.Creature) ?? 0);

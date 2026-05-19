@@ -89,7 +89,7 @@ internal static class EffectSynergy
         // gated on how aggressive: filling hand (CRASH_LANDING) hurts way more
         // than dropping a single card (COLLISION_COURSE).
         if (axes.Contains("STATUS_TO_HAND"))
-            ApplyStatusToHandPenalty(card, ref b, parts);
+            ApplyStatusToHandPenalty(card, state, ref b, parts);
 
         // v0.6.9 — STATUS_CONSUMER: card pays off when status cards are in hand.
         // ROCKET_PUNCH cost 0 if status was generated; FLAK_CANNON deals 8 per
@@ -119,7 +119,8 @@ internal static class EffectSynergy
 
         // v0.7.1 — Level 3: pile-based auto-play. v0.7.93 prefix stripped.
         if (card.Id == "CASCADE" || card.Id == "CATASTROPHE"
-            || card.Id == "UPROAR" || card.Id == "BEAT_DOWN")
+            || card.Id == "UPROAR" || card.Id == "BEAT_DOWN"
+            || card.Id == "HAVOC")
             ApplyAutoPlayFromPile(card, state, ref b, parts);
 
         // v0.7.1 — Level 3: pile-based random modifier. v0.7.93 prefix stripped.
@@ -232,6 +233,17 @@ internal static class EffectSynergy
             ApplyOutbreakTickValue(card, state, ref b, parts);
         else if (card.Id == "PALE_BLUE_DOT")
             ApplyPaleBlueDotTickValue(card, state, ref b, parts);
+
+        // Draw-event Powers tick — pile-aware adjustment. PowerCatalog gives
+        // these a flat baseline (MachineLearning 900, DrawCardsNextTurn 900)
+        // that ignores deck composition. Adjust by piles' mean card value
+        // and remaining-turns multiplier so a finisher-rich deck sees Machine
+        // Learning as the S+ scaler it actually is, while a curse-polluted
+        // deck rightly demotes it.
+        if (card.PowerApps.TryGetValue("MachineLearningPower", out var mlStack) && mlStack > 0)
+            ApplyMachineLearningTickValue(mlStack, state, ref b, parts);
+        if (card.PowerApps.TryGetValue("DrawCardsNextTurnPower", out var nextDrawStack) && nextDrawStack > 0)
+            ApplyDrawCardsNextTurnTickValue(nextDrawStack, state, ref b, parts);
         // v0.7.43 — DECISIONS_DECISIONS (어려운 결정): choose 1 Skill in hand,
         // play it 3 times. 0-cost / 6-star Rare. REPEAT axis previously
         // unscored — the card looked like a plain draw card to the AI.
@@ -472,8 +484,99 @@ internal static class EffectSynergy
               || card.Id == "SPLASH")
             ApplyCardGen(card, state, ref b, parts);
 
+        // Card-create trigger preview. ArsenalPower (+1 Str / card created) and
+        // PillarOfCreationPower (+3 block / card created) fire per generated
+        // card. STATUS_TO_HAND fillsHand plays generate ~MaxHand−|hand| cards;
+        // CARD_GEN plays generate per-recipe counts. Mirrors the HpLossEvent
+        // preview pattern (ruptureTrigger/infernoTrigger).
+        if (axes.Contains("STATUS_TO_HAND") || axes.Contains("CARD_GEN"))
+            ApplyCardCreateTriggerPreview(card, state, ref b, parts);
+
+        // Exhaust-event reactive passives. DarkEmbracePower (+1 draw per
+        // exhaust) inverts the "card lost forever" cost of self-exhaust cards.
+        // FeelNoPainPower is already credited via PlanScorer attack/skill
+        // reactive-block branches, so not re-credited here.
+        if (card.IsExhaust || axes.Contains("EXHAUST_SELF"))
+            ApplyExhaustEventTriggerPreview(card, state, ref b, parts);
+
+        // Volatile (Ethereal) play reactive passives. SpiritOfAshPower (+4
+        // block per Volatile play) rewards the natural "play-or-lose" pattern
+        // of ethereal cards.
+        if (card.IsEthereal)
+            ApplyVolatilePlayTriggerPreview(card, state, ref b, parts);
+
+        // Draw-event reactive passives. HungerPower (+N Strength per card
+        // drawn) — applies on cards that draw additional cards. Sim already
+        // applies this in AdvanceTurn; preview here so immediate ranking
+        // reflects the Hunger active-build value.
+        if (card.DrawCount > 0)
+            ApplyDrawEventTriggerPreview(card, state, ref b, parts);
+
+        // Skill-played reactive passives. EnragePower (+N Strength per Skill).
+        if (card.IsSkill)
+            ApplySkillPlayedTriggerPreview(card, state, ref b, parts);
+
+        // Vuln-applied reactive passives. ViciousPower (+1 draw per Vuln
+        // applied) — fires once per Vuln-apply event. AOE Vuln (PIERCING_WAIL)
+        // fires per alive enemy.
+        if (axes.Contains("VULN_PRODUCER"))
+            ApplyVulnApplyTriggerPreview(card, state, ref b, parts);
+
+        // Doom-applied reactive passives. ShroudPower (+2 block per Doom
+        // applied). AOE_DOOM applies per alive enemy.
+        if (axes.Contains("DOOM_PRODUCER"))
+            ApplyDoomApplyTriggerPreview(card, state, ref b, parts);
+
+        // ReaperFormPower transforms attack cards into Doom appliers.
+        // "Whenever Attacks deal damage, apply equivalent Doom" — each hit
+        // applies damage Doom on the target. Future-turn HP damage from
+        // Doom ticking is invisible to the base attack score; preview it.
+        // Also chains with ShroudPower (per-Doom-apply +block) — one Doom
+        // apply event per attack hit.
+        if (card.IsAttack && card.Damage > 0)
+            ApplyReaperFormAttackPreview(card, state, ref b, parts);
+
+        // Star-cost cards consume N stars on play. ChildOfTheStarsPower and
+        // BlackHolePower react to the consume event — invisible to base
+        // attack/skill scoring (stars don't appear as damage/block in the
+        // played card). Preview the chained block + AOE.
+        if (card.Effect.StarCost > 0)
+            ApplyStarConsumePreview(card, state, ref b, parts);
+
+        // Star opportunity cost. Stars are STOCKPILE-able (don't reset per turn
+        // like energy) — playing a low-efficiency star card now can block a
+        // higher-value star card later. Two penalties:
+        //   (A) Efficiency gap: this card's damage/block per star < best in deck
+        //   (B) Future shortfall: post-play stars < highest-cost card in deck
+        // Net-positive converters (ROYAL_GAMBLE: 5→9 stars) skipped — they're
+        // banking actions, not payoffs.
+        if (card.Effect.StarCost > 0)
+            ApplyStarOpportunityCost(card, state, ref b, parts);
+
+        // Star environment penalty. When all alive enemies have heavy
+        // damage caps (Intangible / HardToKill), a star_cost burst attack
+        // wastes the stockpile — stars carry over to the next turn when the
+        // cap usually expires, but the stars themselves are gone.
+        if (card.Effect.StarCost > 0 && card.IsAttack)
+            ApplyStarEnvironmentPenalty(card, state, ref b, parts);
+
+        // Star-gain cards trigger BlackHolePower per gained Star ("별을
+        // 얻을 때마다 ..."). Star gain is invisible to base score outside
+        // of resource projection — preview the AOE chain here.
+        if (card.Effect.StarsGain > 0)
+            ApplyStarGainPreview(card, state, ref b, parts);
+
         if (axes.Contains("EXHAUST_TARGET_RANDOM"))
             ApplyRandomExhaustPenalty(card, state, ref b, parts);
+
+        // Whole-hand exhaust (FIEND_FIRE) and non-attack filtered exhaust
+        // (SECOND_WIND): the damage / block payoff is already credited
+        // (PlanScorer.EstimateVariableHits / EstimateBlockMultiplier), but the
+        // keystone loss — Powers, Retain, SCALING in hand — was not. Subtract.
+        if (card.Id == "FIEND_FIRE")
+            ApplyWholeHandExhaustLoss(card, state, ref b, parts);
+        else if (card.Id == "SECOND_WIND")
+            ApplyNonAttackExhaustLoss(card, state, ref b, parts);
 
         // v0.6.9 — PRECISE_CUT: damage = 13 − 2 × (other cards in hand).
         // Anti-handsize scaling — small/empty hand multiplies value; full hand
@@ -807,11 +910,11 @@ internal static class EffectSynergy
     {
         switch (self.Id)
         {
-            case "CARD.CALCULATED_GAMBLE":
-            case "CARD.SHADOW_STEP":
-            case "CARD.STORM_OF_STEEL":
+            case "CALCULATED_GAMBLE":
+            case "SHADOW_STEP":
+            case "STORM_OF_STEEL":
                 return state.Hand.Count;  // up to entire hand
-            case "CARD.HIDDEN_DAGGERS":
+            case "HIDDEN_DAGGERS":
                 return 2;
             // ACROBATICS, PREPARED, SURVIVOR, others: discard 1
             default:
@@ -991,16 +1094,61 @@ internal static class EffectSynergy
 
     // v0.6.9 — Tier 1 patches: STATUS_TO_HAND / STATUS_CONSUMER / MaxHp.
 
-    private static void ApplyStatusToHandPenalty(SimCard card, ref int b, List<string> parts)
+    private static void ApplyStatusToHandPenalty(SimCard card, SimState state, ref int b, List<string> parts)
     {
         // CRASH_LANDING "fills hand with Wreckage" → far worse than dropping 1.
         // Catalog identifies AOE_DAMAGE + STATUS_TO_HAND as the hand-fill case.
         // Single-status cards (COLLISION_COURSE) only add 1.
         bool fillsHand = card.Axes.Contains("AOE_OTHER")
                       || card.Axes.Contains("AOE_DAMAGE");
-        int penalty = fillsHand ? -350 : -150;
+        int basePenalty = fillsHand ? -350 : -150;
+
+        // Consumer-aware adjustment. Converters (COMPACT → Fuel+, GUARDS →
+        // Minion Sacrifice+) erase the status entirely and turn the polluted
+        // hand into 0-cost assets, so flip the penalty to a small upside.
+        // Plain STATUS_CONSUMER cards (ROCKET_PUNCH, FLAK_CANNON) only pay off
+        // when status is present — they don't erase it, so halve the penalty.
+        bool hasConverter = false;
+        bool hasConsumer  = false;
+        if (state?.Hand != null)
+        {
+            for (int i = 0; i < state.Hand.Count; i++)
+            {
+                var c = state.Hand[i];
+                if (ReferenceEquals(c, card)) continue;
+                if (!c.IsPlayable) continue;
+                // SimCard.Id is the base entry name regardless of upgrade
+                // (enchantment is tracked separately). Base name covers both.
+                if (c.Id == "COMPACT" || c.Id == "GUARDS")
+                {
+                    hasConverter = true;
+                }
+                else if (c.Axes != null && c.Axes.Contains("STATUS_CONSUMER"))
+                {
+                    hasConsumer = true;
+                }
+            }
+        }
+
+        int penalty;
+        string tag;
+        if (hasConverter)
+        {
+            penalty = -basePenalty / 2;   // flip + half — timing not guaranteed
+            tag     = "statusToHandConverted";
+        }
+        else if (hasConsumer)
+        {
+            penalty = basePenalty / 2;
+            tag     = "statusToHandConsumed";
+        }
+        else
+        {
+            penalty = basePenalty;
+            tag     = "statusToHand";
+        }
         b += penalty;
-        parts.Add($"statusToHand={penalty}");
+        parts.Add($"{tag}={penalty}");
     }
 
     private static void ApplyStatusConsumer(SimCard self, SimState state, ref int b, List<string> parts)
@@ -1047,24 +1195,24 @@ internal static class EffectSynergy
         int v = 0;
         switch (self.Id)
         {
-            case "CARD.FTL":
+            case "FTL":
                 // "Draw 1 if < 3 cards used this turn."
                 if (cardsThisTurn < 3) v = 200;
                 else v = -50;   // condition missed, draw won't fire
                 break;
-            case "CARD.PALE_BLUE_DOT":
+            case "PALE_BLUE_DOT":
                 // "If ≥ 5 cards used, +1 next-turn draw" — Power scaling. Pays
                 // off later in fight; modest bonus.
                 if (cardsThisTurn >= 4) v = 200;     // about to qualify next play
                 else v = 100;
                 break;
-            case "CARD.FETCH":
+            case "FETCH":
                 // "Draw 1 if this is the first FETCH used this turn." History
                 // would need a per-card-id play counter; assume true since
                 // most decks have ≤1 FETCH.
                 v = 180;
                 break;
-            case "CARD.COMPILE_DRIVER":
+            case "COMPILE_DRIVER":
                 // "Draw 1 per distinct orb kind currently channeled."
                 int variety = 0;
                 bool seenF = false, seenL = false, seenD = false, seenP = false, seenG = false;
@@ -1106,7 +1254,7 @@ internal static class EffectSynergy
     ///     Cost reduces value, raw EnergyGain useful for future turn only.</item>
     /// </list></para>
     /// </summary>
-    private static int EstimateCardPower(SimCard c, SimState state, bool freeUse)
+    internal static int EstimateCardPower(SimCard c, SimState state, bool freeUse)
     {
         if (c.IsCurseOrStatus)
             return freeUse ? EffectScoringWeights.CurseFree : EffectScoringWeights.CurseInHand;
@@ -1166,7 +1314,7 @@ internal static class EffectSynergy
         // instead of flat per-card-id magnitudes.
         switch (self.Id)
         {
-            case "CARD.DREDGE":
+            case "DREDGE":
             {
                 // Player CHOOSES up to 3 from discard. Take top-3 positives —
                 // player skips curses / status when given the choice.
@@ -1186,7 +1334,7 @@ internal static class EffectSynergy
                 parts.Add($"dredgeBest{taken}=+{v}");
                 break;
             }
-            case "CARD.NEOWS_FURY":
+            case "NEOWS_FURY":
             {
                 // 2 random from discard (no choice). Mean × 2.
                 int n = System.Math.Min(2, state.DiscardPile.Count);
@@ -1199,7 +1347,7 @@ internal static class EffectSynergy
                 parts.Add($"furyMean({mean})×{n}=+{v}");
                 break;
             }
-            case "CARD.AGGRESSION":
+            case "AGGRESSION":
             {
                 // v0.7.4 — Aligned with v0.7.3 MAYHEM pattern. Power passive:
                 // at start of each turn, return a random Attack from discard
@@ -1243,7 +1391,7 @@ internal static class EffectSynergy
                 parts.Add($"aggrTick(mean={mean}x{UpgradeFactor}x{RemainingTurnsProxy}={tickEstimate},baked={baked})={delta:+#;-#;0}");
                 break;
             }
-            case "CARD.NOSTALGIA":
+            case "NOSTALGIA":
             {
                 // v0.7.5 — Power passive: each turn, the first Attack/Skill you
                 // play moves to the top of the draw pile (you replay it next
@@ -1273,7 +1421,7 @@ internal static class EffectSynergy
                 parts.Add($"nostalgiaTick(mean={mean}x{RetainDiscount}x{RemainingTurnsProxy}={tick},baked={baked})={delta:+#;-#;0}");
                 break;
             }
-            case "CARD.STRATAGEM":
+            case "STRATAGEM":
             {
                 // v0.7.5 — Power passive: when draw pile empties (reshuffle), a
                 // random card from the new draw pile is moved to hand. Value
@@ -1305,8 +1453,8 @@ internal static class EffectSynergy
                 parts.Add($"stratagemTick(mean={mean}x{ReshuffleProxy}={tick},baked={baked})={delta:+#;-#;0}");
                 break;
             }
-            case "CARD.PHOTON_CUT":
-            case "CARD.GLIMMER":
+            case "PHOTON_CUT":
+            case "GLIMMER":
             {
                 // v0.7.45 — Hand → top-of-draw scales with hand quality. Player
                 // picks the BEST hand card to top-deck, guaranteeing it as next
@@ -1328,7 +1476,7 @@ internal static class EffectSynergy
                 parts.Add($"topDeck(bestHand={bestHandScore}*.3=+{bonus})");
                 break;
             }
-            case "CARD.ANOINTED":
+            case "ANOINTED":
             {
                 // "All Rare cards from draw pile to hand". We don't know rarity
                 // per card statically; use draw-pile-size as a proxy.
@@ -1350,34 +1498,53 @@ internal static class EffectSynergy
         // contents for realistic value.
         if (state.DrawPile.Count == 0)
         {
-            b -= 100;
-            parts.Add("pileSearchEmpty=-100");
+            // v0.9 — bumped from -100 to -400. The old -100 still left FOREGONE
+            // / CHARGE / etc. at a small positive total (base 100 + other bonuses
+            // - 100 ≈ +50), which the 2-step lookahead happily picked because
+            // any positive first-card is allowed to win when the depth-2 chain
+            // beats alternatives. Result: AI burned 1 energy on a dead-cycle
+            // card and could not afford a Retain SOVEREIGN_BLADE later (see
+            // logs 2026-05-19 19:24, turn 4 step 3). At -400 the empty-pile
+            // search drops well below MinPlayScore so the rule at
+            // ActionPlanner line 262 ("positive-first beats negative-first")
+            // pushes any real card ahead of it.
+            b -= 400;
+            parts.Add("pileSearchEmpty=-400");
             return;
         }
 
         switch (self.Id)
         {
-            case "CARD.CHARGE":
+            case "CHARGE":
             {
-                // Player CHOOSES 2 from draw, transforms to upgraded Drop+.
-                // Top-2 positives + per-card upgrade bonus.
+                // Player CHOOSES 2 from draw pile and TRANSFORMS them into
+                // Minion Dive Bombs+ (0c, 16 dmg, Exhaust). Each transform
+                // gain = Minion Dive Bombs+ value − selected card value.
+                // Maximized by picking the WORST 2 cards (curses are huge
+                // wins; basic Strike is mild upgrade; high-value Power is
+                // a loss). Sort ASCENDING and take the bottom N.
                 int n = System.Math.Min(2, state.DrawPile.Count);
+                if (n == 0) { b -= 50; parts.Add("chargeEmpty=-50"); break; }
                 var ranked = new List<int>(state.DrawPile.Count);
                 foreach (var c in state.DrawPile) ranked.Add(EstimateCardPower(c, state, freeUse: false));
-                ranked.Sort((x, y) => y.CompareTo(x));
-                int sum = 0, taken = 0;
-                foreach (int p in ranked)
+                ranked.Sort((x, y) => x.CompareTo(y));
+                // Minion Dive Bombs+ EV: 16 dmg × DamageFree(50) = ~800.
+                // Exhaust + 0c means the card is essentially a free attack
+                // when it surfaces — full credit (no cost penalty).
+                const int MinionDiveBombsValue = 16 * EffectScoringWeights.DamageFree;
+                int totalLoss = 0, transformed = 0;
+                for (int i = 0; i < ranked.Count && transformed < n; i++)
                 {
-                    if (p <= 0) break;
-                    if (taken >= n) break;
-                    sum += p; taken++;
+                    totalLoss += ranked[i];
+                    transformed++;
                 }
-                int v = sum + taken * 40;
+                int totalGain = transformed * MinionDiveBombsValue;
+                int v = totalGain - totalLoss;
                 b += v;
-                parts.Add($"chargeBest{taken}=+{v}");
+                parts.Add($"chargeTransform({transformed}×{MinionDiveBombsValue}-loss{totalLoss}={v})");
                 break;
             }
-            case "CARD.FOREGONE_CONCLUSION":
+            case "FOREGONE_CONCLUSION":
             {
                 // v0.7.47 — Player CHOOSES 2 from draw next turn. Use top-2
                 // positives × 0.75 (next-turn delay discount).
@@ -1397,7 +1564,7 @@ internal static class EffectSynergy
                 parts.Add($"foregoneBest{taken}*0.75=+{v}");
                 break;
             }
-            case "CARD.ANOINTED":
+            case "ANOINTED":
             {
                 // v0.7.47 — "All Rare cards from draw to hand. Exhaust."
                 // We don't have rarity at runtime, but high-EstimateCardPower
@@ -1419,7 +1586,7 @@ internal static class EffectSynergy
                 parts.Add($"anointed(rareProxy{taken}=+{v})");
                 break;
             }
-            case "CARD.WISH":
+            case "WISH":
             {
                 // Player CHOOSES 1 from draw. Pure max-of-pile.
                 int best = 0;
@@ -1446,9 +1613,13 @@ internal static class EffectSynergy
     /// </summary>
     private static void ApplyAutoPlayFromPile(SimCard self, SimState state, ref int b, List<string> parts)
     {
+        // NOTE: SimCard.Id is the unprefixed Id.Entry (e.g. "CASCADE", not
+        // "CASCADE") — verified at CardReflection.cs:118. Earlier code in
+        // this switch used "CARD." prefix and silently never matched (dead).
+        // Keep all cases below unprefixed.
         switch (self.Id)
         {
-            case "CARD.CASCADE":
+            case "CASCADE":
             {
                 // X+1 cards from draw pile auto-played. X = energy spent.
                 if (state.DrawPile.Count == 0) { b -= 200; parts.Add("cascadeEmpty=-200"); return; }
@@ -1467,7 +1638,7 @@ internal static class EffectSynergy
                 parts.Add($"cascade(mean{mean})×{n}=+{v}");
                 break;
             }
-            case "CARD.CATASTROPHE":
+            case "CATASTROPHE":
             {
                 // 2 random non-Unplayable from draw, auto-played.
                 if (state.DrawPile.Count == 0) { b -= 200; parts.Add("catastropheEmpty=-200"); return; }
@@ -1486,7 +1657,7 @@ internal static class EffectSynergy
                 parts.Add($"catastrophe(mean{mean})×{n}=+{v}");
                 break;
             }
-            case "CARD.UPROAR":
+            case "UPROAR":
             {
                 // Base 5×2 damage already in Damage score. Plus 1 random Attack
                 // from draw auto-played.
@@ -1503,7 +1674,7 @@ internal static class EffectSynergy
                 parts.Add($"uproarAtk(mean{mean})=+{mean}");
                 break;
             }
-            case "CARD.BEAT_DOWN":
+            case "BEAT_DOWN":
             {
                 // 3 random Attacks from DISCARD pile, auto-played.
                 int sum = 0, cnt = 0;
@@ -1521,6 +1692,67 @@ internal static class EffectSynergy
                 parts.Add($"beatDown(mean{mean})×{n}=+{v}");
                 break;
             }
+            case "HAVOC":
+            {
+                // 1-energy: play top of draw pile, then exhaust it. The value
+                // depends entirely on the draw pile composition:
+                //   • Curse/Status on top → wasted energy AND exhausted (so the
+                //     curse leaves the deck — small upside).
+                //   • Average non-curse card → mean(freeUse value) of pile.
+                //   • Plus: the auto-played card is exhausted afterwards, so
+                //     subtract per-card keystone risk (averaged across pile).
+                //
+                // Pile size matters: with a tiny pile the variance is huge
+                // (could draw a Power or a Strike), but with a large pile the
+                // mean is a tight estimate.
+                if (state.DrawPile.Count == 0)
+                {
+                    b -= 200;
+                    parts.Add("havocEmpty=-200");
+                    return;
+                }
+
+                int sum = 0;
+                int cnt = 0;
+                int curseCnt = 0;
+                int riskSum = 0;
+                foreach (var c in state.DrawPile)
+                {
+                    if (c.IsCurseOrStatus) { curseCnt++; continue; }
+                    sum += EstimateCardPower(c, state, freeUse: true);
+                    riskSum += EstimateExhaustLossRisk(c);
+                    cnt++;
+                }
+
+                int pileSize = cnt + curseCnt;
+                if (cnt == 0)
+                {
+                    // Entire pile is curses/status. HAVOC plays one → wasted
+                    // energy. But the curse leaves the deck (auto-exhaust),
+                    // so small thinning credit instead of a flat penalty.
+                    b += 40;
+                    parts.Add($"havocCurseThin(pile{pileSize})=+40");
+                    return;
+                }
+
+                // Expected value of the auto-played card. P(non-curse) × mean
+                // + P(curse) × curse-value(small thinning credit).
+                int mean = sum / cnt;
+                int curseValue = 40;   // small upside from removing curse
+                int evPlayed = (mean * cnt + curseValue * curseCnt) / pileSize;
+
+                // Expected keystone loss from exhausting the auto-played card.
+                // Curses have negative risk (good to exhaust); already baked
+                // into curseValue above, so only the non-curse risk applies
+                // proportionally.
+                int meanRisk = riskSum / cnt;
+                int evRisk = (meanRisk * cnt) / pileSize;
+
+                int v = evPlayed - evRisk;
+                b += v;
+                parts.Add($"havoc(ev{evPlayed}-risk{evRisk},pile{pileSize},curse{curseCnt})=+{v}");
+                break;
+            }
         }
     }
 
@@ -1532,7 +1764,7 @@ internal static class EffectSynergy
     {
         switch (self.Id)
         {
-            case "CARD.HIDDEN_GEM":
+            case "HIDDEN_GEM":
             {
                 // Random non-Unplayable, non-Power/Status card in draw gets
                 // Retain 2 (carries over turns). Value = (avg pile power) × 0.3
@@ -1552,7 +1784,7 @@ internal static class EffectSynergy
                 parts.Add($"hiddenGem(mean{mean})=+{v}");
                 break;
             }
-            case "CARD.DRAIN_POWER":
+            case "DRAIN_POWER":
             {
                 // 2 random upgradable cards in DISCARD get upgraded. Upgrade
                 // is roughly +15-20% card value. Use discard average.
@@ -2985,6 +3217,51 @@ internal static class EffectSynergy
         parts.Add($"paleBlueDotTick(drawAxis={drawAxisCards},rate={rate:F2})={delta:+#;-#;0}");
     }
 
+    /// <summary>
+    /// MachineLearningPower (Defect, +N permanent draw/turn). Existing
+    /// PowerCatalog flat (900) ignores deck composition. Adjust by per-turn
+    /// pile-EV times remaining turns: a finisher-heavy deck pushes the value
+    /// up, a curse-polluted deck pushes it down (delta floored at -baked so
+    /// the power can score down to 0 in dead-archetype decks).
+    /// </summary>
+    private static void ApplyMachineLearningTickValue(int stack, SimState state, ref int b, List<string> parts)
+    {
+        int baked = PowerCatalog.LookupSelfBuff("MachineLearningPower");
+        int turns = RemainingTurnsEstimator.From(state);
+        // Per-turn EV: simulate drawing `stack` cards from current piles. Uses
+        // the same shared helper as the generic draw evaluator so the
+        // valuation stays consistent.
+        int perTurnEv = PlanScorer.EstimatePileDrawEv(stack, state);
+        int totalEv = perTurnEv * turns;
+        int delta = totalEv - baked;
+        const int Cap = 1200;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+        b += delta;
+        parts.Add($"machineLearnTick(stack{stack}×turns{turns},perTurnEv{perTurnEv})={delta:+#;-#;0}");
+    }
+
+    /// <summary>
+    /// DrawCardsNextTurnPower (one-shot, draws N at start of next turn).
+    /// Single-turn application — no turns multiplier, but use a slightly
+    /// stronger discount than the generic draw (cards arrive next turn so
+    /// part of their value depends on the next hand bottleneck which we
+    /// can't see yet).
+    /// </summary>
+    private static void ApplyDrawCardsNextTurnTickValue(int stack, SimState state, ref int b, List<string> parts)
+    {
+        int baked = PowerCatalog.LookupSelfBuff("DrawCardsNextTurnPower");
+        // Use shared pile EV; apply an additional 0.85 next-turn-delay factor.
+        int rawEv = PlanScorer.EstimatePileDrawEv(stack, state);
+        int ev = rawEv * 85 / 100;
+        int delta = ev - baked;
+        const int Cap = 700;
+        if (delta > Cap) delta = Cap;
+        if (delta < -baked) delta = -baked;
+        b += delta;
+        parts.Add($"nextTurnDrawTick(stack{stack},ev{ev})={delta:+#;-#;0}");
+    }
+
     // ─── v0.7.43 — DECISIONS_DECISIONS (Regent, Rare, 0c/6-star) ───────────────
 
     /// <summary>
@@ -3819,21 +4096,33 @@ internal static class EffectSynergy
     /// </summary>
     private static void ApplyForgeGeneric(SimCard self, SimState state, ref int b, List<string> parts, int forgeAmount)
     {
+        int turns = RemainingTurnsEstimator.From(state);
         if (state.SovereignBladeCount == 0)
         {
-            int penalty = -50 - forgeAmount * 10;  // bigger forge → bigger penalty when wasted
-            if (penalty < -500) penalty = -500;
-            b += penalty;
-            parts.Add($"forgeNoBlade(Forge{forgeAmount})={penalty}");
+            // v0.9 — Forge is NEVER wasted. Per decompile (ForgeCmd.Forge,
+            // sts2.decompiled.cs:398974): if no SovereignBlade is in piles
+            // (excluding exhaust), the game auto-creates one in hand AND
+            // immediately applies the Forge amount to it. So the first Forge
+            // produces a SovereignBlade(d = 10 + forgeAmount, cost 2, Retain).
+            //
+            // Value model: the auto-created SB will likely play 1-2 times
+            // this combat (it's Retain so it persists). Conservative
+            // valuation = (10 + forgeAmount) × DamageFree × 0.4 (combo
+            // discount for the +2 energy commitment + 1 hand-slot loss).
+            int firstPlayDmg = 10 + forgeAmount;
+            int v = firstPlayDmg * EffectScoringWeights.DamageFree * 4 / 10;
+            const int Cap = 1200;
+            if (v > Cap) v = Cap;
+            b += v;
+            parts.Add($"forgeCreateSb(d={firstPlayDmg},f{forgeAmount}={v})");
             return;
         }
-        int turns = RemainingTurnsEstimator.From(state);
         int projectedBladePlays = System.Math.Min(4, System.Math.Max(1, turns / 2));
-        int v = forgeAmount * projectedBladePlays * 50 / 12;
-        const int Cap = 1500;
-        if (v > Cap) v = Cap;
-        b += v;
-        parts.Add($"forgeGeneric(F{forgeAmount}x{projectedBladePlays}={v})");
+        int vWithBlade = forgeAmount * projectedBladePlays * 50 / 12;
+        const int CapWithBlade = 1500;
+        if (vWithBlade > CapWithBlade) vWithBlade = CapWithBlade;
+        b += vWithBlade;
+        parts.Add($"forgeGeneric(F{forgeAmount}x{projectedBladePlays}={vWithBlade})");
     }
 
     /// <summary>
@@ -4986,31 +5275,31 @@ internal static class EffectSynergy
         switch (self.Id)
         {
             // Per-turn Power-passive generators (drop a card each turn).
-            case "CARD.CREATIVE_AI":
+            case "CREATIVE_AI":
                 filter = "power_free"; aggregation = "mean"; n = 1; multiplier = RemainingTurnsProxy; tag = "creativeAI"; break;
-            case "CARD.HELLO_WORLD":
+            case "HELLO_WORLD":
                 filter = "common";     aggregation = "mean"; n = 1; multiplier = RemainingTurnsProxy; tag = "helloWorld"; break;
-            case "CARD.SPECTRUM_SHIFT":
+            case "SPECTRUM_SHIFT":
                 filter = "colorless";  aggregation = "mean"; n = 1; multiplier = RemainingTurnsProxy; tag = "spectrumShift"; break;
 
             // One-shot, single random card (no choice).
-            case "CARD.WHITE_NOISE":
+            case "WHITE_NOISE":
                 filter = "power_free"; aggregation = "mean"; n = 1; multiplier = 1; tag = "whiteNoise"; break;
-            case "CARD.DISTRACTION":
+            case "DISTRACTION":
                 filter = "skill_free"; aggregation = "mean"; n = 1; multiplier = 1; tag = "distraction"; break;
-            case "CARD.CALL_OF_THE_VOID":
+            case "CALL_OF_THE_VOID":
                 filter = "all_free";   aggregation = "mean"; n = 1; multiplier = 1; tag = "callOfVoid"; break;
-            case "CARD.LARGESSE":
+            case "LARGESSE":
                 filter = "colorless";  aggregation = "mean"; n = 1; multiplier = 1; tag = "largesse"; break;
 
             // Pick-of-N (player chooses one).
-            case "CARD.DISCOVERY":
+            case "DISCOVERY":
                 filter = "all";        aggregation = "top1of3"; n = 1; multiplier = 1; tag = "discovery"; break;
-            case "CARD.SPLASH":
+            case "SPLASH":
                 filter = "attack";     aggregation = "top1of3"; n = 1; multiplier = 1; tag = "splash"; break;
 
             // Multi-card pulls (each independent, sum value).
-            case "CARD.JACKPOT":
+            case "JACKPOT":
                 filter = "all_free";   aggregation = "mean"; n = 1; multiplier = 3; tag = "jackpot"; break;
 
             default:
@@ -5056,29 +5345,37 @@ internal static class EffectSynergy
         int v = 0;
         switch (self.Id)
         {
-            case "CARD.BLADE_OF_INK":     v = 600; break;   // S — 2 inked Shivs
-            case "CARD.BLADE_DANCE":      v = 450; break;   // A — 3 Shivs
-            case "CARD.UP_MY_SLEEVE":     v = 380; break;   // D — 3 Shivs, retains
-            case "CARD.PRIMAL_FORCE":     v = 500; break;   // A — converts hand attacks
-            case "CARD.GUARDS":           v = 350; break;   // A — convert hand to Sacrifice+
-            case "CARD.CHARGE":           v = 350; break;   // A — pick 2 from draw → upgrade
-            case "CARD.NIGHTMARE":        v = 400; break;   // B — 3 copies next turn
-            case "CARD.JUGGLING":         v = 200; break;   // D — Power, 3rd attack copy
-            case "CARD.JACKPOT":          v = 180; break;   // C — 3 zero-cost random
-            case "CARD.CALL_OF_THE_VOID": v = 100; break;   // S — random card volatile
-            case "CARD.CREATIVE_AI":      v = 150; break;   // B — Power, random Power/turn
-            case "CARD.HELLO_WORLD":      v = 120; break;   // B — Power, random common/turn
-            case "CARD.INFINITE_BLADES":  v = 200; break;   // A — Power, 1 Shiv/turn
-            case "CARD.SENTRY_MODE":      v = 130; break;   // B — Power, scanner card
-            case "CARD.SPECTRUM_SHIFT":   v = 100; break;   // C — Power, random colorless
-            case "CARD.COMPACT":          v = 150; break;   // B — converts status to Fuel+
+            case "BLADE_OF_INK":     v = 600; break;   // S — 2 inked Shivs
+            case "BLADE_DANCE":      v = 450; break;   // A — 3 Shivs
+            case "UP_MY_SLEEVE":     v = 380; break;   // D — 3 Shivs, retains
+            case "PRIMAL_FORCE":     v = 500; break;   // A — converts hand attacks
+            case "GUARDS":           v = 350; break;   // A — convert hand to Sacrifice+
+            case "CHARGE":           v = 350; break;   // A — pick 2 from draw → upgrade
+            case "NIGHTMARE":        v = 400; break;   // B — 3 copies next turn
+            case "JUGGLING":         v = 200; break;   // D — Power, 3rd attack copy
+            case "JACKPOT":          v = 180; break;   // C — 3 zero-cost random
+            case "CALL_OF_THE_VOID": v = 100; break;   // S — random card volatile
+            case "CREATIVE_AI":      v = 150; break;   // B — Power, random Power/turn
+            case "HELLO_WORLD":      v = 120; break;   // B — Power, random common/turn
+            case "INFINITE_BLADES":  v = 200; break;   // A — Power, 1 Shiv/turn
+            case "SENTRY_MODE":      v = 130; break;   // B — Power, scanner card
+            case "SPECTRUM_SHIFT":   v = 100; break;   // C — Power, random colorless
+            case "COMPACT":          v = 150; break;   // B — converts status to Fuel+
+            // Shiv side-effect generators (var-derived CARD_GEN tag). Side-
+            // effect Shiv count, NOT primary card effect — magnitudes lower
+            // than dedicated Shiv producers (BLADE_DANCE 450, BLADE_OF_INK 600).
+            case "LEADING_STRIKE":   v = 220; break;   // B — Atk 3 + 2 Shivs
+            case "HIDDEN_DAGGERS":   v = 280; break;   // A — 0c, discard 2 + 2 Shiv+
+            case "CLOAK_AND_DAGGER": v = 180; break;   // A — Block 6 + 1 Shiv
+            case "STORM_OF_STEEL":   v = 200; break;   // D — discard hand → N Shiv+
+            case "FAN_OF_KNIVES":    v = 250; break;   // C — Power, +4 Shivs + AOE conv
             // v0.6.9 — axis-fallback cards (no CARD_GEN axis in catalog)
-            case "CARD.WHITE_NOISE":      v = 350; break;   // S — random Power 0-cost
-            case "CARD.DISCOVERY":        v = 280; break;   // A — pick 1 of 3
-            case "CARD.DISTRACTION":      v = 240; break;   // A — random Skill 0-cost
-            case "CARD.WISH":             v = 200; break;   // A — 1 from draw to hand
-            case "CARD.LARGESSE":         v = 150; break;   // A — other-player colorless
-            case "CARD.SPLASH":           v = 200; break;   // A — pick 1 of 3 attacks
+            case "WHITE_NOISE":      v = 350; break;   // S — random Power 0-cost
+            case "DISCOVERY":        v = 280; break;   // A — pick 1 of 3
+            case "DISTRACTION":      v = 240; break;   // A — random Skill 0-cost
+            case "WISH":             v = 200; break;   // A — 1 from draw to hand
+            case "LARGESSE":         v = 150; break;   // A — other-player colorless
+            case "SPLASH":           v = 200; break;   // A — pick 1 of 3 attacks
             default:                       v = 80;  break;   // generic fallback
         }
         b += v;
@@ -5109,46 +5406,113 @@ internal static class EffectSynergy
 
     private static void ApplyRandomExhaustPenalty(SimCard self, SimState state, ref int b, List<string> parts)
     {
-        // Random card removed from hand. Penalty proxies "average card value
-        // lost". Cards using this axis also have damage/block payoffs (CINDER
-        // 18, THRASH 4×2, TRUE_GRIT 7 block) so a moderate penalty is appropriate.
+        // Random card removed from hand. Use per-card keystone-aware loss
+        // (EstimateExhaustLossRisk) averaged across non-self hand cards to
+        // estimate the expected loss when one random card is taken. Curses
+        // and status give negative risk (good to exhaust) so a curse-heavy
+        // hand actually scores positive for these effects.
+        int totalRisk = 0;
         int handSize = 0;
         for (int i = 0; i < state.Hand.Count; i++)
         {
             var c = state.Hand[i];
             if (ReferenceEquals(c, self)) continue;
-            if (c.IsCurseOrStatus) continue;     // exhausting curses is GOOD — no penalty
+            totalRisk += EstimateExhaustLossRisk(c);
             handSize++;
         }
-        int v;
+
+        int expectedLoss = handSize > 0 ? totalRisk / handSize : 0;
+
+        // Per-card-id offsets — some random-exhaust cards partially compensate
+        // for the loss (THRASH inherits damage; TYRANNY is a sustained power).
+        int v = -expectedLoss;
         switch (self.Id)
         {
-            case "CARD.THRASH":
-                // THRASH adds exhausted card's damage to its own — partial offset.
-                // Net penalty smaller than pure-loss cards.
-                v = handSize > 0 ? -60 : 0;
+            case "THRASH":
+                v = (int)(v * 0.5);   // damage payoff offsets half the expected loss
                 break;
-            case "CARD.TRUE_GRIT":
-                // Card_select-able on upgrade — base is random, often a curse.
-                v = handSize > 2 ? -90 : 0;
-                break;
-            case "CARD.CINDER":
-                v = handSize > 0 ? -120 : 0;
-                break;
-            case "CARD.TYRANNY":
-                // Power — exhausts each turn. Long-term thinning is value;
-                // small bonus rather than penalty.
-                v = 40;
-                break;
-            default:
-                v = handSize > 0 ? -80 : 0;
+            case "TYRANNY":
+                // Per-turn exhaust over the fight — deck-thinning value dominates.
+                // Treat curses-in-hand as their natural negative risk; for
+                // non-curse-heavy hands, still net slightly positive.
+                v = expectedLoss < 0 ? -expectedLoss : 40;
                 break;
         }
+
         if (v != 0)
         {
             b += v;
-            parts.Add($"randomExh={v:+#;-#;0}");
+            parts.Add($"randomExh(risk{expectedLoss})={v:+#;-#;0}");
         }
+    }
+
+    /// <summary>
+    /// Per-card "loss risk" — how painful losing this card to a random or
+    /// forced exhaust effect would be. Used by random-exhaust handlers
+    /// (CINDER, THRASH, TRUE_GRIT) and whole-hand-exhaust handlers
+    /// (FIEND_FIRE, EIDOLON, STOKE, SECOND_WIND).
+    ///
+    /// Weights:
+    ///   • Curse / Status            → −80  (exhausting is a benefit)
+    ///   • Power (not yet played)    → +400 (passive lost forever)
+    ///   • Retain                    → +250 (setup wasted)
+    ///   • SCALING axis              → +200 (mid-fight self-amp interrupted)
+    ///   • Default                   → +60
+    ///
+    /// Sign convention: positive = painful loss; negative = beneficial loss.
+    /// Caller subtracts the value (`b -= risk`) to apply as penalty.
+    /// </summary>
+    internal static int EstimateExhaustLossRisk(SimCard c)
+    {
+        if (c.IsCurseOrStatus) return -80;
+        if (c.IsPower) return 400;
+        if (c.IsRetain) return 250;
+        if (c.Axes != null && c.Axes.Contains("SCALING")) return 200;
+        return 60;
+    }
+
+    /// <summary>
+    /// FIEND_FIRE exhausts the entire hand and deals per-exhausted damage.
+    /// EstimateVariableHits already credits the damage; this subtracts the
+    /// keystone loss from the cards exhausted. Curse-heavy hands net out
+    /// positive (curses → −80 each → subtraction adds points).
+    /// </summary>
+    private static void ApplyWholeHandExhaustLoss(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int totalRisk = 0;
+        int counted = 0;
+        for (int i = 0; i < state.Hand.Count; i++)
+        {
+            var c = state.Hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            totalRisk += EstimateExhaustLossRisk(c);
+            counted++;
+        }
+        if (counted == 0) return;
+        b -= totalRisk;
+        parts.Add($"handExhLoss(n{counted})={(-totalRisk):+#;-#;0}");
+    }
+
+    /// <summary>
+    /// SECOND_WIND exhausts non-attack cards from hand for 5 block each.
+    /// EstimateBlockMultiplier already credits the block; this subtracts the
+    /// keystone loss for non-attack cards (Powers + Skill-retain especially).
+    /// </summary>
+    private static void ApplyNonAttackExhaustLoss(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int totalRisk = 0;
+        int counted = 0;
+        for (int i = 0; i < state.Hand.Count; i++)
+        {
+            var c = state.Hand[i];
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsAttack) continue;        // SECOND_WIND filter
+            totalRisk += EstimateExhaustLossRisk(c);
+            counted++;
+        }
+        if (counted == 0) return;
+        b -= totalRisk;
+        parts.Add($"secondWindLoss(n{counted})={(-totalRisk):+#;-#;0}");
     }
 
     private static void ApplyOstyConditional(SimState state, ref int b, List<string> parts)
@@ -5388,6 +5752,537 @@ internal static class EffectSynergy
             b += v;
             parts.Add($"ruptureTrigger(stack={rupture},turns={turns})=+{v}");
         }
+    }
+
+    /// <summary>
+    /// Card-create trigger preview. When the played card generates additional
+    /// cards (status-fills-hand, CARD_GEN recipes) AND the player has
+    /// ArsenalPower or PillarOfCreationPower active, fire each trigger N times
+    /// where N is the per-card-id card-creation count. Mirrors
+    /// <see cref="ApplySelfHarmTriggerPreview"/>.
+    ///
+    /// Triggers covered:
+    ///   ArsenalPower            — +1 Strength / card created (permanent buff)
+    ///   PillarOfCreationPower   — +3 Block   / card created (same-turn block)
+    /// </summary>
+    private static void ApplyCardCreateTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+
+        bool hasArsenal = state.PlayerPowers.TryGetValue("ArsenalPower", out var arsenal) && arsenal > 0;
+        bool hasPillar  = state.PlayerPowers.TryGetValue("PillarOfCreationPower", out var pillar) && pillar > 0;
+        if (!hasArsenal && !hasPillar) return;
+
+        int cardsCreated = EstimateCardsCreated(card, state);
+        if (cardsCreated <= 0) return;
+
+        if (hasArsenal)
+        {
+            // Each +1 Str applies to ~3 future attacks × RemainingTurns × 50/10
+            // (DamageFree calibration). Stack amount = Str per trigger.
+            int turns = RemainingTurnsEstimator.From(state);
+            int v = cardsCreated * arsenal * turns * 3 * 50 / 10;
+            const int Cap = 800;
+            if (v > Cap) v = Cap;
+            b += v;
+            parts.Add($"arsenalTrigger(create{cardsCreated}×stack{arsenal},turns{turns})=+{v}");
+        }
+        if (hasPillar)
+        {
+            // +3 block per card created × BlockFree(30)/10 calibration.
+            int v = cardsCreated * pillar * 3 * 30 / 10;
+            const int Cap = 600;
+            if (v > Cap) v = Cap;
+            b += v;
+            parts.Add($"pillarTrigger(create{cardsCreated}×stack{pillar})=+{v}");
+        }
+
+        // Status-specific generation triggers — fire only when the created
+        // cards are Status (STATUS_TO_HAND axis). Defect-side passives that
+        // turn the "hand-pollution" penalty into AoE damage or orb tempo.
+        bool isStatusCreation = card.Axes.Contains("STATUS_TO_HAND");
+        if (isStatusCreation)
+        {
+            bool hasSmokestack = state.PlayerPowers.TryGetValue("SmokestackPower", out var smoke) && smoke > 0;
+            bool hasTrash      = state.PlayerPowers.TryGetValue("TrashToTreasurePower", out var trash) && trash > 0;
+
+            if (hasSmokestack)
+            {
+                int aliveCount = 0;
+                foreach (var e in state.Enemies) if (e.IsAlive) aliveCount++;
+                if (aliveCount > 0)
+                {
+                    int v = cardsCreated * smoke * 5 * aliveCount * 50 / 10;
+                    const int Cap = 700;
+                    if (v > Cap) v = Cap;
+                    b += v;
+                    parts.Add($"smokestackTrigger(status{cardsCreated}×stack{smoke},alive{aliveCount})=+{v}");
+                }
+            }
+            if (hasTrash)
+            {
+                // Per random orb generated ≈ 200 (light avg across types).
+                int v = cardsCreated * trash * 200;
+                const int Cap = 600;
+                if (v > Cap) v = Cap;
+                b += v;
+                parts.Add($"trashTreasureTrigger(status{cardsCreated}×stack{trash})=+{v}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Coarse estimate of how many cards a given play adds to hand/deck.
+    /// STATUS_TO_HAND fillsHand → fill to STS2 max hand (10) after the played
+    /// card leaves; single-status droppers → 1; CARD_GEN → per-recipe count.
+    /// In-place transformers (GUARDS / COMPACT / PRIMAL_FORCE) return 0 —
+    /// they don't create net new cards.
+    /// </summary>
+    private static int EstimateCardsCreated(SimCard card, SimState state)
+    {
+        bool fillsHand = card.Axes.Contains("STATUS_TO_HAND")
+                      && (card.Axes.Contains("AOE_OTHER") || card.Axes.Contains("AOE_DAMAGE"));
+        if (fillsHand)
+        {
+            const int MaxHand = 10;
+            int free = MaxHand - (state.Hand.Count - 1);
+            return free > 0 ? free : 0;
+        }
+        if (card.Axes.Contains("STATUS_TO_HAND")) return 1;
+
+        return card.Id switch
+        {
+            "BLADE_OF_INK"  => 2,
+            "BLADE_DANCE"   => 3,
+            "UP_MY_SLEEVE"  => 3,
+            "JACKPOT"       => 3,
+            "NIGHTMARE"     => 3,
+            "CHARGE"        => 2,
+            "JUGGLING"      => 1,
+            "PRIMAL_FORCE"  => 0,   // transforms in place
+            "GUARDS"        => 0,
+            "COMPACT"       => 0,
+            // Shiv side-effect generators (auto-tagged via vars/desc)
+            "LEADING_STRIKE"   => 2,
+            "HIDDEN_DAGGERS"   => 2,
+            "CLOAK_AND_DAGGER" => 1,
+            "FAN_OF_KNIVES"    => 4,
+            // STORM_OF_STEEL count depends on hand size at play time
+            "STORM_OF_STEEL"   => System.Math.Max(0, state.Hand.Count - 1),
+            _ => card.Axes.Contains("CARD_GEN") && !card.IsPower ? 1 : 0,
+        };
+    }
+
+    /// <summary>
+    /// Exhaust-event trigger preview. When the played card exhausts on play
+    /// (IsExhaust or EXHAUST_SELF axis) AND DarkEmbracePower is active, the
+    /// "+1 card draw per exhaust" trigger fires once. Inverts the usual
+    /// "card lost forever" cost of self-exhaust into a free draw.
+    ///
+    /// FeelNoPainPower (+block on exhaust) is intentionally NOT credited here
+    /// because PlanScorer already applies it via attack/skill reactiveBlock
+    /// branches (PlanScorer.cs lines 1069 / 1138).
+    /// </summary>
+    private static void ApplyExhaustEventTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+
+        if (state.PlayerPowers.TryGetValue("DarkEmbracePower", out var de) && de > 0)
+        {
+            // Mirror ApplyDarkEmbraceTickValue's PerExhaustDraw=200 calibration.
+            int v = de * 200;
+            const int Cap = 400;     // single-card cap — multi-stack DarkEmbrace is rare
+            if (v > Cap) v = Cap;
+            b += v;
+            parts.Add($"darkEmbraceTrigger(stack{de})=+{v}");
+        }
+    }
+
+    /// <summary>
+    /// Volatile-play (ethereal) trigger preview. When an ethereal card is
+    /// played AND SpiritOfAshPower is active, +4 block × stack fires. Rewards
+    /// the natural play-or-lose behavior of ethereal cards. Mirrors the
+    /// Necrobinder Volatile build's signature payoff.
+    /// </summary>
+    private static void ApplyVolatilePlayTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+
+        if (state.PlayerPowers.TryGetValue("SpiritOfAshPower", out var ash) && ash > 0)
+        {
+            // +4 block per Volatile play × stack × BlockFree(30)/10.
+            int v = ash * 4 * 30 / 10;
+            const int Cap = 300;
+            if (v > Cap) v = Cap;
+            b += v;
+            parts.Add($"spiritOfAshTrigger(stack{ash})=+{v}");
+        }
+    }
+
+    /// <summary>
+    /// Card-draw trigger preview. HungerPower grants +N Strength per card
+    /// drawn this turn. The simulator advance already credits this in
+    /// depth-N lookahead; this method makes the immediate-score (depth-1)
+    /// ranking aware as well so draw cards correctly rise when Hunger is
+    /// active.
+    /// </summary>
+    private static void ApplyDrawEventTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerHunger <= 0) return;
+        int draws = card.DrawCount;
+        if (draws <= 0) return;
+
+        // +1 Str per draw event. Per-Str value mirrors arsenalTrigger:
+        // turns × 3 attacks × DamageFree(50)/10.
+        int turns = RemainingTurnsEstimator.From(state);
+        int v = draws * state.PlayerHunger * turns * 3 * 50 / 10;
+        const int Cap = 600;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"hungerTrigger(draw{draws}×stack{state.PlayerHunger},turns{turns})=+{v}");
+    }
+
+    /// <summary>
+    /// Skill-played trigger preview. EnragePower grants +N Strength on every
+    /// Skill played. Sim already applies this in AdvanceTurn; this is the
+    /// depth-1 preview so Skill-heavy hands correctly score higher when
+    /// Enrage is active.
+    /// </summary>
+    private static void ApplySkillPlayedTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerEnrage <= 0) return;
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int v = state.PlayerEnrage * turns * 3 * 50 / 10;
+        const int Cap = 500;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"enrageTrigger(stack{state.PlayerEnrage},turns{turns})=+{v}");
+    }
+
+    /// <summary>
+    /// Vuln-applied trigger preview. ViciousPower draws +1 card on every Vuln
+    /// apply event. Single-target VULN_PRODUCER → 1 event; AOE Vuln (e.g.
+    /// PIERCING_WAIL with VULN_PRODUCER + AOE_OTHER) → 1 event per alive enemy.
+    /// Mirrors PerVulnDraw=180 calibration from <see cref="ApplyViciousTickValue"/>.
+    /// </summary>
+    private static void ApplyVulnApplyTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+        if (!state.PlayerPowers.TryGetValue("ViciousPower", out var vic) || vic <= 0) return;
+
+        int applies = 1;
+        if (card.Axes.Contains("AOE_OTHER") || card.Axes.Contains("AOE_DAMAGE"))
+        {
+            int alive = 0;
+            foreach (var e in state.Enemies) if (e.IsAlive) alive++;
+            if (alive > 1) applies = alive;
+        }
+
+        const int PerDraw = 180;
+        int v = applies * vic * PerDraw;
+        const int Cap = 540;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"viciousTrigger(apply{applies}×stack{vic})=+{v}");
+    }
+
+    /// <summary>
+    /// ReaperFormPower turns every attack hit into a Doom apply: per-hit
+    /// Doom amount = card.Damage × ReaperFormStack. With Doom ticking 1 HP
+    /// per stack per turn over remaining turns, attacks gain hidden future-
+    /// turn damage that the immediate attack score ignores. Also chains
+    /// with ShroudPower (one Doom apply event per hit). Sim mirror at
+    /// AnalyticalSimulator: `newDoom += card.Damage × hits × reaperStacks`.
+    /// </summary>
+    private static void ApplyReaperFormAttackPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+        if (!state.PlayerPowers.TryGetValue("ReaperFormPower", out var reaperStacks)
+            || reaperStacks <= 0) return;
+
+        int hits = System.Math.Max(1, card.Hits);
+        int turns = RemainingTurnsEstimator.From(state);
+        // Total Doom applied across all hits per stack.
+        int totalDoom = card.Damage * hits * reaperStacks;
+        // Doom decays 1/turn (STS1 model). Average tick value over remaining
+        // turns ≈ totalDoom × turns × 0.5 HP. × DamageFree(50)/10 to score
+        // calibration. 0.5 covers both decay and uncertainty (enemy may die
+        // before Doom completes).
+        int doomScore = totalDoom * turns * 50 / 10 * 50 / 100;
+
+        // ShroudPower fires once per Doom apply event — one event per attack
+        // hit (regardless of Doom amount per hit).
+        int shroudBonus = 0;
+        if (state.PlayerPowers.TryGetValue("ShroudPower", out var shroudStack) && shroudStack > 0)
+            shroudBonus = hits * shroudStack * 2 * 30 / 10;  // 2 block × hits × stack
+
+        int total = doomScore + shroudBonus;
+        const int Cap = 800;
+        if (total > Cap) total = Cap;
+        b += total;
+        parts.Add($"reaperFormAttack(doom{totalDoom}×turns{turns}={doomScore},shroud+{shroudBonus},stack{reaperStacks})=+{total}");
+    }
+
+    /// <summary>
+    /// Star-consume trigger preview. Star-cost cards (FALLING_STAR star_cost 2,
+    /// COMET 5, SEVEN_STARS 7, etc.) pay N stars on play, firing one Star-event
+    /// trigger per played card. Reactive Regent Powers chain off this:
+    ///   • ChildOfTheStarsPower → +block equal to consumed stars × stack
+    ///   • BlackHolePower      → AOE 3 damage × stack per Star event
+    /// Stars consumed are not surfaced as damage/block in the played card's
+    /// effect summary, so the base score misses these chained payoffs.
+    /// </summary>
+    private static void ApplyStarConsumePreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+        int starCost = card.Effect.StarCost;
+        if (starCost <= 0) return;
+
+        // ChildOfTheStarsPower — block per consumed star × stack.
+        if (state.PlayerPowers.TryGetValue("ChildOfTheStarsPower", out var cosStack)
+            && cosStack > 0)
+        {
+            int blockGain = starCost * cosStack;
+            int v = blockGain * 30 / 10;   // BlockFree calibration
+            const int Cap = 500;
+            if (v > Cap) v = Cap;
+            b += v;
+            parts.Add($"childOfStarsTrigger(stars{starCost}×stack{cosStack}={blockGain}blk)=+{v}");
+        }
+
+        // BlackHolePower — AOE 3 damage per Star event × stack. STS2 fires
+        // on both gain AND consume; we credit only the consume event here
+        // (consistent with star_cost gating). Star gains via STAR_PRODUCER
+        // axis would need a parallel preview if also active.
+        if (state.PlayerPowers.TryGetValue("BlackHolePower", out var bhStack) && bhStack > 0)
+        {
+            int alive = 0;
+            foreach (var e in state.Enemies) if (e.IsAlive) alive++;
+            if (alive > 0)
+            {
+                int dmg = 3 * bhStack * alive;
+                int v = dmg * 50 / 10;     // DamageFree calibration
+                const int Cap = 600;
+                if (v > Cap) v = Cap;
+                b += v;
+                parts.Add($"blackHoleConsumeTrigger(alive{alive}×stack{bhStack}×3={dmg})=+{v}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Star resource is bankable (no per-turn reset). Penalize plays that
+    /// either (A) waste stars on a low-efficiency play when a higher-
+    /// efficiency star card exists in deck, or (B) leave the player short
+    /// of stars needed for the biggest star_cost card available later.
+    ///
+    /// Net-positive converters (StarsGain ≥ StarCost — ROYAL_GAMBLE 5→9)
+    /// are exempt: their value is captured by ApplyStarsGain, and the
+    /// "consume" is just bookkeeping for the bigger gain.
+    /// </summary>
+    private static void ApplyStarOpportunityCost(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        int starCost = card.Effect.StarCost;
+        if (starCost <= 0) return;
+        // Exempt net-positive converters (banking action, not payoff).
+        if (card.Effect.StarsGain >= starCost) return;
+
+        int currentEff = StarEfficiency(card);
+        int bestEff = currentEff;
+        int maxFutureStarCost = 0;
+        bool seenOther = false;
+
+        void Scan(System.Collections.Generic.IReadOnlyList<SimCard> pile)
+        {
+            for (int i = 0; i < pile.Count; i++)
+            {
+                var c = pile[i];
+                if (ReferenceEquals(c, card)) continue;
+                int sc = c.Effect.StarCost;
+                if (sc <= 0) continue;
+                if (c.Effect.StarsGain >= sc) continue;   // skip net-positive too
+                seenOther = true;
+                int e = StarEfficiency(c);
+                if (e > bestEff) bestEff = e;
+                if (sc > maxFutureStarCost) maxFutureStarCost = sc;
+            }
+        }
+        Scan(state.Hand);
+        Scan(state.DrawPile);
+        Scan(state.DiscardPile);
+
+        if (!seenOther) return;   // sole star-cost card — no alternative to compare
+
+        int turns = RemainingTurnsEstimator.From(state);
+        int starsAfter = state.PlayerStars + card.Effect.StarsGain - starCost;
+        int totalPenalty = 0;
+
+        // (A) Efficiency gap. Buffer of 5 absorbs noise between similar cards.
+        const int EffBuffer = 5;
+        if (bestEff - currentEff > EffBuffer)
+        {
+            int gap = bestEff - currentEff;
+            int penalty = gap * starCost;
+            const int EffCap = 250;
+            if (penalty > EffCap) penalty = EffCap;
+            totalPenalty += penalty;
+        }
+
+        // (B) Future shortfall. Only when remaining turns allow drawing the
+        // bigger card AND playing this card actually drops stars below the
+        // biggest cost threshold.
+        if (turns >= 2 && maxFutureStarCost > starCost && starsAfter < maxFutureStarCost)
+        {
+            int shortage = maxFutureStarCost - starsAfter;
+            int shortagePenalty = shortage * 30;
+            const int ShortageCap = 200;
+            if (shortagePenalty > ShortageCap) shortagePenalty = ShortageCap;
+            totalPenalty += shortagePenalty;
+        }
+
+        if (totalPenalty > 0)
+        {
+            b -= totalPenalty;
+            parts.Add($"starOpCost(eff{currentEff}<best{bestEff},sAfter{starsAfter}/futMax{maxFutureStarCost})=-{totalPenalty}");
+        }
+    }
+
+    /// <summary>
+    /// Per-star value heuristic for star_cost cards. Sums damage/block
+    /// plus light credit for power applications, divides by star_cost.
+    /// Used by ApplyStarOpportunityCost to rank cards by their star ROI.
+    /// </summary>
+    private static int StarEfficiency(SimCard c)
+    {
+        if (c.Effect.StarCost <= 0) return 0;
+        int totalValue = c.TotalDamage + c.Effect.Block;
+        foreach (var (_, amt) in c.PowerApps) totalValue += amt * 3;
+        return totalValue / c.Effect.StarCost;
+    }
+
+    /// <summary>
+    /// Star environment penalty. When every alive target has a heavy per-hit
+    /// damage cap (Intangible / HardToKill, cap ≤ 5), a star_cost burst
+    /// attack is mostly wasted — the face damage doesn't land but the
+    /// stockpiled stars are spent. Stars carry over to the next turn while
+    /// Intangible (typical) expires, so save them.
+    ///
+    /// Gates:
+    ///   • Skip if turns_remaining &lt; 2 (last turn — just deal what we can).
+    ///   • Skip net-positive star converters (already exempted upstream;
+    ///     defensive double-check).
+    ///   • Single-target uses the first alive enemy as proxy for
+    ///     selectable target (matches planner's default target pick).
+    /// </summary>
+    private static void ApplyStarEnvironmentPenalty(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        int starCost = card.Effect.StarCost;
+        if (starCost <= 0 || !card.IsAttack || card.TotalDamage <= 0) return;
+        if (card.Effect.StarsGain >= starCost) return;
+
+        int turns = RemainingTurnsEstimator.From(state);
+        if (turns < 2) return;
+
+        bool isAoe = card.Target == MegaCrit.Sts2.Core.Entities.Cards.TargetType.AllEnemies
+            || (card.Id == "SHIV" && state.PlayerPowers != null
+                && state.PlayerPowers.TryGetValue("FanOfKnivesPower", out var fnk) && fnk > 0);
+
+        const int HeavyCapThreshold = 5;   // Intangible (1) / HardToKill small caps
+        int aliveCount = 0;
+        int cappedCount = 0;
+
+        if (isAoe)
+        {
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                var e = state.Enemies[i];
+                if (!e.IsAlive) continue;
+                aliveCount++;
+                if (e.DamageCapPerHit > 0 && e.DamageCapPerHit <= HeavyCapThreshold)
+                    cappedCount++;
+            }
+        }
+        else
+        {
+            SimEnemy? primary = null;
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                if (state.Enemies[i].IsAlive) { primary = state.Enemies[i]; break; }
+            }
+            if (primary == null) return;
+            aliveCount = 1;
+            if (primary.DamageCapPerHit > 0 && primary.DamageCapPerHit <= HeavyCapThreshold)
+                cappedCount = 1;
+        }
+
+        // Only penalize when ALL alive targets are heavily capped (saving
+        // stars makes sense). If any target is uncapped, the attack still
+        // delivers — use it.
+        if (aliveCount == 0 || cappedCount < aliveCount) return;
+
+        // 50 per star_cost — mild nudge toward non-attack alternatives.
+        // Cap so a 7-cost SEVEN_STARS doesn't blow up the penalty.
+        int penalty = starCost * 50;
+        const int PenaltyCap = 250;
+        if (penalty > PenaltyCap) penalty = PenaltyCap;
+        b -= penalty;
+        parts.Add($"starWasteEnv(allCapped{cappedCount}/{aliveCount},star{starCost})=-{penalty}");
+    }
+
+    /// <summary>
+    /// Star-gain trigger preview. STAR_PRODUCER cards (GLOW +1, VENERATE +2,
+    /// ROYAL_GAMBLE +9, etc.) fire BlackHolePower's AOE 3 damage per Star
+    /// gained. ChildOfTheStarsPower fires only on consume, so it's not
+    /// credited here.
+    /// </summary>
+    private static void ApplyStarGainPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+        int starsGain = card.Effect.StarsGain;
+        if (starsGain <= 0) return;
+
+        if (state.PlayerPowers.TryGetValue("BlackHolePower", out var bhStack) && bhStack > 0)
+        {
+            int alive = 0;
+            foreach (var e in state.Enemies) if (e.IsAlive) alive++;
+            if (alive > 0)
+            {
+                // N Star events per card play (1 per Star gained).
+                int dmg = 3 * bhStack * alive * starsGain;
+                int v = dmg * 50 / 10;
+                const int Cap = 600;
+                if (v > Cap) v = Cap;
+                b += v;
+                parts.Add($"blackHoleGainTrigger(gain{starsGain}×alive{alive}×stack{bhStack}×3={dmg})=+{v}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Doom-applied trigger preview. ShroudPower grants +2 block per Doom
+    /// apply event. Standard DOOM_PRODUCER → 1 event; AOE_DOOM cards apply
+    /// to all alive enemies → N events.
+    /// </summary>
+    private static void ApplyDoomApplyTriggerPreview(SimCard card, SimState state, ref int b, List<string> parts)
+    {
+        if (state.PlayerPowers == null || state.PlayerPowers.Count == 0) return;
+        if (!state.PlayerPowers.TryGetValue("ShroudPower", out var shroud) || shroud <= 0) return;
+
+        int applies = 1;
+        if (card.Axes.Contains("AOE_DOOM"))
+        {
+            int alive = 0;
+            foreach (var e in state.Enemies) if (e.IsAlive) alive++;
+            if (alive > 1) applies = alive;
+        }
+
+        // +2 block per apply × stack × BlockFree(30)/10.
+        int v = applies * shroud * 2 * 30 / 10;
+        const int Cap = 300;
+        if (v > Cap) v = Cap;
+        b += v;
+        parts.Add($"shroudTrigger(apply{applies}×stack{shroud})=+{v}");
     }
 
     private static void ApplyHpLossConsumer(SimState state, ref int b, List<string> parts)

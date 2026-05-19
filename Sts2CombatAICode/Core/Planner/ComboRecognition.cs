@@ -116,55 +116,108 @@ internal static class ComboRecognition
     /// </summary>
     private static readonly (string a, string b, int bonus)[] ExplicitPairs =
     {
-        // Ironclad — Setup + Burst Attack
-        ("CARD.INFLAME",     "CARD.WHIRLWIND",     250),  // Str applies × X hits
-        ("CARD.INFLAME",     "CARD.HEAVY_BLADE",   300),  // Str × 3 per Heavy Blade
-        ("CARD.LIMIT_BREAK", "CARD.HEAVY_BLADE",   400),  // Str doubled × 3
-        ("CARD.LIMIT_BREAK", "CARD.WHIRLWIND",     350),
-        ("CARD.BASH",        "CARD.HEAVY_BLADE",   200),  // Vuln × Heavy Blade burst
-        ("CARD.PUMMEL",      "CARD.BASH",          150),  // Vuln then 4-hit
-        ("CARD.DEMON_FORM",  "CARD.SEVER_SOUL",    250),  // Big damage power play
-        ("CARD.DEMON_FORM",  "CARD.IMMOLATE",      250),
-        ("CARD.SPOT_WEAKNESS","CARD.HEAVY_BLADE",  250),  // Vuln + multiplier attack
-        ("CARD.RAGE",        "CARD.WHIRLWIND",     200),  // Block per hit
-        ("CARD.RAGE",        "CARD.TWIN_STRIKE",   180),
+        // Ironclad — Strength scaling + high-damage attacks. STS2 redesigned
+        // strength scaling away from the STS1 "+Str → Limit Break → Heavy Blade"
+        // chain; the equivalent compounding now flows through DEMON_FORM /
+        // RUPTURE + the heavy single-hit attacks (BLUDGEON 32, UPPERCUT 13 +
+        // Vuln+Weak, CINDER 18 + random exhaust).
+        ("INFLAME",     "WHIRLWIND",     250),  // +Str × per-hit AOE
+        ("INFLAME",     "BLUDGEON",      350),  // +Str × biggest single hit (32 dmg)
+        ("INFLAME",     "UPPERCUT",      250),  // +Str × S-tier Vuln+Weak attack
+        ("DEMON_FORM",  "BLUDGEON",      350),  // compounding +Str × big hit
+        ("DEMON_FORM",  "UPPERCUT",      250),  // compounding +Str × debuff attack
+        ("DEMON_FORM",  "CINDER",        180),  // +Str × 18-dmg random-exhaust burst
+        ("DEMON_FORM",  "WHIRLWIND",     280),  // +Str/turn × AOE multi-hit
+        ("BASH",        "BLUDGEON",      280),  // Vuln × 32 dmg ≈ 48 dmg
+        ("BASH",        "UPPERCUT",      200),  // Vuln+ + Weak/Vuln stacking
+        ("UPPERCUT",    "BLUDGEON",      250),  // Weak/Vuln pre-buff then big hit
+        // HP-loss-based Strength scaling (RupturePower fires on HP loss event)
+        ("RUPTURE",     "BLOODLETTING",  220),
+        ("RUPTURE",     "OFFERING",      220),
+        ("RUPTURE",     "HEMOKINESIS",   180),
+        // Reactive block via RagePower / attack hits
+        ("RAGE",        "WHIRLWIND",     200),  // Block per attack played
+        ("RAGE",        "TWIN_STRIKE",   180),
 
-        // Silent — Vuln/Weak setup + Shiv burst
-        ("CARD.NEUTRALIZE",  "CARD.DAGGER_SPRAY",  180),  // Weak + AOE
-        ("CARD.NEUTRALIZE",  "CARD.FINISHER",      200),  // Weak + multi-hit
-        ("CARD.BLADE_DANCE", "CARD.ACCURACY",      220),  // Shiv generation × dmg
-        ("CARD.BLADE_DANCE", "CARD.INFINITE_BLADES",180),
-        ("CARD.PIERCING_WAIL","CARD.FINISHER",     180),
-        ("CARD.CLOAK_AND_DAGGER","CARD.FINISHER",  150),
+        // Silent — Vuln/Weak setup + multi-hit burst
+        ("NEUTRALIZE",  "DAGGER_SPRAY",  180),  // Weak + AOE
+        ("NEUTRALIZE",  "FINISHER",      200),  // Weak + multi-hit-per-card-played
+        ("PIERCING_WAIL","FINISHER",     180),
+        ("CLOAK_AND_DAGGER","FINISHER",  150),
+        // Silent — Shiv generation + AccuracyPower amplification
+        ("BLADE_DANCE", "ACCURACY",      220),  // 3 Shivs × Accuracy stack
+        ("BLADE_DANCE", "INFINITE_BLADES",180),
+        ("LEADING_STRIKE","ACCURACY",    200),  // 2-Shiv side-gen + amp
+        ("HIDDEN_DAGGERS","ACCURACY",    220),  // 2 Shiv+ side-gen + amp
+        ("DAGGER_SPRAY","ACCURACY",      250),  // Shiv-style AOE + amp
+        ("FAN_OF_KNIVES","INFINITE_BLADES",200), // per-turn Shiv + AOE conversion
+        // Silent Poison — top archetype payoff beyond role_needs generic
+        // (POISON_PRODUCER → POISON_AMPLIFIER w=2.5/250). NOXIOUS_FUMES is
+        // S-tier per-turn AOE poison; ACCELERANT's +1 stack per apply
+        // compounds significantly over 4-5 turns.
+        ("NOXIOUS_FUMES","ACCELERANT",   200),
+        ("HAZE",         "ACCELERANT",   180),  // AOE poison burst + amp
 
-        // Defect — Power + Orb burst
-        ("CARD.STORM",       "CARD.DEFRAGMENT",    200),  // +Focus + Lightning
-        ("CARD.FOCUS",       "CARD.LIGHTNING_ORB", 180),
-        ("CARD.SUBROUTINE",  "CARD.CREATIVE_AI",   220),  // Power-play chain
-        ("CARD.BUFFER",      "CARD.ECHO_FORM",     200),  // Sustain + double
+        // Defect — Power + orb scaling
+        ("STORM",       "DEFRAGMENT",    200),  // Power play → Lightning + Focus
+        ("DEFRAGMENT",  "BALL_LIGHTNING",220),  // Focus stack × Lightning channel
+        ("SUBROUTINE",  "CREATIVE_AI",   220),  // Power-play chain
+        ("SUBROUTINE",  "DEFRAGMENT",    200),  // Power play → +energy + Focus
+        ("SUBROUTINE",  "STORM",         180),  // Power play → +energy + Lightning channel
+        ("BUFFER",      "ECHO_FORM",     200),  // Sustain + double
+        // Defect Frost — HAILSTORM scales with Frost orbs held at turn end;
+        // CHILL/GLACIER produce bulk frost; role_needs FROST_PAYOFF → FROST_ORB
+        // w=2.5/250 covers axis-axis. Explicit pair adds top-combo magnitude.
+        ("HAILSTORM",   "CHILL",         180),
+        ("HAILSTORM",   "GLACIER",       180),
+
+        // Ironclad Exhaust core — Corruption enables 0-cost Skill exhaust,
+        // which DarkEmbrace/FNP capitalize on. Highest-value Ironclad combo
+        // outside Strength scaling.
+        ("CORRUPTION",  "DARK_EMBRACE",  280),  // every Skill exhaust → free draw
+        ("CORRUPTION",  "FEEL_NO_PAIN",  220),  // every Skill exhaust → free block
+        ("DARK_EMBRACE","FEEL_NO_PAIN",  150),  // dual exhaust trigger
 
         // Necrobinder — Doom + Trigger
-        ("CARD.COUNTDOWN",   "CARD.REAPER_FORM",   250),
-        ("CARD.PAGESTORM",   "CARD.CALL_OF_THE_VOID",250),
+        ("COUNTDOWN",   "REAPER_FORM",   250),
+        ("PAGESTORM",   "CALL_OF_THE_VOID",250),
+        // Necrobinder Skeleton — beyond role_needs generic
+        // (SKELETON_PRODUCER → SKELETON_CONSUMER w=2.5/250). REANIMATE is
+        // S-tier mass summon; BONE_SHARDS scales linearly with skeleton
+        // count; SQUEEZE amplifies skeleton attack damage.
+        ("REANIMATE",   "BONE_SHARDS",   250),
+        ("DIRGE",       "BONE_SHARDS",   150),  // cheapest producer + S consumer
+        ("NECRO_MASTERY","SQUEEZE",      180),  // passive summon + attack amp
+        ("REANIMATE",   "SQUEEZE",       180),
 
         // Regent — Star economy
-        ("CARD.GENESIS",     "CARD.CHILD_OF_THE_STARS",250),
-        ("CARD.THE_SEALED_THRONE","CARD.STARDUST", 300),
-        ("CARD.ORBIT",       "CARD.CHILD_OF_THE_STARS",200),
+        ("GENESIS",     "CHILD_OF_THE_STARS",250),
+        ("THE_SEALED_THRONE","STARDUST", 300),
+        ("ORBIT",       "CHILD_OF_THE_STARS",200),
 
-        // Cross-character — universal setup
-        ("CARD.HEADBUTT",    "CARD.LIMIT_BREAK",   180),  // recall buff power
-        ("CARD.HEADBUTT",    "CARD.DEMON_FORM",    220),
-        ("CARD.HEADBUTT",    "CARD.DEMESNE",       180),
+        // Cross-character — HEADBUTT recall (discard → top of draw pile)
+        // pairs only with non-Power cards in STS2 (Powers exhaust on play, so
+        // a played Power is not in the discard pile to be recalled). The
+        // recall-Strength-setup combo therefore targets INFLAME / RUPTURE in
+        // hand-but-discarded contexts (e.g., after CALCULATED_GAMBLE cycle).
+        ("HEADBUTT",    "DEMON_FORM",    220),
+        ("HEADBUTT",    "DEMESNE",       180),
+        ("HEADBUTT",    "INFLAME",       180),
     };
 
     /// <summary>
     /// Does an edge exist between two cards? Uses axis-suffix matching and
-    /// Setup-Power-to-beneficiary rules. Coarse on purpose.
+    /// Setup-Power-to-beneficiary rules. Symmetric — the relationship is
+    /// undirected, so calling with (a,b) or (b,a) yields the same answer.
     /// </summary>
     private static bool HasEdge(SimCard a, SimCard b)
+        => HasDirectionalEdge(a, b) || HasDirectionalEdge(b, a);
+
+    private static bool HasDirectionalEdge(SimCard a, SimCard b)
     {
-        // Producer ↔ Amplifier / Consumer (stem match).
+        // Producer ↔ Amplifier / Consumer (stem match) — already symmetric
+        // when checked from either side, but keeping it here so the single
+        // directional path returns true on the first matching pass.
         foreach (var ax in a.Axes)
         {
             if (ax.EndsWith("_PRODUCER"))
@@ -187,6 +240,9 @@ internal static class ComboRecognition
         }
 
         // Setup Power → Beneficiary (a applies Str/Dex, b is Attack/Skill).
+        // The wrapper HasEdge() will also call HasDirectionalEdge(b, a), so
+        // an attack/skill scored against a power in hand still detects the
+        // edge — previously this was direction-only and the edge was missed.
         if (a.IsPower)
         {
             bool aHasStr = a.PowerApps.ContainsKey("StrengthPower")

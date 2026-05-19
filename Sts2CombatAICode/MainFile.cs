@@ -47,7 +47,11 @@ public partial class MainFile : Node
             // Vakuu mode — fallback poller for the Vakuu Play test button if the
             // Harmony _Ready hook on NEndTurnButton misses.
             if (Godot.Engine.GetMainLoop() is Godot.SceneTree tree)
+            {
                 Sts2CombatAI.Modes.Vakuu.TestButtonPoller.Install(tree);
+                // Live per-card score overlay on the player's hand.
+                Sts2CombatAI.Modes.Vakuu.HandScoreOverlay.Install(tree);
+            }
             var asmVer = typeof(MainFile).Assembly.GetName().Version?.ToString() ?? "unknown";
             // v0.7.80 — manifest version marker so we can verify the live dll
             // is the freshly-built one (asmVer is always 1.0.0.0).

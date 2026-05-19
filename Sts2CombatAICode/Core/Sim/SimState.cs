@@ -20,8 +20,11 @@ internal sealed record SimState
     public required List<SimCard> Hand { get; init; }
 
     /// <summary>
-    /// v0.7.2 — Player character entry id (e.g. "IRONCLAD", "SILENT", "DEFECT",
-    /// "WATCHER", "NECROBINDER", "REGENT"). Captured from <c>player.Character.Id.Entry</c>.
+    /// v0.7.2 — Player character entry id. STS2 has 5 characters:
+    /// IRONCLAD / SILENT / DEFECT / NECROBINDER / REGENT (no Watcher in STS2;
+    /// some Watcher-named powers from STS1 — Burst / EchoForm / Stratagem —
+    /// were reused for STS2 cards/potions). Captured from
+    /// <c>player.Character.Id.Entry</c>.
     /// Used by <see cref="Sts2CombatAI.Planner.PoolMeans"/> to look up the static
     /// value distribution of the active character's card pool — driving Level 4
     /// pool-based random card evaluation (WHITE_NOISE / DISCOVERY / CREATIVE_AI / …).
@@ -309,6 +312,80 @@ internal sealed record SimState
     /// by PINPOINT-equivalent gates and any "play after N skills" payoff.
     /// </summary>
     public int TurnSkillsPlayed { get; init; }
+
+    /// <summary>
+    /// v0.9 — Per-target attack count this turn. Keyed by SimEnemy index
+    /// (position in <see cref="Enemies"/> list at snapshot time). Powers
+    /// BEAT_INTO_SHAPE's "Forge +5 per OTHER attack on this target this turn"
+    /// in the simulator: when BEAT plays on enemy idx N, dynamic forgeAmount
+    /// = baseForge + extraForge × TurnAttacksByTargetIdx[N].
+    ///
+    /// Initial value comes from <see cref="StateSnapshotter"/> walking
+    /// CombatHistory; <see cref="AnalyticalSimulator.ApplyCardPlay"/>
+    /// increments the entry for the played card's target so depth-2+
+    /// lookahead chains see the accumulating context.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> TurnAttacksByTargetIdx { get; init; }
+        = new Dictionary<int, int>();
+
+    /// <summary>
+    /// v0.9 — Enemy-applied shutdown debuffs on the player. Each makes a
+    /// whole class of player action useless THIS turn:
+    ///   • PlayerNoBlock  — DEFEND/block gain is suppressed (DEFEND scoring
+    ///                      should drop to ~0)
+    ///   • PlayerNoDraw   — draw cards skip (FOREGONE, SKIM, etc. wasted)
+    ///   • PlayerNoEnergyGain — next-turn energy reset is reduced/skipped
+    ///                      (long-fight tempo loss)
+    /// Captured by StateSnapshotter from enemy-applied powers on the player
+    /// creature. PlanScorer suppresses DEFEND threatBonus / draw-card bonuses
+    /// when these are active.
+    /// </summary>
+    public int PlayerNoBlock { get; init; }
+    public int PlayerNoDraw { get; init; }
+    public int PlayerNoEnergyGain { get; init; }
+
+    /// <summary>
+    /// v0.9 — ConfusedPower (cards have random energy costs each turn while
+    /// active). Player can't reliably plan card sequences — efficiency
+    /// ranking still makes sense but specific cost-dependent combos break.
+    /// When active, add a flat penalty to high-cost cards (their realised
+    /// cost might be different than printed) and increase the value of
+    /// 0-cost / cost-1 cards (less affected).
+    /// </summary>
+    public int PlayerConfused { get; init; }
+
+    /// <summary>
+    /// v0.9 — TenderPower (each card played by player → -1 Strength &amp; -1
+    /// Dexterity temporarily, restored at turn end). Net effect: each card
+    /// played progressively weakens subsequent attacks/blocks this turn.
+    /// Captures the per-stack amount; effective per-card degradation is
+    /// scaled in scoring.
+    /// </summary>
+    public int PlayerTender { get; init; }
+
+    /// <summary>
+    /// v0.9 — ShrinkPower (Tier B). Outgoing damage × (100-N)/100. Default
+    /// applied amount is 30 (= 30% damage reduction). Stored as the percent
+    /// reduction directly; EffectiveDmgPerEnergy applies (100-pct)/100.
+    /// </summary>
+    public int PlayerShrinkPercent { get; init; }
+
+    /// <summary>
+    /// v0.9 — DebilitatePower (Tier B). When player has this debuff, the
+    /// Vulnerable and Weak multipliers AGAINST the player are amplified:
+    /// incoming-Vuln 1.5→2.0 (target=player), outgoing-Weak 0.75→0.50
+    /// (dealer=player). Effectively turns Vuln/Weak debuffs into bigger
+    /// damage swings. 0 = power absent.
+    /// </summary>
+    public int PlayerDebilitate { get; init; }
+
+    /// <summary>
+    /// v0.9 — ChainsOfBindingPower per-turn flag: true once a Bound card has
+    /// been played THIS turn, blocking any further Bound cards (decompile
+    /// sts2.decompiled.cs:313044 — ShouldPlay returns false when set).
+    /// Reset to false at turn-end (BeforeTurnEnd).
+    /// </summary>
+    public bool BoundCardPlayedThisTurn { get; init; }
 
     /// <summary>
     /// Number of times the player has taken unblocked damage during this
