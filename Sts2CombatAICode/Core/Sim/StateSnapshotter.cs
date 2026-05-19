@@ -62,6 +62,9 @@ internal static class StateSnapshotter
             // v0.7.98 — EchoFormPower raw stack (remaining echoes computed below
             // after turnAttacksPlayed/turnSkillsPlayed counters are populated).
             int echoStack = CombatReflection.GetPowerAmount(creature, "EchoFormPower");
+            // v0.7.99 — JuggernautPower (block→damage) + HungerPower (draw→Strength).
+            int playerJuggernaut = CombatReflection.GetPowerAmount(creature, "JuggernautPower");
+            int playerHunger = CombatReflection.GetPowerAmount(creature, "HungerPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -308,6 +311,8 @@ internal static class StateSnapshotter
                 PlayerFeelNoPain = playerFeelNoPain,
                 // v0.7.98 — remaining echoes this turn.
                 PlayerEchoForm = System.Math.Max(0, echoStack - (turnAttacksPlayed + turnSkillsPlayed)),
+                PlayerJuggernaut = playerJuggernaut,
+                PlayerHunger = playerHunger,
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next

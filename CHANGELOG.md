@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.7.99 (2026-05-19)
+
+**JuggernautPower (block→damage) + HungerPower (draw→Strength).**
+
+### 변경
+
+- `SimState.PlayerJuggernaut` / `PlayerHunger` 신설.
+- `StateSnapshotter` 가 두 stack 모두 주입.
+- `AnalyticalSimulator`:
+  - Power / Skill self-apply switch 에 두 case 추가.
+  - 카드 resolve 시작 `initialPlayerBlock` 저장.
+  - 카드 resolve 끝 `if (newPlayerJuggernaut > 0 && newPlayerBlock > initialPlayerBlock)` →
+    weakest alive enemy 에 N damage (block-first 흡수). 1 카드 = 최대 1 trigger (approximation).
+  - `if (newPlayerHunger > 0 && card.DrawCount > 0)` → `newPlayerStr += Hunger × DrawCount`.
+  - Final state carry.
+
+### 메커니즘
+
+- **Juggernaut**: 매 block-gain event 마다 random/weakest 적에게 N damage 반사
+  공격. depth-N lookahead 에서 block 카드가 부수적 데미지 가치까지 인식.
+- **Hunger**: 매 카드 드로우마다 Strength +N. Skim / draw 카드 사용 시 후속
+  공격 데미지 증가 자동 반영.
+
+### Approximations
+
+- Juggernaut: 1 카드 내 다중 block source (skill block + Rage + Afterimage + FeelNoPain) 시
+  STS canonical 은 각각 trigger 하지만 본 modeling 은 한 번만. Under-credit (안전).
+- Hunger: card.DrawCount 가 catalog 의 정적 값이므로 conditional 드로우 (e.g.,
+  CHRYSALIS 의 "if X then draw Y") 는 미반영. 일반 드로우 카드는 정확.
+
+---
+
 ## v0.7.98 (2026-05-19)
 
 **EchoFormPower — 첫 N 장 ×2 within-turn multiplier (Watcher Echo Form).**

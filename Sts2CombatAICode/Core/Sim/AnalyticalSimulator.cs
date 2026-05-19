@@ -74,6 +74,8 @@ internal static class AnalyticalSimulator
         // 3. Apply card effects
         int newPlayerStr = next.PlayerStrength;
         int newPlayerDex = next.PlayerDexterity;
+        // v0.7.99 — Save initial block to detect block-gain events for Juggernaut.
+        int initialPlayerBlock = next.PlayerBlock;
         // v0.7.82 — VigorPower buffer. Carried across the simulated step so a
         // skill that grants Vigor lifts the next attack's damage, then is
         // consumed when an attack plays.
@@ -109,6 +111,9 @@ internal static class AnalyticalSimulator
         int newPlayerEchoForm = next.PlayerEchoForm;
         bool echoActive = newPlayerEchoForm > 0;
         int echoMul = echoActive ? 2 : 1;
+        // v0.7.99 — Juggernaut + Hunger reactive trigger sources.
+        int newPlayerJuggernaut = next.PlayerJuggernaut;
+        int newPlayerHunger = next.PlayerHunger;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -188,6 +193,9 @@ internal static class AnalyticalSimulator
                     // above prevented self-doubling). Adds to remaining echoes
                     // available this turn for SUBSEQUENT cards.
                     case "EchoFormPower": newPlayerEchoForm += rawAmount; break;
+                    // v0.7.99 — Juggernaut / Hunger propagation.
+                    case "JuggernautPower": newPlayerJuggernaut += amount; break;
+                    case "HungerPower": newPlayerHunger += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -440,6 +448,9 @@ internal static class AnalyticalSimulator
                         case "FeelNoPainPower": newPlayerFeelNoPain += amount; break;
                         // v0.7.98 — Skill-granted EchoForm (rare but possible).
                         case "EchoFormPower": newPlayerEchoForm += amount; break;
+                        // v0.7.99 — Skill-granted Juggernaut / Hunger.
+                        case "JuggernautPower": newPlayerJuggernaut += amount; break;
+                        case "HungerPower": newPlayerHunger += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -616,6 +627,41 @@ internal static class AnalyticalSimulator
         if (echoActive && newPlayerEchoForm > 0)
             newPlayerEchoForm--;
 
+        // v0.7.99 — JuggernautPower: each block-gain event deals N damage to a
+        // random enemy. Approximation: if net block increased during card
+        // resolve, fire once for the weakest alive enemy. Under-credits cards
+        // with multiple block sources (Rage + Afterimage + skill block) but
+        // avoids over-credit.
+        if (newPlayerJuggernaut > 0 && newPlayerBlock > initialPlayerBlock)
+        {
+            int weakestIdx = -1;
+            int weakestHp = int.MaxValue;
+            for (int i = 0; i < next.Enemies.Count; i++)
+            {
+                if (!next.Enemies[i].IsAlive) continue;
+                if (next.Enemies[i].Hp < weakestHp)
+                {
+                    weakestHp = next.Enemies[i].Hp;
+                    weakestIdx = i;
+                }
+            }
+            if (weakestIdx >= 0)
+            {
+                var updated = new List<SimEnemy>(next.Enemies);
+                var tgt = updated[weakestIdx];
+                int blockAfter = System.Math.Max(0, tgt.Block - newPlayerJuggernaut);
+                int dmgPastBlock = System.Math.Max(0, newPlayerJuggernaut - tgt.Block);
+                int hpAfter = System.Math.Max(0, tgt.Hp - dmgPastBlock);
+                updated[weakestIdx] = tgt with { Hp = hpAfter, Block = blockAfter };
+                next = next with { Enemies = updated };
+            }
+        }
+
+        // v0.7.99 — HungerPower: each card drawn grants Strength +N. Apply
+        // BEFORE returning so depth-N lookahead sees the bumped Strength.
+        if (newPlayerHunger > 0 && card.DrawCount > 0)
+            newPlayerStr += newPlayerHunger * card.DrawCount;
+
         return next with
         {
             PlayerHp = newPlayerHp,
@@ -638,6 +684,8 @@ internal static class AnalyticalSimulator
             PlayerThorns = newPlayerThorns,
             PlayerFeelNoPain = newPlayerFeelNoPain,
             PlayerEchoForm = newPlayerEchoForm,
+            PlayerJuggernaut = newPlayerJuggernaut,
+            PlayerHunger = newPlayerHunger,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
