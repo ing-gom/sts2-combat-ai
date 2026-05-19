@@ -432,19 +432,21 @@ internal static class AnalyticalSimulator
 
             if (selfTarget && card.Block > 0)
             {
-                int eff = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
-                // v0.7.85 — UnmovablePower: first block card/turn ×2. Single-shot
-                // per turn (canonical STS). Consume the flag on use.
+                int perPlayBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
+                // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
+                // multiple times. Each resolution is a separate "block card play".
+                int plays = burstMul * echoMul;
+                int totalBlock = perPlayBlock * plays;
+                // v0.7.85 + v0.8.4 — UnmovablePower: first block card play/turn ×2.
+                // Canonical STS: when a card plays multiple times via Burst/Echo,
+                // ONLY the first of those plays gets the Unmovable doubling — not
+                // every multiplied copy. So add ONE more perPlayBlock (not totalBlock).
                 if (newPlayerUnmovable > 0 && !newUnmovableUsedThisTurn)
                 {
-                    eff *= 2;
+                    totalBlock += perPlayBlock;
                     newUnmovableUsedThisTurn = true;
                 }
-                // v0.7.95 — Burst stacks with Unmovable multiplicatively
-                // (canonical STS: independent multipliers compose).
-                // v0.7.98 — EchoForm also compounds multiplicatively.
-                eff *= burstMul * echoMul;
-                newPlayerBlock += eff;
+                newPlayerBlock += totalBlock;
             }
 
             // v0.5 — Self-targeted skills that apply self-buffs (Strength/Dex from
