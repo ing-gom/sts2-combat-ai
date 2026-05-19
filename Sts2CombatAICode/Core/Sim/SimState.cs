@@ -101,6 +101,11 @@ internal sealed record SimState
     // turn grants Strength +N. Simulator applies on card.DrawCount; PlanScorer
     // credits draw cards.
     public int PlayerHunger { get; init; }
+    // v0.8.0 — FlameBarrierPower: 1-turn reflect-on-receive (functionally
+    // equivalent to ThornsPower for the duration). Combined with PlayerThorns
+    // in PredictPlayerDmg / PredictRawLeak so enemies die mid-attack-sequence
+    // to the combined reflect.
+    public int PlayerFlameBarrier { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
