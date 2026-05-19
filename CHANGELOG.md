@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.8.8 (2026-05-19)
+
+**AdvanceTurn 통합 테스트 12개 — turn-end resolution coverage.**
+
+### 배경
+
+`AnalyticalSimulator.AdvanceTurn` 은 매 턴 끝마다 호출되는 복합 로직:
+- enemy 공격 resolve + Buffer 소비
+- ally 공격 + ally 방어 absorption
+- enemy DoT tick (Poison + Constrict + Doom) + debuff decrement
+- player 디버프 decrement
+- 턴 시작 power 효과 (DemonForm, Ritual, Regen, Barricade, EchoForm)
+- block reset (Barricade 활성 시 carry)
+- energy reset (3)
+- 다음 턴 hand draw
+
+이전 회귀 커버리지: **0개**. 한 차례 패치라도 AdvanceTurn 깨면 감지 불가.
+
+### 추가된 테스트 12개
+
+| # | 검증 |
+|---|---|
+| 1 | Energy reset 0 → 3 |
+| 2 | Block reset 10 → 0 (no Barricade) |
+| 3 | Block carryover 10 → 10 (BarricadePower) |
+| 4 | DemonFormPower 2 → +2 Strength |
+| 5 | RegenPower 5 → +5 HP |
+| 6 | Enemy Poison 5 → 5 damage tick + decrement to 4 |
+| 7 | Enemy Vuln/Weak decrement (3→2, 2→1) |
+| 8 | Player Vuln/Weak/Frail decrement |
+| 9 | Enemy Ritual (HasTurnStartStrengthBuff) → +1 Strength |
+| 10 | PlayerDoom 5 → -5 HP self-damage |
+| 11 | FlameBarrier 5 → 0 (1-turn expires) |
+| 12 | UnmovableUsedThisTurn true → false (re-arm) |
+
+### 결과
+
+```
+=== 94 passed, 7 failed ===
+```
+
+신규 12 테스트 전부 PASS. 실패 7개는 기존 stale draw 테스트 (별도 작업).
+
+### 의의
+
+- AnalyticalSimulator 의 두 main 진입점 (ApplyCardPlay + AdvanceTurn) 모두 회귀 안전망 확보.
+- 새 turn-end power 추가 시 동일 패턴으로 테스트 가능.
+- 향후 simulator 리팩터 시 안전성 보장.
+
+---
+
 ## v0.8.7 (2026-05-19)
 
 **4-source reactive block cap — PlanScorer 의 over-credit 방지.**
