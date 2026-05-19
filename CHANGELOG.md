@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.8.4 (2026-05-19)
+
+**Unmovable × Burst × Echo 3-way compound fix — canonical first-play-only model.**
+
+### 이전 모델 (v0.8.3 까지)
+
+```csharp
+int eff = baseBlock;
+if (Unmovable + !used) eff *= 2;
+eff *= burstMul * echoMul;
+```
+
+3-way (Unmov + Burst + Echo) 동시 active: 5 × 2 × 2 × 2 = **40 (8× base)**.
+
+### Canonical STS 동작
+
+Burst + Echo 가 active → 카드가 `burstMul × echoMul` 번 RESOLVE. Unmovable
+은 그 중 **첫 play 만** doubled. 나머지 plays 는 normal.
+
+수식:
+```
+plays = burstMul × echoMul
+total = perPlayBlock × plays
+if (Unmovable + !used) total += perPlayBlock   // +1× from doubled first play
+```
+
+3-way 시: 5 × 4 + 5 = **25 (5× base)**. 이전 40 대비 38% 감소 (=canonical).
+
+### 변경
+
+`AnalyticalSimulator.cs` skill self-block + `PlanScorer.cs` skill block 평가
+모두 새 모델로 통일.
+
+| 시나리오 | base=5 | 이전 | 신 (canonical) |
+|---|---:|---:|---:|
+| 단독 | 5 | 5 | 5 |
+| Unmov | 5 | 10 | **10** |
+| Burst | 5 | 10 | **10** |
+| Echo | 5 | 10 | **10** |
+| Unmov + Burst | 5 | 20 | **15** |
+| Burst + Echo | 5 | 20 | **20** |
+| Unmov + Echo | 5 | 20 | **15** |
+| Unmov + Burst + Echo | 5 | 40 | **25** |
+
+단일 multiplier 케이스는 동일 (canonical). 2-way / 3-way 에서 Unmovable
+관여 시 over-credit 제거.
+
+### 영향
+
+- 일반 케이스 (1-2 multiplier) score 변화 없음 → 회귀 위험 거의 0.
+- 극단 3-way edge case 만 점수 정확화. 발생 빈도 매우 낮음.
+- Necrobinder + Watcher 멀티플레이어 동시 시나리오에서 의미.
+
+---
+
 ## v0.8.3 (2026-05-19)
 
 **Enemy.Powers dict catch-all + within-turn multiplier 검증.**

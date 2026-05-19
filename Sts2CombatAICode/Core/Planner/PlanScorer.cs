@@ -1094,35 +1094,24 @@ internal static class PlanScorer
             // raw Block is per-card; the realised block scales with eligible hand.
             int blockMultiplier = EstimateBlockMultiplier(card, state);
             int rawBlock = card.Block * System.Math.Max(1, blockMultiplier);
-            int effectiveBlock = StatusMath.EffectiveBlock(rawBlock,
+            int perPlayBlock = StatusMath.EffectiveBlock(rawBlock,
                 state.PlayerDexterity, state.PlayerFrail > 0);
-            // v0.7.85 — UnmovablePower doubles the first block card/turn. When
-            // scoring a candidate as the immediate play AND Unmovable is still
-            // unused, credit the doubled value. Caller's depth-N lookahead will
-            // see `UnmovableUsedThisTurn=true` post-simulation so subsequent
-            // blocks score normally.
-            if (state.PlayerUnmovable > 0 && !state.UnmovableUsedThisTurn && effectiveBlock > 0)
+            // v0.8.4 — Canonical compound model. Burst + Echo make the card
+            // RESOLVE multiple times; Unmovable doubles only the FIRST of those
+            // plays. Previously each multiplier was applied as a pure ×2 on
+            // the running effectiveBlock, which over-credited the 3-way case
+            // (Unmov × Burst × Echo) by ~60%.
+            int plays = (state.PlayerBurst > 0 ? 2 : 1) * (state.PlayerEchoForm > 0 ? 2 : 1);
+            int effectiveBlock = perPlayBlock * plays;
+            // v0.7.85 — Unmovable adds ONE more perPlayBlock (the first play
+            // doubled), not a multiplier on the already-multiplied total.
+            if (state.PlayerUnmovable > 0 && !state.UnmovableUsedThisTurn && perPlayBlock > 0)
             {
-                int bonus = effectiveBlock;  // doubles → +1× of base
-                effectiveBlock += bonus;
-                details.Add($"unmovable×2(+{bonus})");
+                effectiveBlock += perPlayBlock;
+                details.Add($"unmovable(+{perPlayBlock})");
             }
-            // v0.7.95 — BurstPower: next Skill effect ×2 (single-shot). Apply
-            // before AfterimagePower so Afterimage adds its block once (per card
-            // play, not per duplicate skill).
-            if (state.PlayerBurst > 0 && effectiveBlock > 0)
-            {
-                int bonus = effectiveBlock;
-                effectiveBlock += bonus;
-                details.Add($"burst×2(+{bonus})");
-            }
-            // v0.7.98 — EchoFormPower: any-card-type ×2 while charges remain.
-            if (state.PlayerEchoForm > 0 && effectiveBlock > 0)
-            {
-                int bonus = effectiveBlock;
-                effectiveBlock += bonus;
-                details.Add($"echo×2(+{bonus})");
-            }
+            if (plays > 1)
+                details.Add($"plays×{plays}(burst{(state.PlayerBurst > 0 ? 1 : 0)}+echo{(state.PlayerEchoForm > 0 ? 1 : 0)})");
             // v0.7.85 — AfterimagePower: +N block on every card play (this one too).
             if (state.PlayerAfterimage > 0)
             {
