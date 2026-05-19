@@ -116,6 +116,8 @@ internal static class AnalyticalSimulator
         int newPlayerHunger = next.PlayerHunger;
         // v0.8.0 — FlameBarrier reflect (1-turn).
         int newPlayerFlameBarrier = next.PlayerFlameBarrier;
+        // v0.8.1 — DanseMacabre (cost≥2 card → block N).
+        int newPlayerDanseMacabre = next.PlayerDanseMacabre;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -200,6 +202,8 @@ internal static class AnalyticalSimulator
                     case "HungerPower": newPlayerHunger += amount; break;
                     // v0.8.0 — FlameBarrier (1-turn reflect).
                     case "FlameBarrierPower": newPlayerFlameBarrier += amount; break;
+                    // v0.8.1 — DanseMacabre (cost≥2 card → block N).
+                    case "DanseMacabrePower": newPlayerDanseMacabre += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -457,6 +461,8 @@ internal static class AnalyticalSimulator
                         case "HungerPower": newPlayerHunger += amount; break;
                         // v0.8.0 — Skill-granted FlameBarrier.
                         case "FlameBarrierPower": newPlayerFlameBarrier += amount; break;
+                        // v0.8.1 — Skill-granted DanseMacabre.
+                        case "DanseMacabrePower": newPlayerDanseMacabre += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -626,6 +632,13 @@ internal static class AnalyticalSimulator
         if (newPlayerFeelNoPain > 0 && card.IsExhaust)
             newPlayerBlock += StatusMath.EffectiveBlock(newPlayerFeelNoPain, newPlayerDex, playerFrail);
 
+        // v0.8.1 — DanseMacabrePower: gain N block on cost≥2 card play. Per
+        // STS2 catalog: "Whenever you play a card with cost ≥ 2, gain N block."
+        // card.Cost is the catalog cost; 0-cost cards (including free Skills
+        // under Corruption) do NOT trigger Danse.
+        if (newPlayerDanseMacabre > 0 && card.Cost >= 2)
+            newPlayerBlock += StatusMath.EffectiveBlock(newPlayerDanseMacabre, newPlayerDex, playerFrail);
+
         // v0.7.98 — Consume one EchoForm charge per card resolve. Subsequent
         // cards in depth-N lookahead see one less remaining echo. Curse/Status
         // cards still count as plays (canonical: Echo Form text says "you play",
@@ -693,6 +706,7 @@ internal static class AnalyticalSimulator
             PlayerJuggernaut = newPlayerJuggernaut,
             PlayerHunger = newPlayerHunger,
             PlayerFlameBarrier = newPlayerFlameBarrier,
+            PlayerDanseMacabre = newPlayerDanseMacabre,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
