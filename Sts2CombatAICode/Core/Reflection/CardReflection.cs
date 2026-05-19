@@ -300,7 +300,8 @@ internal static class CardReflection
                     // pipelines see RagePower:N. Card-id gated to avoid colliding
                     // with other generic "Power" vars (Power-type cards' own stacks
                     // are already covered by PowerCatalog id-derived lookup).
-                    else if (v.Name == "Power" && card.Id.Entry == "CARD.RAGE")
+                    // v0.7.87 — Id.Entry has no CARD. prefix (verified by v0.7.80 stars diagnostic).
+                    else if (v.Name == "Power" && card.Id.Entry == "RAGE")
                     {
                         powerApps ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                         if (powerApps.TryGetValue("RagePower", out var ex))
