@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.8.0 (2026-05-19)
+
+**FlameBarrierPower — 1턴 reflect (Thorns 와 같은 메커니즘).**
+
+### 변경
+
+- `SimState.PlayerFlameBarrier` 신설.
+- `StateSnapshotter` 가 FlameBarrierPower stack 주입.
+- `EnemyTurnSimulator.PredictPlayerDmg` / `PredictRawLeak`:
+  - `playerThornsAmt = s.PlayerThorns + s.PlayerFlameBarrier` (Intangible 경로 포함).
+  - 둘 다 reflect 로 enemy hits cap 동일하게 처리.
+- `AnalyticalSimulator`:
+  - Power/Skill self-apply switch 에 FlameBarrierPower 케이스.
+  - Final state carry.
+  - **AdvanceTurn 에서 `PlayerFlameBarrier = 0`** (1-turn 자동 만료).
+
+### 메커니즘
+
+FlameBarrier 는 STS1 의 1-turn reflect buff: "이번 턴 받는 모든 공격이 attacker
+에게 N damage 반사". Thorns 와 효과 동일하나 영구 vs 1-turn 의 차이.
+
+### v0.8.0 milestone
+
+EffectSynergy / Simulator 의 Power propagation 누락이 거의 모두 정리됨:
+- Vigor/Buffer/Lethality/Tracking/Cruelty/Rage/Afterimage/Unmovable/Accuracy
+- Enrage/Corruption/Burst
+- Thorns/FeelNoPain/EchoForm/Juggernaut/Hunger/FlameBarrier
+
+남은 (skip):
+- DanseMacabrePower — Shiv 카드를 hand 에 추가하는 메커니즘. SimCard 생성 복잡도로 별도 작업.
+- Generic PlayerPowers dict propagation — 모든 누락 power 를 catch-all 로 carry. 현재
+  명시 case 들이 주요 power 를 cover 하므로 후순위.
+
+---
+
 ## v0.7.99 (2026-05-19)
 
 **JuggernautPower (block→damage) + HungerPower (draw→Strength).**

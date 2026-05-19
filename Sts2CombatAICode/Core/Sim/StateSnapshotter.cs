@@ -65,6 +65,8 @@ internal static class StateSnapshotter
             // v0.7.99 — JuggernautPower (block→damage) + HungerPower (draw→Strength).
             int playerJuggernaut = CombatReflection.GetPowerAmount(creature, "JuggernautPower");
             int playerHunger = CombatReflection.GetPowerAmount(creature, "HungerPower");
+            // v0.8.0 — FlameBarrierPower (1-turn reflect; folds into Thorns).
+            int playerFlameBarrier = CombatReflection.GetPowerAmount(creature, "FlameBarrierPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -313,6 +315,7 @@ internal static class StateSnapshotter
                 PlayerEchoForm = System.Math.Max(0, echoStack - (turnAttacksPlayed + turnSkillsPlayed)),
                 PlayerJuggernaut = playerJuggernaut,
                 PlayerHunger = playerHunger,
+                PlayerFlameBarrier = playerFlameBarrier,
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next
