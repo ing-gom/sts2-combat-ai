@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.7.89 (2026-05-19)
+
+**EffectSynergy 배치 2 — Forge / Skeleton / OrbSlots 17개 revive.**
+
+### 변경
+
+`EffectSynergy.cs` 의 17개 핸들러에서 `CARD.` prefix 제거:
+
+**SUMMON_FORTH** (Regent C 1c, Forge 8 + Blade fetch) — ApplySummonForthForge.
+**THE_SMITH** (Forge 30) — ApplyTheSmithForge30.
+**AFTERLIFE** (Skeleton summon 6, cost 1) — ApplySkeletonSummon6.
+**LEGION_OF_BONE** (Skeleton summon 6, cost 2) — ApplySkeletonSummon6.
+
+**Skeleton summon-N (7개)**:
+- CLEANSE(3), INVOKE(2), BODYGUARD(5), NECRO_MASTERY(5),
+  PULL_AGGRO(4), SPUR(3), REANIMATE(20)
+
+**Forge generic (4개)** + **BIG_BANG combo**:
+- REFINE_BLADE(9), SPOILS_OF_BATTLE(5), WROUGHT_IN_WAR(7), BULWARK(10),
+  BIG_BANG (Forge 5 + Stars 1)
+
+**OrbSlots**:
+- BULK_UP — ApplyBulkUpOrbSlots (Defect orb-slot penalty)
+
+### 점수 영향
+
+각 핸들러는 카드별 magnitude 에 비례한 score bonus 추가:
+- THE_SMITH (Forge 30) → 빌드에 Blade 가 많거나 미래 Sovereign Blade 빌드 시 큰 보너스.
+- REANIMATE (Skeleton 20) → 가장 큰 단일 Skeleton-summon bonus, archetype 일치 시 핵심.
+- BULK_UP → Defect mid/late game 에서 orb-slot -1 의 페널티 차감 반영.
+
+이전엔 모두 dead 라 0 추가. 이제 archetype 빌드 (Necrobinder skeleton / Sovereign Blade forge) 카드의 우선순위가 비로소 정확화.
+
+### 잔여 dead handler
+
+EffectSynergy 의 나머지 **114개** — 다음 배치 (Archetype Power, Orb/Regent, Misc Powers, Exhaust, Variance 등) 분할 활성화.
+
+---
+
 ## v0.7.88 (2026-05-19)
 
 **EffectSynergy 배치 1 — 별 핸들러 10개 revive + 부수 버그 fix.**
