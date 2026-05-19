@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.7.97 (2026-05-19)
+
+**FeelNoPainPower — Exhaust 시 block N (Ironclad reactive).**
+
+### 변경
+
+- `SimState.PlayerFeelNoPain` 신설.
+- `StateSnapshotter` 가 FeelNoPainPower stack 주입.
+- `AnalyticalSimulator`:
+  - Power/Skill self-apply switch 에 케이스 추가.
+  - 카드 resolve 끝 `if (newPlayerFeelNoPain > 0 && card.IsExhaust)` →
+    `newPlayerBlock += EffectiveBlock(FeelNoPain)`. Afterimage 와 같은 위치.
+  - Final state carry.
+- `PlanScorer`:
+  - 공격 평가의 `attackReactiveBlock` 에 FeelNoPain (exhaust 카드 한정) 가산.
+  - 스킬 block 평가에 FeelNoPain (exhaust 스킬 한정) 가산.
+
+### 기대 효과
+
+- FeelNoPain 4 + Exhaust 카드 → block +4 즉시 score 반영 + simulator 누적.
+- Ironclad Exhaust 빌드 (Dark Embrace + Feel No Pain 콤보) 의 defensive 우선순위 정확화.
+
+---
+
 ## v0.7.96 (2026-05-19)
 
 **Player ThornsPower — threat 추정에 반사 데미지 반영.**
