@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.7.96 (2026-05-19)
+
+**Player ThornsPower — threat 추정에 반사 데미지 반영.**
+
+### 변경
+
+- `SimState.PlayerThorns` 신설.
+- `StateSnapshotter` 가 ThornsPower stack 주입.
+- `AnalyticalSimulator` Power/Skill self-apply switch 에 ThornsPower 케이스 추가
+  + final state carry.
+- `EnemyTurnSimulator.PredictPlayerDmg` / `PredictRawLeak`:
+  - Player Thorns 활성 시 각 enemy 의 max-hits 를 `enemy.HP / playerThorns` 로 cap.
+  - Intangible 경로도 동일 cap 적용.
+
+### 메커니즘
+
+Thorns 는 받는 hit 당 attacker 에게 N 데미지 반사. 적이 다수 hit 공격 (Cultist
+ritual stack / multi-strike intent) 중 thorns 누적 데미지로 사망하면 남은
+hit 들이 발사 안 됨. PredictPlayerDmg 가 이를 인식하므로:
+
+- Thorns 5 + 적 HP 12 + Atk 3×4 hits → 적은 3 hits 만 가능 (12/5=2.4→ 3),
+  4번째 hit 직전 사망. 이전엔 4 hits 다 받는 것으로 계산.
+
+### 기대 효과
+
+Ironclad Thorns 빌드 / 일부 유물 (Thorns 부여) 보유 시 lethal 윈도우와 threat
+정확도 상승. multi-hit 적 (cultist, slime stack) 에 특히 영향.
+
+---
+
 ## v0.7.95 (2026-05-19)
 
 **BurstPower — 다음 Skill 효과 ×2 (single-shot per stack).**

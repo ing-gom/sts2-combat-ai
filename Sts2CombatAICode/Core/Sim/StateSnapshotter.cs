@@ -55,6 +55,8 @@ internal static class StateSnapshotter
             int playerCorruption = CombatReflection.GetPowerAmount(creature, "CorruptionPower");
             // v0.7.95 — Next Skill ×2.
             int playerBurst = CombatReflection.GetPowerAmount(creature, "BurstPower");
+            // v0.7.96 — Player Thorns (reflect damage on receiving a hit).
+            int playerThorns = CombatReflection.GetPowerAmount(creature, "ThornsPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -297,6 +299,7 @@ internal static class StateSnapshotter
                 PlayerEnrage = playerEnrage,
                 PlayerCorruption = playerCorruption,
                 PlayerBurst = playerBurst,
+                PlayerThorns = playerThorns,
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next

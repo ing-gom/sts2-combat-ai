@@ -78,6 +78,12 @@ internal sealed record SimState
     // consumes 1 stack. Effects affected: block, applied debuffs/buffs, draw,
     // energy gain — anything that comes from the Skill's onPlay resolution.
     public int PlayerBurst { get; init; }
+    // v0.7.96 — Player ThornsPower: reflects N damage to attacker per hit
+    // received. Modeled in PredictPlayerDmg / PredictRawLeak to early-kill
+    // low-HP enemies and cut their remaining hits from the leak total.
+    // (Card-side thorns reflection on attacking thorn enemies is handled
+    // separately by SimEnemy.ThornsAmount in AnalyticalSimulator.)
+    public int PlayerThorns { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
