@@ -19,6 +19,16 @@ namespace Sts2CombatAI.Sim;
 /// </summary>
 internal static class StateSnapshotter
 {
+    // v0.8.5 — One-shot reflection-failure logger. Prevents per-frame spam when
+    // STS2 patches break a field name while still surfacing the problem once
+    // per session so the user can see the issue in godot.log.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _loggedFailures = new();
+    private static void LogReflectionFailureOnce(string site, System.Exception ex)
+    {
+        if (_loggedFailures.TryAdd(site, 0))
+            MainFile.Logger.Warn($"[CombatAI] snapshot/{site} reflection failed: {ex.Message}");
+    }
+
     public static SimState? Capture(Player player)
     {
         try
@@ -119,13 +129,13 @@ internal static class StateSnapshotter
                                 else if (raw is int i) evokeVal = i;
                                 else if (raw != null) evokeVal = System.Convert.ToInt32(raw);
                             }
-                            catch { }
+                            catch (System.Exception ex) { LogReflectionFailureOnce("orb-evoke", ex); }
                         }
                         orbEvokeValues.Add(evokeVal);
                     }
                 }
             }
-            catch { }
+            catch (System.Exception ex) { LogReflectionFailureOnce("orb-snapshot", ex); }
 
             var enemies = new List<SimEnemy>();
             var rawEnemies = cs.HittableEnemies.ToList();
@@ -232,7 +242,7 @@ internal static class StateSnapshotter
                     });
                 }
             }
-            catch { }
+            catch (System.Exception ex) { LogReflectionFailureOnce("allies-snapshot", ex); }
 
             // v0.6.8 — Turn / combat history counters. Walk CombatHistory.Entries
             // once, accumulating:
@@ -277,7 +287,7 @@ internal static class StateSnapshotter
                     }
                 }
             }
-            catch { /* counters stay 0 — defensive */ }
+            catch (System.Exception ex) { LogReflectionFailureOnce("history-walk", ex); }
 
             // v0.5.1 — Pile cards skip the CanPlay() check (irrelevant outside hand)
             // but reuse the same builder so Effect / Cost / Kind are consistent with

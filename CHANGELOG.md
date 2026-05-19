@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.8.5 (2026-05-19)
+
+**Code-quality 정리 — Reflection 무로그 catch 제거 + null-safety + 빌드 경고 0 (우리 코드).**
+
+### 1. Reflection silent catch → one-shot 로그
+
+`catch { }` 6 곳을 `ConcurrentDictionary` 기반 one-shot 로그로 변환. STS2
+패치로 field 가 깨지면 godot.log 에 즉시 노출. 동일 site 는 1번만 로그
+(per-frame spam 방지).
+
+- `StateSnapshotter.cs:122, 128, 245, 290` — orb-evoke, orb-snapshot,
+  allies-snapshot, history-walk.
+- `CombatReflection.cs:61, 90` — `GetPowerAmount("X")`, `GetAllPowers`.
+- `CardReflection.cs:432` — `SafeStarCost` (기존 `LogWarn` sink 활용).
+
+### 2. PlanScorer dict 활용 검토
+
+원래 의도된 작업이지만 검토 결과 v0.8.2 catch-all 이 이미 모든 dict
+consumer (5 호출 across 4 파일) 에 자동 반영. 별도 작업 불필요.
+
+### 3. 빌드 경고 5 → 0 (우리 코드)
+
+- `CardReflection.cs:395` — `ResolveStarCost(CardModel? card)` 로 nullable
+  서명 + 본문 null-guard.
+- `VakuuExecutor.cs:399` — `if (player.Creature != null) TalkCmd.Play(...)`.
+- `VakuuExecutor.cs:438` — `picked != null && picked.IsAlive`.
+- `VakuuExecutor.cs:442` — `card.TargetType` 호출 전 `if (card == null) return null;`.
+- `AnalyticalSimulator.cs:788` — `(IReadOnlyDictionary<string,int>?)` cast +
+  fallback empty dict.
+
+남은 1 경고는 Godot SourceGenerator (`GodotPlugins.Game.generated.cs`) 의
+외부 generated code 충돌, 우리 코드 영향 없음.
+
+### 의의
+
+향후 STS2 패치 적용 시:
+- field 이름 변경 → 즉시 godot.log 에 `[CombatAI] reflection/X failed: ...`
+  메시지 노출. 사용자가 직접 발견 가능.
+- 우리 코드 null-safety warning 0 → 새 변경 추가 시 진짜 null bug 가
+  build output 에 두드러져 발견 쉬움.
+
+---
+
 ## v0.8.4 (2026-05-19)
 
 **Unmovable × Burst × Echo 3-way compound fix — canonical first-play-only model.**
