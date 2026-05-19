@@ -207,69 +207,70 @@ internal static class EffectSynergy
             ApplySwordSageTickValue(card, state, ref b, parts);
         else if (card.Id == "PARRY")
             ApplyParryTickValue(card, state, ref b, parts);
+        // v0.7.92 — Prefix stripped. Doom/Volatile + Cross-character + Skill mechanics.
         // v0.7.30 — Doom / Volatile stem (Necrobinder). Doom = DoT-style stack
         // on enemies (and on player for self-Doom). Volatile = Ethereal cards
         // that auto-exhaust at turn end. Doom-based Powers scale with
         // RemainingTurns; Volatile-based Powers scale with Ethereal count.
-        else if (card.Id == "CARD.COUNTDOWN")
+        else if (card.Id == "COUNTDOWN")
             ApplyCountdownTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.RUPTURE")
+        else if (card.Id == "RUPTURE")
             ApplyRuptureTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.PAGESTORM")
+        else if (card.Id == "PAGESTORM")
             ApplyPagestormTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.LETHALITY")
+        else if (card.Id == "LETHALITY")
             ApplyLethalityTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.DEMESNE")
+        else if (card.Id == "DEMESNE")
             ApplyDemesneTickValue(card, state, ref b, parts);
         // v0.7.31 — Cross-character impact residuals. Five high-priority
         // Powers across multiple characters: each gates on a different state
         // signal (turns / HP_LOSS cards / aliveEnemies / draw rate / hand size).
-        else if (card.Id == "CARD.PYRE")
+        else if (card.Id == "PYRE")
             ApplyPyreTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.INFERNO")
+        else if (card.Id == "INFERNO")
             ApplyInfernoTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.AUTOMATION")
+        else if (card.Id == "AUTOMATION")
             ApplyAutomationTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.OUTBREAK")
+        else if (card.Id == "OUTBREAK")
             ApplyOutbreakTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.PALE_BLUE_DOT")
+        else if (card.Id == "PALE_BLUE_DOT")
             ApplyPaleBlueDotTickValue(card, state, ref b, parts);
         // v0.7.43 — DECISIONS_DECISIONS (어려운 결정): choose 1 Skill in hand,
         // play it 3 times. 0-cost / 6-star Rare. REPEAT axis previously
         // unscored — the card looked like a plain draw card to the AI.
-        else if (card.Id == "CARD.DECISIONS_DECISIONS")
+        else if (card.Id == "DECISIONS_DECISIONS")
             ApplyDecisionsDecisionsRepeat(card, state, ref b, parts);
         // v0.7.44 — Skill cards with mechanics not captured by generic axes.
         // X-cost skills (MALAISE/DIRGE/MULTI_CAST/TEMPEST) scale with remaining
         // energy. REPEAT/replay skills (QUADCAST/MODDED) multiply per-card effect.
-        else if (card.Id == "CARD.QUADCAST")
+        else if (card.Id == "QUADCAST")
             ApplyQuadcastEvoke(card, state, ref b, parts);
-        else if (card.Id == "CARD.MULTI_CAST")
+        else if (card.Id == "MULTI_CAST")
             ApplyMultiCastEvoke(card, state, ref b, parts);
-        else if (card.Id == "CARD.TEMPEST")
+        else if (card.Id == "TEMPEST")
             ApplyTempestChannel(card, state, ref b, parts);
-        else if (card.Id == "CARD.MALAISE")
+        else if (card.Id == "MALAISE")
             ApplyMalaiseXWeak(card, state, ref b, parts);
-        else if (card.Id == "CARD.DIRGE")
+        else if (card.Id == "DIRGE")
             ApplyDirgeXSouls(card, state, ref b, parts);
-        else if (card.Id == "CARD.MODDED")
+        else if (card.Id == "MODDED")
             ApplyModdedReplay(card, state, ref b, parts);
         // v0.7.45 — PROLONG (연장, Shared, A): next turn, gain block equal to
         // current block. EXHAUST_SELF. Pure state-dependent (PlayerBlock); the
         // BLOCK axis alone doesn't see this since card.Block == 0.
-        else if (card.Id == "CARD.PROLONG")
+        else if (card.Id == "PROLONG")
             ApplyProlongCarryover(card, state, ref b, parts);
         // v0.7.46 — Discard-all skills with extra payoffs the CUNNING handler
         // doesn't capture (Shiv generation, next-turn damage doubling).
-        else if (card.Id == "CARD.STORM_OF_STEEL")
+        else if (card.Id == "STORM_OF_STEEL")
             ApplyStormOfSteelShivs(card, state, ref b, parts);
-        else if (card.Id == "CARD.SHADOW_STEP")
+        else if (card.Id == "SHADOW_STEP")
             ApplyShadowStepDoubleDmg(card, state, ref b, parts);
         // v0.7.65 — Skill-attack linkage cards with unique mechanics not
         // captured by generic axis scoring.
-        else if (card.Id == "CARD.EXPOSE")
+        else if (card.Id == "EXPOSE")
             ApplyExposeStripArtifact(card, state, ref b, parts);
-        else if (card.Id == "CARD.CONQUEROR")
+        else if (card.Id == "CONQUEROR")
             ApplyConquerorBladeDouble(card, state, ref b, parts);
         // v0.7.89 — Forge / Skeleton / Combo handlers. Prefix stripped (v0.7.81 bug).
         // v0.7.66 — SUMMON_FORTH (Regent C 1c): Forge 8 + fetch Sovereign
@@ -328,15 +329,15 @@ internal static class EffectSynergy
         else if (card.Id == "CARD.ALCHEMIZE")         ApplyAlchemizePotion(card, state, ref b, parts);
         else if (card.Id == "CARD.BURNING_PACT")      ApplyBurningPactExhaustDraw(card, state, ref b, parts);
         else if (card.Id == "CARD.EVIL_EYE")          ApplyEvilEyeConditional(card, state, ref b, parts);
-        // v0.7.48 — Retain skill specific mechanics (batch 3/7).
+        // v0.7.92 — Prefix stripped. Retain skill specific mechanics.
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
         // PURITY: variable hand-exhaust value.
-        else if (card.Id == "CARD.SACRIFICE")
+        else if (card.Id == "SACRIFICE")
             ApplySacrificeBlock(card, state, ref b, parts);
-        else if (card.Id == "CARD.RESTLESSNESS")
+        else if (card.Id == "RESTLESSNESS")
             ApplyRestlessnessConditional(card, state, ref b, parts);
-        else if (card.Id == "CARD.PURITY")
+        else if (card.Id == "PURITY")
             ApplyPurityHandClean(card, state, ref b, parts);
         // v0.7.49 — Scaling-stem skills (batch 4/7). Upgrade / strength growth /
         // long-tail value mechanics not captured by SCALING axis alone.
