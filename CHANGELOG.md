@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.7.93 (2026-05-19)
+
+**EffectSynergy 최종 sweep — 나머지 57개 prefix 모두 fix. EffectSynergy 의 `card.Id == "CARD.X"` dead code 완전 제거.**
+
+### 변경 카테고리 (총 57 occurrences across 11 sections)
+
+- **Variance / pile (5)**: WISH, CASCADE, CATASTROPHE, UPROAR, BEAT_DOWN, HIDDEN_GEM, DRAIN_POWER.
+- **Exhaust (6)**: FEEL_NO_PAIN, PACTS_END, CHILL, ALCHEMIZE, BURNING_PACT, EVIL_EYE.
+- **Scaling stem (4)**: APOTHEOSIS, DOMINATE, BRAND, STOKE.
+- **Conditional / Heal / multi-turn (6)**: BATTLE_TRANCE, BORROWED_TIME, NOT_YET, PANIC_BUTTON, THE_BOMB, TORIC_TOUGHNESS.
+- **Self-growing attack (3)**: CLAW, MAUL, RAMPAGE.
+- **Defect orb stem (7)**: CAPACITOR, COOLANT, SPINNER, THUNDER, LOOP, CONSUMING_SHADOW, HAILSTORM.
+- **Self-copy / chain (6)**: ANGER, UNDEATH, DUAL_WIELD, HEIRLOOM_HAMMER, NIGHTMARE, ADAPTIVE_STRIKE.
+- **S-tier 1-path (7)**: ALL_FOR_ONE, PINPOINT, FLECHETTES, MAKE_IT_SO, SUNDER, TESLA_COIL, THRUMMING_HATCHET.
+- **B-tier 1-path (9)**: FINISHER, BOLAS, FOLLOW_THROUGH, EXPECT_A_FIGHT, SPITE, HEADBUTT, REBOUND, OUTMANEUVER, SEEKER_STRIKE.
+- **CardGen fallback (5)**: WHITE_NOISE, DISCOVERY, DISTRACTION, LARGESSE, SPLASH.
+- **Misc (2)**: PRECISE_CUT, ENLIGHTENMENT.
+
+### 종합 — v0.7.81 prefix 버그 완전 종결
+
+총 결과 (v0.7.81 부터):
+- v0.7.81: dict 키 2개 (StarCostByCardId, ThisTurnStarsGain) fix
+- v0.7.87: 9 safe sites fix (CardVariance / PlanScorer / RAGE)
+- v0.7.88: 별 핸들러 10개 revive
+- v0.7.89: Forge/Skeleton/OrbSlots 17개 revive
+- v0.7.90: Archetype Power 18개 revive
+- v0.7.91: Orb/Regent stem 10개 revive
+- v0.7.92: Doom/Volatile/Misc 25개 revive
+- **v0.7.93**: 나머지 57개 revive
+
+**총 ~146개** `"CARD.X"` 형식 비교가 정상 동작으로 전환. EffectSynergy 의
+모든 hardcoded card-id handler 가 비로소 활성화. PlanScorer 점수가 v0.7.81
+이전 대비 archetype 빌드 / 카드별 mechanic 인식 측면에서 정상화.
+
+### 회귀 위험
+
+대규모 점수 변화 가능. 특정 카드의 firstScore 가 갑자기 ~500-1200 상승 →
+다른 카드 대비 우선순위 변동. 특히:
+- 큰 magnitude 핸들러 (REANIMATE Skeleton 20, ROYAL_GAMBLE Stars 9,
+  THE_SMITH Forge 30) 가 lethal 윈도우에서 공격 카드를 누를 가능성.
+- Self-growing (CLAW/MAUL/RAMPAGE) 의 long-tail value 도입 → early-turn
+  우선순위 상승.
+
+회귀 발견 시 개별 핸들러 magnitude 튜닝 필요.
+
+---
+
 ## v0.7.92 (2026-05-19)
 
 **EffectSynergy 배치 5 — Doom/Volatile + Cross-character + Skill mechanics 25개 revive.**
