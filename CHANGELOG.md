@@ -1,5 +1,66 @@
 # Changelog
 
+## v0.8.2 (2026-05-19)
+
+**Generic PlayerPowers dict catch-all propagation.**
+
+### 이전 상태
+
+`AnalyticalSimulator.ApplyCardPlay` 의 self-apply switch 는 ~16 개 power 만
+explicit 처리. 그 외 power (e.g. **DemonForm, Ritual, Mayhem, DanseMacabre,
+PrepTime, Pyre, BeaconOfHope, BiasedCognition, BlurPower, BurningBlood,
+CrimsonMantle, CrueltyPower (이미 explicit), DarkEmbrace, FlameBarrier,
+HexPower, MachineLearning, NoDraw, NoBlock, NoEnergyGain, ReaperForm,
+ShadowmeldPower, StampedePower, TempoPower, VitalSpark, WraithForm, ...**) 가
+Power/Skill 카드로 부여돼도 silent drop. `SimState.PlayerPowers` dict 가
+snapshot 시점 값 그대로 → depth-N lookahead 가 새로 부여된 power 효과 미반영.
+
+### 변경
+
+`AnalyticalSimulator` 시작에 lazy-init 패턴의 `newPlayerPowers` dict + 헬퍼:
+
+```csharp
+Dictionary<string, int>? newPlayerPowers = null;
+void AddPlayerPower(string powerName, int delta)
+{
+    if (delta == 0) return;
+    newPlayerPowers ??= new Dictionary<>(next.PlayerPowers, OrdinalIgnoreCase);
+    newPlayerPowers[powerName] = ... + delta;
+}
+```
+
+- **Power card foreach** 시작에 `AddPlayerPower(powerName, amount)` 호출 (explicit
+  switch 이전).
+- **Skill self-target foreach** 시작에 동일.
+- Final state `next with { PlayerPowers = newPlayerPowers ?? next.PlayerPowers }`.
+
+### 효과
+
+- 명시 case 없는 모든 player-side power 가 카드 플레이 후 PlayerPowers dict 에
+  자동 반영.
+- `PowerCatalog` lookup, `state.PlayerPowers.TryGetValue("XPower", ...)` 검사
+  하는 모든 PlanScorer / HandSynergy / EffectSynergy 경로가 정확한 stack 사용.
+- 새 STS2 패치로 Power 추가 시 simulator 코드 수정 불필요 (자동 catch-all).
+- 기존 explicit fields (PlayerStrength / PlayerVigor / etc.) 와 dict 양쪽 모두
+  업데이트되어 sync 유지.
+
+### Enemy-side note
+
+적의 debuff power 도 비슷한 silent-drop 가능성 있음 (SimEnemy.Powers dict 미업데이트
+경로). 별도 작업 — 본 PR 범위 밖.
+
+### v0.8.x 정리
+
+- v0.7.81 ~ v0.7.93: EffectSynergy 의 146개 `card.Id == "CARD.X"` dead code fix.
+- v0.7.94 ~ v0.8.1: 16개 명시 power propagation (Enrage/Corruption/Burst/Thorns/
+  FeelNoPain/EchoForm/Juggernaut/Hunger/FlameBarrier/DanseMacabre + v0.7.82-86
+  의 데미지/블록 multipliers).
+- **v0.8.2: catch-all** — 나머지 모든 power 자동 propagation.
+
+→ STS2 의 Power 메커니즘 layer 가 시뮬레이터 / 스코어러에 거의 완전 통합됨.
+
+---
+
 ## v0.8.1 (2026-05-19)
 
 **DanseMacabrePower — cost≥2 카드 플레이 시 block N (Necrobinder).**
