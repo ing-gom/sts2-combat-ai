@@ -97,6 +97,8 @@ internal static class AnalyticalSimulator
         // v0.7.94 — Reactive Strength on Skill play + Skill cost-0 enabler.
         int newPlayerEnrage = next.PlayerEnrage;
         int newPlayerCorruption = next.PlayerCorruption;
+        // v0.7.95 — Next Skill ×2 (single-shot per stack).
+        int newPlayerBurst = next.PlayerBurst;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -162,6 +164,8 @@ internal static class AnalyticalSimulator
                     // v0.7.94 — Reactive Skill→Strength trigger + Skill cost-0 enabler.
                     case "EnragePower": newPlayerEnrage += amount; break;
                     case "CorruptionPower": newPlayerCorruption += amount; break;
+                    // v0.7.95 — Next Skill ×2 multiplier.
+                    case "BurstPower": newPlayerBurst += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -329,6 +333,11 @@ internal static class AnalyticalSimulator
             if (newPlayerEnrage > 0)
                 newPlayerStr += newPlayerEnrage;
 
+            // v0.7.95 — BurstPower: next Skill effect ×2. Single-shot per stack.
+            // Captured once at start of skill resolve; consumed at end.
+            bool burstActive = newPlayerBurst > 0;
+            int burstMul = burstActive ? 2 : 1;
+
             bool selfTarget = card.Target == TargetType.Self
                            || card.Target == TargetType.AnyPlayer;
 
@@ -342,6 +351,9 @@ internal static class AnalyticalSimulator
                     eff *= 2;
                     newUnmovableUsedThisTurn = true;
                 }
+                // v0.7.95 — Burst stacks with Unmovable multiplicatively
+                // (canonical STS: independent multipliers compose).
+                eff *= burstMul;
                 newPlayerBlock += eff;
             }
 
@@ -352,8 +364,13 @@ internal static class AnalyticalSimulator
             // applied their PowerApps; self skills were silently dropped.
             if (selfTarget && card.PowerApps.Count > 0)
             {
-                foreach (var (powerName, amount) in card.PowerApps)
+                foreach (var (powerName, rawAmount) in card.PowerApps)
                 {
+                    // v0.7.95 — Burst doubles all Skill self-buff amounts. The
+                    // *granting* skill (BurstPower itself if it's a skill) is
+                    // excluded so we don't recursively double-stack.
+                    bool grantsBurst = powerName == "BurstPower";
+                    int amount = grantsBurst ? rawAmount : rawAmount * burstMul;
                     switch (powerName)
                     {
                         case "StrengthPower":
@@ -382,6 +399,8 @@ internal static class AnalyticalSimulator
                         // v0.7.94 — Skill-granted Enrage / Corruption.
                         case "EnragePower": newPlayerEnrage += amount; break;
                         case "CorruptionPower": newPlayerCorruption += amount; break;
+                        // v0.7.95 — Skill-granted Burst.
+                        case "BurstPower": newPlayerBurst += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -413,7 +432,7 @@ internal static class AnalyticalSimulator
                     int newConstrict = enemy.ConstrictAmount;
                     int newBurn = enemy.BurnAmount;
                     int artifactLeft = enemy.ArtifactAmount;
-                    foreach (var (powerName, amount) in card.PowerApps)
+                    foreach (var (powerName, rawAmount) in card.PowerApps)
                     {
                         if (!IsEnemyDebuff(powerName)) continue;
                         if (artifactLeft > 0)
@@ -421,6 +440,8 @@ internal static class AnalyticalSimulator
                             artifactLeft--;
                             continue;
                         }
+                        // v0.7.95 — Burst doubles applied debuff amounts.
+                        int amount = rawAmount * burstMul;
                         switch (powerName)
                         {
                             case "VulnerablePower": newVuln += amount; break;
@@ -444,6 +465,13 @@ internal static class AnalyticalSimulator
                 }
                 next = next with { Enemies = newEnemies };
             }
+
+            // v0.7.95 — Consume one Burst stack after the skill resolves.
+            // Block / self-buffs / debuffs above already used `burstMul`; now
+            // subtract one from the carried stack so the NEXT skill in depth-N
+            // sees one less. Floor at 0.
+            if (burstActive && newPlayerBurst > 0)
+                newPlayerBurst--;
         }
 
         // v0.4 — Orb channel / evoke simulation. Mutates orb queue + may damage / block player.
@@ -553,6 +581,7 @@ internal static class AnalyticalSimulator
             PlayerAccuracy = newPlayerAccuracy,
             PlayerEnrage = newPlayerEnrage,
             PlayerCorruption = newPlayerCorruption,
+            PlayerBurst = newPlayerBurst,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
