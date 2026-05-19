@@ -93,9 +93,12 @@ internal static class ActionPlanner
             return "!IsPlayable";
         }
         if (c.Cost < 0) return "Cost<0";
+        // v0.7.94 — Honor both PlayerCorruption (depth-N propagated) and PlayerPowers
+        // (snapshot dict).
         bool corruptionFreeSkill = c.IsSkill
-            && state.PlayerPowers != null
-            && state.PlayerPowers.TryGetValue("CorruptionPower", out var cs) && cs > 0;
+            && ((state.PlayerCorruption > 0)
+                || (state.PlayerPowers != null
+                    && state.PlayerPowers.TryGetValue("CorruptionPower", out var cs) && cs > 0));
         bool freeCovers = (c.IsAttack && state.PlayerFreeAttacks > 0)
                        || (c.IsSkill && state.PlayerFreeSkills > 0)
                        || (c.IsPower && state.PlayerFreePowers > 0)
@@ -410,10 +413,15 @@ internal static class ActionPlanner
             if (card.Cost < 0) continue;           // Negative cost = X or unplayable signal
             // v0.5 — Free*Power lets us play expensive cards over the energy budget.
             // v0.7.21 — CorruptionPower makes Skill cards combat-wide 0-cost.
+            // v0.7.94 — Also honor SimState.PlayerCorruption (propagated by simulator
+            // after a Power card grants Corruption mid-turn). PlayerPowers is
+            // snapshot-time only; depth-N nextState may have Corruption granted but
+            // PlayerPowers not yet updated.
             bool corruptionFreeSkill = card.IsSkill
-                && state.PlayerPowers != null
-                && state.PlayerPowers.TryGetValue("CorruptionPower", out var corStack)
-                && corStack > 0;
+                && ((state.PlayerCorruption > 0)
+                    || (state.PlayerPowers != null
+                        && state.PlayerPowers.TryGetValue("CorruptionPower", out var corStack)
+                        && corStack > 0));
             bool freeCovers =
                 (card.IsAttack && state.PlayerFreeAttacks > 0) ||
                 (card.IsSkill && state.PlayerFreeSkills > 0) ||
