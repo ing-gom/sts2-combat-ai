@@ -1073,9 +1073,20 @@ internal static class PlanScorer
             if (state.PlayerDanseMacabre > 0 && card.Cost >= 2)
                 attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerDanseMacabre,
                     state.PlayerDexterity, state.PlayerFrail > 0);
-            int reactiveBlockBonus = attackReactiveBlock * w.BlockPerPointBonus;
+            // v0.8.7 — Cap per-card reactive block at 20. Prevents 4-source
+            // stacking (rare cross-character: Ironclad Rage + Watcher Afterimage
+            // + Necrobinder DanseMacabre + Ironclad FeelNoPain) from inflating
+            // attack score beyond any legitimate single-card block value
+            // (canonical STS biggest single-card defense ~20-30).
+            const int ReactiveBlockCap = 20;
+            int reactiveBlockClamped = System.Math.Min(attackReactiveBlock, ReactiveBlockCap);
+            int reactiveBlockBonus = reactiveBlockClamped * w.BlockPerPointBonus;
             if (reactiveBlockBonus != 0)
-                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage}+fnp{(card.IsExhaust ? state.PlayerFeelNoPain : 0)}+danse{(card.Cost >= 2 ? state.PlayerDanseMacabre : 0)})={reactiveBlockBonus}");
+            {
+                string capTag = attackReactiveBlock > ReactiveBlockCap
+                    ? $"(capped {attackReactiveBlock}→{ReactiveBlockCap})" : "";
+                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage}+fnp{(card.IsExhaust ? state.PlayerFeelNoPain : 0)}+danse{(card.Cost >= 2 ? state.PlayerDanseMacabre : 0)}){capTag}={reactiveBlockBonus}");
+            }
 
             int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
@@ -1112,30 +1123,38 @@ internal static class PlanScorer
             }
             if (plays > 1)
                 details.Add($"plays×{plays}(burst{(state.PlayerBurst > 0 ? 1 : 0)}+echo{(state.PlayerEchoForm > 0 ? 1 : 0)})");
-            // v0.7.85 — AfterimagePower: +N block on every card play (this one too).
+            // v0.8.7 — Reactive block sources (Afterimage / FeelNoPain / Danse)
+            // accumulated into a single bucket, then capped at 20 to prevent
+            // 3-source stacking from inflating the skill score beyond canonical
+            // single-card block value.
+            int skillReactiveBlock = 0;
+            int afterBlock = 0, fnpBlock = 0, danseBlock = 0;
             if (state.PlayerAfterimage > 0)
             {
-                int afterBlock = StatusMath.EffectiveBlock(state.PlayerAfterimage,
+                afterBlock = StatusMath.EffectiveBlock(state.PlayerAfterimage,
                     state.PlayerDexterity, state.PlayerFrail > 0);
-                effectiveBlock += afterBlock;
-                details.Add($"afterimage(+{afterBlock})");
+                skillReactiveBlock += afterBlock;
             }
-            // v0.7.97 — FeelNoPainPower: +N block if skill exhausts on play.
             if (state.PlayerFeelNoPain > 0 && card.IsExhaust)
             {
-                int fnpBlock = StatusMath.EffectiveBlock(state.PlayerFeelNoPain,
+                fnpBlock = StatusMath.EffectiveBlock(state.PlayerFeelNoPain,
                     state.PlayerDexterity, state.PlayerFrail > 0);
-                effectiveBlock += fnpBlock;
-                details.Add($"feelNoPain(+{fnpBlock})");
+                skillReactiveBlock += fnpBlock;
             }
-            // v0.8.1 — DanseMacabre: cost≥2 skill → +N block.
             if (state.PlayerDanseMacabre > 0 && card.Cost >= 2)
             {
-                int danseBlock = StatusMath.EffectiveBlock(state.PlayerDanseMacabre,
+                danseBlock = StatusMath.EffectiveBlock(state.PlayerDanseMacabre,
                     state.PlayerDexterity, state.PlayerFrail > 0);
-                effectiveBlock += danseBlock;
-                details.Add($"danse(+{danseBlock})");
+                skillReactiveBlock += danseBlock;
             }
+            const int SkillReactiveBlockCap = 20;
+            int skillReactiveClamped = System.Math.Min(skillReactiveBlock, SkillReactiveBlockCap);
+            effectiveBlock += skillReactiveClamped;
+            if (afterBlock > 0)  details.Add($"afterimage(+{afterBlock})");
+            if (fnpBlock > 0)    details.Add($"feelNoPain(+{fnpBlock})");
+            if (danseBlock > 0)  details.Add($"danse(+{danseBlock})");
+            if (skillReactiveBlock > SkillReactiveBlockCap)
+                details.Add($"reactiveCap({skillReactiveBlock}→{SkillReactiveBlockCap})");
             int effect = effectiveBlock * w.BlockPerPointBonus;
             details.Add($"skillBase={w.SkillBaseBonus}");
             if (blockMultiplier > 1)

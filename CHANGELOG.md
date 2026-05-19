@@ -1,5 +1,64 @@
 # Changelog
 
+## v0.8.7 (2026-05-19)
+
+**4-source reactive block cap — PlanScorer 의 over-credit 방지.**
+
+### 이전 상태
+
+`PlanScorer` 의 공격 평가에서 4개 reactive block source 가 단순 누적:
+- Rage (per attack)
+- Afterimage (per card)
+- FeelNoPain (per Exhaust)
+- DanseMacabre (per cost≥2)
+
+각 6-8 stack 동시 활성 시 24-32 raw block × 30 = 720-960 score boost. canonical
+STS 단일 카드 block 가치 (~20-30) 를 넘어 attack 점수를 비합리적으로 inflate.
+
+### 변경
+
+`PlanScorer.cs` 공격 평가 + 스킬 effectiveBlock 양쪽에 cap 적용:
+
+```csharp
+const int ReactiveBlockCap = 20;
+int clamped = Math.Min(rawReactiveBlock, ReactiveBlockCap);
+```
+
+- **공격 reactiveBlockBonus**: 4-source 누적 후 20 cap → 최대 600 score.
+- **스킬 effectiveBlock**: Afterimage + FeelNoPain + Danse 3-source 누적 후 20 cap.
+  (Rage 는 공격 전용이므로 스킬 경로엔 영향 없음.)
+
+cap 발동 시 `details` 에 `(capped X→20)` 또는 `reactiveCap(X→20)` 태그 노출 →
+디버깅 trace 가능.
+
+### 합리화
+
+| 시나리오 | Raw block | Capped | Score (×30) |
+|---|---:|---:|---:|
+| 1 source (Rage 5) | 5 | 5 | 150 |
+| 2 sources (Rage 5 + Afterimage 3) | 8 | 8 | 240 |
+| 3 sources (Rage 5 + Afterimage 3 + FNP 5) | 13 | 13 | 390 |
+| 4 sources (각 5 stack) | 20 | 20 | 600 |
+| 4 sources (각 8 stack) | 32 | **20** | 600 (cap) |
+
+일반 1-3 source 시나리오는 변화 없음. Cross-character (Ironclad Rage +
+Watcher Afterimage + Necrobinder Danse 등) 4-way 멀티플라이어 stack 만 cap
+영향.
+
+### 회귀 테스트 추가
+
+- `Test_ReactiveBlockCap` — 4 source × 8 stacks → score < 2500 (cap 활성).
+- `Test_ReactiveBlockBelowCap` — Rage 3 + Afterimage 3 → cap 영향 없음 (~180 score diff).
+
+### Note
+
+Simulator (AnalyticalSimulator) 의 `newPlayerBlock` 은 cap 미적용. canonical
+STS 가 실제 게임에서 각 power 마다 독립 trigger 하므로 simulator 는 그대로
+유지 (다만 cap-free block 은 depth-N lookahead 에 over-credit 가능; 현재
+PlanScorer 의 cap 만으로 충분히 우선순위 정확화).
+
+---
+
 ## v0.8.6 (2026-05-19)
 
 **Power propagation regression tests (v0.7.94+).**
