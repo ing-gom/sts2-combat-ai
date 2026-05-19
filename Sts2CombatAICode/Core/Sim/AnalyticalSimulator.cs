@@ -94,6 +94,9 @@ internal static class AnalyticalSimulator
         bool newUnmovableUsedThisTurn = next.UnmovableUsedThisTurn;
         // v0.7.86 — Shiv damage bonus (Silent passive).
         int newPlayerAccuracy = next.PlayerAccuracy;
+        // v0.7.94 — Reactive Strength on Skill play + Skill cost-0 enabler.
+        int newPlayerEnrage = next.PlayerEnrage;
+        int newPlayerCorruption = next.PlayerCorruption;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -156,6 +159,9 @@ internal static class AnalyticalSimulator
                     case "UnmovablePower": newPlayerUnmovable += amount; break;
                     // v0.7.86 — Shiv damage bonus.
                     case "AccuracyPower": newPlayerAccuracy += amount; break;
+                    // v0.7.94 — Reactive Skill→Strength trigger + Skill cost-0 enabler.
+                    case "EnragePower": newPlayerEnrage += amount; break;
+                    case "CorruptionPower": newPlayerCorruption += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -317,6 +323,12 @@ internal static class AnalyticalSimulator
         // 3c. Skill: self block (only when self-targeted) + apply powers to target if any
         if (card.IsSkill)
         {
+            // v0.7.94 — EnragePower: gain Strength +N on Skill play. Applies to
+            // ALL skills (self or enemy-targeted), so do it before the selfTarget
+            // block branch. Multiple skills compound across the depth-N chain.
+            if (newPlayerEnrage > 0)
+                newPlayerStr += newPlayerEnrage;
+
             bool selfTarget = card.Target == TargetType.Self
                            || card.Target == TargetType.AnyPlayer;
 
@@ -367,6 +379,9 @@ internal static class AnalyticalSimulator
                         case "UnmovablePower": newPlayerUnmovable += amount; break;
                         // v0.7.86 — Skill-granted Shiv damage bonus.
                         case "AccuracyPower": newPlayerAccuracy += amount; break;
+                        // v0.7.94 — Skill-granted Enrage / Corruption.
+                        case "EnragePower": newPlayerEnrage += amount; break;
+                        case "CorruptionPower": newPlayerCorruption += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -536,6 +551,8 @@ internal static class AnalyticalSimulator
             PlayerUnmovable = newPlayerUnmovable,
             UnmovableUsedThisTurn = newUnmovableUsedThisTurn,
             PlayerAccuracy = newPlayerAccuracy,
+            PlayerEnrage = newPlayerEnrage,
+            PlayerCorruption = newPlayerCorruption,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,

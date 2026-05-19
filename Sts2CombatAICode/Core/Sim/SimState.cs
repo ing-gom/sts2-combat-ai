@@ -67,6 +67,13 @@ internal sealed record SimState
     // damage. Applied to cards whose id matches "SHIV" (base) — the only Shiv
     // card kind in STS2's catalog.
     public int PlayerAccuracy { get; init; }
+    // v0.7.94 — EnragePower (Ironclad reactive): each Skill played grants
+    // Strength +N. Stack persists across turns until removed.
+    public int PlayerEnrage { get; init; }
+    // v0.7.94 — CorruptionPower: all Skill cards cost 0 (combat-wide). Tracked
+    // here in addition to PlayerPowers so depth-N lookahead can see the cost-0
+    // effect after a Power card grants Corruption mid-turn.
+    public int PlayerCorruption { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
