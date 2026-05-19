@@ -19,18 +19,27 @@ internal static class EnemyTurnSimulator
         // Apparition / WraithForm turns where damage is effectively negligible.
         if (s.PlayerIntangible > 0)
         {
+            // v0.7.96 — Even under Intangible, Thorns reflects per hit (canonical STS:
+            // Thorns triggers on receiving damage, including the 1-capped hit).
             int hits = 0;
+            int thornsAmtIntan = s.PlayerThorns;
             foreach (var e in s.Enemies)
             {
                 if (!e.IsAlive) continue;
-                // DoT pre-kill: Poison + Constrict tick before any intent fires.
                 int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
                 if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
-                if (e.HasAttackIntent || e.HasDeathBlowIntent)
-                    hits += Math.Max(1, e.IntentRepeats);
+                if (!(e.HasAttackIntent || e.HasDeathBlowIntent)) continue;
+                int repeats = Math.Max(1, e.IntentRepeats);
+                int maxHits = repeats;
+                if (thornsAmtIntan > 0)
+                {
+                    int hpRemaining = Math.Max(0, e.Hp - preTurnDot);
+                    int killAfterHits = (hpRemaining + thornsAmtIntan - 1) / thornsAmtIntan;
+                    if (killAfterHits < maxHits) maxHits = killAfterHits;
+                }
+                hits += maxHits;
             }
-            // v0.7.83 — Buffer cancels hits before block applies. Each Buffer
-            // stack absorbs 1 incoming hit (each hit is 1 damage under Intangible).
+            // v0.7.83 — Buffer cancels hits before block applies.
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
             // v0.7.35 — Player DoT bypasses Intangible (not "hit damage").
@@ -40,9 +49,12 @@ internal static class EnemyTurnSimulator
         // v0.7.83 — Collect per-enemy attack damage instances so Buffer can
         // cancel the LARGEST hits first (canonical STS Buffer behavior: negates
         // a damage instance regardless of magnitude).
+        // v0.7.96 — Player Thorns reflects damage per incoming hit. Each hit
+        // received costs the enemy ThornsAmount HP; an enemy may die mid-attack
+        // sequence, cutting remaining hits.
         var dmgInstances = new System.Collections.Generic.List<int>();
-        // v0.5 — incoming damage is amplified ×1.5 if the player is Vulnerable.
         bool playerVulnerable = s.PlayerVulnerable > 0;
+        int playerThornsAmt = s.PlayerThorns;
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
@@ -51,10 +63,19 @@ internal static class EnemyTurnSimulator
 
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
             if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
-            // v0.7.83 — Multi-hit attacks (IntentRepeats > 1) yield separate
-            // damage instances. Buffer absorbs ONE instance, not the whole multi-hit.
             int repeats = Math.Max(1, e.IntentRepeats);
-            for (int r = 0; r < repeats; r++)
+            // v0.7.96 — Cap hits at enemy survival under player Thorns reflect.
+            // Enemy HP after DoT pre-tick = e.Hp - preTurnDot (already filtered
+            // above for full kill). Remaining HP / thornsAmt = max hits that
+            // can land before enemy dies.
+            int maxThornsHits = repeats;
+            if (playerThornsAmt > 0)
+            {
+                int hpRemaining = Math.Max(0, e.Hp - preTurnDot);
+                int killAfterHits = (hpRemaining + playerThornsAmt - 1) / playerThornsAmt;
+                if (killAfterHits < maxThornsHits) maxThornsHits = killAfterHits;
+            }
+            for (int r = 0; r < maxThornsHits; r++)
             {
                 int dmg = playerVulnerable ? (int)(perHit * StatusMath.VulnerableMult) : perHit;
                 if (dmg > 0) dmgInstances.Add(dmg);
@@ -102,24 +123,35 @@ internal static class EnemyTurnSimulator
         // and inlining is cheaper than a flag parameter.
         if (s.PlayerIntangible > 0)
         {
+            // v0.7.96 — Thorns also caps hits under Intangible (mirror PredictPlayerDmg).
             int hits = 0;
+            int thornsAmtIntan = s.PlayerThorns;
             foreach (var e in s.Enemies)
             {
                 if (!e.IsAlive) continue;
                 int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
                 if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
-                if (e.HasAttackIntent || e.HasDeathBlowIntent)
-                    hits += Math.Max(1, e.IntentRepeats);
+                if (!(e.HasAttackIntent || e.HasDeathBlowIntent)) continue;
+                int repeats = Math.Max(1, e.IntentRepeats);
+                int maxHits = repeats;
+                if (thornsAmtIntan > 0)
+                {
+                    int hpRemaining = Math.Max(0, e.Hp - preTurnDot);
+                    int killAfterHits = (hpRemaining + thornsAmtIntan - 1) / thornsAmtIntan;
+                    if (killAfterHits < maxHits) maxHits = killAfterHits;
+                }
+                hits += maxHits;
             }
-            // v0.7.83 — Buffer absorbs 1 hit per stack (Intangible: each hit = 1 dmg).
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
             return Math.Max(0, hitsAfterBuffer - blkIntangible) + s.PlayerBurn + s.PlayerConstrict;
         }
 
         // v0.7.83 — Collect instances for Buffer to cancel the largest first.
+        // v0.7.96 — Thorns reflect caps hits per attacker (mirror of PredictPlayerDmg).
         var dmgInstances = new System.Collections.Generic.List<int>();
         bool playerVuln = s.PlayerVulnerable > 0;
+        int playerThornsAmt = s.PlayerThorns;
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
@@ -128,7 +160,14 @@ internal static class EnemyTurnSimulator
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
             if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
             int repeats = Math.Max(1, e.IntentRepeats);
-            for (int r = 0; r < repeats; r++)
+            int maxThornsHits = repeats;
+            if (playerThornsAmt > 0)
+            {
+                int hpRemaining = Math.Max(0, e.Hp - preTurnDot);
+                int killAfterHits = (hpRemaining + playerThornsAmt - 1) / playerThornsAmt;
+                if (killAfterHits < maxThornsHits) maxThornsHits = killAfterHits;
+            }
+            for (int r = 0; r < maxThornsHits; r++)
             {
                 int dmg = playerVuln ? (int)(perHit * StatusMath.VulnerableMult) : perHit;
                 if (dmg > 0) dmgInstances.Add(dmg);

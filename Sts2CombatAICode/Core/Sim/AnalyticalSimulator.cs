@@ -99,6 +99,8 @@ internal static class AnalyticalSimulator
         int newPlayerCorruption = next.PlayerCorruption;
         // v0.7.95 — Next Skill ×2 (single-shot per stack).
         int newPlayerBurst = next.PlayerBurst;
+        // v0.7.96 — Player Thorns (reflect damage on hit).
+        int newPlayerThorns = next.PlayerThorns;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -166,6 +168,8 @@ internal static class AnalyticalSimulator
                     case "CorruptionPower": newPlayerCorruption += amount; break;
                     // v0.7.95 — Next Skill ×2 multiplier.
                     case "BurstPower": newPlayerBurst += amount; break;
+                    // v0.7.96 — Player Thorns reflect.
+                    case "ThornsPower": newPlayerThorns += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -401,6 +405,8 @@ internal static class AnalyticalSimulator
                         case "CorruptionPower": newPlayerCorruption += amount; break;
                         // v0.7.95 — Skill-granted Burst.
                         case "BurstPower": newPlayerBurst += amount; break;
+                        // v0.7.96 — Skill-granted Thorns.
+                        case "ThornsPower": newPlayerThorns += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -582,6 +588,7 @@ internal static class AnalyticalSimulator
             PlayerEnrage = newPlayerEnrage,
             PlayerCorruption = newPlayerCorruption,
             PlayerBurst = newPlayerBurst,
+            PlayerThorns = newPlayerThorns,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
