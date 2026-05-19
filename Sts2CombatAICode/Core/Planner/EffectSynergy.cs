@@ -112,21 +112,18 @@ internal static class EffectSynergy
 
         if (axes.Contains("DRAW_PILE_SEARCH"))
             ApplyDrawPileSearch(card, state, ref b, parts);
-        // v0.7.1 — WISH lacks DRAW_PILE_SEARCH axis but the mechanic is identical
-        // (pull 1 card from draw pile, player chooses). Dispatch by id.
-        else if (card.Id == "CARD.WISH")
+        // v0.7.93 — Prefix stripped. WISH lacks DRAW_PILE_SEARCH axis but the
+        // mechanic is identical (pull 1 card from draw pile, player chooses).
+        else if (card.Id == "WISH")
             ApplyDrawPileSearch(card, state, ref b, parts);
 
-        // v0.7.1 — Level 3: pile-based auto-play (CASCADE / CATASTROPHE / UPROAR /
-        // BEAT_DOWN). Uses SimState.DrawPile / DiscardPile to compute expected
-        // value of randomly auto-played pile cards. Caller's `axes.Contains`
-        // matches don't all align (some lack a single axis), so dispatch by card id.
-        if (card.Id == "CARD.CASCADE" || card.Id == "CARD.CATASTROPHE"
-            || card.Id == "CARD.UPROAR" || card.Id == "CARD.BEAT_DOWN")
+        // v0.7.1 — Level 3: pile-based auto-play. v0.7.93 prefix stripped.
+        if (card.Id == "CASCADE" || card.Id == "CATASTROPHE"
+            || card.Id == "UPROAR" || card.Id == "BEAT_DOWN")
             ApplyAutoPlayFromPile(card, state, ref b, parts);
 
-        // v0.7.1 — Level 3: pile-based random modifier (HIDDEN_GEM, DRAIN_POWER).
-        if (card.Id == "CARD.HIDDEN_GEM" || card.Id == "CARD.DRAIN_POWER")
+        // v0.7.1 — Level 3: pile-based random modifier. v0.7.93 prefix stripped.
+        if (card.Id == "HIDDEN_GEM" || card.Id == "DRAIN_POWER")
             ApplyDrawPileRandomModifier(card, state, ref b, parts);
 
         // v0.7.3 / v0.7.5 — Power passives whose tick value depends on the
@@ -323,12 +320,13 @@ internal static class EffectSynergy
         else if (card.Id == "BULK_UP")           ApplyBulkUpOrbSlots(card, state, ref b, parts);
         // v0.7.69 — Exhaust-related card handlers. Specific mechanics not
         // captured by generic EXHAUST_CONSUMER (+20/exhausted, cap 320).
-        else if (card.Id == "CARD.FEEL_NO_PAIN")      ApplyFeelNoPainPower(card, state, ref b, parts);
-        else if (card.Id == "CARD.PACTS_END")         ApplyPactsEndGated(card, state, ref b, parts);
-        else if (card.Id == "CARD.CHILL")             ApplyChillFrostPerEnemy(card, state, ref b, parts);
-        else if (card.Id == "CARD.ALCHEMIZE")         ApplyAlchemizePotion(card, state, ref b, parts);
-        else if (card.Id == "CARD.BURNING_PACT")      ApplyBurningPactExhaustDraw(card, state, ref b, parts);
-        else if (card.Id == "CARD.EVIL_EYE")          ApplyEvilEyeConditional(card, state, ref b, parts);
+        // v0.7.93 — Exhaust handlers prefix stripped.
+        else if (card.Id == "FEEL_NO_PAIN")      ApplyFeelNoPainPower(card, state, ref b, parts);
+        else if (card.Id == "PACTS_END")         ApplyPactsEndGated(card, state, ref b, parts);
+        else if (card.Id == "CHILL")             ApplyChillFrostPerEnemy(card, state, ref b, parts);
+        else if (card.Id == "ALCHEMIZE")         ApplyAlchemizePotion(card, state, ref b, parts);
+        else if (card.Id == "BURNING_PACT")      ApplyBurningPactExhaustDraw(card, state, ref b, parts);
+        else if (card.Id == "EVIL_EYE")          ApplyEvilEyeConditional(card, state, ref b, parts);
         // v0.7.92 — Prefix stripped. Retain skill specific mechanics.
         // SACRIFICE: block = Skeleton max HP × 2 (state-dependent).
         // RESTLESSNESS: conditional empty-hand trigger.
@@ -339,111 +337,111 @@ internal static class EffectSynergy
             ApplyRestlessnessConditional(card, state, ref b, parts);
         else if (card.Id == "PURITY")
             ApplyPurityHandClean(card, state, ref b, parts);
-        // v0.7.49 — Scaling-stem skills (batch 4/7). Upgrade / strength growth /
-        // long-tail value mechanics not captured by SCALING axis alone.
-        else if (card.Id == "CARD.APOTHEOSIS")
+        // v0.7.93 — Prefix stripped. Scaling / Conditional / Self-growing.
+        // v0.7.49 — Scaling-stem skills.
+        else if (card.Id == "APOTHEOSIS")
             ApplyApotheosisUpgradeAll(card, state, ref b, parts);
-        else if (card.Id == "CARD.DOMINATE")
+        else if (card.Id == "DOMINATE")
             ApplyDominateVulnStrike(card, state, ref b, parts);
-        else if (card.Id == "CARD.BRAND")
+        else if (card.Id == "BRAND")
             ApplyBrandHpExhaustStr(card, state, ref b, parts);
-        else if (card.Id == "CARD.STOKE")
+        else if (card.Id == "STOKE")
             ApplyStokeExhaustGenerate(card, state, ref b, parts);
-        // v0.7.50 — Conditional / Heal / multi-turn skill audit (batch 5/7).
-        else if (card.Id == "CARD.BATTLE_TRANCE")
+        // v0.7.50 — Conditional / Heal / multi-turn skill audit.
+        else if (card.Id == "BATTLE_TRANCE")
             ApplyBattleTranceTradeoff(card, state, ref b, parts);
-        else if (card.Id == "CARD.BORROWED_TIME")
+        else if (card.Id == "BORROWED_TIME")
             ApplyBorrowedTimeRamp(card, state, ref b, parts);
-        else if (card.Id == "CARD.NOT_YET")
+        else if (card.Id == "NOT_YET")
             ApplyNotYetHeal(card, state, ref b, parts);
-        else if (card.Id == "CARD.PANIC_BUTTON")
+        else if (card.Id == "PANIC_BUTTON")
             ApplyPanicButtonEmergency(card, state, ref b, parts);
-        else if (card.Id == "CARD.THE_BOMB")
+        else if (card.Id == "THE_BOMB")
             ApplyTheBombDelayed(card, state, ref b, parts);
-        else if (card.Id == "CARD.TORIC_TOUGHNESS")
+        else if (card.Id == "TORIC_TOUGHNESS")
             ApplyToricToughnessMultiTurn(card, state, ref b, parts);
-        // v0.7.51 — Self-growing attack cards (batch 6/7). Investment value
-        // beyond this-play damage: each play boosts future plays' damage.
-        else if (card.Id == "CARD.CLAW")
+        // v0.7.51 — Self-growing attack cards.
+        else if (card.Id == "CLAW")
             ApplySelfGrowingAttack(card, state, ref b, parts, increasePerPlay: 2, hitCount: 1);
-        else if (card.Id == "CARD.MAUL")
+        else if (card.Id == "MAUL")
             ApplySelfGrowingAttack(card, state, ref b, parts, increasePerPlay: 1, hitCount: 2);
-        else if (card.Id == "CARD.RAMPAGE")
+        else if (card.Id == "RAMPAGE")
             ApplyRampageSelfGrow(card, state, ref b, parts);
-        // v0.7.32 — Defect orb stem Power passives. All gated on Defect's orb
-        // queue being active (PlayerOrbCapacity > 0). Each scales with the
-        // relevant orb-color count or evoke rate.
-        else if (card.Id == "CARD.CAPACITOR")
+        // v0.7.32 — Defect orb stem Power passives. v0.7.93 prefix stripped.
+        else if (card.Id == "CAPACITOR")
             ApplyCapacitorTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.COOLANT")
+        else if (card.Id == "COOLANT")
             ApplyCoolantTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.SPINNER")
+        else if (card.Id == "SPINNER")
             ApplySpinnerTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.THUNDER")
+        else if (card.Id == "THUNDER")
             ApplyThunderTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.LOOP")
+        else if (card.Id == "LOOP")
             ApplyLoopTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.CONSUMING_SHADOW")
+        else if (card.Id == "CONSUMING_SHADOW")
             ApplyConsumingShadowTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.HAILSTORM")
+        else if (card.Id == "HAILSTORM")
             ApplyHailstormTickValue(card, state, ref b, parts);
 
         // v0.7.11 — Self-copy / chain cards. Each play seeds a future play of
         // the same or chosen card. Pure card-id dispatch — none of these have
         // a generic axis we could match on (catalog axes describe the immediate
         // effect, not the chain semantics).
-        if (card.Id == "CARD.ANGER")
+        // v0.7.93 — Self-copy/chain. Prefix stripped.
+        if (card.Id == "ANGER")
             ApplyAngerChain(card, state, ref b, parts);
-        else if (card.Id == "CARD.UNDEATH")
+        else if (card.Id == "UNDEATH")
             ApplyUndeathChain(card, state, ref b, parts);
-        else if (card.Id == "CARD.DUAL_WIELD")
+        else if (card.Id == "DUAL_WIELD")
             ApplyDualWieldChain(card, state, ref b, parts);
-        else if (card.Id == "CARD.HEIRLOOM_HAMMER")
+        else if (card.Id == "HEIRLOOM_HAMMER")
             ApplyHeirloomHammerChain(card, state, ref b, parts);
-        else if (card.Id == "CARD.NIGHTMARE")
+        else if (card.Id == "NIGHTMARE")
             ApplyNightmareChain(card, state, ref b, parts);
-        else if (card.Id == "CARD.ADAPTIVE_STRIKE")
+        else if (card.Id == "ADAPTIVE_STRIKE")
             ApplyAdaptiveStrikeChain(card, state, ref b, parts);
 
         // v0.7.17 — S-tier 1-path coverage: card-id specific mechanics that
         // the axis dispatchers don't capture. Pure direct-stat scoring under-
         // values these because their value comes from a state-dependent
         // post-attack effect.
-        if (card.Id == "CARD.ALL_FOR_ONE")
+        // v0.7.93 — S-tier 1-path. Prefix stripped.
+        if (card.Id == "ALL_FOR_ONE")
             ApplyAllForOneRecall(card, state, ref b, parts);
-        else if (card.Id == "CARD.PINPOINT")
+        else if (card.Id == "PINPOINT")
             ApplyPinpointEnergyRefund(card, state, ref b, parts);
-        else if (card.Id == "CARD.FLECHETTES")
+        else if (card.Id == "FLECHETTES")
             ApplyFlechettesHandSkills(card, state, ref b, parts);
-        else if (card.Id == "CARD.MAKE_IT_SO")
+        else if (card.Id == "MAKE_IT_SO")
             ApplyMakeItSoReclaim(card, state, ref b, parts);
-        else if (card.Id == "CARD.SUNDER")
+        else if (card.Id == "SUNDER")
             ApplySunderKillRefund(card, targetIdx, state, ref b, parts);
-        else if (card.Id == "CARD.TESLA_COIL")
+        else if (card.Id == "TESLA_COIL")
             ApplyTeslaCoilEvokeAll(card, state, ref b, parts);
-        else if (card.Id == "CARD.THRUMMING_HATCHET")
+        else if (card.Id == "THRUMMING_HATCHET")
             ApplyThrummingHatchetChain(card, state, ref b, parts);
 
         // v0.7.19 — B-tier 1-path coverage. 9 mechanic-bearing B-tier cards
         // (FINISHER/BOLAS/etc.) whose value depends on hand/turn state
         // unavailable to pure direct-stat scoring.
-        else if (card.Id == "CARD.FINISHER")
+        // v0.7.93 — B-tier 1-path. Prefix stripped.
+        else if (card.Id == "FINISHER")
             ApplyFinisherAttackScaling(card, state, ref b, parts);
-        else if (card.Id == "CARD.BOLAS")
+        else if (card.Id == "BOLAS")
             ApplyBolasChain(card, state, ref b, parts);
-        else if (card.Id == "CARD.FOLLOW_THROUGH")
+        else if (card.Id == "FOLLOW_THROUGH")
             ApplyFollowThroughRepeat(card, state, ref b, parts);
-        else if (card.Id == "CARD.EXPECT_A_FIGHT")
+        else if (card.Id == "EXPECT_A_FIGHT")
             ApplyExpectAFightEnergy(card, state, ref b, parts);
-        else if (card.Id == "CARD.SPITE")
+        else if (card.Id == "SPITE")
             ApplySpiteHpLossBonus(card, state, ref b, parts);
-        else if (card.Id == "CARD.HEADBUTT")
+        else if (card.Id == "HEADBUTT")
             ApplyHeadbuttDeckPick(card, state, ref b, parts);
-        else if (card.Id == "CARD.REBOUND")
+        else if (card.Id == "REBOUND")
             ApplyReboundSkillReclaim(card, state, ref b, parts);
-        else if (card.Id == "CARD.OUTMANEUVER")
+        else if (card.Id == "OUTMANEUVER")
             ApplyOutmaneuverNextTurnEnergy(card, state, ref b, parts);
-        else if (card.Id == "CARD.SEEKER_STRIKE")
+        else if (card.Id == "SEEKER_STRIKE")
             ApplySeekerStrikePick(card, state, ref b, parts);
 
         // Cost-enabler: UNRELENTING (next Attack 0-cost), SYNTHESIS (next Power
@@ -468,9 +466,10 @@ internal static class EffectSynergy
         // CARD_GEN axis in the catalog (WHITE_NOISE / DISCOVERY / DISTRACTION /
         // LARGESSE / SPLASH). Same flat-bonus treatment as CARD_GEN.
         // WISH removed in v0.7.1 — it goes through pile-aware ApplyDrawPileSearch.
-        else if (card.Id == "CARD.WHITE_NOISE" || card.Id == "CARD.DISCOVERY"
-              || card.Id == "CARD.DISTRACTION" || card.Id == "CARD.LARGESSE"
-              || card.Id == "CARD.SPLASH")
+        // v0.7.93 — Card-id fallback for random-card-to-hand cards. Prefix stripped.
+        else if (card.Id == "WHITE_NOISE" || card.Id == "DISCOVERY"
+              || card.Id == "DISTRACTION" || card.Id == "LARGESSE"
+              || card.Id == "SPLASH")
             ApplyCardGen(card, state, ref b, parts);
 
         if (axes.Contains("EXHAUST_TARGET_RANDOM"))
@@ -480,7 +479,8 @@ internal static class EffectSynergy
         // Anti-handsize scaling — small/empty hand multiplies value; full hand
         // gates damage to near-0. Not captured by EstimateVariableHits (which
         // is multiplicative); use a per-card-id damage adjustment here.
-        if (card.Id == "CARD.PRECISE_CUT")
+        // v0.7.93 — PRECISE_CUT prefix stripped.
+        if (card.Id == "PRECISE_CUT")
             ApplyPreciseCutScaling(card, state, ref b, parts);
 
         // v0.6.9 — OSTY-gated attacks. Cards with OSTY axis but NOT
@@ -501,7 +501,8 @@ internal static class EffectSynergy
 
         // v0.6.9 — ENLIGHTENMENT: combat-wide cost reduction (all hand cards
         // cost 1). Value = sum of cost reductions in current + future hands.
-        if (card.Id == "CARD.ENLIGHTENMENT")
+        // v0.7.93 — ENLIGHTENMENT prefix stripped.
+        if (card.Id == "ENLIGHTENMENT")
             ApplyEnlightenmentBonus(card, state, ref b, parts);
 
         // STAR_CONSUMER — single attack (STARDUST) scales with player's
