@@ -534,6 +534,17 @@ internal static class ActionPlanner
             // (decompile sts2.decompiled.cs:313044).
             if (card.IsBound && state.BoundCardPlayedThisTurn) continue;
 
+            // SmoggyPower (LivingFog AdvancedGasMove) restriction: only ONE
+            // Skill per turn may be played while SmoggyPower is active.
+            // (a) IsSmogged covers snapshot-time afflicted cards directly.
+            // (b) PlayerSmoggy>0 + SmoggySkillPlayedThisTurn blocks remaining
+            //     Skill candidates inside depth-N forward sim — the game's
+            //     AfterCardPlayed hook applies Smog to every other Skill
+            //     once the first Skill lands (decompile 318740-318755).
+            if (card.IsSmogged) continue;
+            if (card.IsSkill && state.PlayerSmoggy > 0
+                && state.SmoggySkillPlayedThisTurn) continue;
+
             // v0.5 — Free*Power lets us play expensive cards over the energy budget.
             // v0.7.21 — CorruptionPower makes Skill cards combat-wide 0-cost.
             // v0.7.94 — Also honor SimState.PlayerCorruption (propagated by simulator

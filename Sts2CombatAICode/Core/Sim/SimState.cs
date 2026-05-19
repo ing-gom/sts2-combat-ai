@@ -388,11 +388,48 @@ internal sealed record SimState
     public bool BoundCardPlayedThisTurn { get; init; }
 
     /// <summary>
+    /// SmoggyPower stack on the player (LivingFog's AdvancedGasMove applies
+    /// 1 stack). When &gt;0, playing any Skill afflicts every OTHER
+    /// unafflicted Skill in deck/hand/discard with Smog → only the first
+    /// Skill per turn lands; the rest become unplayable. StackType is
+    /// Single — no per-turn decrement; persists until dispelled.
+    /// Decompile: sts2.decompiled.cs:318734.
+    /// </summary>
+    public int PlayerSmoggy { get; init; }
+
+    /// <summary>
+    /// Per-turn flag: true once a Skill has been played while
+    /// <see cref="PlayerSmoggy"/> &gt; 0, blocking any further Skill plays
+    /// this turn (game's SmoggyPower.AfterCardPlayed applies Smog affliction
+    /// to all remaining unafflicted Skills). Reset to false at turn-end
+    /// (game's SmoggyPower.AfterTurnEnd clears all Smog afflictions).
+    /// </summary>
+    public bool SmoggySkillPlayedThisTurn { get; init; }
+
+    /// <summary>
     /// Number of times the player has taken unblocked damage during this
     /// combat (one entry per DamageReceived event with UnblockedDamage > 0).
     /// TEAR_ASUNDER scales hits with this — `Hits = 1 + this`.
     /// </summary>
     public int CombatPlayerHpLossEvents { get; init; }
+
+    /// <summary>
+    /// v0.10 — Active relics on the player (RelicModel subclass name → counter).
+    /// Captured by <see cref="StateSnapshotter"/> via
+    /// <c>CombatReflection.GetPlayerRelics</c>. Counter is meaningful for
+    /// trigger-counter relics (PenNib: AttacksPlayed%10, IronClub: CardsPlayed%4,
+    /// VelvetChoker: cardsPlayedThisTurn); for passive relics with no counter
+    /// (Anchor, Vajra, BronzeScales, …) the value is 1.
+    ///
+    /// Presence is checked via <c>ContainsKey</c>; absence means the relic is
+    /// not owned (or is melted). <see cref="Planner.RelicCatalog"/> maps class
+    /// names to flat scoring values and special-case handlers.
+    ///
+    /// Empty when the snapshotter couldn't read the relic list (test fixtures,
+    /// mid-screen transitions) — handlers fall back to "no relic" behavior.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> PlayerRelics { get; init; }
+        = new Dictionary<string, int>();
 
     /// <summary>
     /// Deep clone for forward simulation. Records have an auto-generated Clone() that

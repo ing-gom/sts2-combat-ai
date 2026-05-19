@@ -119,6 +119,13 @@ internal sealed class PlanScorerWeights
     public int HandWeakThreshold = 1000;           // below this → drawing helps
     public int HandStrongThreshold = 2000;         // above this → drawing wastes
     public int DrawEmptyPilePenalty = -1000;       // v0.2.9 — pile empty → drawing is futile
+    // v0.10 — Crisis draw-rescue threshold. When projected HP after incoming
+    // leak (minus playable hand block) drops to this level or below, draw cards
+    // skip the strong-hand idle penalty AND earn a rescue bonus proportional
+    // to expected block drawn from pile. Tuned at 15: lower than the natural
+    // "uncomfortable" turn (~25 HP loss-leader threshold), high enough to fire
+    // before lethal danger (~5 HP).
+    public int DrawRescueHpThreshold = 15;
 
     // v0.5 — Retain / Ethereal play-order biases.
     // Retain: small per-alternative penalty so a retainable card defers until no

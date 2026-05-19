@@ -47,6 +47,11 @@ internal sealed partial class TestButtonPoller : Node
                 // No combat scene → reset so the next combat starts re-armed.
                 VakuuTestButtonPatch.ResetForNewCombat();
                 VakuuExecutor.ResetForNewCombat();
+                // v0.10 — Close any leftover streaming decision-log file
+                // (e.g. crash-out, victory-screen exit without CloseForCombat
+                // hook firing). CloseForCombat is idempotent; safe to call
+                // every tick we're out of combat.
+                Sts2CombatAI.Diagnostics.DecisionLogPersister.CloseForCombat();
                 return;
             }
 

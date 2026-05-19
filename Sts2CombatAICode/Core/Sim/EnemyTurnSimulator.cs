@@ -43,8 +43,15 @@ internal static class EnemyTurnSimulator
             // v0.7.83 — Buffer cancels hits before block applies.
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+            int intangibleLeak = Math.Max(0, hitsAfterBuffer - intangibleBlock);
+            // v0.10 — TungstenRod reduces HP loss by 1 per source (per hit).
+            // Under Intangible each hit lands as 1 HP loss before TungstenRod,
+            // so TungstenRod cancels every leaked hit (each becomes 0). Use
+            // the post-block leak count as # of leak instances → subtract.
+            if (intangibleLeak > 0 && HasTungstenRod(s))
+                intangibleLeak = Math.Max(0, intangibleLeak - intangibleLeak);
             // v0.7.35 — Player DoT bypasses Intangible (not "hit damage").
-            return Math.Max(0, hitsAfterBuffer - intangibleBlock) + s.PlayerBurn + s.PlayerConstrict;
+            return intangibleLeak + s.PlayerBurn + s.PlayerConstrict;
         }
 
         // v0.7.83 — Collect per-enemy attack damage instances so Buffer can
@@ -105,6 +112,15 @@ internal static class EnemyTurnSimulator
         int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
         int rawLeak = Math.Max(0, total - effectivePlayerBlock);
 
+        // v0.10 — TungstenRod (`ModifyHpLostAfterOsty`): subtract 1 HP loss
+        // per source (per damage instance that lands after block). We
+        // walk the (Buffer-filtered) instances in order and count how many
+        // contribute non-zero HP loss given remaining block — that count is
+        // exactly the number of `ModifyHpLostAfterOsty` invocations the game
+        // would make, and each reduces by HpLossReduction (canonical: 1).
+        if (rawLeak > 0 && HasTungstenRod(s))
+            rawLeak = Math.Max(0, rawLeak - CountLeakingInstances(dmgInstances, effectivePlayerBlock));
+
         // v0.7.35 — Player-side DoT bypasses block. Burn ticks at end of OUR
         // turn (before enemies attack); Constrict ticks at start of enemy turn.
         // Both are inevitable HP loss this turn, visible from current state.
@@ -117,6 +133,35 @@ internal static class EnemyTurnSimulator
         // to the planner / survival-urgency math.
         int allyAbsorbed = ComputeAllyAbsorption(s, rawLeak);
         return rawLeak - allyAbsorbed;
+    }
+
+    /// <summary>
+    /// v0.10 — Whether the player has the TungstenRod relic. The CanonicalVar
+    /// HpLossReduction is canonical 1m; we hardcode 1 in callers since
+    /// <see cref="Reflection.CombatReflection.GetPlayerRelics"/> only captures
+    /// DisplayAmount, not arbitrary DynamicVars.
+    /// </summary>
+    private static bool HasTungstenRod(SimState s) =>
+        s.PlayerRelics != null && s.PlayerRelics.ContainsKey("TungstenRod");
+
+    /// <summary>
+    /// v0.10 — Number of damage instances that contribute non-zero HP loss
+    /// after the player's block (and EOT block bonus) absorbs in order. Block
+    /// is consumed sequentially per canonical STS damage resolution; the
+    /// first few instances may be fully blocked, later ones partially or
+    /// fully leak. Used by TungstenRod / similar per-source HP-loss modifiers.
+    /// </summary>
+    private static int CountLeakingInstances(
+        System.Collections.Generic.IList<int> dmgInstances, int block)
+    {
+        int blockLeft = block;
+        int leaking = 0;
+        foreach (var d in dmgInstances)
+        {
+            if (d > blockLeft) leaking++;
+            blockLeft = Math.Max(0, blockLeft - d);
+        }
+        return leaking;
     }
 
     /// <summary>
@@ -153,7 +198,12 @@ internal static class EnemyTurnSimulator
             }
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-            return Math.Max(0, hitsAfterBuffer - blkIntangible) + s.PlayerBurn + s.PlayerConstrict;
+            int leakIntangible = Math.Max(0, hitsAfterBuffer - blkIntangible);
+            // v0.10 — TungstenRod cancels every leaked Intangible hit (each
+            // is 1 HP loss → -1 = 0). Mirrors PredictPlayerDmg.
+            if (leakIntangible > 0 && HasTungstenRod(s))
+                leakIntangible = 0;
+            return leakIntangible + s.PlayerBurn + s.PlayerConstrict;
         }
 
         // v0.7.83 — Collect instances for Buffer to cancel the largest first.
@@ -193,8 +243,12 @@ internal static class EnemyTurnSimulator
         int total = 0;
         foreach (var d in dmgInstances) total += d;
         int blk = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+        int rawLeak2 = Math.Max(0, total - blk);
+        // v0.10 — TungstenRod (mirrors PredictPlayerDmg).
+        if (rawLeak2 > 0 && HasTungstenRod(s))
+            rawLeak2 = Math.Max(0, rawLeak2 - CountLeakingInstances(dmgInstances, blk));
         // v0.7.35 — Player-side DoT bypasses block (same as PredictPlayerDmg).
-        return Math.Max(0, total - blk) + s.PlayerBurn + s.PlayerConstrict;
+        return rawLeak2 + s.PlayerBurn + s.PlayerConstrict;
     }
 
     /// <summary>

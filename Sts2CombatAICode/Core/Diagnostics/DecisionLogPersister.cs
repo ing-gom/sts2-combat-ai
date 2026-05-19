@@ -8,20 +8,24 @@ using Godot;
 namespace Sts2CombatAI.Diagnostics;
 
 /// <summary>
-/// v0.6.3 — flushes the in-memory <see cref="DecisionLog"/> ring buffer to NDJSON
-/// files on disk so post-hoc analysis tools (scripts/parse_decision_log.py) can
-/// aggregate decisions across combats.
+/// v0.10 — Streaming writer for NDJSON decision logs. One file per combat,
+/// opened at Vakuu turn entry and appended on every plan step so a crash or
+/// abnormal exit after a boss kill still leaves the entire combat on disk.
 ///
-/// Output: <c>{user_data}/Sts2CombatAI/decision_log/{timestamp}_{floor}_{seed}.ndjson</c>.
-/// Each line is one decision entry as a single JSON object; one file per combat.
+/// Pattern: each entry sits in <see cref="_pending"/> until the NEXT
+/// <see cref="AppendEntry"/> call (or <see cref="CloseForCombat"/>). This
+/// "commit on next append" defers serialization just long enough for
+/// <c>DecisionLog.UpdateLastOutcome</c> to mutate the entry's post-play
+/// fields — both ring buffer and persister hold the SAME object reference,
+/// so the outcome update lands in the eventual disk write automatically.
 ///
-/// Rotation: keeps the most recent <see cref="MaxFiles"/> files so disk usage stays
-/// bounded across long play sessions. Older files are removed at the same flush
-/// point as the new one is written.
+/// Crash semantics: pending entry is lost on crash; all earlier entries are
+/// safely on disk (AutoFlush=true). Previous design (FlushIfPending) lost the
+/// entire combat if the process died before the combat-end hook — which is
+/// exactly what happened to the Soul Fysh boss log on 2026-05-20.
 ///
-/// Lifecycle: install once at mod startup. Call <see cref="FlushIfPending"/> from
-/// the combat-end transition (or before mod unload) to drain the buffer. Failures
-/// are non-fatal; diagnostics shouldn't crash the game.
+/// Output: <c>{user_data}/Sts2CombatAI/decision_log/{timestamp}_{floor}_{character}_{id}.ndjson</c>.
+/// Rotation: keeps most recent <see cref="MaxFiles"/> on <see cref="CloseForCombat"/>.
 /// </summary>
 internal static class DecisionLogPersister
 {
@@ -31,6 +35,11 @@ internal static class DecisionLogPersister
     private static string? _dir;
     private static bool _initialized;
     private static bool _enabled = true;
+
+    // Streaming state — set between OpenForCombat and CloseForCombat.
+    private static StreamWriter? _writer;
+    private static string? _currentPath;
+    private static DecisionLog.Entry? _pending;
 
     /// <summary>Set false from ModConfig to disable persistence at runtime.</summary>
     public static bool Enabled
@@ -56,39 +65,108 @@ internal static class DecisionLogPersister
     }
 
     /// <summary>
-    /// Write the current ring buffer to a new NDJSON file, then clear the buffer.
-    /// No-op when persistence is disabled or the buffer is empty. Safe to call
-    /// multiple times — only flushes when at least one new entry has been recorded.
+    /// Open a new NDJSON file for this combat. Closes any previous file
+    /// safely (committing its pending entry). Call on Vakuu Play entry —
+    /// e.g. when <c>LastPlannedTurnRound == -1</c> in VakuuExecutor.
     /// </summary>
-    /// <param name="character">Player character name (e.g. "Vakuu" / "Necrobinder").</param>
-    /// <param name="floorNumber">Current ascension / floor for filename disambiguation.</param>
-    /// <param name="seedOrCombatId">Best-effort unique combat id for the filename.</param>
-    public static void FlushIfPending(string character, int floorNumber, string seedOrCombatId)
+    public static void OpenForCombat(string character, int floorNumber, string combatId)
     {
         if (!_enabled || _dir == null) return;
-        var entries = DecisionLog.Snapshot();
-        if (entries.Length == 0) return;
+
+        // Defensive: a previous combat that never reached CloseForCombat
+        // (game crash before, mod reload mid-combat) — flush whatever's
+        // pending and close it before opening the new file.
+        CloseForCombat();
 
         try
         {
             var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var safeId = Sanitize(seedOrCombatId);
+            var safeId = Sanitize(combatId);
             var safeChar = Sanitize(character);
             var fname = $"{stamp}_F{floorNumber:D2}_{safeChar}_{safeId}.ndjson";
-            var path = Path.Combine(_dir, fname);
-
-            var sb = new StringBuilder(entries.Length * 256);
-            foreach (var e in entries) sb.AppendLine(SerializeEntry(e));
-            File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-
-            DecisionLog.Clear();
-            RotateOldFiles();
-            MainFile.Logger.Info($"[CombatAI] DecisionLog flushed: {entries.Length} entries -> {fname}");
+            _currentPath = Path.Combine(_dir, fname);
+            // AutoFlush=true so each WriteLine hits the OS write buffer
+            // immediately — no manual Flush needed per step.
+            _writer = new StreamWriter(_currentPath, append: false, Encoding.UTF8) { AutoFlush = true };
+            _pending = null;
+            MainFile.Logger.Info($"[CombatAI] DecisionLog opened: {fname}");
         }
         catch (Exception ex)
         {
-            MainFile.Logger.Warn($"[CombatAI] DecisionLog flush failed: {ex.Message}");
+            MainFile.Logger.Warn($"[CombatAI] DecisionLog open failed: {ex.Message}");
+            _writer = null;
+            _currentPath = null;
         }
+    }
+
+    /// <summary>
+    /// Append a decision entry to the open file. The entry is held in
+    /// <see cref="_pending"/> until the NEXT call to AppendEntry or
+    /// CloseForCombat — this lets <c>DecisionLog.UpdateLastOutcome</c>
+    /// mutate the entry's outcome fields (same object reference) before
+    /// serialization.
+    ///
+    /// No-op when persistence is disabled or no file is open.
+    /// </summary>
+    public static void AppendEntry(DecisionLog.Entry entry)
+    {
+        if (!_enabled || _writer == null) return;
+        CommitPending();
+        _pending = entry;
+    }
+
+    /// <summary>
+    /// Close the current combat file. Commits the pending entry, flushes
+    /// the writer, rotates old files. Safe to call multiple times.
+    /// </summary>
+    public static void CloseForCombat()
+    {
+        if (_writer == null) { _pending = null; return; }
+
+        try
+        {
+            CommitPending();
+            _writer.Flush();
+            _writer.Dispose();
+            var path = _currentPath;
+            _writer = null;
+            _currentPath = null;
+            RotateOldFiles();
+            if (path != null)
+                MainFile.Logger.Info($"[CombatAI] DecisionLog closed: {Path.GetFileName(path)}");
+        }
+        catch (Exception ex)
+        {
+            MainFile.Logger.Warn($"[CombatAI] DecisionLog close failed: {ex.Message}");
+            _writer = null;
+            _currentPath = null;
+            _pending = null;
+        }
+    }
+
+    private static void CommitPending()
+    {
+        if (_pending == null || _writer == null) return;
+        try
+        {
+            _writer.WriteLine(SerializeEntry(_pending));
+        }
+        catch (Exception ex)
+        {
+            MainFile.Logger.Warn($"[CombatAI] DecisionLog write failed: {ex.Message}");
+        }
+        _pending = null;
+    }
+
+    /// <summary>
+    /// v0.6.3 backward-compat shim — older call sites (combat-end hooks not
+    /// yet migrated to OpenForCombat / CloseForCombat) still call this.
+    /// Treats the call as "drain whatever's open and close." No-op when no
+    /// file is open (the streaming path already handles that case).
+    /// </summary>
+    public static void FlushIfPending(string character, int floorNumber, string seedOrCombatId)
+    {
+        CloseForCombat();
     }
 
     /// <summary>Sanitize a string for safe use in a file name.</summary>

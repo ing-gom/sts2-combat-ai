@@ -91,6 +91,45 @@ internal static class CombatReflection
         return dict;
     }
 
+    // v0.10 — Relic snapshot. Player.Relics returns IReadOnlyList<RelicModel>; we
+    // capture (class-name → counter). The counter is RelicModel.DisplayAmount when
+    // the relic exposes a counter (ShowCounter==true) — e.g. PenNib's
+    // AttacksPlayed % 10, IronClub's CardsPlayed % 4, VelvetChoker's
+    // _cardsPlayedThisTurn. For passive relics with no counter (Anchor, Vajra,
+    // BronzeScales, …) the entry is present with value 1, so callers can
+    // distinguish "has relic" via ContainsKey from "absent".
+    //
+    // Presence is the primary signal for combat-relevant relics; the counter
+    // matters only for trigger-counter relics where the scorer needs to know
+    // "how close are we to the bonus." RelicCatalog (Phase 2) maps the
+    // class-name to a flat value and special-case handlers for counters.
+    public static System.Collections.Generic.IReadOnlyDictionary<string, int> GetPlayerRelics(Player player)
+    {
+        var dict = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.Ordinal);
+        try
+        {
+            var relics = player.Relics;
+            if (relics == null) return dict;
+            foreach (var r in relics)
+            {
+                if (r == null) continue;
+                if (r.IsMelted) continue;
+                var name = r.GetType().Name;
+                int counter = 0;
+                try
+                {
+                    if (r.ShowCounter) counter = r.DisplayAmount;
+                }
+                catch { /* DisplayAmount throws on some relics outside combat */ }
+                // Presence-with-counter-0 should still register, so collapse to 1
+                // when the relic doesn't expose a meaningful number.
+                dict[name] = counter > 0 ? counter : 1;
+            }
+        }
+        catch (System.Exception ex) { LogReflectionFailureOnce("relics-dump", ex); }
+        return dict;
+    }
+
     // v0.8.5 — One-shot logger to surface STS2 field-rename issues without
     // flooding godot.log every frame.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _loggedFailures = new();

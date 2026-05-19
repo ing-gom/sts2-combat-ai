@@ -110,6 +110,11 @@ internal static class StateSnapshotter
             // and treat as 30% reduction.
             int playerShrinkPct = CombatReflection.GetPowerAmount(creature, "ShrinkPower") > 0 ? 30 : 0;
             int playerDebilitate = CombatReflection.GetPowerAmount(creature, "DebilitatePower");
+            // SmoggyPower (LivingFog) — when active, first Skill played
+            // each turn afflicts all OTHER skills with Smog, locking them
+            // out until turn-end. Captured here so candidate enumeration
+            // can prune subsequent-skill candidates.
+            int playerSmoggy = CombatReflection.GetPowerAmount(creature, "SmoggyPower");
             // v0.9 — CalcifyPower (player Necrobinder buff): Osty (skeleton)
             // attacks gain +N damage. Read here so SimAlly intent damage
             // capture below can fold it in.
@@ -304,11 +309,22 @@ internal static class StateSnapshotter
             try { characterId = player.Character?.Id.Entry ?? string.Empty; }
             catch { }
 
+            // v0.10 — Active relic snapshot. Captured once per planner step so
+            // counter-based relics (PenNib AttacksPlayed%10, IronClub
+            // CardsPlayed%4, VelvetChoker cards-played-this-turn) reflect live
+            // state. Falls back to empty dict on reflection failure.
+            var playerRelics = CombatReflection.GetPlayerRelics(player);
+
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
             // v0.9 — Track whether any Bound card was already played this turn
             // (ChainsOfBindingPower mechanic). When true, no further Bound
             // cards may be played until next turn.
             bool boundCardPlayedThisTurn = false;
+            // SmoggyPower per-turn flag — true once any Skill was played
+            // this turn while SmoggyPower was active. Walks history same as
+            // boundCardPlayedThisTurn; gated on playerSmoggy>0 so the check
+            // is free when SmoggyPower is absent.
+            bool smoggySkillPlayedThisTurn = false;
             // v0.9 — Per-target attack count this turn. Built alongside the
             // total counters; keyed by enemy index in the `enemies` list so
             // the simulator can compute BEAT_INTO_SHAPE's dynamic Forge
@@ -360,7 +376,17 @@ internal static class StateSnapshotter
                                     }
                                 }
                             }
-                            else if (type == CardType.Skill) turnSkillsPlayed++;
+                            else if (type == CardType.Skill)
+                            {
+                                turnSkillsPlayed++;
+                                // SmoggyPower per-turn flag: any prior Skill
+                                // played this turn while SmoggyPower is
+                                // active triggers the lockout. Gated on
+                                // playerSmoggy>0 to skip the assignment
+                                // when SmoggyPower isn't on the player.
+                                if (!smoggySkillPlayedThisTurn && playerSmoggy > 0)
+                                    smoggySkillPlayedThisTurn = true;
+                            }
                         }
                         else if (entry is DamageReceivedEntry dre)
                         {
@@ -460,6 +486,9 @@ internal static class StateSnapshotter
                 PlayerShrinkPercent = playerShrinkPct,
                 PlayerDebilitate = playerDebilitate,
                 BoundCardPlayedThisTurn = boundCardPlayedThisTurn,
+                PlayerSmoggy = playerSmoggy,
+                SmoggySkillPlayedThisTurn = smoggySkillPlayedThisTurn,
+                PlayerRelics = playerRelics,
             };
         }
         catch (System.Exception ex)
@@ -536,6 +565,9 @@ internal static class StateSnapshotter
             IsSly = isSly,
             // v0.9 — Bound affliction (ChainsOfBindingPower restriction).
             IsBound = CardReflection.HasBoundAffliction(card),
+            // Smog affliction (SmoggyPower / LivingFog) — card can't be
+            // played until SmoggyPower's AfterTurnEnd clears it.
+            IsSmogged = CardReflection.HasSmogAffliction(card),
         };
     }
 
@@ -719,9 +751,12 @@ internal static class StateSnapshotter
 
         // v0.2.9 — turn-start strength buffs make the enemy snowball (Ritual / Enrage / similar).
         // v0.9 — also TerritorialPower (per-turn-end +Strength).
+        // v0.10 — also HighVoltagePower (per-turn-end +Strength, Fabricator
+        // family). Doesn't decrement → permanent scaling, prioritize killing.
         bool hasRitual = CombatReflection.GetPowerAmount(enemy, "RitualPower") > 0
                       || CombatReflection.GetPowerAmount(enemy, "EnragePower") > 0
                       || CombatReflection.GetPowerAmount(enemy, "FeralPower") > 0
+                      || CombatReflection.GetPowerAmount(enemy, "HighVoltagePower") > 0
                       || territorial > 0;
 
         int totalDmg = 0;
@@ -883,7 +918,17 @@ internal static class StateSnapshotter
         if (s.TurnSkillsPlayed > 0)    statusBits.Add($"SklT:{s.TurnSkillsPlayed}");
         if (s.CombatPlayerHpLossEvents > 0) statusBits.Add($"HpLost:{s.CombatPlayerHpLossEvents}");
         var statusTag = statusBits.Count > 0 ? $" status=[{string.Join(",", statusBits)}]" : "";
-        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag}{statusTag} hand=[{hand}] enemies=[{enemies}]";
+        // v0.10 — Relics dump (silent when empty). PenNib:9 = 9/10 attacks toward
+        // the next ×2 trigger. Most passive relics show value 1.
+        var relicTag = "";
+        if (s.PlayerRelics.Count > 0)
+        {
+            var rs = s.PlayerRelics
+                .Select(kv => kv.Value > 1 ? $"{kv.Key}:{kv.Value}" : kv.Key)
+                .ToList();
+            relicTag = $" relics=[{string.Join(",", rs)}]";
+        }
+        return $"player[hp={s.PlayerHp} block={s.PlayerBlock} energy={s.PlayerEnergy}]{orbTag}{statusTag}{relicTag} hand=[{hand}] enemies=[{enemies}]";
     }
 
     private static string FormatCard(SimCard c)

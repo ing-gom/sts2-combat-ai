@@ -119,6 +119,23 @@ internal static class CardReflection
         catch { return false; }
     }
 
+    /// <summary>
+    /// True when the card carries the Smog affliction (from SmoggyPower —
+    /// LivingFog's AdvancedGasMove). Smogged cards return false from
+    /// ShouldPlay and can't be played until SmoggyPower's AfterTurnEnd
+    /// clears them. Decompile: sts2.decompiled.cs:318782.
+    /// </summary>
+    public static bool HasSmogAffliction(CardModel card)
+    {
+        try
+        {
+            var aff = _afflictionProp?.GetValue(card);
+            if (aff == null) return false;
+            return aff.GetType().Name == "Smog";
+        }
+        catch { return false; }
+    }
+
     // CardModel runtime keywords. Includes both inherent keywords (Strike,
     // Minion, Exhaust on Shiv) and TEMPORARY keywords applied at runtime
     // (HAND_TRICK's "Add Sly to a Skill in hand this turn" lands as a Sly
@@ -177,6 +194,83 @@ internal static class CardReflection
     // diagnostic showing sc.Id = "VENERATE". The EffectSynergy hardcoded handlers
     // (e.g. `card.Id == "CARD.VENERATE"`) suffer the same broken-key bug — separate
     // fix.
+    /// <summary>
+    /// v0.10 — Skill cards whose EnergyVar in CanonicalVars is consumed by
+    /// <c>PowerCmd.Apply&lt;EnergyNextTurnPower&gt;</c> in OnPlay, not by an
+    /// immediate energy gain. Verified by decompile of v0.103.2
+    /// (research/sts2_decomp/sts2.decompiled.cs `grep "Apply&lt;EnergyNextTurnPower&gt;"`).
+    /// When in this set, <see cref="GetEffectSummary"/> routes the EnergyVar
+    /// amount into <c>PowerApps["EnergyNextTurnPower"]</c> so PowerCatalog
+    /// scores it as a next-turn buff (~1500 per stack) instead of
+    /// <c>EnergyGain</c> (this-turn-unlock heuristic).
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<string> _energyToNextTurnIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CHARGE_BATTERY", "CONVERGENCE", "DELAY", "HEGEMONY", "INVOKE",
+        "OUTMANEUVER", "REFINE_BLADE", "RELAX", "SCAVENGE",
+    };
+
+    /// <summary>
+    /// v0.10 — Cards that apply a Power via <c>PowerCmd.Apply&lt;XPower&gt;</c>
+    /// but drive the amount from a plain <c>DynamicVar("VarName", N)</c>
+    /// instead of a typed <c>PowerVar&lt;XPower&gt;</c>. Without this
+    /// mapping the var name doesn't match any known case in the
+    /// DynamicVar switch — CardEffectSummary's PowerApps stays empty →
+    /// PowerCatalog scoring contributes 0 → these cards score as if
+    /// their main effect didn't exist (~100 baseBonus only).
+    ///
+    /// Each entry: card Id.Entry → (varName, powerNames[]) applied by
+    /// OnPlay. The var amount becomes the per-stack value in
+    /// <c>PowerApps[powerName]</c>. Multi-power cards (Putrefy, Shockwave,
+    /// Uppercut) list both powers driven by the same var.
+    ///
+    /// Verified by decompile (sts2.decompiled.cs grep <c>Apply&lt;XPower&gt;</c>
+    /// inside each card's OnPlay block) — 30+ entries. Id.Entry format —
+    /// no "CARD." prefix.
+    /// </summary>
+    private static readonly System.Collections.Generic.Dictionary<string, (string varName, string[] powerNames)> _cardPowerVarMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Power-type self-buffs (single power driven by one var)
+        ["ACCELERANT"]      = ("Accelerant",    new[] { "AccelerantPower" }),
+        ["BLUR"]            = ("Blur",          new[] { "BlurPower" }),
+        ["BURST"]           = ("Skills",        new[] { "BurstPower" }),
+        ["CHILD_OF_THE_STARS"] = ("BlockForStars", new[] { "ChildOfTheStarsPower" }),
+        ["CORROSIVE_WAVE"]  = ("CorrosiveWave", new[] { "CorrosiveWavePower" }),
+        ["CORRUPTION"]      = ("Power",         new[] { "CorruptionPower" }),
+        ["CREATIVE_AI"]     = ("CreativeAi",    new[] { "CreativeAiPower" }),
+        ["ECHO_FORM"]       = ("EchoForm",      new[] { "EchoFormPower" }),
+        ["EQUILIBRIUM"]     = ("Equilibrium",   new[] { "RetainHandPower" }),
+        ["FASTEN"]          = ("ExtraBlock",    new[] { "FastenPower" }),
+        ["FEEL_NO_PAIN"]    = ("Power",         new[] { "FeelNoPainPower" }),
+        ["FLAME_BARRIER"]   = ("DamageBack",    new[] { "FlameBarrierPower" }),
+        ["GENESIS"]         = ("StarsPerTurn",  new[] { "GenesisPower" }),
+        ["LOOP"]            = ("Loop",          new[] { "LoopPower" }),
+        ["MONOLOGUE"]       = ("Power",         new[] { "MonologuePower" }),
+        ["NOXIOUS_FUMES"]   = ("PoisonPerTurn", new[] { "NoxiousFumesPower" }),
+        ["ONE_TWO_PUNCH"]   = ("Attacks",       new[] { "OneTwoPunchPower" }),
+        ["PALE_BLUE_DOT"]   = ("CardPlay",      new[] { "PaleBlueDotPower" }),
+        ["PANACHE"]         = ("PanacheDamage", new[] { "PanachePower" }),
+        ["SHADOWMELD"]      = ("Power",         new[] { "ShadowmeldPower" }),
+        ["SPIRIT_OF_ASH"]   = ("BlockOnExhaust", new[] { "SpiritOfAshPower" }),
+        ["STAMPEDE"]        = ("Power",         new[] { "StampedePower" }),
+        ["TORIC_TOUGHNESS"] = ("Turns",         new[] { "ToricToughnessPower" }),
+        ["WELL_LAID_PLANS"] = ("RetainAmount",  new[] { "WellLaidPlansPower" }),
+        ["RAGE"]            = ("Power",         new[] { "RagePower" }),
+
+        // Enemy debuffs / mixed effects
+        ["COLOSSUS"]        = ("Colossus",      new[] { "ColossusPower" }),
+        ["EXPOSE"]          = ("Power",         new[] { "VulnerablePower" }),
+        ["MONARCHS_GAZE"]   = ("Power",         new[] { "MonarchsGazePower" }),
+        ["NO_ESCAPE"]       = ("DoomThreshold", new[] { "DoomPower" }),
+        ["PANIC_BUTTON"]    = ("Turns",         new[] { "NoBlockPower" }),
+        ["SHAME"]           = ("Frail",         new[] { "FrailPower" }),
+
+        // Multi-power cards (one var amount drives both Weak + Vulnerable)
+        ["PUTREFY"]         = ("Power",         new[] { "WeakPower", "VulnerablePower" }),
+        ["SHOCKWAVE"]       = ("Power",         new[] { "WeakPower", "VulnerablePower" }),
+        ["UPPERCUT"]        = ("Power",         new[] { "WeakPower", "VulnerablePower" }),
+    };
+
     private static readonly System.Collections.Generic.Dictionary<string, int> ThisTurnStarsGain = new()
     {
         ["GLOW"] = 1,
@@ -237,6 +331,7 @@ internal static class CardReflection
             int strengthDown = 0, heal = 0, maxHp = 0, hpLoss = 0;
             int starsGain = 0;  // v0.7.71
             int shivGen = 0, skeletonGen = 0, soulGen = 0, forgeGen = 0;
+            int delayedAoeDamage = 0, delayTurns = 0;  // v0.10 — THE_BOMB
             bool hasCalcDamage = false, hasCalcBlock = false;
             Dictionary<string, int>? powerApps = null;
 
@@ -289,10 +384,17 @@ internal static class CardReflection
                 if (v is DamageVar) { if (!hasCalcDamage) damage += amount; continue; }
                 if (v is BlockVar) { if (!hasCalcBlock) block += amount; continue; }
                 if (v is RepeatVar) { if (amount > 0) hits = amount; continue; }
-                // CalculatedVar with Name "CalculatedHits" (Barrage etc.) — runtime hit count.
+                // CalculatedVar with Name "CalculatedHits" — runtime hit count
+                // derived from the card's scaling closure (BARRAGE, FINISHER,
+                // FLAK_CANNON, FLECHETTES, HELIX_DRILL, LUNAR_BLAST,
+                // PULL_FROM_BELOW, RADIATE, RATTLE, TEAR_ASUNDER).
+                // Accept 0 here — for these cards 0 IS the literal hit count
+                // when the scaling trigger (skills/attacks/exhaust/orbs/stars/
+                // skeleton-attacks) hasn't fired yet. Defaulting to 1 made
+                // premature plays look like base-damage attacks (v0.9.1 fix).
                 if (typeName == "CalculatedVar" && v.Name == "CalculatedHits")
                 {
-                    if (amount > 0) hits = amount;
+                    hits = amount;
                     continue;
                 }
                 // v0.6.9 — CalculatedFocus (SYNCHRONIZE: orb-variety × 2 → TempFocus).
@@ -342,6 +444,22 @@ internal static class CardReflection
                     // Attacks/Skills with EnergyVar (Storm Of Spears /
                     // Cleaver / Adrenaline-style) still gain immediate energy.
                     if (card.Type == CardType.Power) continue;
+                    // v0.10 — Some Skill cards (CHARGE_BATTERY, CONVERGENCE,
+                    // DELAY, HEGEMONY, INVOKE, OUTMANEUVER, REFINE_BLADE, RELAX,
+                    // SCAVENGE) declare EnergyVar but in OnPlay apply
+                    // EnergyNextTurnPower instead of immediate energy. Without
+                    // this redirect, DELAY's +1 energy was scored as immediate
+                    // (EvaluateEnergyGain unlock heuristic), missing the
+                    // EnergyNextTurnPower 1500-point self-buff value.
+                    if (_energyToNextTurnIds.Contains(card.Id.Entry))
+                    {
+                        powerApps ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                        if (powerApps.TryGetValue("EnergyNextTurnPower", out var existing))
+                            powerApps["EnergyNextTurnPower"] = existing + amount;
+                        else
+                            powerApps["EnergyNextTurnPower"] = amount;
+                        continue;
+                    }
                     energyGain += amount;
                     continue;
                 }
@@ -394,6 +512,13 @@ internal static class CardReflection
                     else if (v.Name == "Skeletons") skeletonGen += amount;
                     else if (v.Name == "Souls")     soulGen += amount;
                     else if (v.Name == "Forge")     forgeGen += amount;
+                    // v0.10 — THE_BOMB delayed-AOE detonation. Card has plain
+                    // DynamicVars "Turns" (countdown) + "BombDamage" (per-enemy
+                    // damage when the TheBombPower fires). Without this, the
+                    // planner saw Damage=0/Block=0 → scored THE_BOMB as a
+                    // ~100-point empty skill instead of a 1000+ AOE finisher.
+                    else if (v.Name == "BombDamage") delayedAoeDamage = amount;
+                    else if (v.Name == "Turns")      delayTurns = amount;
                     // v0.9 — CalculatedForge: BEAT_INTO_SHAPE et al expose
                     // the Forge amount as "CalculatedForge" (base + per-attack
                     // bonus folded by PreviewValue). The simpler "Forge" name
@@ -402,21 +527,26 @@ internal static class CardReflection
                     // map to the same ForgeGen field so downstream code is
                     // unchanged.
                     else if (v.Name == "CalculatedForge") forgeGen += amount;
-                    // v0.6.8 — RAGE applies RagePower with stack = DynamicVar("Power", N).
-                    // Not a PowerVar<T> in the catalog (Rage.cs uses
-                    // `PowerCmd.Apply<RagePower>(creature, DynamicVars["Power"].BaseValue, ...)`)
-                    // so we promote it to PowerApps here so HandSynergy / PowerCatalog
-                    // pipelines see RagePower:N. Card-id gated to avoid colliding
-                    // with other generic "Power" vars (Power-type cards' own stacks
-                    // are already covered by PowerCatalog id-derived lookup).
-                    // v0.7.87 — Id.Entry has no CARD. prefix (verified by v0.7.80 stars diagnostic).
-                    else if (v.Name == "Power" && card.Id.Entry == "RAGE")
+                    // v0.10 — Generalized: cards that apply Powers via plain
+                    // DynamicVar (not PowerVar<X>) are looked up in
+                    // _cardPowerVarMap. Subsumes the prior RAGE-only case;
+                    // covers ~30 cards including EchoForm, Corruption, Genesis,
+                    // NoxiousFumes, FeelNoPain, Burst, Blur, Accelerant, etc.
+                    //
+                    // Multi-power cards (Putrefy / Shockwave / Uppercut: Weak +
+                    // Vulnerable from same var) add all listed powers with the
+                    // same amount. Card id has no "CARD." prefix.
+                    else if (_cardPowerVarMap.TryGetValue(card.Id.Entry, out var mapping)
+                             && string.Equals(mapping.varName, v.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         powerApps ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        if (powerApps.TryGetValue("RagePower", out var ex))
-                            powerApps["RagePower"] = ex + amount;
-                        else
-                            powerApps["RagePower"] = amount;
+                        foreach (var pn in mapping.powerNames)
+                        {
+                            if (powerApps.TryGetValue(pn, out var ex))
+                                powerApps[pn] = ex + amount;
+                            else
+                                powerApps[pn] = amount;
+                        }
                     }
                     continue;
                 }
@@ -508,6 +638,9 @@ internal static class CardReflection
                 SkeletonGen = skeletonGen,
                 SoulGen = soulGen,
                 ForgeGen = forgeGen,
+                // v0.10 — Delayed-AOE detonation (THE_BOMB family).
+                DelayedAoeDamage = delayedAoeDamage,
+                DelayTurns = delayTurns,
             };
         }
         catch (Exception ex)

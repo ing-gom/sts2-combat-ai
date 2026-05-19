@@ -79,6 +79,22 @@ internal static class VakuuExecutor
         try { turnStartPlayerHp = (int)(CombatReflection.CreatureHpField?.GetValue(player.Creature) ?? 0); }
         catch { }
 
+        // v0.10 — Streaming decision log. Open a new file on Vakuu Play
+        // entry when this is the first turn of a new combat
+        // (LastPlannedTurnRound == -1 means TestButtonPoller reset us on the
+        // last out-of-combat tick). Subsequent turns of the same combat
+        // re-use the open file via AppendEntry.
+        if (LastPlannedTurnRound == -1)
+        {
+            var startChar = player.Creature?.GetType().Name ?? "unknown";
+            int startFloor = 0;
+            try { startFloor = combatState.RoundNumber; } catch { /* defensive */ }
+            DecisionLogPersister.OpenForCombat(
+                startChar,
+                startFloor,
+                System.DateTime.Now.Ticks.ToString());
+        }
+
         LastPlannedTurnRound = combatState.RoundNumber;
 
         relicForVfx?.Flash();
@@ -242,7 +258,7 @@ internal static class VakuuExecutor
                         return $"{c.id}@{c.targetIdx}={c.total}{deltaTag}";
                     }));
 
-                DecisionLog.Record(new DecisionLog.Entry
+                var stepEntry = new DecisionLog.Entry
                 {
                     Timestamp = System.DateTime.Now,
                     Step = step + 1,
@@ -263,7 +279,13 @@ internal static class VakuuExecutor
                     Character = player.Creature?.GetType().Name ?? "",
                     AlternativeCards = altStr,
                     RunnerUpDelta = runnerUpDelta,
-                });
+                };
+                DecisionLog.Record(stepEntry);
+                // v0.10 — Streaming append: persister holds this entry in
+                // 'pending' so UpdateLastOutcome below can mutate its outcome
+                // fields (same instance reference); the previous entry is
+                // committed to disk now.
+                DecisionLogPersister.AppendEntry(stepEntry);
 
                 var card = plan.Value.Card.SourceRef;
                 if (card == null)
@@ -281,6 +303,7 @@ internal static class VakuuExecutor
                     break;
                 }
                 CurrentPlayingCardId = plan.Value.Card.Id;
+                bool playFailed = false;
                 try
                 {
                     await card.SpendResources();
@@ -288,12 +311,42 @@ internal static class VakuuExecutor
                 }
                 catch (Exception ex)
                 {
-                    MainFile.Logger.Warn($"[CombatAI] play failed at step {step + 1} ({plan.Value.Card.Id}): {ex.Message}");
-                    break;
+                    playFailed = true;
+                    // v0.9.1 — full stack trace so we can root-cause the rare
+                    // "method or operation is not implemented" from unfinished
+                    // EA card paths (e.g. QUASAR's Choose-a-card flow).
+                    MainFile.Logger.Warn(
+                        $"[CombatAI] play failed at step {step + 1} ({plan.Value.Card.Id}): {ex}");
                 }
                 finally
                 {
                     CurrentPlayingCardId = null;
+                }
+
+                // v0.9.1 — Recovery. When OnPlay throws mid-flight the card is
+                // already in PileType.Play (added by OnPlayWrapper), but the
+                // result-pile move never ran. Leaving it stuck there freezes
+                // the UI (player can't end turn / play more cards). Force-move
+                // to the discard pile so play resumes; the card's effect is
+                // lost but the run keeps going.
+                if (playFailed)
+                {
+                    try
+                    {
+                        var pile = card.Pile;
+                        if (pile != null && pile.Type == PileType.Play)
+                        {
+                            await CardPileCmd.Add(card, PileType.Discard);
+                            MainFile.Logger.Info(
+                                $"[CombatAI] step {step + 1} recovered: {plan.Value.Card.Id} moved Play→Discard");
+                        }
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        MainFile.Logger.Warn(
+                            $"[CombatAI] step {step + 1} recovery failed for {plan.Value.Card.Id}: {cleanupEx.Message}");
+                    }
+                    break;
                 }
 
                 cardsPlayed++;
@@ -362,7 +415,7 @@ internal static class VakuuExecutor
                 int chp = (int)(CombatReflection.CreatureHpField?.GetValue(e) ?? 0);
                 turnEndEnemyHpSum += chp;
             }
-            DecisionLog.Record(new DecisionLog.Entry
+            var turnEndEntry = new DecisionLog.Entry
             {
                 Timestamp = System.DateTime.Now,
                 Step = cardsPlayed + 1,
@@ -386,7 +439,9 @@ internal static class VakuuExecutor
                 TurnHpEnd = turnEndPlayerHp,
                 TurnDamageTaken = System.Math.Max(0, turnStartPlayerHp - turnEndPlayerHp),
                 TurnCardsPlayed = cardsPlayed,
-            });
+            };
+            DecisionLog.Record(turnEndEntry);
+            DecisionLogPersister.AppendEntry(turnEndEntry);
         }
         catch { /* defensive */ }
 
@@ -395,20 +450,17 @@ internal static class VakuuExecutor
             $"took {sw.ElapsedMilliseconds}ms total, " +
             $"combatEnding={CombatManager.Instance.IsOverOrEnding} allDead={allEnemiesDead}");
 
-        // v0.6.3 — flush DecisionLog ring buffer to disk when this turn ended
-        // the combat. Best-effort: a clean exit (boss kill, player ko) lands here;
-        // other combat-end paths (manual end-turn that kills via passive damage,
-        // game close mid-combat) may miss the hook. Phase A scope — Phase D will
-        // add a Harmony patch on CombatManager.End for completeness.
+        // v0.10 — Streaming writer: every step has already been appended to
+        // disk in AppendEntry. Combat end just needs to commit the pending
+        // last entry, flush, and close the file.
+        //
+        // Compared to v0.6.3 FlushIfPending: that wrote the whole combat in
+        // one File.WriteAllText at the very last step. If the game crashed
+        // between boss-kill and this hook (the Soul Fysh 2026-05-20 case),
+        // the entire combat's NDJSON was lost. Streaming survives that.
         if (CombatManager.Instance.IsOverOrEnding || allEnemiesDead)
         {
-            var character = player.Creature?.GetType().Name ?? "unknown";
-            int floor = 0;
-            try { floor = combatState.RoundNumber; } catch { /* defensive */ }
-            DecisionLogPersister.FlushIfPending(
-                character,
-                floor,
-                sw.Elapsed.Ticks.ToString());
+            DecisionLogPersister.CloseForCombat();
         }
 
         // Voice line only when invoked via the actual relic — test button stays quiet.

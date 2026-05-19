@@ -875,6 +875,52 @@ internal static class AnalyticalSimulator
             newTurnAttacksByTgt = newDict;
         }
 
+        // v0.10 — Advance relic counters for depth-N lookahead so the second
+        // step in a chain doesn't re-fire a trigger that the first step
+        // already consumed (PenNib×2 must not double both cards in a 2-card
+        // depth-2 plan; IronClub's +draw on the 4th card must not also score
+        // on the 5th). The catalog reads the counter pattern documented per
+        // relic; here we mirror the live game's "AfterCardPlayed" increments
+        // in-place so the scored "next state" matches reality.
+        IReadOnlyDictionary<string, int> newPlayerRelics = next.PlayerRelics;
+        if (next.PlayerRelics != null && next.PlayerRelics.Count > 0)
+        {
+            Dictionary<string, int>? updated = null;
+            void Bump(string key, int mod)
+            {
+                if (!next.PlayerRelics.TryGetValue(key, out var v)) return;
+                updated ??= new Dictionary<string, int>(next.PlayerRelics);
+                updated[key] = (v + 1) % mod;
+            }
+            bool isAttack = card.IsAttack;
+            bool isSkill = card.Kind == CardType.Skill;
+            // Cross-turn attack counters (Pen Nib / Nunchaku — don't reset
+            // at turn boundary).
+            if (isAttack) { Bump("PenNib", 10); Bump("Nunchaku", 10); }
+            // Per-turn attack counters (Kunai / Shuriken / OrnamentalFan —
+            // BeforeSideTurnStart resets these in the live game).
+            if (isAttack)
+            {
+                Bump("Kunai", 3);
+                Bump("Shuriken", 3);
+                Bump("OrnamentalFan", 3);
+            }
+            // Per-turn skill counter.
+            if (isSkill) Bump("LetterOpener", 3);
+            // IronClub fires on ANY card type, every 4 plays. Cross-turn (no
+            // reset hook in the relic).
+            Bump("IronClub", 4);
+            // VelvetChoker tracks cards-played-this-turn linearly (no mod;
+            // we just increment so the catalog's >=5 / >=6 thresholds reflect
+            // the second play in a chain).
+            if (next.PlayerRelics.TryGetValue("VelvetChoker", out var vc))
+            {
+                updated ??= new Dictionary<string, int>(next.PlayerRelics);
+                updated["VelvetChoker"] = vc + 1;
+            }
+            if (updated != null) newPlayerRelics = updated;
+        }
+
         return next with
         {
             PlayerHp = newPlayerHp,
@@ -927,6 +973,15 @@ internal static class AnalyticalSimulator
             // v0.9 — ChainsOfBindingPower: if the played card was Bound,
             // set the flag so depth-N candidates filter further Bound cards.
             BoundCardPlayedThisTurn = next.BoundCardPlayedThisTurn || card.IsBound,
+            // SmoggyPower: if a Skill was played while SmoggyPower is
+            // active, set the flag so depth-N candidates filter all
+            // further Skill candidates this turn. PlayerSmoggy itself is
+            // persistent (StackType.Single), so it carries through `next`.
+            SmoggySkillPlayedThisTurn = next.SmoggySkillPlayedThisTurn
+                || (card.IsSkill && next.PlayerSmoggy > 0),
+            // v0.10 — Relic counter advancement (PenNib/Nunchaku/Kunai/etc.).
+            // Built above; absent or empty → reuse prior dict instance.
+            PlayerRelics = newPlayerRelics,
         };
     }
 
@@ -1360,6 +1415,11 @@ internal static class AnalyticalSimulator
             // v0.9 — ChainsOfBinding: flag resets at turn boundary (game
             // resets boundCardPlayed in BeforeTurnEnd).
             BoundCardPlayedThisTurn = false,
+            // SmoggyPower per-turn lockout resets at turn boundary — the
+            // game's SmoggyPower.AfterTurnEnd clears every Smog affliction
+            // on player cards, so next turn's first Skill is playable
+            // again. PlayerSmoggy itself is persistent, carried via `state with`.
+            SmoggySkillPlayedThisTurn = false,
             Enemies = newEnemies,
             Allies = newAllies,
             Hand = newHand,

@@ -1,5 +1,114 @@
 # Changelog
 
+## v0.9.1 (2026-05-20)
+
+**조건부 트리거 카드 (LUNAR_BLAST / FINISHER + 8종) 사전 사용 방지 및 sequencing 가치 반영.**
+
+### P1 — `CalculatedHits=0` reflection bug (10 카드)
+
+CardReflection 의 `CalculatedHits` 처리:
+```csharp
+int hits = 1;   // default
+...
+if (typeName == "CalculatedVar" && v.Name == "CalculatedHits")
+{
+    if (amount > 0) hits = amount;   // <-- amount==0 skipped
+    continue;
+}
+```
+
+SklT/AtkT/exhausted/orbs/skeleton attacks 등 트리거 = 0 일 때 reflection 이
+`amount > 0` 으로 skip → hits=1 default 유지. PlanScorer effHits clamp 가
+또 0 을 1 로 끌어올려 0-hit 카드를 1-hit 으로 평가. 영향 카드 (전부 vars 에
+`CalculatedHits:0 + CalculationBase:0 + CalculationExtra:1` 패턴):
+
+- **LUNAR_BLAST** (Regent) — skills/turn
+- **FINISHER** (Silent) — attacks/turn
+- **BARRAGE** (Defect) — 슬롯된 구체수
+- **FLAK_CANNON** (Defect) — 이번 턴 소멸 Ammunition 수
+- **FLECHETTES** (Silent) — 손 스킬 수
+- **HELIX_DRILL** (Defect) — 이번 턴 소비 E
+- **PULL_FROM_BELOW** (Necrobinder) — 이번 콤뱃 휘발성 사용수
+- **RADIATE** (Regent) — 이번 턴 사용한 별 수
+- **RATTLE** (Necrobinder) — 이번 콤뱃 해골 공격수
+- TEAR_ASUNDER 는 EstimateVariableHits 자체 override (`1 + HpLoss`) 가 있어
+  제외.
+
+수정:
+1. `CardReflection.cs` — `CalculatedHits` 의 `amount > 0` 가드 제거. 0 도 유효값
+   으로 받아들임.
+2. `PlanScorer.cs` — `AllowsZeroHits` HashSet 에 9개 카드 모두 등재. effHits
+   clamp 가 이들에 한해 0 허용. `condHits({card.Hits}→{variableHits})` 로그.
+3. `PlanScorer.EstimateVariableHits` — LUNAR_BLAST / FINISHER 만 explicit
+   override (state.TurnSkillsPlayed / TurnAttacksPlayed). 나머지 6개는 게임의
+   PreviewValue closure 가 채우는 값 신뢰.
+4. `EffectSynergy.cs` — 기존 `ApplyFinisherAttackScaling` 보너스 제거 (이제
+   base 가 올바르므로 double-count).
+
+### P2 — Replay-next-card 카드 sequencing 가치
+
+ONE_TWO_PUNCH / BURST / SIGNAL_BOOST 는 "다음 사용 [공격|스킬|파워] 가 1번
+추가로 발동" 효과. PowerCatalog 기본 값 (e.g. BurstPower=400) 은 평면 tier
+크레딧일 뿐, "지금 손에 X 카드가 있을 때의 marginal value" 가 반영 안 됨 →
+사용 순서 미스 (강한 공격을 먼저 깔고 ONE_TWO_PUNCH 뒤에 치는 경우 등).
+
+새 EffectSynergy 핸들러 3종:
+- `ApplyReplayBestAttack` — 손 attack TotalDamage 중 최대 × `DamageInHand(35)`
+- `ApplyReplayBestSkill` — 손 skill Block 중 최대 × 30
+- `ApplyReplayBestPower` — 손 power 의 `PowerCatalog.ValueSelfBuff` 중 최대 / 2
+
+추가로 STOMP cost discount 가치 반영: `ApplyStompCostDiscountValue` 가 이미
+사용된 공격 수 × `Cost1Bonus / 2` 의 보너스 추가 — 공격을 먼저 깔수록 STOMP
+의 가치가 올라간다는 신호를 PlanScorer 에 전달.
+
+### P3 — Minor sequencing 카드
+
+- `ApplyStrangleChip` (STRANGLE): StranglePower (this turn 카드 1장당 모든 적
+  HP -2) 가치 = remaining playable cards × 2 × alive enemies × `DamageInHand`.
+  remaining 은 손 cost 분석 + 0c 카드 포함 후 4 cap.
+- `ApplyEchoingSlashOverkillBonus` (ECHOING_SLASH): per-hit dmg ≥ 적 effHp 일
+  때 repeat 가능성을 half-credit 추가.
+- CRESCENT_SPEAR 는 `CalculatedDamageVar` 패턴이라 reflection 이 자동으로
+  올바른 값 반환 (CalculationBase=6, ExtraDamage=2 × stars used). 별도 핸들러
+  불필요.
+
+### 후속 안전망 (P1 follow-up)
+
+- **`ApplyReplayBestPower` 음수 clamp**: PowerCatalog.ValueSelfBuff 는
+  NoDrawPower=-1000 / ConfusedPower=-500 등 자기-해로움 파워에 음수 반환.
+  SIGNAL_BOOST 가 해당 파워를 "복제할 베스트 타깃" 으로 잡으면 점수가 폭락 →
+  `pv < 0 continue` 로 per-power 음수 제외 후 best 만 사용.
+- **BARRAGE explicit override**: `EstimateVariableHits` 가 `state.PlayerOrbCount`
+  반환 → PreviewValue closure 실패해도 안전.
+- **AllowsZeroHits 범위 축소**: explicit counter 있는 4종만 유지
+  (LUNAR_BLAST, FINISHER, BARRAGE, FLECHETTES). FLAK_CANNON / HELIX_DRILL /
+  PULL_FROM_BELOW / RADIATE / RATTLE 는 카운터 미배선 — 만약 PreviewValue 가
+  실패하면 hits=0 으로 영영 사용 안 됨 (반대 방향 버그). 안전을 위해 min-1
+  floor 로 status quo 유지. counter 배선 시 promote 예정.
+
+### 검증
+
+- `dotnet build -c Debug` 클린 (warning 1 / error 0, sts2 충돌 경고는 기존).
+- 빌드 산출물 자동 복사: `~/AppData/Roaming/SlayTheSpire2/Sts2CombatAI/`.
+- 다음 콤뱃 로그에서 `condHits` 라벨, `oneTwoPunch/burst/signalBoost` 라벨,
+  `strangleChip`/`echoingRepeat` 라벨 확인 가능.
+
+### TODO (별도 작업)
+
+- StateSnapshotter 에 다음 카운터 추가하면 위 5개 카드도 AllowsZeroHits 로
+  promote 가능:
+  - `TurnEnergySpent` (HELIX_DRILL)
+  - `TurnStarsSpent` (RADIATE)
+  - `TurnAmmunitionExhausted` (FLAK_CANNON)
+  - `CombatVolatilePlayed` (PULL_FROM_BELOW)
+  - `CombatSkeletonAttacks` (RATTLE) — Allies 의 IntentRepeats 합산 × 경과
+    턴수 proxy 사용 가능
+- CONFLAGRATION / SQUEEZE / DEATH_MARCH / CRESCENT_SPEAR runtime PreviewValue
+  실측 검증 (CalculatedDamage 가 실제로 갱신되는지).
+- HandSynergy 에 AfterimagePower / SerpentFormPower / PanachePower /
+  DanseMacabrePower 등 "카드 사용시 부가효과" 파워 추가 (현재 PowerCatalog
+  평면 tier 만 받음).
+
 ## v0.8.9 (2026-05-19)
 
 **Test suite cleanup: stale 임계값 갱신 + 디렉토리 rename.**

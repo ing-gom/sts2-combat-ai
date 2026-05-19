@@ -437,8 +437,10 @@ internal static class EffectSynergy
         // (FINISHER/BOLAS/etc.) whose value depends on hand/turn state
         // unavailable to pure direct-stat scoring.
         // v0.7.93 — B-tier 1-path. Prefix stripped.
-        else if (card.Id == "FINISHER")
-            ApplyFinisherAttackScaling(card, state, ref b, parts);
+        // FINISHER scaling moved into PlanScorer.EstimateVariableHits +
+        // AllowsZeroHits (TurnAttacksPlayed → hit count), making the base
+        // damage credit correct at 0/1/N attacks. The standalone bonus here
+        // would now double-count, so it is dropped.
         else if (card.Id == "BOLAS")
             ApplyBolasChain(card, state, ref b, parts);
         else if (card.Id == "FOLLOW_THROUGH")
@@ -455,6 +457,26 @@ internal static class EffectSynergy
             ApplyOutmaneuverNextTurnEnergy(card, state, ref b, parts);
         else if (card.Id == "SEEKER_STRIKE")
             ApplySeekerStrikePick(card, state, ref b, parts);
+
+        // v0.9.1 — Replay-next-card amplifiers. These Skills apply a Power that
+        // re-plays the next Attack/Skill/Power. The base PowerCatalog value
+        // gives a flat tier credit, but the marginal value of playing the
+        // amplifier NOW is the best-in-hand target's value — a hand with
+        // BLUDGEON makes ONE_TWO_PUNCH worth +1000, a hand with no attack
+        // makes it ~0. Sequencing comes naturally: when the target is in
+        // hand, the amplifier outscores it and is played first.
+        else if (card.Id == "ONE_TWO_PUNCH")
+            ApplyReplayBestAttack(card, state, ref b, parts);
+        else if (card.Id == "BURST")
+            ApplyReplayBestSkill(card, state, ref b, parts);
+        else if (card.Id == "SIGNAL_BOOST")
+            ApplyReplayBestPower(card, state, ref b, parts);
+        else if (card.Id == "STOMP")
+            ApplyStompCostDiscountValue(card, state, ref b, parts);
+        else if (card.Id == "STRANGLE")
+            ApplyStrangleChip(card, state, ref b, parts);
+        else if (card.Id == "ECHOING_SLASH")
+            ApplyEchoingSlashOverkillBonus(card, targetIdx, state, ref b, parts);
 
         // Cost-enabler: UNRELENTING (next Attack 0-cost), SYNTHESIS (next Power
         // 0-cost), POUNCE (next Skill 0-cost). Combat-wide enablers (CORRUPTION,
@@ -5048,19 +5070,178 @@ internal static class EffectSynergy
         parts.Add($"thrummingChain(plays={futurePlays}xperPlay={perPlay}x{Discount})=+{v}");
     }
 
+    // ─── v0.9.1 — Replay-next-card amplifiers ──────────────────────────────
+    //
+    // ONE_TWO_PUNCH / BURST / SIGNAL_BOOST apply a Power that re-plays the
+    // next Attack / Skill / Power the player uses this turn. Marginal value =
+    // value of the BEST eligible target in hand. With no eligible target the
+    // amplifier scores ~0 (the wastage penalty in ComputePowerActivationPenalty
+    // already covers the negative side).
+    //
+    // Conservative discount: the amplifier consumes 1 energy / a card slot, and
+    // the target was going to be played anyway — only the *extra* copy is the
+    // marginal gain. Use DamageInHand (35) / a smaller per-block weight, not
+    // the full DamagePerPointBonus (50), to reflect the "second copy" framing.
+
+    /// <summary>ONE_TWO_PUNCH (Ironclad, 1c Skill): next Attack repeats once.</summary>
+    private static void ApplyReplayBestAttack(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int bestDmg = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus || !c.IsPlayable) continue;
+            if (!c.IsAttack) continue;
+            // Use TotalDamage so multi-hit attacks (TWIN_STRIKE, WHIRLWIND) are
+            // valued for the full copy, not just per-hit.
+            int dmg = c.TotalDamage;
+            if (dmg > bestDmg) bestDmg = dmg;
+        }
+        if (bestDmg <= 0) return;
+        int v = bestDmg * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"oneTwoPunch(replayBest={bestDmg}x{EffectScoringWeights.DamageInHand})=+{v}");
+    }
+
+    /// <summary>BURST (Silent, 1c Skill): next Skill repeats once.</summary>
+    private static void ApplyReplayBestSkill(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Use total block as the primary proxy. For non-block skills (debuffs,
+        // draw) the PowerCatalog/HandSynergy already factor in the power-apply
+        // value at the original play — doubling it via a flat per-card add
+        // would over-credit, so block is the cleanest first-pass approximation.
+        int bestBlock = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus || !c.IsPlayable) continue;
+            if (!c.IsSkill) continue;
+            if (c.Block > bestBlock) bestBlock = c.Block;
+        }
+        if (bestBlock <= 0) return;
+        // BlockPerPointBonus ~ 30 (mirrors HandSynergy.RageSynergyPerAttack).
+        const int BlockPerPoint = 30;
+        int v = bestBlock * BlockPerPoint;
+        b += v;
+        parts.Add($"burst(replayBlock={bestBlock}x{BlockPerPoint})=+{v}");
+    }
+
+    /// <summary>SIGNAL_BOOST (Defect, 1c Skill, Exhaust): next Power repeats.</summary>
+    private static void ApplyReplayBestPower(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        // Best Power in hand by PowerCatalog tier. The marginal value is one
+        // extra full activation; Powers are typically high-value (300-800), so
+        // a half-credit (`v / 2`) keeps SIGNAL_BOOST from overshadowing the
+        // Power itself.
+        //
+        // ValueSelfBuff can return NEGATIVE values for self-hostile powers
+        // (NoDrawPower=-1000, NoBlockPower=-1000, ConfusedPower=-500, etc.).
+        // Without a 0-floor, SIGNAL_BOOST scanning a hand containing one of
+        // those Powers would crater. Clamp non-negative per-power so the
+        // amplifier never "wants to replay" a negative — at worst the
+        // amplifier scores 0 and is deferred.
+        int bestPowerVal = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus || !c.IsPlayable) continue;
+            if (!c.IsPower) continue;
+            foreach (var kv in c.PowerApps)
+            {
+                int pv = PowerCatalog.ValueSelfBuff(kv.Key, System.Math.Max(1, kv.Value));
+                if (pv < 0) continue;  // never "double up" a self-hostile power
+                if (pv > bestPowerVal) bestPowerVal = pv;
+            }
+        }
+        if (bestPowerVal <= 0) return;
+        int v = bestPowerVal / 2;
+        b += v;
+        parts.Add($"signalBoost(replayPower=+{v} (best/2))");
+    }
+
+    /// <summary>STRANGLE (Silent, 1c Attack, 8 dmg): applies StranglePower —
+    /// for the rest of this turn, every card play deals 2 HP loss to all
+    /// alive enemies. Value = <c>remainingPlays × 2 × aliveEnemies × DamageInHand</c>.
+    /// Remaining plays estimated from current energy / cheapest costs in hand,
+    /// capped at 4 to avoid overestimating.</summary>
+    private static void ApplyStrangleChip(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int aliveEnemies = 0;
+        foreach (var e in state.Enemies) if (e.IsAlive) aliveEnemies++;
+        if (aliveEnemies <= 0) return;
+
+        // Rough remaining plays after STRANGLE itself: count playable cards in
+        // hand (other than self) up to current energy budget, plus 0-cost
+        // cards regardless of energy.
+        int energyAfter = state.PlayerEnergy - System.Math.Max(0, self.Cost);
+        int remaining = 0;
+        foreach (var c in state.Hand)
+        {
+            if (ReferenceEquals(c, self)) continue;
+            if (c.IsCurseOrStatus || !c.IsPlayable) continue;
+            if (c.Cost == 0 || c.Cost <= energyAfter) remaining++;
+        }
+        remaining = System.Math.Min(4, remaining);
+        if (remaining <= 0) return;
+
+        const int HpLossPerCard = 2;
+        int v = remaining * HpLossPerCard * aliveEnemies * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"strangleChip(plays={remaining}x{HpLossPerCard}x{aliveEnemies})=+{v}");
+    }
+
+    /// <summary>ECHOING_SLASH (Silent, 1c AOE 10dmg): if it kills an enemy,
+    /// repeats the effect. Approximate the kill-then-repeat as an effective
+    /// <c>+1 hit</c> when any single enemy's effective HP (HP + Block) is at
+    /// or below the card's per-enemy damage. Conservative: only counts the
+    /// first repeat (chain repeats are possible but rare in practice).</summary>
+    private static void ApplyEchoingSlashOverkillBonus(SimCard self, int targetIdx, SimState state, ref int b, List<string> parts)
+    {
+        if (self.Damage <= 0) return;
+        int perHit = self.Damage + System.Math.Max(0, state.PlayerStrength);
+        if (state.PlayerWeak > 0) perHit = (int)(perHit * 0.75);
+        bool likelyKill = false;
+        foreach (var e in state.Enemies)
+        {
+            if (!e.IsAlive) continue;
+            int effHp = e.Hp + e.Block;
+            int dmg = perHit;
+            if (e.VulnerableAmount > 0) dmg = (int)(dmg * StatusMath.VulnerableMult);
+            if (e.DamageCapPerHit > 0 && dmg > e.DamageCapPerHit) dmg = e.DamageCapPerHit;
+            if (dmg >= effHp) { likelyKill = true; break; }
+        }
+        if (!likelyKill) return;
+        // Repeat = a second AOE instance. Conservative half-credit since the
+        // first repeat may itself not kill (the AI's effHits-based pathway
+        // already values the first hit fully).
+        int repeatDmg = self.Damage / 2;
+        int v = repeatDmg * EffectScoringWeights.DamageInHand;
+        b += v;
+        parts.Add($"echoingRepeat(likelyKill,+{repeatDmg}×{EffectScoringWeights.DamageInHand})=+{v}");
+    }
+
+    /// <summary>STOMP (Ironclad, 3c AOE 12dmg): cost -1 per Attack already
+    /// played this turn. The runtime <c>Cost</c> already reflects the
+    /// discount, so the planner sees a 1c/0c card directly when discount has
+    /// fired. Forward-looking value (play attacks first to discount STOMP) is
+    /// what's missing — credit a modest bonus proportional to the savings
+    /// realized: <c>min(3, AtkT) × Cost1Bonus / 2</c> so a fully-discounted
+    /// STOMP gets ~+150 (half a Cost1Bonus per saved energy).</summary>
+    private static void ApplyStompCostDiscountValue(SimCard self, SimState state, ref int b, List<string> parts)
+    {
+        int saved = System.Math.Min(3, state.TurnAttacksPlayed);
+        if (saved <= 0) return;
+        int v = saved * EffectScoringWeights.Cost1Bonus / 2;
+        b += v;
+        parts.Add($"stompDiscount(saved={saved}x{EffectScoringWeights.Cost1Bonus}/2)=+{v}");
+    }
+
     // ─── v0.7.19 — B-tier 1-path coverage (9 cards) ────────────────────────
 
-    /// <summary>FINISHER (B, Silent, 1c 6d): 5 dmg per Attack played this turn.</summary>
-    private static void ApplyFinisherAttackScaling(SimCard self, SimState state, ref int b, List<string> parts)
-    {
-        int played = state.TurnAttacksPlayed;
-        if (played <= 0) return;
-        // Card base already credits 6 × 1 = 6 dmg. Extra hits per past-played attack.
-        int extra = played;
-        int v = extra * 6 * EffectScoringWeights.DamageInHand;
-        b += v;
-        parts.Add($"finisher(prevAttacks={played}x6x{EffectScoringWeights.DamageInHand})=+{v}");
-    }
+    // FINISHER scaling now handled directly in PlanScorer.EstimateVariableHits
+    // (Hits = TurnAttacksPlayed, with AllowsZeroHits letting effHits drop to 0
+    // when no attacks have been played yet). The previous bonus here added on
+    // top of the base credit and double-counted at played ≥ 1; removed.
 
     /// <summary>BOLAS (B, Shared, 0c 3d): return-to-hand at end of turn.</summary>
     private static void ApplyBolasChain(SimCard self, SimState state, ref int b, List<string> parts)

@@ -205,6 +205,53 @@ internal static class PowerCatalog
         { "FanOfKnivesPower",         400 },  // Shivs target all (permanent toggle)
         { "MasterPlannerPower",       300 },  // Skill cards gain Sly
 
+        // ─── v0.10 Coverage pass — counter-type player buffs ────────────────
+        // Player-side delayed/scaling buffs missing from prior cataloging.
+        // Each verified by decompile: Apply<X> sites + the power class's
+        // trigger handler (AfterTurnEnd / BeforeHandDraw / AfterEnergyReset
+        // / AfterBlockCleared) determine valuation tier.
+        //
+        // BlockNextTurnPower — DodgeAndRoll, ChargeBattery (block twin),
+        // Equilibrium (turn-end retain), ResolveBranch. AfterBlockCleared →
+        // gain N block then remove. Conditional defense ≈ half of immediate
+        // block (only matters if block actually clears).
+        { "BlockNextTurnPower",       250 },
+        // StarNextTurnPower — Convergence, GuidingStar. AfterEnergyReset →
+        // gain N stars. Regent star resource is scarcer-per-card-cost than
+        // energy; 1 star ≈ 1 cost worth of star-cost card unlock.
+        { "StarNextTurnPower",        400 },
+        // SummonNextTurnPower — Invoke. AfterPlayerTurnStart → summon N Osty.
+        // Each summon ≈ 600 (skeleton intent damage + soak). Diminishing
+        // when ally cap is reached but planner can't easily tell yet.
+        { "SummonNextTurnPower",      500 },
+        // LightningRodPower — KeystoneCard / Resonance. AfterEnergyReset →
+        // channel Lightning, decrement. Per stack ≈ free Lightning channel
+        // (similar to SpinnerPower=400 Frost).
+        { "LightningRodPower",        450 },
+        // DoubleDamagePower — DoubleDamage card / Mayhem. Next attack ×2.
+        // SimCard.EffectiveDmgPerEnergy already applies ×2 when in PlayerPowers
+        // dict, but the POWER CARD itself (the one applying it) needs scoring.
+        { "DoubleDamagePower",        500 },
+        // DuplicationPower — Duplication card. Next card ×2. Already handled
+        // in SimCard for damage/block; this scores the applying-card itself.
+        { "DuplicationPower",         600 },
+        // ReboundPower — RefineBlade, Mayhem. First skill / card goes back
+        // to top of draw instead of discard → effectively a free replay.
+        { "ReboundPower",             500 },
+        // ForegoneConclusionPower — ForegoneConclusion. BeforeHandDraw →
+        // choose N cards from draw to hand. Strong setup; comparable to
+        // PrepTime=450 / WellLaidPlans=400.
+        { "ForegoneConclusionPower",  400 },
+        // RetainHandPower — Convergence, Equilibrium, Scavenge. Retain N
+        // cards across turn ends. Niche but useful for keystone cards.
+        { "RetainHandPower",          350 },
+        // ToricToughnessPower — ToricToughness card. AfterBlockCleared →
+        // gain CanonicalBlock, decrement. Stack-based reactive block.
+        { "ToricToughnessPower",      450 },
+        // VeilpiercerPower — Veilpiercer card. Ethereal cards cost 0.
+        // Niche but combos hard with ethereal-heavy decks.
+        { "VeilpiercerPower",         350 },
+
         // ─── D tier ─────────────────────────────────────────────────────────
         // Defect
         { "ConsumingShadowPower",     300 },  // Dark x2 channel +leftmost evoke /turn
@@ -215,7 +262,7 @@ internal static class PowerCatalog
         // Regent
         { "MonarchsGazePower",        350 },  // per-attack enemy Strength -1
         // Shared
-        { "CalamityPower",            350 },  // attack-play chains random attack to hand
+        // CalamityPower moved to coverage-pass section above with value 450.
         { "NostalgiaPower",           250 },  // first attack/skill /turn → top of draw
         // Silent
         { "OutbreakPower",            400 },  // AoE 11 every 3 Poison applied
@@ -246,6 +293,20 @@ internal static class PowerCatalog
         { "DarkShacklesPower",        300 },
         { "PiercingWailPower",        300 },
         { "HexPower",                 400 },
+
+        // ─── v0.10 Coverage pass — enemy debuffs applied via OnPlay ────────
+        // ConquerorPower — applied to enemy by Conqueror card. Sovereign
+        // Blade attacks against the marked enemy deal ×2 damage. Massive
+        // for SB-build Regent; modest otherwise. TickDownDuration per turn.
+        { "ConquerorPower",           400 },
+        // DemisePower — applied to enemy by Demise card. AfterTurnEnd →
+        // deal Amount unblockable damage to the enemy. Like a one-shot
+        // Poison tick. Per-stack value comparable to Poison (700) but
+        // single-tick rather than every-turn → ~ 1/3 value.
+        { "DemisePower",              250 },
+        // MagicBombPower — applied to enemy. AfterTurnEnd → deal Amount
+        // damage to enemy, remove. Per-stack ≈ Amount-equivalent damage.
+        { "MagicBombPower",           200 },
     };
 
     /// <summary>

@@ -79,6 +79,23 @@ internal sealed record CardEffectSummary
     /// </summary>
     public int StarCost { get; init; }
 
+    /// <summary>
+    /// v0.10 — Delayed AOE damage from cards that apply a countdown power
+    /// detonating on a future turn. Currently only THE_BOMB (base 40 / +50)
+    /// uses this; the card has DynamicVars `Turns` (countdown length) and
+    /// `BombDamage` (per-enemy damage at detonation), then OnPlay applies
+    /// <c>TheBombPower</c> which decrements each <c>BeforeTurnEnd</c> and
+    /// fires AOE damage when reaching 1.
+    ///
+    /// <see cref="DelayedAoeDamage"/> is the per-enemy damage value; the
+    /// AOE multiplier (number of alive enemies) is applied at scoring time
+    /// since enemy count depends on combat state. <see cref="DelayTurns"/>
+    /// is the countdown — turns until detonation. The scoring discount
+    /// for the delay (typically 0.5×–0.7×) is applied at the scorer site.
+    /// </summary>
+    public int DelayedAoeDamage { get; init; }
+    public int DelayTurns { get; init; }
+
     public int TotalDamage => Damage * Hits;
 
     /// <summary>True if playing this card eventually grants energy (now or next turn).</summary>

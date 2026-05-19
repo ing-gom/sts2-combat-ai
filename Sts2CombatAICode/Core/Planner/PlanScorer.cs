@@ -459,11 +459,17 @@ internal static class PlanScorer
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
+            // v0.10 — Per-card relic bonus (PenNib×2, IronClub+draw, etc.).
+            // Most relic effects on Power cards come via IronClub's "+1 draw
+            // every 4 cards" — STRIKE-specific / Attack-only relics naturally
+            // skip Power-type cards inside RelicCatalog.
+            int relicBonusPower = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
+
             int total = baseBonus + effect + costTie + energyBonus + fightCtx
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
+                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -532,8 +538,16 @@ internal static class PlanScorer
             // Without this adjustment FIEND_FIRE [S] scores as a 7-damage hit
             // instead of 7 × hand.Count, severely underrating the card.
             int variableHits = EstimateVariableHits(card, state);
-            int effHits = System.Math.Max(System.Math.Max(1, card.Hits), variableHits);
-            if (variableHits > card.Hits)
+            // Conditional-payoff cards (LUNAR_BLAST, FINISHER) report 0 hits
+            // when their setup hasn't fired this turn — honour that instead of
+            // applying the default min-1 floor.
+            bool allowZero = AllowsZeroHits(card);
+            int effHits = allowZero
+                ? System.Math.Max(0, variableHits)
+                : System.Math.Max(System.Math.Max(1, card.Hits), variableHits);
+            if (allowZero && variableHits != card.Hits)
+                details.Add($"condHits({card.Hits}→{variableHits})");
+            else if (variableHits > card.Hits)
                 details.Add($"varHits({card.Hits}→{variableHits})");
 
             // v0.4 — per-hit damage cap from IntangiblePower (=1) or HardToKillPower (=Amount).
@@ -1060,8 +1074,9 @@ internal static class PlanScorer
             // that apply MachineLearningPower / DrawCardsNextTurnPower). Same
             // pattern: EvaluateDrawCard returns 0 for non-draw cards, so this is
             // a no-op for plain attacks.
-            int atkDrawBonus = EvaluateDrawCard(card, state, w);
+            int atkDrawBonus = EvaluateDrawCard(card, state, w, out int atkDrawRescue);
             if (atkDrawBonus != 0) details.Add($"drawCtx={atkDrawBonus}");
+            if (atkDrawRescue > 0) details.Add($"drawRescue+{atkDrawRescue}");
 
             // v0.5 — ATTACK_REPLAY axis (Beat Down, One-Two Punch, Stampede). Scores
             // off the best other attack in hand, so a replay attack rises in priority
@@ -1172,7 +1187,13 @@ internal static class PlanScorer
             int thresholdTriggerBonus = ComputeThresholdTriggerBonus(
                 card, state, isAoe, targetIdx, effectiveTotal, w, details);
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus;
+            // v0.10 — Per-card relic bonus. Attack-side relics dominate:
+            // PenNib (10th attack ×2), StrikeDummy (STRIKE +3), GremlinHorn
+            // (kill → energy+draw), Kunai/Shuriken/OrnamentalFan (Nth-attack
+            // triggers), IronClub (every-4-cards +1 draw — also fires here).
+            int relicBonusAtk = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk;
             // v0.9 — Per-energy efficiency diagnostic. Shows BOTH raw dmg/E
             // (Strength/Vigor/Enchant from PreviewValue) AND effective dmg/E
             // (with Vuln/Weak/Echo/X-cost folded in). When they differ
@@ -1186,7 +1207,7 @@ internal static class PlanScorer
                 : $"eff(d{rawEff:F1}/E→{effEff:F1}/E)");
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
                 Base: baseBonus,
-                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty,
+                Effect: effect + attached + burstBonus + atkOrbBonus + thornsPenalty + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusAtk,
                 TargetBonus: targetBonus + wastedPenalty + survivalAtkPenalty, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -1418,8 +1439,9 @@ internal static class PlanScorer
             if (energyBonus != 0) details.Add($"energyCtx={energyBonus}");
 
             // v0.2.6 — Draw card: only valuable when the rest of the hand has nothing strong.
-            int drawBonus = EvaluateDrawCard(card, state, w);
+            int drawBonus = EvaluateDrawCard(card, state, w, out int skillDrawRescue);
             if (drawBonus != 0) details.Add($"drawCtx={drawBonus}");
+            if (skillDrawRescue > 0) details.Add($"drawRescue+{skillDrawRescue}");
 
             var (skillOrbBonus, skillOrbDetail) = EvaluateOrbEffects(card, state);
             if (skillOrbBonus != 0) details.Add(skillOrbDetail);
@@ -1472,8 +1494,13 @@ internal static class PlanScorer
             // is about to die. Block / energy / draw skills are exempt — they're the
             // survival response or feed it.
             // v0.7.33 — Effective urgency includes the skill's own HP loss.
+            // v0.10 — Card generators (QUASAR / MIRACLE / HELLO_WORLD / JACKPOT etc.)
+            // also exempt: they add cards to hand from an external pool, functionally
+            // equivalent to draw cards in crisis terms — capable of producing block
+            // when the deck alone can't save us. Identified by CARD_GEN axis (catalog)
+            // or ID fallback for cards not yet tagged.
             int survivalSkillPenalty = 0;
-            if (card.Block == 0 && !card.IsEnergyGainCard && !card.IsDrawCard)
+            if (card.Block == 0 && !card.IsEnergyGainCard && !card.IsDrawCard && !IsCardGenerator(card))
             {
                 var urgency = GetEffectiveUrgency(state, card.HpLossAmount);
                 survivalSkillPenalty = urgency switch
@@ -1484,6 +1511,39 @@ internal static class PlanScorer
                 };
                 if (survivalSkillPenalty != 0)
                     details.Add($"survival{urgency}={survivalSkillPenalty}");
+            }
+
+            // v0.10 — Generator rescue bonus (mirrors EvaluateDrawCard's
+            // ComputeDrawRescueBonus, adapted for cards that pull from an
+            // external colorless pool instead of the player's deck). Fires
+            // when (a) hand alone can't cover this turn's incoming damage,
+            // (b) HP post-leak ≤ crisis threshold. Magnitude uses a fixed
+            // pool-average estimate (5 block per generated card) because
+            // we don't have the colorless pool catalog loaded — conservative
+            // enough that a curse-heavy pile draw doesn't get over-credited.
+            int generatorRescueBonus = 0;
+            if (IsCardGenerator(card))
+            {
+                int leak = EnemyTurnSimulator.PredictPlayerDmg(state);
+                if (leak > 0)
+                {
+                    int handBlockCap = SumPlayableBlockExcluding(state, card);
+                    int shortfall = leak - state.PlayerBlock - handBlockCap;
+                    int hpAfter = state.PlayerHp - shortfall;
+                    if (shortfall > 0 && hpAfter <= w.DrawRescueHpThreshold)
+                    {
+                        // Conservative: assume each generator output card
+                        // averages 5 raw block (Defend-class baseline). Caps
+                        // at shortfall so over-generation doesn't inflate.
+                        const int AvgGeneratorBlock = 5;
+                        int generatedCount = System.Math.Max(1, card.DrawCount);
+                        int expectedNewBlock = generatedCount * AvgGeneratorBlock;
+                        int blockRecovered = System.Math.Min(shortfall, expectedNewBlock);
+                        generatorRescueBonus = blockRecovered * w.BlockPerPointBonus;
+                        if (generatorRescueBonus > 0)
+                            details.Add($"genRescue(short{shortfall},exp{expectedNewBlock})+{generatorRescueBonus}");
+                    }
+                }
             }
 
             // v0.7.33 — Self-damage penalty for skills that worsen survivability
@@ -1514,7 +1574,36 @@ internal static class PlanScorer
             if (comboBonus != 0) details.Add(comboDetail);
             if (monopolyPenalty != 0) details.Add($"energyMono={monopolyPenalty}");
 
-            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + imbalancedBonus + confusedPenalty;
+            // v0.10 — Per-card relic bonus. Skill-relevant relics: LetterOpener
+            // (every 3rd Skill → damage), IronClub (every 4th card → +draw),
+            // VelvetChoker cap (warn when at the per-turn play limit).
+            int relicBonusSkill = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
+
+            // v0.10 — Delayed-AOE detonation (THE_BOMB). Card itself has no
+            // immediate damage/block; the value lies in the AOE damage that
+            // detonates at end of turn N+DelayTurns-1. Score:
+            //   per_enemy_damage × alive_enemies × delay_discount × DmgPerPoint
+            // delay_discount accounts for (a) future enemies may be dead by
+            // detonation (overkill risk), (b) we may die before detonation,
+            // and (c) opportunity cost of locking the power slot. We use
+            // 0.5^max(0, delayTurns-2) — 2-turn delay (THE_BOMB base) → 0.5;
+            // any longer delay halves again. AOE multiplier capped at 4
+            // mirroring other AOE damage scoring caps in this scorer.
+            int delayedBombBonus = 0;
+            if (card.Effect.DelayedAoeDamage > 0 && card.Effect.DelayTurns >= 2)
+            {
+                int aliveCnt = 0;
+                foreach (var e in state.Enemies) if (e.IsAlive) aliveCnt++;
+                int aoeFactor = System.Math.Min(4, System.Math.Max(1, aliveCnt));
+                int delaySteps = System.Math.Max(0, card.Effect.DelayTurns - 2);
+                double delayMult = System.Math.Pow(0.5, delaySteps);
+                delayedBombBonus = (int)(card.Effect.DelayedAoeDamage
+                    * aoeFactor * delayMult * w.DamagePerPointBonus);
+                if (delayedBombBonus > 0)
+                    details.Add($"delayedAOE({card.Effect.DelayedAoeDamage}×{aoeFactor}×{delayMult:F2})={delayedBombBonus}");
+            }
+
+            int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + imbalancedBonus + confusedPenalty + relicBonusSkill + delayedBombBonus + generatorRescueBonus;
             // v0.9 — Per-energy efficiency diagnostic (Skill: block/E).
             // Raw block/E (Dex/Frail-naïve) → Effective block/E with Frail/
             // Burst/Echo/Unmovable applied. Shows the live combat-aware value.
@@ -1528,7 +1617,7 @@ internal static class PlanScorer
             }
             return new ScoreBreakdown(total, "Skill",
                 Base: baseBonus,
-                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty,
+                Effect: effect + powerEffect + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusSkill + delayedBombBonus,
                 TargetBonus: wastedBlock, ThreatBonus: threatBonus,
                 Details: string.Join(",", details));
         }
@@ -1803,7 +1892,11 @@ internal static class PlanScorer
             // Use PlayerEnergy as the upper bound — actual X may be less if the
             // card has a min-cost rule, but PlayerEnergy is a tight upper-bound
             // estimate.
-            int x = System.Math.Max(1, state.PlayerEnergy);
+            // v0.10 — ChemicalX adds +2 X (ModifyXValue, Increase=2). Stacks
+            // additively before any threshold-doubler (HEAVENLY_DRILL).
+            int xBonus = (state.PlayerRelics != null
+                && state.PlayerRelics.ContainsKey("ChemicalX")) ? 2 : 0;
+            int x = System.Math.Max(1, state.PlayerEnergy + xBonus);
             // v0.6.8 — HEAVENLY_DRILL: if X ≥ 4 (threshold stored as Energy:4 var),
             // X doubles. Per game source `if (num >= Energy) num *= 2`. Hardcoded
             // id-check is fine — this is the only card with the threshold-double
@@ -1823,8 +1916,60 @@ internal static class PlanScorer
         if (card.Id == "TEAR_ASUNDER")
             return 1 + state.CombatPlayerHpLossEvents;
 
+        // Conditional-payoff attacks whose hit count equals cards-played-this-turn.
+        // CalculationBase=0, CalculationExtra=1 → Hits = N(skills|attacks) played
+        // BEFORE this card in the current turn. Reflection defaults hits=1 when
+        // CalculatedHits returns 0, masking premature plays — so override here
+        // with the actual turn counters. Returning 0 (allowed by AllowsZeroHits
+        // below) makes the base scorer credit 0 damage when no setup happened,
+        // pushing the AI to play the setup cards first.
+        if (card.Id == "LUNAR_BLAST")
+            return state.TurnSkillsPlayed;
+        if (card.Id == "FINISHER")
+            return state.TurnAttacksPlayed;
+        // BARRAGE (Defect, 1c 5dmg): one hit per orb currently slotted.
+        // PlayerOrbCount is exposed directly on SimState — use it as the
+        // canonical source instead of trusting PreviewValue.
+        if (card.Id == "BARRAGE")
+            return state.PlayerOrbCount;
+
         return 0;
     }
+
+    /// <summary>
+    /// Cards whose effective hit count is purely derived from a scaling
+    /// trigger (CalculatedHits with CalculationBase=0, CalculationExtra=1).
+    /// CardReflection now sets <c>Hits = 0</c> when the trigger hasn't fired
+    /// yet (was clamped to 1 prior to v0.9.1); the effHits clamp below honours
+    /// that 0 instead of forcing the default min-1 floor so premature plays
+    /// score as actual-zero damage.
+    ///
+    /// Membership is gated on whether we have a reliable zero-state value:
+    ///   • LUNAR_BLAST — skills/turn (explicit EstimateVariableHits override)
+    ///   • FINISHER    — attacks/turn (explicit override)
+    ///   • BARRAGE     — orbs slotted (explicit override via PlayerOrbCount)
+    ///   • FLECHETTES  — skills in hand (ApplyFlechettesHandSkills safety net)
+    ///
+    /// Other CalculatedHits cards (FLAK_CANNON, HELIX_DRILL, PULL_FROM_BELOW,
+    /// RADIATE, RATTLE) deliberately excluded — no explicit counter is wired
+    /// up yet, and if the game's PreviewValue closure ever fails to compute
+    /// the live trigger value those cards would silently score 0 hits / 0
+    /// damage. Keeping them on the default min-1 floor preserves status quo
+    /// behaviour. Promote them here once a counter is added in SimState or a
+    /// fallback handler exists.
+    ///
+    /// TEAR_ASUNDER intentionally excluded — its EstimateVariableHits override
+    /// returns <c>1 + CombatPlayerHpLossEvents</c>, always ≥ 1, so the base
+    /// min-1 clamp is fine.
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<string> _zeroHitsCards =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "LUNAR_BLAST", "FINISHER", "BARRAGE", "FLECHETTES",
+    };
+
+    private static bool AllowsZeroHits(SimCard card)
+        => card.Id != null && _zeroHitsCards.Contains(card.Id);
 
     /// <summary>
     /// v0.6.7 — Estimates the block-multiplier for EXHAUST_BURST skills. SECOND_WIND
@@ -2404,7 +2549,11 @@ internal static class PlanScorer
     ///     with the wasted fraction.
     /// </summary>
     private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w)
+        => EvaluateDrawCard(card, state, w, out _);
+
+    private static int EvaluateDrawCard(SimCard card, SimState state, PlanScorerWeights w, out int rescueComponent)
     {
+        rescueComponent = 0;
         if (card.DrawCount <= 0) return 0;
 
         // v0.9 — NoDrawPower shutdown: player can't draw cards THIS turn.
@@ -2446,11 +2595,24 @@ internal static class PlanScorer
 
         if (bestOtherScore == int.MinValue) return w.DrawHandUselessBonus;
 
+        // v0.10 — Crisis draw rescue. Two effects:
+        //   (a) Override the strong-hand idle penalty when the "strong" card in
+        //       hand still can't cover this turn's incoming damage.
+        //   (b) Add a block-equivalent rescue bonus so a draw card rises above
+        //       straight defense when defense alone leaves us under HP threshold.
+        // The bonus only fires when the pile actually contains block cards —
+        // drawing into a curse/strike-only pile doesn't save you.
+        int rescueBonus = ComputeDrawRescueBonus(card, state, w);
+        rescueComponent = rescueBonus;
+
         int handBonus;
         if (bestOtherScore < w.HandUselessThreshold) handBonus = w.DrawHandUselessBonus;
         else if (bestOtherScore < w.HandWeakThreshold) handBonus = w.DrawHandWeakBonus;
-        else if (bestOtherScore >= w.HandStrongThreshold) handBonus = w.DrawIdlePenalty;
+        else if (bestOtherScore >= w.HandStrongThreshold)
+            handBonus = rescueBonus > 0 ? w.DrawNoCostBottleneckBonus : w.DrawIdlePenalty;
         else handBonus = w.DrawNoCostBottleneckBonus;
+
+        handBonus += rescueBonus;
 
         // v0.2.9 — small pile thinning: very small pile (<=2) reduces draw value
         // because there's little new info to fetch.
@@ -2497,6 +2659,133 @@ internal static class PlanScorer
         int pileEv = EstimatePileDrawEv(effectiveDraws, state);
 
         return handBonus + pileEv;
+    }
+
+    /// <summary>
+    /// v0.10 — Crisis rescue bonus for normal pile-draw cards (RESTLESSNESS,
+    /// CHILD_OF_THE_STARS, SEEKER_STRIKE etc. — anything with DrawCount &gt; 0
+    /// that pulls from the player's own deck). Returns 0 in non-crisis turns.
+    ///
+    /// Fires only when ALL of:
+    ///   • Incoming enemy damage exceeds (current block + playable hand block)
+    ///   • Resulting HP post-leak ≤ DrawRescueHpThreshold (we're about to die)
+    ///   • Pile (DrawPile + DiscardPile) actually contains block cards — user
+    ///     insight: drawing into a curse/Strike-only pile doesn't save us
+    ///
+    /// Magnitude = min(shortfall, expected drawn block) × BlockPerPointBonus
+    /// — block-equivalent score in the same unit as DEFEND's block5*30 = 150.
+    ///
+    /// Generator cards (QUASAR / MIRACLE that pull from external colorless
+    /// pool, not the deck) are handled separately and bypass this function
+    /// via the IsDrawCard / DrawCount &lt;= 0 early-out.
+    /// </summary>
+    private static int ComputeDrawRescueBonus(SimCard card, SimState state, PlanScorerWeights w)
+    {
+        if (card.DrawCount <= 0) return 0;
+
+        int leak = EnemyTurnSimulator.PredictPlayerDmg(state);
+        if (leak <= 0) return 0;
+
+        int handBlockCap = SumPlayableBlockExcluding(state, card);
+        int shortfall = leak - state.PlayerBlock - handBlockCap;
+        if (shortfall <= 0) return 0;
+
+        int hpAfter = state.PlayerHp - shortfall;
+        if (hpAfter > w.DrawRescueHpThreshold) return 0;
+
+        // Pile must have at least one block card AND non-zero total block —
+        // user insight: drawing into a curse-only pile doesn't save you.
+        int pileBlockSum = 0;
+        int pileCount = 0;
+        for (int i = 0; i < state.DrawPile.Count; i++)
+        {
+            pileBlockSum += state.DrawPile[i].Block;
+            pileCount++;
+        }
+        for (int i = 0; i < state.DiscardPile.Count; i++)
+        {
+            pileBlockSum += state.DiscardPile[i].Block;
+            pileCount++;
+        }
+        if (pileCount == 0 || pileBlockSum <= 0) return 0;
+
+        // Expected block per drawn card = pile mean block. Cap by shortfall —
+        // can't recover more than we actually lose, so a curse-heavy pile with
+        // one mega-block card doesn't get over-credited.
+        int avgBlockPerCard = pileBlockSum / pileCount;
+        int expectedNewBlock = card.DrawCount * avgBlockPerCard;
+        int blockRecovered = System.Math.Min(shortfall, expectedNewBlock);
+        if (blockRecovered <= 0) return 0;
+
+        return blockRecovered * w.BlockPerPointBonus;
+    }
+
+    /// <summary>
+    /// v0.10 — True when the card adds cards to the hand from an external
+    /// pool (game's colorless / random pool), NOT the player's own deck.
+    /// Examples: QUASAR (random Upgraded Colorless), MIRACLE-class boosts,
+    /// HELLO_WORLD / JACKPOT / CREATIVE_AI (CARD_GEN axis in catalog).
+    ///
+    /// Distinct from <c>IsDrawCard</c> (DrawCount &gt; 0) which pulls from
+    /// the player's own DrawPile + DiscardPile. Generators have separate
+    /// rescue / EV modeling because their output isn't constrained by the
+    /// player's current deck composition.
+    ///
+    /// Identification: CARD_GEN axis from cards_catalog.json (preferred),
+    /// or hard-coded ID fallback for cards not yet axis-tagged. To extend
+    /// without touching code, use the axis-tagger workflow to add CARD_GEN
+    /// to the card's axes in card_axis_overrides.json.
+    /// </summary>
+    private static bool IsCardGenerator(SimCard card)
+    {
+        if (card.Axes != null)
+        {
+            for (int i = 0; i < card.Axes.Count; i++)
+                if (card.Axes[i] == "CARD_GEN") return true;
+        }
+        // ID fallback — cards whose generator nature is unambiguous from
+        // their effect text but whose catalog tag hasn't been updated yet.
+        // QUASAR ("Choose 1 of 3 random Upgraded Colorless cards to add
+        // into your Hand") is the prototypical case from the 2026-05-20
+        // boss-fight diagnostic; tagged SCALING / RANDOM in catalog as of
+        // game v0.103.2 but functionally a card generator.
+        switch (card.Id)
+        {
+            case "CARD.QUASAR":
+            case "CARD.QUASAR+":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Greedy by cost: estimate playable block this turn from the hand,
+    /// excluding the card being evaluated. Picks cheaper block cards first
+    /// so the result reflects the realistic ceiling under current energy,
+    /// not an "infinite energy" upper bound.
+    /// </summary>
+    private static int SumPlayableBlockExcluding(SimState state, SimCard exclude)
+    {
+        var candidates = new System.Collections.Generic.List<SimCard>(state.Hand.Count);
+        foreach (var c in state.Hand)
+        {
+            if (System.Object.ReferenceEquals(c, exclude)) continue;
+            if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+            if (c.Block <= 0) continue;
+            candidates.Add(c);
+        }
+        candidates.Sort((a, b) => a.Cost.CompareTo(b.Cost));
+
+        int energy = state.PlayerEnergy;
+        int totalBlock = 0;
+        foreach (var c in candidates)
+        {
+            if (c.Cost > energy) break;
+            energy -= c.Cost;
+            totalBlock += c.Block;
+        }
+        return totalBlock;
     }
 
     /// <summary>

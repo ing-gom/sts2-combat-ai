@@ -105,6 +105,17 @@ internal sealed record SimCard
     /// </summary>
     public bool IsBound { get; init; }
 
+    /// <summary>
+    /// Card carries the "Smog" affliction (from SmoggyPower — LivingFog's
+    /// AdvancedGasMove). When SmoggyPower is active and the player plays
+    /// any Skill, every other unafflicted Skill in deck/hand/discard gains
+    /// Smog and becomes unplayable for the turn (cleared at TurnEnd).
+    /// Snapshot-time signal — EnumerateCandidates also uses
+    /// <see cref="SimState.SmoggySkillPlayedThisTurn"/> to filter
+    /// future-skill candidates inside the forward simulator.
+    /// </summary>
+    public bool IsSmogged { get; init; }
+
     public bool IsAttack => Kind == CardType.Attack;
     public bool IsSkill => Kind == CardType.Skill;
     public bool IsPower => Kind == CardType.Power;
@@ -246,7 +257,16 @@ internal sealed record SimCard
 
         int hits = System.Math.Max(1, Hits);
         if (Axes != null && Axes.Contains("X_COST"))
-            hits = System.Math.Max(1, state.PlayerEnergy);
+        {
+            // v0.10 — ChemicalX (`ModifyXValue`) adds +2 to any X-cost card's
+            // X value. Canonical "Increase" DynamicVar = 2; applies to both
+            // EnergyCost.CostsX and HasStarCostX, so any X_COST axis card
+            // benefits. PlayerEnergy is the spent energy upper bound; +2 adds
+            // ChemicalX's free bonus.
+            int xBonus = (state.PlayerRelics != null
+                && state.PlayerRelics.ContainsKey("ChemicalX")) ? 2 : 0;
+            hits = System.Math.Max(1, state.PlayerEnergy + xBonus);
+        }
         int total = perHit * hits;
         if (state.PlayerVigor > 0) total += state.PlayerVigor;
         if (state.PlayerEchoForm > 0) total *= 2;

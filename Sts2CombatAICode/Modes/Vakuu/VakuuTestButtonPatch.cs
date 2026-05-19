@@ -18,10 +18,16 @@ namespace Sts2CombatAI.Modes.Vakuu;
 /// Hook: Postfix on <see cref="NEndTurnButton._Ready"/> — fires once per button instance,
 /// so the buttons are recreated for every fresh combat scene without state leakage.
 ///
-/// On click: synthesizes a <see cref="ThrowingPlayerChoiceContext"/> and invokes
-/// <see cref="VakuuExecutor.RunPlannedTurn"/>. If a card play triggers an actual choice
-/// prompt the context throws, the executor's per-step try-catch logs and breaks the loop —
-/// graceful failure mode for v0.1.
+/// On click: synthesizes a <see cref="BlockingPlayerChoiceContext"/> (no-op
+/// signal hooks) and invokes <see cref="VakuuExecutor.RunPlannedTurn"/>. The
+/// executor pushes <c>VakuuCardSelector</c> onto the selector stack, so any
+/// mid-play "choose a card" prompt (QUASAR / DISCOVERY / etc.) is routed to
+/// our PlanScorer-aware selector instead of opening the player UI.
+/// <para/>
+/// History: v0.1 used <c>ThrowingPlayerChoiceContext</c> as a fail-fast guard,
+/// but that throws <c>NotImplementedException</c> from
+/// <c>SignalPlayerChoiceBegun</c> the moment a legitimate selection card
+/// (e.g. QUASAR) runs — breaking auto-play instead of guarding against it.
 /// </summary>
 [HarmonyPatch(typeof(NEndTurnButton), "_Ready")]
 internal static class VakuuTestButtonPatch
@@ -159,7 +165,7 @@ internal static class VakuuTestButtonPatch
             LastUsedRound = combatState.RoundNumber;
             MainFile.Logger.Info($"[CombatAI] play button pressed — running planner (turn {combatState.RoundNumber})");
 
-            var ctx = new ThrowingPlayerChoiceContext();
+            var ctx = new BlockingPlayerChoiceContext();
             await VakuuExecutor.RunPlannedTurn(player, ctx);
         }
         catch (Exception ex)
@@ -199,7 +205,7 @@ internal static class VakuuTestButtonPatch
             MainFile.Logger.Info(
                 $"[CombatAI] step button pressed — single-card play (turn {combatState.RoundNumber})");
 
-            var ctx = new ThrowingPlayerChoiceContext();
+            var ctx = new BlockingPlayerChoiceContext();
             await VakuuExecutor.RunPlannedTurn(player, ctx,
                 relicForVfx: null, maxSteps: 1, isPartialTurn: true);
         }

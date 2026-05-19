@@ -40,6 +40,14 @@ internal static class CardOverrideCatalog
 
         // — Watcher / Regent stance / star-cost stronger than baseline —
         ["CARD.APOTHEOSIS"]   = 300,   // upgrade all — runs deep
+
+        // v0.10 — Delayed payoff cards the base scorer underestimates.
+        // BOMBARDMENT: cost 3 Attack, exhausts on play (18 dmg), but
+        // `BeforeHandDraw` auto-replays from Exhaust on the NEXT turn for
+        // another 18 free dmg. Effective output ~36 over 2 turns. Base
+        // scorer credits only the immediate 18. Bonus ≈ 18 × 0.7 (1-turn
+        // delay discount) × 50 (DamagePerPointBonus) = 630 → round to 600.
+        ["CARD.BOMBARDMENT"]  = 600,
     };
 
     /// <summary>
