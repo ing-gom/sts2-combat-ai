@@ -1,5 +1,58 @@
 # Changelog
 
+## v0.8.6 (2026-05-19)
+
+**Power propagation regression tests (v0.7.94+).**
+
+### 변경
+
+1. **테스트 인프라 복구**: 기존 `Sts2VakuuPlus.Tests` 프로젝트가 옛 디렉토리
+   이름 (`Sts2VakuuPlus`) 참조로 인해 빌드 불가 상태였음. 모든 path 를
+   `Sts2CombatAI` 로 마이그레이션:
+   - csproj 의 `Sts2VakuuPlusCode\*` → `Sts2CombatAICode\Core\*`
+   - csproj 에 추가된 의존 파일 22개 (EffectSynergy, ArchetypeDetector,
+     ComboRecognition, SurvivalProjection 등 v0.6-0.8 신규 모듈)
+   - `Program.cs` 의 `using Sts2VakuuPlus.*` → `using Sts2CombatAI.*`
+   - `namespace Sts2VakuuPlus.Tests` → `namespace Sts2CombatAI.Tests`
+
+2. **v0.7.94+ Power propagation 회귀 테스트 15개 추가**:
+   - Enrage on Skill play
+   - Corruption propagation
+   - Burst doubles Skill block + consumes 1 stack
+   - Player Thorns caps multi-hit enemy
+   - FeelNoPain on Exhaust card
+   - EchoForm doubles attack + consumes 1 charge
+   - Juggernaut deals damage on block gain
+   - Hunger adds Strength per draw
+   - FlameBarrier folds into Thorns
+   - DanseMacabre on cost≥2 (positive case) + cost<2 (negative case)
+   - PlayerPowers dict catch-all (non-explicit power tracked)
+   - Unmovable × Burst × Echo canonical compose (5× not 8×)
+
+### 결과
+
+```
+=== 80 passed, 7 failed ===
+```
+
+신규 15 테스트 모두 PASS. 실패 7개는 기존 stale draw 테스트 (이번 작업과
+무관, 별도 fix 필요).
+
+### 의의
+
+향후 회귀 안전망 확보:
+- v0.7.94 ~ v0.8.4 의 Power propagation 메커니즘 변경이 의도대로 동작 검증.
+- 새 STS2 패치 또는 코드 리팩터로 propagation 깨지면 즉시 테스트 실패 감지.
+- 신규 power 추가 시 동일 패턴으로 테스트 추가 가능.
+
+### 향후 작업 후보
+
+- 기존 stale draw 테스트 7개 fix (튜닝 변화로 인한 단순 임계값 갱신).
+- AdvanceTurn 회귀 테스트 (현재 0개 — turn-end resolution, regen, demon-form 등).
+- Selector / DecisionLog 더 깊은 통합 테스트.
+
+---
+
 ## v0.8.5 (2026-05-19)
 
 **Code-quality 정리 — Reflection 무로그 catch 제거 + null-safety + 빌드 경고 0 (우리 코드).**
