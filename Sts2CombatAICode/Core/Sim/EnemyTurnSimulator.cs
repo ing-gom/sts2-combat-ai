@@ -21,8 +21,9 @@ internal static class EnemyTurnSimulator
         {
             // v0.7.96 — Even under Intangible, Thorns reflects per hit (canonical STS:
             // Thorns triggers on receiving damage, including the 1-capped hit).
+            // v0.8.0 — FlameBarrierPower folds into the same reflect total.
             int hits = 0;
-            int thornsAmtIntan = s.PlayerThorns;
+            int thornsAmtIntan = s.PlayerThorns + s.PlayerFlameBarrier;
             foreach (var e in s.Enemies)
             {
                 if (!e.IsAlive) continue;
@@ -52,9 +53,10 @@ internal static class EnemyTurnSimulator
         // v0.7.96 — Player Thorns reflects damage per incoming hit. Each hit
         // received costs the enemy ThornsAmount HP; an enemy may die mid-attack
         // sequence, cutting remaining hits.
+        // v0.8.0 — FlameBarrierPower folds in.
         var dmgInstances = new System.Collections.Generic.List<int>();
         bool playerVulnerable = s.PlayerVulnerable > 0;
-        int playerThornsAmt = s.PlayerThorns;
+        int playerThornsAmt = s.PlayerThorns + s.PlayerFlameBarrier;
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
@@ -124,8 +126,9 @@ internal static class EnemyTurnSimulator
         if (s.PlayerIntangible > 0)
         {
             // v0.7.96 — Thorns also caps hits under Intangible (mirror PredictPlayerDmg).
+            // v0.8.0 — FlameBarrier folded in.
             int hits = 0;
-            int thornsAmtIntan = s.PlayerThorns;
+            int thornsAmtIntan = s.PlayerThorns + s.PlayerFlameBarrier;
             foreach (var e in s.Enemies)
             {
                 if (!e.IsAlive) continue;
@@ -149,9 +152,10 @@ internal static class EnemyTurnSimulator
 
         // v0.7.83 — Collect instances for Buffer to cancel the largest first.
         // v0.7.96 — Thorns reflect caps hits per attacker (mirror of PredictPlayerDmg).
+        // v0.8.0 — FlameBarrier folded in.
         var dmgInstances = new System.Collections.Generic.List<int>();
         bool playerVuln = s.PlayerVulnerable > 0;
-        int playerThornsAmt = s.PlayerThorns;
+        int playerThornsAmt = s.PlayerThorns + s.PlayerFlameBarrier;
         foreach (var e in s.Enemies)
         {
             if (!e.IsAlive) continue;
