@@ -67,6 +67,8 @@ internal static class StateSnapshotter
             int playerHunger = CombatReflection.GetPowerAmount(creature, "HungerPower");
             // v0.8.0 — FlameBarrierPower (1-turn reflect; folds into Thorns).
             int playerFlameBarrier = CombatReflection.GetPowerAmount(creature, "FlameBarrierPower");
+            // v0.8.1 — DanseMacabrePower (cost≥2 card → block).
+            int playerDanseMacabre = CombatReflection.GetPowerAmount(creature, "DanseMacabrePower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -316,6 +318,7 @@ internal static class StateSnapshotter
                 PlayerJuggernaut = playerJuggernaut,
                 PlayerHunger = playerHunger,
                 PlayerFlameBarrier = playerFlameBarrier,
+                PlayerDanseMacabre = playerDanseMacabre,
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next
