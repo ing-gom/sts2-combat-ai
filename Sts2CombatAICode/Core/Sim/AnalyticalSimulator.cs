@@ -785,7 +785,9 @@ internal static class AnalyticalSimulator
             // v0.8.2 — Propagate updated PlayerPowers dict if any self-power
             // applied this card. Keeps explicit fields (PlayerStrength etc.)
             // and dict in sync, plus tracks any non-explicit powers granted.
-            PlayerPowers = newPlayerPowers ?? next.PlayerPowers,
+            PlayerPowers = (IReadOnlyDictionary<string, int>?)newPlayerPowers
+                ?? next.PlayerPowers
+                ?? new Dictionary<string, int>(),
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,
