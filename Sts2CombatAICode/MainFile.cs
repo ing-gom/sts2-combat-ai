@@ -51,7 +51,7 @@ public partial class MainFile : Node
             var asmVer = typeof(MainFile).Assembly.GetName().Version?.ToString() ?? "unknown";
             // v0.7.80 — manifest version marker so we can verify the live dll
             // is the freshly-built one (asmVer is always 1.0.0.0).
-            const string ManifestVersionMarker = "v0.8.0";
+            const string ManifestVersionMarker = "v0.8.1";
             Logger.Info($"[CombatAI] initialized (asm={asmVer}, manifest={ManifestVersionMarker}).");
         }
         catch (Exception ex)

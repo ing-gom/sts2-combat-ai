@@ -1069,9 +1069,13 @@ internal static class PlanScorer
             if (state.PlayerFeelNoPain > 0 && card.IsExhaust)
                 attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerFeelNoPain,
                     state.PlayerDexterity, state.PlayerFrail > 0);
+            // v0.8.1 — DanseMacabre: cost≥2 attack → +N block.
+            if (state.PlayerDanseMacabre > 0 && card.Cost >= 2)
+                attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerDanseMacabre,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
             int reactiveBlockBonus = attackReactiveBlock * w.BlockPerPointBonus;
             if (reactiveBlockBonus != 0)
-                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage}+fnp{(card.IsExhaust ? state.PlayerFeelNoPain : 0)})={reactiveBlockBonus}");
+                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage}+fnp{(card.IsExhaust ? state.PlayerFeelNoPain : 0)}+danse{(card.Cost >= 2 ? state.PlayerDanseMacabre : 0)})={reactiveBlockBonus}");
 
             int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
@@ -1134,6 +1138,14 @@ internal static class PlanScorer
                     state.PlayerDexterity, state.PlayerFrail > 0);
                 effectiveBlock += fnpBlock;
                 details.Add($"feelNoPain(+{fnpBlock})");
+            }
+            // v0.8.1 — DanseMacabre: cost≥2 skill → +N block.
+            if (state.PlayerDanseMacabre > 0 && card.Cost >= 2)
+            {
+                int danseBlock = StatusMath.EffectiveBlock(state.PlayerDanseMacabre,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
+                effectiveBlock += danseBlock;
+                details.Add($"danse(+{danseBlock})");
             }
             int effect = effectiveBlock * w.BlockPerPointBonus;
             details.Add($"skillBase={w.SkillBaseBonus}");

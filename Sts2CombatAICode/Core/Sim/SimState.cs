@@ -106,6 +106,10 @@ internal sealed record SimState
     // in PredictPlayerDmg / PredictRawLeak so enemies die mid-attack-sequence
     // to the combined reflect.
     public int PlayerFlameBarrier { get; init; }
+    // v0.8.1 — DanseMacabrePower (Necrobinder): when player plays a card with
+    // cost ≥ 2, gain N block. STS2 mechanic per cards_catalog.json (NOT the
+    // STS1 Shiv-generation interpretation).
+    public int PlayerDanseMacabre { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }

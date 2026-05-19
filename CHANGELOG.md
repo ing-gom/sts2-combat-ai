@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.8.1 (2026-05-19)
+
+**DanseMacabrePower — cost≥2 카드 플레이 시 block N (Necrobinder).**
+
+### 메커니즘 정정
+
+이전 audit 에서 "Skill 플레이 시 Shiv 생성" 으로 잘못 기재. STS1 일부 Power 와
+혼동. **STS2 실제 효과** (cards_catalog.json 검증):
+
+> "비용이 [에너지][에너지] 이상인 카드를 사용할 때마다, 방어도를 4 얻습니다."
+> (Upgraded: 6)
+
+즉 cost ≥ 2 카드 플레이마다 reactive block. Necrobinder 방어 빌드 코어.
+
+### 변경
+
+- `SimState.PlayerDanseMacabre` 신설.
+- `StateSnapshotter` 가 DanseMacabrePower stack 주입.
+- `AnalyticalSimulator`:
+  - Power/Skill self-apply switch 에 케이스 추가.
+  - 카드 resolve 끝 `if (DanseMacabre > 0 && card.Cost >= 2)` →
+    `newPlayerBlock += EffectiveBlock(DanseMacabre)`.
+  - Final state carry.
+- `PlanScorer`:
+  - 공격 평가의 `attackReactiveBlock` 에 DanseMacabre (cost≥2 한정) 가산.
+  - 스킬 block 평가에 DanseMacabre (cost≥2 한정) 가산.
+
+### 기대 효과
+
+DanseMacabre 4 stack + 2-cost 카드 → +4 block 즉시 score 반영 + simulator 누적.
+0/1-cost 카드는 trigger 안 함 → 0-cost 카드 우선순위에 영향 없음.
+
+Necrobinder 방어 빌드 (DanseMacabre + 2+ cost cards) 의 defensive 점수 정확화.
+
+### Note
+
+DanseMacabre 트리거는 카드 catalog cost 기준. Corruption / Free*Power 로 cost 0
+가 된 카드는 STS canonical 에서도 원래 cost ≥ 2 면 trigger. 본 modeling 은
+`card.Cost` (catalog 값) 사용 — 정확.
+
+---
+
 ## v0.8.0 (2026-05-19)
 
 **FlameBarrierPower — 1턴 reflect (Thorns 와 같은 메커니즘).**
