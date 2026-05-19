@@ -137,47 +137,48 @@ internal static class EffectSynergy
         // so state actually shifts the Power's score. NOSTALGIA / STRATAGEM
         // remain inside ApplyCardReturn (they have the CARD_RETURN axis); the
         // dispatches below cover the no-axis-routing card ids.
-        if (card.Id == "CARD.MAYHEM")
+        // v0.7.90 — Prefix stripped (v0.7.81 bug). Archetype Power tick-value handlers.
+        if (card.Id == "MAYHEM")
             ApplyMayhemTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.STAMPEDE")
+        else if (card.Id == "STAMPEDE")
             ApplyStampedeTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.CALAMITY")
+        else if (card.Id == "CALAMITY")
             ApplyCalamityTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.HELLRAISER")
+        else if (card.Id == "HELLRAISER")
             ApplyHellraiserTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.JUGGLING")
+        else if (card.Id == "JUGGLING")
             ApplyJugglingTickValue(card, state, ref b, parts);
         // v0.7.26 — per-turn / trigger-based Power passives whose value depends
         // on deck composition or enemy state. Same delta pattern as MAYHEM:
         //   delta = clamp(state_derived − baked, −baked, +Cap)
-        else if (card.Id == "CARD.DARK_EMBRACE")
+        else if (card.Id == "DARK_EMBRACE")
             ApplyDarkEmbraceTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.VICIOUS")
+        else if (card.Id == "VICIOUS")
             ApplyViciousTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.ACCELERANT")
+        else if (card.Id == "ACCELERANT")
             ApplyAccelerantTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.ENVENOM")
+        else if (card.Id == "ENVENOM")
             ApplyEnvenomTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.SUBROUTINE")
+        else if (card.Id == "SUBROUTINE")
             ApplySubroutineTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.PREP_TIME")
+        else if (card.Id == "PREP_TIME")
             ApplyPrepTimeTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.STORM")
+        else if (card.Id == "STORM")
             ApplyStormTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.TOOLS_OF_THE_TRADE")
+        else if (card.Id == "TOOLS_OF_THE_TRADE")
             ApplyToolsOfTheTradeTickValue(card, state, ref b, parts);
         // v0.7.27 — Shiv stem Power passives (Silent-focused but party-shared).
         // All five hinge on the Shiv production rate AND the alive enemy count;
         // pure baked value miss-prices them in low-Shiv and AOE contexts.
-        else if (card.Id == "CARD.ACCURACY")
+        else if (card.Id == "ACCURACY")
             ApplyAccuracyTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.PHANTOM_BLADES")
+        else if (card.Id == "PHANTOM_BLADES")
             ApplyPhantomBladesTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.FAN_OF_KNIVES")
+        else if (card.Id == "FAN_OF_KNIVES")
             ApplyFanOfKnivesTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.MASTER_PLANNER")
+        else if (card.Id == "MASTER_PLANNER")
             ApplyMasterPlannerTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.INFINITE_BLADES")
+        else if (card.Id == "INFINITE_BLADES")
             ApplyInfiniteBladesTickValue(card, state, ref b, parts);
         // v0.7.28 — Star stem Power passives (Regent archetype). Stars =
         // player resource pool. Powers either generate per-trigger or convert

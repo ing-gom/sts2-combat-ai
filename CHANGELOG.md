@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.7.90 (2026-05-19)
+
+**EffectSynergy 배치 3 — Archetype Power 18개 revive.**
+
+### 변경
+
+`EffectSynergy.cs:140-181` 18개 Power 카드 핸들러에서 `CARD.` prefix 제거:
+
+**v0.7.25 tick-value patterns (5)**: MAYHEM, STAMPEDE, CALAMITY, HELLRAISER, JUGGLING.
+**v0.7.26 trigger-based (8)**: DARK_EMBRACE, VICIOUS, ACCELERANT, ENVENOM, SUBROUTINE, PREP_TIME, STORM, TOOLS_OF_THE_TRADE.
+**v0.7.27 Shiv stem (5)**: ACCURACY, PHANTOM_BLADES, FAN_OF_KNIVES, MASTER_PLANNER, INFINITE_BLADES.
+
+이들 핸들러는 baked PowerCatalog 값과 state-derived tick 의 delta 를 적용:
+```
+delta = clamp(state_derived_tick − baked_value, −baked, +Cap)
+```
+
+이전엔 모두 dead → tick 평가가 baked 값으로만 결정 → archetype 빌드의 deck
+구성 / 적 상태 의존성 미반영.
+
+### 점수 영향
+
+- **DARK_EMBRACE** (Ironclad exhaust draw) → exhaust 카드 많은 빌드에서 baked
+  500 위로 보너스, exhaust 적은 빌드에선 페널티.
+- **PREP_TIME** (Watcher Vigor /턴) → 공격 카드 많은 빌드에서 Vigor amplifier 가치 상승.
+- **INFINITE_BLADES** (Silent 무한 Shiv) → 적 수 + Shiv 소비 카드 비율에 따라
+  baked 500 위/아래 조정.
+- **ACCURACY** (Shiv 데미지) → v0.7.86 의 AccuracyPower 적용과 별도로, ACCURACY
+  카드 자체의 score 가 build-fit 반영.
+
+### 잔여 dead handler
+
+EffectSynergy 의 나머지 **96개** — 다음 배치 (Orb/Regent, Misc Powers, Exhaust, Variance 등).
+
+---
+
 ## v0.7.89 (2026-05-19)
 
 **EffectSynergy 배치 2 — Forge / Skeleton / OrbSlots 17개 revive.**
