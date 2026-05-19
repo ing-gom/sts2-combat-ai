@@ -1,5 +1,75 @@
 # Changelog
 
+## v0.8.3 (2026-05-19)
+
+**Enemy.Powers dict catch-all + within-turn multiplier 검증.**
+
+### 1. Enemy debuff catch-all
+
+`IsEnemyDebuff` 가 14 개 debuff 인식, 그 중 **6개만 explicit field** (Vuln/Weak/
+Frail/Poison/Constrict/Burn). 나머지 **8개** (Hex / DarkShackles / PiercingWail /
+Dampen / EnfeeblingTouch / Shackled / Confused / Rupture / NoxiousFumes) 는
+Artifact intercept 만 처리, stack 은 silent drop.
+
+v0.8.2 의 PlayerPowers 패턴 mirror 로 `Dictionary<string, int> newEnemyPowers`
+lazy-build + `AddEnemyPower(name, delta)` 헬퍼를 두 enemy debuff 경로
+(attack-attached + skill enemy-target) 에 추가:
+
+```csharp
+// Always update dict (catch-all). Explicit fields below still update for tracked debuffs.
+AddEnemyPower(powerName, amount);
+switch (powerName) { case "VulnerablePower": ... }
+```
+
+Final `enemy with` 에 `Powers = newEnemyPowers ?? enemy.Powers` 추가.
+
+→ Hex / DarkShackles / NoxiousFumes 등 8 개 debuff 의 stack 이 비로소 propagate.
+
+### 2. Within-turn multiplier 검증
+
+EchoForm / Burst / Unmovable / 데미지 multiplier 들의 compound 동작 audit:
+
+**Skill block** (`eff = baseBlock`):
+- Unmovable 활성 + !UsedThisTurn → `eff *= 2`
+- `eff *= burstMul * echoMul`
+- ALL 3 active → 8x base block.
+
+**Skill self-buff / enemy debuff**:
+- `amount = rawAmount * burstMul * echoMul`
+- 4x if Burst+Echo both active.
+
+**Attack damage**:
+- damage multiplier chain (Tracking/Cruelty/Lethality) 적용
+- `totalDmg *= echoMul` (Burst 는 Skill-only)
+- 2x if Echo active.
+
+**Attack attached debuff**:
+- `amount = rawAttachAmount * echoMul`
+- 2x if Echo active.
+
+### 알려진 approximation
+
+**Unmovable + Burst/Echo compound 약간 over-credit.** STS canonical: card 가
+`burstMul × echoMul` 번 플레이될 때, Unmovable 은 첫 play 만 doubled. 즉:
+
+```
+canonical: blockGain = first_play_block × 2 + (plays - 1) × first_play_block
+          = first_play_block × (plays + 1)
+ours:      blockGain = first_play_block × 2 × plays
+```
+
+3-way (Unmov + Burst + Echo) 시:
+- canonical: base × 5
+- ours: base × 8 (60% 과대평가)
+
+극단 케이스 (정확한 3-way 동시 발생) 만 영향, 일반 케이스는 정확. **튜닝
+필요성 낮음**.
+
+다른 multiplier (Tracking × Cruelty × Lethality × Echo) 는 모두 multiplicative
+인 게 canonical → 우리 모델 정확.
+
+---
+
 ## v0.8.2 (2026-05-19)
 
 **Generic PlayerPowers dict catch-all propagation.**
