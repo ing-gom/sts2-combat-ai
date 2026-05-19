@@ -50,6 +50,9 @@ internal static class StateSnapshotter
             int playerUnmovable = CombatReflection.GetPowerAmount(creature, "UnmovablePower");
             // v0.7.86 — Shiv damage bonus (Silent).
             int playerAccuracy = CombatReflection.GetPowerAmount(creature, "AccuracyPower");
+            // v0.7.94 — Reactive Strength + Skill-cost reduction.
+            int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
+            int playerCorruption = CombatReflection.GetPowerAmount(creature, "CorruptionPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -289,6 +292,8 @@ internal static class StateSnapshotter
                 PlayerAfterimage = playerAfterimage,
                 PlayerUnmovable = playerUnmovable,
                 PlayerAccuracy = playerAccuracy,
+                PlayerEnrage = playerEnrage,
+                PlayerCorruption = playerCorruption,
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next
