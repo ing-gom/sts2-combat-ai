@@ -74,6 +74,10 @@ internal sealed record SimState
     // here in addition to PlayerPowers so depth-N lookahead can see the cost-0
     // effect after a Power card grants Corruption mid-turn.
     public int PlayerCorruption { get; init; }
+    // v0.7.95 — BurstPower: next Skill plays its effect twice. Each Skill play
+    // consumes 1 stack. Effects affected: block, applied debuffs/buffs, draw,
+    // energy gain — anything that comes from the Skill's onPlay resolution.
+    public int PlayerBurst { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
