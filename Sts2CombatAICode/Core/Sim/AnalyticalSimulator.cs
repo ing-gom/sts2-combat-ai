@@ -114,6 +114,8 @@ internal static class AnalyticalSimulator
         // v0.7.99 — Juggernaut + Hunger reactive trigger sources.
         int newPlayerJuggernaut = next.PlayerJuggernaut;
         int newPlayerHunger = next.PlayerHunger;
+        // v0.8.0 — FlameBarrier reflect (1-turn).
+        int newPlayerFlameBarrier = next.PlayerFlameBarrier;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -196,6 +198,8 @@ internal static class AnalyticalSimulator
                     // v0.7.99 — Juggernaut / Hunger propagation.
                     case "JuggernautPower": newPlayerJuggernaut += amount; break;
                     case "HungerPower": newPlayerHunger += amount; break;
+                    // v0.8.0 — FlameBarrier (1-turn reflect).
+                    case "FlameBarrierPower": newPlayerFlameBarrier += amount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -451,6 +455,8 @@ internal static class AnalyticalSimulator
                         // v0.7.99 — Skill-granted Juggernaut / Hunger.
                         case "JuggernautPower": newPlayerJuggernaut += amount; break;
                         case "HungerPower": newPlayerHunger += amount; break;
+                        // v0.8.0 — Skill-granted FlameBarrier.
+                        case "FlameBarrierPower": newPlayerFlameBarrier += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -686,6 +692,7 @@ internal static class AnalyticalSimulator
             PlayerEchoForm = newPlayerEchoForm,
             PlayerJuggernaut = newPlayerJuggernaut,
             PlayerHunger = newPlayerHunger,
+            PlayerFlameBarrier = newPlayerFlameBarrier,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,
@@ -1061,6 +1068,8 @@ internal static class AnalyticalSimulator
             PlayerLethality = state.PlayerLethality,
             // v0.7.85 — Unmovable re-arms each turn (single-shot per turn).
             UnmovableUsedThisTurn = false,
+            // v0.8.0 — FlameBarrier expires at end of player turn (1-turn).
+            PlayerFlameBarrier = 0,
             PlayerVulnerable = newPlayerVuln,
             PlayerWeak = newPlayerWeak,
             PlayerFrail = newPlayerFrail,
