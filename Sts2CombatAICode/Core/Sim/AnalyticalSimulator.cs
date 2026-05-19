@@ -1172,8 +1172,32 @@ internal static class AnalyticalSimulator
                 FrailAmount      = System.Math.Max(0, ne.FrailAmount - 1),
                 PoisonAmount     = System.Math.Max(0, ne.PoisonAmount - 1),
                 Block            = 0, // enemies' block also resets each turn
+                // SandpitPower decrements at AfterSideTurnStartLate(Enemy)
+                // — for our turn-boundary model that's "end of player turn /
+                // start of next enemy phase". Transitioning to 0 here means
+                // the player WILL be instakilled at the enemy turn start
+                // (AfterRemoved hook). Reset HardenedShellRemaining to base
+                // amount too — separate Skulking Colony fix (see below).
+                SandpitAmount    = System.Math.Max(0, ne.SandpitAmount - 1),
             };
             newEnemies.Add(ne);
+        }
+
+        // SandpitPower instakill check: if any ALIVE enemy's Sandpit just
+        // dropped to 0 (was >0 last turn → 0 this turn), the game force-kills
+        // the player on the upcoming enemy turn. Model as player HP=0 so
+        // survival sim and PlanScorer treat the run as lost — forces all
+        // plans to finish the carrier before the counter expires.
+        bool sandpitInstakill = false;
+        for (int idx = 0; idx < state.Enemies.Count && idx < newEnemies.Count; idx++)
+        {
+            var before = state.Enemies[idx];
+            var after = newEnemies[idx];
+            if (after.IsAlive && before.SandpitAmount > 0 && after.SandpitAmount == 0)
+            {
+                sandpitInstakill = true;
+                break;
+            }
         }
 
         // (d) Player status decrement.
@@ -1187,6 +1211,12 @@ internal static class AnalyticalSimulator
         // (no decrement) — Doom only goes up.
         if (state.PlayerDoom > 0)
             newPlayerHp = System.Math.Max(0, newPlayerHp - state.PlayerDoom);
+
+        // SandpitPower instakill (The Insatiable). Carrier's counter just hit
+        // 0 — game force-kills player + pets + Osty regardless of HP/revive.
+        // Set HP=0 so survival sim treats this branch as a loss.
+        if (sandpitInstakill)
+            newPlayerHp = 0;
 
         // v0.7.12 — Player Power per-turn passives (Phase 2b). The full
         // PlayerPowers dict is consulted for persistent powers that don't have

@@ -146,6 +146,19 @@ internal sealed record SimEnemy
     /// </summary>
     public int PaperCutsAmount { get; init; }
 
+    /// <summary>
+    /// SandpitPower stack (The Insatiable). Decrements -1 at each enemy turn
+    /// start. When this transitions from &gt;0 to 0 the power's AfterRemoved
+    /// hook force-kills the player + pets + Osty, ignoring all revive
+    /// mechanics (decompile sts2.decompiled.cs:318071-318104).
+    ///
+    /// Survival horizon hard-limit: planner MUST finish this carrier before
+    /// the counter expires. Player can play FranticEscape (status card) to
+    /// regain +1 stack but EnergyCost.AddThisCombat(+1) accumulates per use
+    /// — a delaying tactic, not a solution.
+    /// </summary>
+    public int SandpitAmount { get; init; }
+
     // v0.1.2 — encounter-role classification (set by Snapshotter)
     public bool IsBoss { get; init; }      // boss-room top creature (highest HP in boss/elite encounter)
     public bool IsElite { get; init; }     // any creature in an elite encounter

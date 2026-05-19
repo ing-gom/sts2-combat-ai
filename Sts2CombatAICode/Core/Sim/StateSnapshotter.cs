@@ -725,6 +725,13 @@ internal static class StateSnapshotter
         // "kill this enemy first" prioritization.
         int paperCuts = powerDict.TryGetValue("PaperCutsPower", out var pc) ? pc : 0;
 
+        // SandpitPower (The Insatiable): hard instakill counter. Decrements
+        // each enemy turn; when it transitions to 0 the AfterRemoved hook
+        // force-kills the player + pets + Osty regardless of revive.
+        // Capture the raw stack — AdvanceTurn handles the decrement and
+        // models the instakill in survival sim.
+        int sandpit = powerDict.TryGetValue("SandpitPower", out var sp) ? sp : 0;
+
         // HardenedShell — read live DisplayAmount (Amount − damageReceivedThisTurn).
         // The dict above only has the static Amount, not the live remaining cap.
         int hardenedShellRemaining = 0;
@@ -841,6 +848,7 @@ internal static class StateSnapshotter
             ImbalancedAmount = imbalanced,
             TerritorialAmount = territorial,
             PaperCutsAmount = paperCuts,
+            SandpitAmount = sandpit,
         };
     }
 
