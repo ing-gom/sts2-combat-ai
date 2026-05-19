@@ -132,6 +132,26 @@ internal static class AnalyticalSimulator
         bool playerWeak = next.PlayerWeak > 0;
         bool playerFrail = next.PlayerFrail > 0;
 
+        // v0.8.2 — Generic PlayerPowers dict propagation. Mutable copy created
+        // lazily when a PowerApp self-applies; written alongside the explicit
+        // field updates so:
+        //   1) PowerCatalog lookups + any state.PlayerPowers consumer in
+        //      PlanScorer see the up-to-date stack after a setup play.
+        //   2) Powers NOT explicitly cased in the switch are still tracked
+        //      (DemonForm / Ritual / Mayhem / DanseMacabre... any future power).
+        Dictionary<string, int>? newPlayerPowers = null;
+        void AddPlayerPower(string powerName, int delta)
+        {
+            if (delta == 0) return;
+            newPlayerPowers ??= next.PlayerPowers != null
+                ? new Dictionary<string, int>(next.PlayerPowers, System.StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+            if (newPlayerPowers.TryGetValue(powerName, out var cur))
+                newPlayerPowers[powerName] = cur + delta;
+            else
+                newPlayerPowers[powerName] = delta;
+        }
+
         // v0.7.9 — Self-damage on play. Cards expose HpLoss via CardEffectSummary
         // (BLOODLETTING 3, OFFERING 6, HEMOKINESIS 2 etc.). Subtract before any
         // turn-resolution math so subsequent depth-N candidates see the lower HP
@@ -148,6 +168,9 @@ internal static class AnalyticalSimulator
                 // EchoFormPower itself is excluded so a self-cast Echo Form
                 // doesn't recursively double its own stack.
                 int amount = powerName == "EchoFormPower" ? rawAmount : rawAmount * echoMul;
+                // v0.8.2 — Generic dict propagation. Writes EVERY power granted,
+                // including those without an explicit case below.
+                AddPlayerPower(powerName, amount);
                 switch (powerName)
                 {
                     // Temporary*Power lasts 1 turn but is fully active for this turn's
@@ -420,6 +443,8 @@ internal static class AnalyticalSimulator
                     int skillMul = grantsBurst ? 1 : burstMul;
                     int multiplier = grantsEcho ? skillMul : skillMul * echoMul;
                     int amount = rawAmount * multiplier;
+                    // v0.8.2 — Generic dict propagation.
+                    AddPlayerPower(powerName, amount);
                     switch (powerName)
                     {
                         case "StrengthPower":
@@ -716,6 +741,10 @@ internal static class AnalyticalSimulator
             PlayerFreePowers = newFreePowers,
             // v0.7.71 — propagate updated star count for depth-N lookahead
             PlayerStars = newPlayerStars,
+            // v0.8.2 — Propagate updated PlayerPowers dict if any self-power
+            // applied this card. Keeps explicit fields (PlayerStrength etc.)
+            // and dict in sync, plus tracks any non-explicit powers granted.
+            PlayerPowers = newPlayerPowers ?? next.PlayerPowers,
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,
