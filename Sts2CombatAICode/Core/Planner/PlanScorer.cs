@@ -1053,6 +1053,7 @@ internal static class PlanScorer
             // played) and AfterimagePower (N block per card played, includes
             // attacks). Credits the attack's defensive utility so RAGE / AFTERIMAGE
             // builds correctly prefer attacks even on defensive turns.
+            // v0.7.97 — FeelNoPainPower: +N block if this attack exhausts on play.
             int attackReactiveBlock = 0;
             if (state.PlayerRage > 0)
                 attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerRage,
@@ -1060,9 +1061,12 @@ internal static class PlanScorer
             if (state.PlayerAfterimage > 0)
                 attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerAfterimage,
                     state.PlayerDexterity, state.PlayerFrail > 0);
+            if (state.PlayerFeelNoPain > 0 && card.IsExhaust)
+                attackReactiveBlock += StatusMath.EffectiveBlock(state.PlayerFeelNoPain,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
             int reactiveBlockBonus = attackReactiveBlock * w.BlockPerPointBonus;
             if (reactiveBlockBonus != 0)
-                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage})={reactiveBlockBonus}");
+                details.Add($"reactBlk(rage{state.PlayerRage}+afterimg{state.PlayerAfterimage}+fnp{(card.IsExhaust ? state.PlayerFeelNoPain : 0)})={reactiveBlockBonus}");
 
             int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus;
             return new ScoreBreakdown(total, isAoe ? "Attack-AOE" : "Attack",
@@ -1110,6 +1114,14 @@ internal static class PlanScorer
                     state.PlayerDexterity, state.PlayerFrail > 0);
                 effectiveBlock += afterBlock;
                 details.Add($"afterimage(+{afterBlock})");
+            }
+            // v0.7.97 — FeelNoPainPower: +N block if skill exhausts on play.
+            if (state.PlayerFeelNoPain > 0 && card.IsExhaust)
+            {
+                int fnpBlock = StatusMath.EffectiveBlock(state.PlayerFeelNoPain,
+                    state.PlayerDexterity, state.PlayerFrail > 0);
+                effectiveBlock += fnpBlock;
+                details.Add($"feelNoPain(+{fnpBlock})");
             }
             int effect = effectiveBlock * w.BlockPerPointBonus;
             details.Add($"skillBase={w.SkillBaseBonus}");
