@@ -93,6 +93,14 @@ internal sealed record SimState
     // cards/turn copy). Decremented per card play. Type-agnostic (attacks,
     // skills, powers all echo).
     public int PlayerEchoForm { get; init; }
+    // v0.7.99 — JuggernautPower (Ironclad reactive): each block-gain event
+    // deals N damage to a (random) enemy. Modeled in simulator as damage to
+    // weakest alive enemy after every block-gain in card resolution.
+    public int PlayerJuggernaut { get; init; }
+    // v0.7.99 — HungerPower (cross-character reactive): each card drawn this
+    // turn grants Strength +N. Simulator applies on card.DrawCount; PlanScorer
+    // credits draw cards.
+    public int PlayerHunger { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
