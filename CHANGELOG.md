@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.7.88 (2026-05-19)
+
+**EffectSynergy 배치 1 — 별 핸들러 10개 revive + 부수 버그 fix.**
+
+### 배경
+
+v0.7.81 의 prefix 버그로 EffectSynergy 의 139개 하드코딩 핸들러가 모두
+dead code. v0.7.87 에서 9 개 safe site fix. 이번 배치 1 은 별 카드 10개.
+
+추가 버그 발견: `HIDDEN_CACHE` / `CONVERGENCE` 가 immediate-stars (line 303/309)
++ next-turn-stars (line 314/315) 양쪽에 등록되어 있었음. `else-if` 체인 순서상
+immediate 만 실행되는 구조였으나, prefix 버그로 둘 다 dead 였음. 정상화
+하면서 immediate 항목 제거 (게임상 카드 효과는 next-turn 만).
+
+### 변경
+
+EffectSynergy.cs:300-315 의 별 핸들러 블록 정리:
+
+**This-turn 별 8개** (prefix 제거, dict 키 형식 통일):
+- GLOW(1), GATHER_LIGHT(1), RADIATE(1), VENERATE(2), SHINING_STRIKE(2),
+  SOLAR_STRIKE(1), KNOCKOUT_BLOW(5), ROYAL_GAMBLE(9)
+
+**Next-turn 별 2개** (immediate 중복 제거, prefix 만 fix):
+- HIDDEN_CACHE → ApplyHiddenCacheDelayedStars
+- CONVERGENCE → ApplyConvergenceNextTurn
+
+### 점수 영향
+
+`ApplyStarsGain(card, state, ref b, parts, N)` 가 카드 점수에 추가 보너스 부여:
+- `N * 150` (별 소비 카드 hand 에 있으면) / `N * 40` (없으면)
+- 추가: hand 내 unlock 되는 별-cost 카드 1개당 +200, 덱 내 1개당 +60
+- Cap 1200
+
+예: VENERATE + FALLING_STAR in hand + PlayerStars=0 → `2*150 + 1*200 = 500` 보너스.
+
+이전엔 dead 라 0 추가. 이제 VENERATE 의 first-card 점수가 ~500 증가.
+
+### 회귀 위험
+
+- 별 카드의 first-card 점수가 갑자기 ~500 상승 → 다른 카드 대비 우선순위 변화.
+  특히 VENERATE/SHINING_STRIKE/KNOCKOUT_BLOW (큰 N 값) 가 lethal 윈도우에서
+  공격 카드를 누를 가능성.
+- ApplyStarsGain 의 `b` (effect total) 가산은 정상 동작.
+
+### 잔여 dead handler
+
+EffectSynergy 의 나머지 **131개** 핸들러. 다음 배치 (Forge / Skeleton /
+Archetype Power / Exhaust / Orb 등) 에서 분할 활성화 예정.
+
+---
+
 ## v0.7.87 (2026-05-19)
 
 **Prefix bug 안전 영역 9개 fix — variance / drill 임계치 / RAGE Power 매핑.**
