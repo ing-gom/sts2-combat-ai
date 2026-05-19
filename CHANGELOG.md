@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.7.95 (2026-05-19)
+
+**BurstPower — 다음 Skill 효과 ×2 (single-shot per stack).**
+
+### 변경
+
+- `SimState.PlayerBurst` 신설.
+- `StateSnapshotter` 가 BurstPower stack 주입.
+- `AnalyticalSimulator`:
+  - Power / Skill self-apply switch 에 BurstPower 케이스.
+  - `card.IsSkill` 블록 시작에 `burstActive = newPlayerBurst > 0`, `burstMul = burstActive ? 2 : 1`.
+  - **Self-block**: `eff *= burstMul` (Unmovable×2 와 multiplicatively 합성).
+  - **Self-buff PowerApps**: 각 buff `amount` 를 `rawAmount * burstMul` 로 적용. BurstPower 자신을 부여하는 경우는 제외 (recursive double 방지).
+  - **Enemy-debuff PowerApps**: 각 debuff `amount` 를 `rawAmount * burstMul`.
+  - Skill resolve 끝: `if (burstActive && newPlayerBurst > 0) newPlayerBurst--` (1 스택 소비).
+- `PlanScorer` 의 Skill 평가: `state.PlayerBurst > 0 && effectiveBlock > 0` 시 effectiveBlock 2배.
+
+### 기대 효과
+
+- BURST 1 stack + DEFEND_REGENT(b5) → 즉시 점수에 block 10 으로 인식 (이전 5).
+- BURST + 디버프 스킬 → 디버프 stack 2배 적용.
+- 다중 스킬 시퀀스: BURST 2 stacks + Skill1 + Skill2 → 두 스킬 모두 2배.
+
+---
+
 ## v0.7.94 (2026-05-19)
 
 **EnragePower (Ironclad reactive) + CorruptionPower propagation.**

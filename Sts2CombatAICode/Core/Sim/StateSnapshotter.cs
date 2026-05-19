@@ -53,6 +53,8 @@ internal static class StateSnapshotter
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             int playerCorruption = CombatReflection.GetPowerAmount(creature, "CorruptionPower");
+            // v0.7.95 — Next Skill ×2.
+            int playerBurst = CombatReflection.GetPowerAmount(creature, "BurstPower");
             int playerVuln = CombatReflection.GetPowerAmount(creature, "VulnerablePower");
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
@@ -294,6 +296,7 @@ internal static class StateSnapshotter
                 PlayerAccuracy = playerAccuracy,
                 PlayerEnrage = playerEnrage,
                 PlayerCorruption = playerCorruption,
+                PlayerBurst = playerBurst,
                 // Snapshot: Unmovable starts un-used each turn; conservative — if
                 // mid-turn we re-snapshot, the live game state's first-block-played
                 // bit isn't easily readable so we assume not-yet-used. The next

@@ -1094,6 +1094,15 @@ internal static class PlanScorer
                 effectiveBlock += bonus;
                 details.Add($"unmovable×2(+{bonus})");
             }
+            // v0.7.95 — BurstPower: next Skill effect ×2 (single-shot). Apply
+            // before AfterimagePower so Afterimage adds its block once (per card
+            // play, not per duplicate skill).
+            if (state.PlayerBurst > 0 && effectiveBlock > 0)
+            {
+                int bonus = effectiveBlock;
+                effectiveBlock += bonus;
+                details.Add($"burst×2(+{bonus})");
+            }
             // v0.7.85 — AfterimagePower: +N block on every card play (this one too).
             if (state.PlayerAfterimage > 0)
             {
