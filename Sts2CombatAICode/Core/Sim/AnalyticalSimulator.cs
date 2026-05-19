@@ -103,6 +103,12 @@ internal static class AnalyticalSimulator
         int newPlayerThorns = next.PlayerThorns;
         // v0.7.97 — FeelNoPainPower (block on Exhaust trigger).
         int newPlayerFeelNoPain = next.PlayerFeelNoPain;
+        // v0.7.98 — EchoForm remaining; if >0, this card's effects double then
+        // remaining decrements by 1. Type-agnostic; combines multiplicatively
+        // with burstMul for Skills.
+        int newPlayerEchoForm = next.PlayerEchoForm;
+        bool echoActive = newPlayerEchoForm > 0;
+        int echoMul = echoActive ? 2 : 1;
         int newPlayerFocus = next.PlayerFocus;
         int newPlayerIntangible = next.PlayerIntangible;
         int newPlayerEotBlockBonus = next.PlayerEndOfTurnBlockBonus;
@@ -127,8 +133,12 @@ internal static class AnalyticalSimulator
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
         if (card.IsPower)
         {
-            foreach (var (powerName, amount) in card.PowerApps)
+            foreach (var (powerName, rawAmount) in card.PowerApps)
             {
+                // v0.7.98 — EchoForm doubles ALL powers granted by this play.
+                // EchoFormPower itself is excluded so a self-cast Echo Form
+                // doesn't recursively double its own stack.
+                int amount = powerName == "EchoFormPower" ? rawAmount : rawAmount * echoMul;
                 switch (powerName)
                 {
                     // Temporary*Power lasts 1 turn but is fully active for this turn's
@@ -174,6 +184,10 @@ internal static class AnalyticalSimulator
                     case "ThornsPower": newPlayerThorns += amount; break;
                     // v0.7.97 — FeelNoPain (block on Exhaust).
                     case "FeelNoPainPower": newPlayerFeelNoPain += amount; break;
+                    // v0.7.98 — EchoForm Power. Use rawAmount (the carve-out
+                    // above prevented self-doubling). Adds to remaining echoes
+                    // available this turn for SUBSEQUENT cards.
+                    case "EchoFormPower": newPlayerEchoForm += rawAmount; break;
                     // v0.5 — Free*Power propagation. A Power card that grants
                     // FreeAttackPower (or similar) needs to update the counter so the
                     // very next attack lookahead sees the free play available.
@@ -233,6 +247,10 @@ internal static class AnalyticalSimulator
                     defenderVulnerable: enemy.VulnerableAmount > 0,
                     defenderWeak: enemy.WeakAmount > 0,
                     lethalityActive: newPlayerLethality > 0);
+                // v0.7.98 — EchoForm doubles the entire attack (each hit lands
+                // twice). Applied after damage-multiplier chain so the doubled
+                // damage benefits from Tracking / Cruelty / Lethality once.
+                totalDmg *= echoMul;
 
                 // Block-first absorption
                 int blockAfter = System.Math.Max(0, enemy.Block - totalDmg);
@@ -284,7 +302,7 @@ internal static class AnalyticalSimulator
                 {
                     newDoom += reaperStacks * System.Math.Max(1, card.Hits);
                 }
-                foreach (var (powerName, amount) in card.PowerApps)
+                foreach (var (powerName, rawAttachAmount) in card.PowerApps)
                 {
                     if (!IsEnemyDebuff(powerName)) continue;
                     if (artifactLeft > 0)
@@ -293,6 +311,8 @@ internal static class AnalyticalSimulator
                         artifactLeft--;
                         continue;
                     }
+                    // v0.7.98 — EchoForm doubles attached-debuff stacks on attacks.
+                    int amount = rawAttachAmount * echoMul;
                     switch (powerName)
                     {
                         case "VulnerablePower": newVuln += amount; break;
@@ -361,7 +381,8 @@ internal static class AnalyticalSimulator
                 }
                 // v0.7.95 — Burst stacks with Unmovable multiplicatively
                 // (canonical STS: independent multipliers compose).
-                eff *= burstMul;
+                // v0.7.98 — EchoForm also compounds multiplicatively.
+                eff *= burstMul * echoMul;
                 newPlayerBlock += eff;
             }
 
@@ -374,11 +395,15 @@ internal static class AnalyticalSimulator
             {
                 foreach (var (powerName, rawAmount) in card.PowerApps)
                 {
-                    // v0.7.95 — Burst doubles all Skill self-buff amounts. The
-                    // *granting* skill (BurstPower itself if it's a skill) is
-                    // excluded so we don't recursively double-stack.
+                    // v0.7.95 — Burst doubles all Skill self-buff amounts.
+                    // v0.7.98 — Echo also multiplies (compounds multiplicatively).
+                    // The granting power itself is excluded from its own multiplier
+                    // (no recursive double-stack).
                     bool grantsBurst = powerName == "BurstPower";
-                    int amount = grantsBurst ? rawAmount : rawAmount * burstMul;
+                    bool grantsEcho = powerName == "EchoFormPower";
+                    int skillMul = grantsBurst ? 1 : burstMul;
+                    int multiplier = grantsEcho ? skillMul : skillMul * echoMul;
+                    int amount = rawAmount * multiplier;
                     switch (powerName)
                     {
                         case "StrengthPower":
@@ -413,6 +438,8 @@ internal static class AnalyticalSimulator
                         case "ThornsPower": newPlayerThorns += amount; break;
                         // v0.7.97 — Skill-granted FeelNoPain.
                         case "FeelNoPainPower": newPlayerFeelNoPain += amount; break;
+                        // v0.7.98 — Skill-granted EchoForm (rare but possible).
+                        case "EchoFormPower": newPlayerEchoForm += amount; break;
                         case "FreeAttackPower": newFreeAttacks += amount; break;
                         case "FreeSkillPower":  newFreeSkills  += amount; break;
                         case "FreePowerPower":  newFreePowers  += amount; break;
@@ -453,7 +480,8 @@ internal static class AnalyticalSimulator
                             continue;
                         }
                         // v0.7.95 — Burst doubles applied debuff amounts.
-                        int amount = rawAmount * burstMul;
+                        // v0.7.98 — Echo also multiplies (compounds with Burst).
+                        int amount = rawAmount * burstMul * echoMul;
                         switch (powerName)
                         {
                             case "VulnerablePower": newVuln += amount; break;
@@ -581,6 +609,13 @@ internal static class AnalyticalSimulator
         if (newPlayerFeelNoPain > 0 && card.IsExhaust)
             newPlayerBlock += StatusMath.EffectiveBlock(newPlayerFeelNoPain, newPlayerDex, playerFrail);
 
+        // v0.7.98 — Consume one EchoForm charge per card resolve. Subsequent
+        // cards in depth-N lookahead see one less remaining echo. Curse/Status
+        // cards still count as plays (canonical: Echo Form text says "you play",
+        // which curses/status do when forced — but typical play loop avoids them).
+        if (echoActive && newPlayerEchoForm > 0)
+            newPlayerEchoForm--;
+
         return next with
         {
             PlayerHp = newPlayerHp,
@@ -602,6 +637,7 @@ internal static class AnalyticalSimulator
             PlayerBurst = newPlayerBurst,
             PlayerThorns = newPlayerThorns,
             PlayerFeelNoPain = newPlayerFeelNoPain,
+            PlayerEchoForm = newPlayerEchoForm,
             PlayerFocus = newPlayerFocus,
             PlayerIntangible = newPlayerIntangible,
             PlayerEndOfTurnBlockBonus = newPlayerEotBlockBonus,

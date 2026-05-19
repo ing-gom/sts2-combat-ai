@@ -443,6 +443,11 @@ internal static class PlanScorer
             // v0.7.86 — Card-id-specific damage adder (AccuracyPower on Shiv).
             // Applied to base damage before the Strength/Vigor/multiplier chain.
             int adjustedBaseDamage = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, state);
+            // v0.7.98 — EchoFormPower remaining echoes: each card resolves twice
+            // while charges remain. Double the base damage so per-hit calc
+            // reflects the echoed total.
+            if (state.PlayerEchoForm > 0)
+                adjustedBaseDamage *= 2;
             // v0.7.82 — Include PlayerVigor: when this card is being scored as the
             // CURRENT play, any Vigor on the player applies to it (single-shot).
             int effectivePerHit = StatusMath.EffectiveAttackDmg(adjustedBaseDamage,
@@ -1106,6 +1111,13 @@ internal static class PlanScorer
                 int bonus = effectiveBlock;
                 effectiveBlock += bonus;
                 details.Add($"burst×2(+{bonus})");
+            }
+            // v0.7.98 — EchoFormPower: any-card-type ×2 while charges remain.
+            if (state.PlayerEchoForm > 0 && effectiveBlock > 0)
+            {
+                int bonus = effectiveBlock;
+                effectiveBlock += bonus;
+                details.Add($"echo×2(+{bonus})");
             }
             // v0.7.85 — AfterimagePower: +N block on every card play (this one too).
             if (state.PlayerAfterimage > 0)

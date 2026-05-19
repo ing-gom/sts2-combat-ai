@@ -87,6 +87,12 @@ internal sealed record SimState
     // v0.7.97 — FeelNoPainPower: when player exhausts a card (Exhaust keyword
     // OR force-exhaust path), gain N block. Reactive trigger on card resolve.
     public int PlayerFeelNoPain { get; init; }
+    // v0.7.98 — EchoFormPower (remaining echoes this turn). Initialized at
+    // snapshot as max(EchoFormStack - cardsPlayedThisTurn, 0). Each card play
+    // that resolves while > 0 plays its effect TWICE (canonical STS: first N
+    // cards/turn copy). Decremented per card play. Type-agnostic (attacks,
+    // skills, powers all echo).
+    public int PlayerEchoForm { get; init; }
     public int PlayerVulnerable { get; init; }  // turns of Vulnerable on player
     public int PlayerWeak { get; init; }
     public int PlayerFrail { get; init; }
