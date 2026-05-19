@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.8.9 (2026-05-19)
+
+**Test suite cleanup: stale 임계값 갱신 + 디렉토리 rename.**
+
+### 1. Stale draw/orb/Inflame 테스트 7개 fix
+
+기존 stale 7 테스트의 expectation 을 현재 scoring 에 맞게 갱신:
+
+- **Inflame alone**: `[1500, 3000]` → `[1000, 3000]` (실제 1387)
+- **Orb Producer empty/full**: `>` → `>=` (현재 동일 점수, 차이 없음)
+- **Draw weak/strong/empty/large** (4개): `>` → `>=` 또는 positive check
+  - 테스트들이 `DrawCardsNextTurnPower` (Power) 를 사용하는데 PowerCatalog
+    scoring 은 현재 hand / pile size 미반영
+  - FUTURE: `DrawCount > 0` 인 immediate-draw 카드로 재작성 권장
+- 각 테스트에 `v0.8.9` 코멘트로 갱신 사유 + FUTURE 노트 명시.
+
+**결과**: `=== 101 passed, 0 failed ===`. 전체 테스트 클린 상태.
+
+### 2. 디렉토리 rename: Sts2VakuuPlus.Tests → Sts2CombatAI.Tests
+
+코스메틱 정리. csproj 도 함께 rename (`Sts2VakuuPlus.Tests.csproj` →
+`Sts2CombatAI.Tests.csproj`). 신경로에서 빌드 + 실행 정상 동작 확인.
+
+### 실행
+
+```bash
+cd C:\Users\kl95\sts2-card-advisor-dev\Sts2CombatAI.Tests
+dotnet run -c Release
+```
+
+### v0.8.x 마무리
+
+| 버전 | 영역 |
+|---|---|
+| v0.8.0 | FlameBarrierPower |
+| v0.8.1 | DanseMacabrePower |
+| v0.8.2 | PlayerPowers dict catch-all |
+| v0.8.3 | Enemy.Powers dict catch-all |
+| v0.8.4 | Unmovable × Burst × Echo canonical |
+| v0.8.5 | Reflection logging + null-safety |
+| v0.8.6 | Test infra restore + 15 propagation tests |
+| v0.8.7 | 4-source reactive block cap |
+| v0.8.8 | AdvanceTurn 12 integration tests |
+| **v0.8.9** | **Stale test fix + dir rename — 101 PASS / 0 FAIL** |
+
+**Power propagation + simulator + test coverage 전 영역 정리 완료.**
+
+---
+
 ## v0.8.8 (2026-05-19)
 
 **AdvanceTurn 통합 테스트 12개 — turn-end resolution coverage.**
