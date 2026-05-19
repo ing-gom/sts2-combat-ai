@@ -180,31 +180,32 @@ internal static class EffectSynergy
             ApplyMasterPlannerTickValue(card, state, ref b, parts);
         else if (card.Id == "INFINITE_BLADES")
             ApplyInfiniteBladesTickValue(card, state, ref b, parts);
+        // v0.7.91 — Prefix stripped. Star stem (Regent) + Forge stem (Lord's Blade) Power passives.
         // v0.7.28 — Star stem Power passives (Regent archetype). Stars =
         // player resource pool. Powers either generate per-trigger or convert
         // Stars to damage/block. All scale with star generation rate × turns.
-        else if (card.Id == "CARD.GENESIS")
+        else if (card.Id == "GENESIS")
             ApplyGenesisTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.ORBIT")
+        else if (card.Id == "ORBIT")
             ApplyOrbitTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.BLACK_HOLE")
+        else if (card.Id == "BLACK_HOLE")
             ApplyBlackHoleTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.CHILD_OF_THE_STARS")
+        else if (card.Id == "CHILD_OF_THE_STARS")
             ApplyChildOfTheStarsTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.THE_SEALED_THRONE")
+        else if (card.Id == "THE_SEALED_THRONE")
             ApplyTheSealedThroneTickValue(card, state, ref b, parts);
         // v0.7.29 — Forge stem Power passives (Regent, Lord's Blade archetype).
         // Forge = upgrade the SovereignBlade. Powers either auto-forge per turn
         // or scale with each Lord's Blade play.
-        else if (card.Id == "CARD.FURNACE")
+        else if (card.Id == "FURNACE")
             ApplyFurnaceTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.HAMMER_TIME")
+        else if (card.Id == "HAMMER_TIME")
             ApplyHammerTimeTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.SEEKING_EDGE")
+        else if (card.Id == "SEEKING_EDGE")
             ApplySeekingEdgeTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.SWORD_SAGE")
+        else if (card.Id == "SWORD_SAGE")
             ApplySwordSageTickValue(card, state, ref b, parts);
-        else if (card.Id == "CARD.PARRY")
+        else if (card.Id == "PARRY")
             ApplyParryTickValue(card, state, ref b, parts);
         // v0.7.30 — Doom / Volatile stem (Necrobinder). Doom = DoT-style stack
         // on enemies (and on player for self-Doom). Volatile = Ethereal cards
