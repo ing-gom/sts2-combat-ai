@@ -26,7 +26,9 @@ internal static class ActionPlanner
     /// </summary>
     // v0.7.81 — Keys are unprefixed Id.Entry values. v0.7.73 used "CARD." prefix and
     // never matched (verified by v0.7.80 stars diagnostic showing sc.Id = "FALLING_STAR").
-    private static readonly System.Collections.Generic.Dictionary<string, int> StarCostByCardId = new()
+    // v0.10 — promoted to internal so PlanScorer.IsLethalThisTurn can re-evaluate
+    // star-blocked attacks when the hand also contains stars-generating skills.
+    internal static readonly System.Collections.Generic.Dictionary<string, int> StarCostByCardId = new()
     {
         ["CLOAK_OF_STARS"] = 1,
         ["CRESCENT_SPEAR"] = 1,
@@ -60,7 +62,10 @@ internal static class ActionPlanner
     /// uses AdvanceTurn from after just the first card (no full-turn sim), and
     /// next-turn draw is a synthetic average (RNG noise).
     /// </summary>
-    private const double NextTurnDiscount = 0.30;
+    // v0.10 — Converted from const to static field for JSON-load via
+    // PlannerConfig. PlannerConfig.LoadFromJson updates NextTurnDiscount,
+    // MonteCarloSamples, BeamK, MaxDepth without recompile.
+    public static double NextTurnDiscount = 0.30;
 
     /// <summary>
     /// v0.7.14 — Monte Carlo sample count for next-turn hand projection.
@@ -69,7 +74,10 @@ internal static class ActionPlanner
     /// per depth=1 lookahead, 3 samples cost +150 calls per first-card
     /// candidate (~3x legacy when including the depth=2 main beam).
     /// </summary>
-    private const int MonteCarloSamples = 3;
+    public static int MonteCarloSamples = 3;
+
+    /// <summary>v0.10 — Beam width for depth-N continuation search. JSON-tunable.</summary>
+    public static int BeamK = 5;
 
     /// <summary>
     /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
@@ -83,6 +91,63 @@ internal static class ActionPlanner
     /// <summary>v0.7.75 — When candidates empty but hand non-empty, diagnostic
     /// string describing why each card was filtered. Read by VakuuExecutor.</summary>
     public static string? LastEmptyReason { get; private set; }
+
+    // ─── v0.10 JSON-loadable planner config ────────────────────────────────
+    private sealed class _PlannerCfg
+    {
+        public double next_turn_discount { get; set; } = 0.30;
+        public int monte_carlo_samples { get; set; } = 3;
+        public int beam_k { get; set; } = 5;
+        /// <summary>v0.10 (Phase 5) — when true, TrainingDataExporter records
+        /// dense per-step candidate breakdowns to training_data/{ts}.ndjson.
+        /// Significant perf cost; default false.</summary>
+        public bool training_data_enabled { get; set; } = false;
+    }
+    private static readonly System.Text.Json.JsonSerializerOptions _cfgOpts
+        = new() { WriteIndented = true };
+
+    /// <summary>Write current planner constants to {path} if missing.</summary>
+    /// <summary>Mirror of TrainingDataExporter.Enabled, set by LoadFromJson.
+    /// Read by MainFile to apply to TrainingDataExporter. Decoupled from
+    /// Diagnostics namespace so the test harness (which excludes Godot-coupled
+    /// files) still compiles.</summary>
+    public static bool TrainingDataEnabledMirror = false;
+
+    public static void WriteDefaultsTo(string path)
+    {
+        if (System.IO.File.Exists(path)) return;
+        try
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path) ?? ".");
+            var c = new _PlannerCfg
+            {
+                next_turn_discount = NextTurnDiscount,
+                monte_carlo_samples = MonteCarloSamples,
+                beam_k = BeamK,
+                training_data_enabled = TrainingDataEnabledMirror,
+            };
+            System.IO.File.WriteAllText(path,
+                System.Text.Json.JsonSerializer.Serialize(c, _cfgOpts));
+        }
+        catch { /* best-effort */ }
+    }
+
+    /// <summary>Load constants from {path}. No-op if missing.</summary>
+    public static void LoadFromJson(string path)
+    {
+        try
+        {
+            if (!System.IO.File.Exists(path)) return;
+            var c = System.Text.Json.JsonSerializer.Deserialize<_PlannerCfg>(
+                System.IO.File.ReadAllText(path), _cfgOpts);
+            if (c == null) return;
+            NextTurnDiscount = c.next_turn_discount;
+            MonteCarloSamples = c.monte_carlo_samples;
+            BeamK = c.beam_k;
+            TrainingDataEnabledMirror = c.training_data_enabled;
+        }
+        catch { /* malformed → keep defaults */ }
+    }
 
     private static string WhyFiltered(SimCard c, SimState state)
     {
@@ -193,7 +258,7 @@ internal static class ActionPlanner
                 // the user manually identifies and the previous AI missed
                 // (see 2026-05-19 20:05 turn 5/6 logs — VEN→FS→SB stun never
                 // surfaced because FS lost the beam cut at 1670 vs DEFEND 2387).
-                secondScore = BestContinuation(nextState, depth: 2, planWeights, beamK: 5, out bestNextId);
+                secondScore = BestContinuation(nextState, depth: 2, planWeights, beamK: BeamK, out bestNextId);
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
 
                 // Next-turn projection — discounted because the projection
@@ -220,7 +285,7 @@ internal static class ActionPlanner
                         try
                         {
                             var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurnSampled(nextState, rng);
-                            int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: 5, out _);
+                            int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: BeamK, out _);
                             if (singleStep < 0) singleStep = 0;
                             sampleTotal += singleStep;
                             sampleCount++;
@@ -505,7 +570,10 @@ internal static class ActionPlanner
         return best < 0 ? 0 : best;
     }
 
-    private static IEnumerable<(SimCard card, int targetIdx)> EnumerateCandidates(SimState state)
+    // v0.10 — Promoted to internal so TrainingDataExporter can iterate the
+    // same (card, target) candidate list the planner sees, without duplicating
+    // the IsPlayable / cost-gate / star-cost / Bound / Smogged filtering logic.
+    internal static IEnumerable<(SimCard card, int targetIdx)> EnumerateCandidates(SimState state)
     {
         foreach (var card in state.Hand)
         {

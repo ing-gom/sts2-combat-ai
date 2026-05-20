@@ -36,6 +36,48 @@ public partial class MainFile : Node
             // scripts/parse_decision_log.py for offline analysis (Phase B/C of the
             // runtime infra plan — see docs/runtime_analysis_infra_plan.md).
             Sts2CombatAI.Diagnostics.DecisionLogPersister.Install();
+            // v0.10 (Phase 5) — Dense training-data exporter. Off by default;
+            // toggle Sts2CombatAI.Diagnostics.TrainingDataExporter.Enabled=true
+            // when collecting AI tuning datasets.
+            Sts2CombatAI.Diagnostics.TrainingDataExporter.Install();
+
+            // v0.10 — Scoring weights JSON externalization. Writes preset
+            // defaults to {user_data}/Sts2CombatAI/scoring_weights/ on first
+            // run (skips existing files), then loads any user edits back over
+            // the static instances. Lets a tuner edit balanced.json etc. and
+            // restart to apply, without recompiling.
+            try
+            {
+                var configDir = System.IO.Path.Combine(
+                    Godot.OS.GetUserDataDir(), "Sts2CombatAI", "scoring_weights");
+                Sts2CombatAI.Planner.PlanScorerWeights.WriteDefaultsTo(configDir);
+                Sts2CombatAI.Planner.PlanScorerWeights.LoadFromDirectory(configDir);
+
+                // Phase 3: catalog + sequencing tier + planner config (single-file each).
+                Sts2CombatAI.Planner.PowerCatalog.WriteDefaultsTo(
+                    System.IO.Path.Combine(configDir, "power_catalog.json"));
+                Sts2CombatAI.Planner.PowerCatalog.LoadFromJson(
+                    System.IO.Path.Combine(configDir, "power_catalog.json"));
+
+                Sts2CombatAI.Planner.PowerSequencingTier.WriteDefaultsTo(
+                    System.IO.Path.Combine(configDir, "power_sequencing.json"));
+                Sts2CombatAI.Planner.PowerSequencingTier.LoadFromJson(
+                    System.IO.Path.Combine(configDir, "power_sequencing.json"));
+
+                Sts2CombatAI.Planner.ActionPlanner.WriteDefaultsTo(
+                    System.IO.Path.Combine(configDir, "planner_config.json"));
+                Sts2CombatAI.Planner.ActionPlanner.LoadFromJson(
+                    System.IO.Path.Combine(configDir, "planner_config.json"));
+                // Apply mirror to the real exporter toggle.
+                Sts2CombatAI.Diagnostics.TrainingDataExporter.Enabled =
+                    Sts2CombatAI.Planner.ActionPlanner.TrainingDataEnabledMirror;
+
+                Logger.Info($"[CombatAI] scoring config init from {configDir}");
+            }
+            catch (Exception wex)
+            {
+                Logger.Warn($"[CombatAI] scoring config init failed: {wex.Message}");
+            }
             // Hook playstyle changes (Cycle/Set) to auto-save.
             var existingLog = Sts2CombatAI.Planner.PlaystyleState.LogCallback;
             Sts2CombatAI.Planner.PlaystyleState.LogCallback = msg =>

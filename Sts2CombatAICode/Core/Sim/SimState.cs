@@ -161,6 +161,15 @@ internal sealed record SimState
     public int PlayerStars { get; init; }
 
     /// <summary>
+    /// v0.10 — Sum of GalvanicPower.Amount across all creatures sourcing it
+    /// (typically a galvanic enemy). Each Galvanized Power card play deals
+    /// this much damage to the player (block-absorbed via ValueProp.Unpowered).
+    /// PlanScorer Power branch reads this together with <see cref="SimCard.IsGalvanized"/>
+    /// to subtract expected HP loss from the Power play's score.
+    /// </summary>
+    public int GalvanicAmount { get; init; }
+
+    /// <summary>
     /// v0.7.21 — DoomPower stack on the player (Necrobinder self-doom).
     /// Each turn ticks Doom × N damage to the player (mirrors enemy
     /// DoomAmount). DOOM_SELF axis cards add stacks; high cumulative Doom

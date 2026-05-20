@@ -1,8 +1,18 @@
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Sts2CombatAI.Planner;
 
 /// <summary>
 /// All planner-tuning knobs in one place. Different <see cref="Playstyle"/> values
 /// pick different instances. v0.3 will expose individual sliders via ModConfig.
+///
+/// v0.10 — JSON-loadable for training/tuning workflows. <see cref="LoadFromJsonOrDefault"/>
+/// looks for {userdata}/Sts2CombatAI/scoring_weights/{preset}.json and overrides
+/// individual fields; missing fields fall back to the code defaults below, so
+/// partial JSON files are safe. <see cref="WriteDefaultsTo"/> dumps the current
+/// preset to disk for manual editing.
 /// </summary>
 internal sealed class PlanScorerWeights
 {
@@ -167,6 +177,71 @@ internal sealed class PlanScorerWeights
     public int EnergyMonopolyPenaltyPerSkipped = 25;
     public int EnergyMonopolyPenaltyCap = 100;
 
+    // ─── v0.10 thorns / galvanic / power-ordering knobs ────────────────────
+    // All numerics now JSON-tunable via scoring_weights/{preset}.json.
+
+    /// <summary>Thorns penalty per-leak-HP (after block absorption).
+    /// thornsPenalty = -leak × this. Was inline -100/leak.</summary>
+    public int ThornsPenaltyPerLeakHp = 100;
+
+    /// <summary>Bias added to thornsPenalty when hand has a good block alternative
+    /// AND the attack isn't near-kill. Was inline -150.</summary>
+    public int ThornsBlockAvailableBias = -150;
+
+    /// <summary>Divisor applied to thornsPenalty when lethalThisTurn=true and
+    /// the per-card thorns leak stays under HP-safety. Set to 1 to disable.
+    /// Was inline /10 (damp to 10%).</summary>
+    public int ThornsLethalDampDivisor = 10;
+
+    /// <summary>HP safety margin for the lethal-mode thorns damp. damp fires
+    /// only when thornsDamage &lt; PlayerHp − this. Was inline 4.</summary>
+    public int ThornsLethalDampHpMargin = 4;
+
+    /// <summary>Suicide-lethal guard in IsLethalThisTurn: chain is demoted to
+    /// non-lethal when totalThornsCost ≥ PlayerHp − this. Was inline 4.</summary>
+    public int ThornsSuicideLethalHpMargin = 4;
+
+    /// <summary>Penalty when non-lethal attack into thorny enemy when block-only
+    /// scenario is meaningfully safer. Was inline -3000.</summary>
+    public int ThornsBlockBetterPenalty = -3000;
+
+    /// <summary>HP-loss difference threshold for THORNS_BLOCK_BETTER firing.
+    /// Penalty triggers when hpLossB + this &lt; hpLossC. Was inline 3.</summary>
+    public int ThornsBlockBetterMargin = 3;
+
+    /// <summary>0-cost Power priority bonus — incentivizes deploying Powers that
+    /// don't compete with attacks/defense for energy. Suppressed under lethal.
+    /// Was inline 2500.</summary>
+    public int FreePlay0CostPowerBonus = 2500;
+
+    /// <summary>Galvanic HP-cost penalty per leak HP (Galvanized power play under
+    /// GalvanicPower source). Was inline -100/leak.</summary>
+    public int GalvanicPenaltyPerLeakHp = 100;
+
+    /// <summary>Per-hand-draw bonus for AUTOMATION-style draw-counter scaling
+    /// powers in PowerSequencingTier ConditionalBonus Scaling branch.
+    /// Was inline 100. Set to 0 to disable.</summary>
+    public int DrawTrigEarlyPerHandDraw = 100;
+
+    /// <summary>v0.10 (Phase 4) — Thorns HP-fraction multiplier cascade.
+    /// Applied to thornsPenalty when thornsDamage (post-block leak) is a
+    /// meaningful fraction of PlayerHp. Highest applicable bucket wins —
+    /// iteration is min-first then we pick the largest threshold satisfied.
+    /// Replaces inline cascade: hpFrac ≥ 0.5 ×3, ≥ 0.25 ×2, ≥ 0.10 ×1.5.
+    /// JSON-editable for tuning the HP-pressure curve.</summary>
+    public HpFractionBucket[] ThornsHpFractionMultipliers = new HpFractionBucket[]
+    {
+        new() { MinHpFrac = 0.5,  Multiplier = 3.0 },
+        new() { MinHpFrac = 0.25, Multiplier = 2.0 },
+        new() { MinHpFrac = 0.10, Multiplier = 1.5 },
+    };
+
+    public sealed class HpFractionBucket
+    {
+        public double MinHpFrac { get; set; }
+        public double Multiplier { get; set; }
+    }
+
     public static readonly PlanScorerWeights Defensive = new()
     {
         // 극단 방어 — lethal 도 우선순위 낮음, 무조건 hp 보존
@@ -221,4 +296,90 @@ internal sealed class PlanScorerWeights
         Playstyle.Killer => Killer,
         _ => Balanced,
     };
+
+    // ─── JSON loading ───────────────────────────────────────────────────────
+    // v0.10 — External overrides at {userdata}/Sts2CombatAI/scoring_weights/{preset}.json.
+    // Loaded once at mod init; subsequent For() calls return the loaded copies.
+    // Missing fields fall back to the preset's hardcoded value (System.Text.Json
+    // PopulateObject-style copy via per-field reflection).
+
+    private static readonly JsonSerializerOptions _jsonOpts = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        IncludeFields = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+    };
+
+    /// <summary>
+    /// Load JSON overrides for each preset from <paramref name="dir"/>. Each
+    /// preset reads {dir}/{name}.json (balanced/defensive/aggressive/killer).
+    /// Missing files leave the preset unchanged. Populates the existing
+    /// static instances in-place so callers via <see cref="For"/> see the
+    /// updated values.
+    /// </summary>
+    public static void LoadFromDirectory(string dir)
+    {
+        TryOverlay(Balanced,   Path.Combine(dir, "balanced.json"));
+        TryOverlay(Defensive,  Path.Combine(dir, "defensive.json"));
+        TryOverlay(Aggressive, Path.Combine(dir, "aggressive.json"));
+        TryOverlay(Killer,     Path.Combine(dir, "killer.json"));
+    }
+
+    /// <summary>
+    /// Write the current values of each preset to {dir}/{name}.json so a
+    /// user (or an AI tuner) can edit them and reload. Idempotent — safe
+    /// to call on every mod init. Skips writing if the file already exists
+    /// (preserves the user's edits).
+    /// </summary>
+    public static void WriteDefaultsTo(string dir)
+    {
+        try
+        {
+            Directory.CreateDirectory(dir);
+            WriteIfMissing(Balanced,   Path.Combine(dir, "balanced.json"));
+            WriteIfMissing(Defensive,  Path.Combine(dir, "defensive.json"));
+            WriteIfMissing(Aggressive, Path.Combine(dir, "aggressive.json"));
+            WriteIfMissing(Killer,     Path.Combine(dir, "killer.json"));
+        }
+        catch { /* best-effort — missing write permission shouldn't crash mod init */ }
+    }
+
+    private static void TryOverlay(PlanScorerWeights target, string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            var json = File.ReadAllText(path);
+            var loaded = JsonSerializer.Deserialize<PlanScorerWeights>(json, _jsonOpts);
+            if (loaded == null) return;
+            CopyFields(loaded, target);
+        }
+        catch { /* malformed JSON → keep defaults */ }
+    }
+
+    private static void WriteIfMissing(PlanScorerWeights w, string path)
+    {
+        if (File.Exists(path)) return;
+        var json = JsonSerializer.Serialize(w, _jsonOpts);
+        File.WriteAllText(path, json);
+    }
+
+    /// <summary>
+    /// Per-field copy from src→dst. Done via reflection so any new field
+    /// added to PlanScorerWeights is picked up without a code change here.
+    /// Only int / double / bool fields are copied (matches what the JSON
+    /// roundtrip preserves).
+    /// </summary>
+    private static void CopyFields(PlanScorerWeights src, PlanScorerWeights dst)
+    {
+        var t = typeof(PlanScorerWeights);
+        foreach (var f in t.GetFields(System.Reflection.BindingFlags.Public
+                                    | System.Reflection.BindingFlags.Instance))
+        {
+            if (!f.FieldType.IsPrimitive) continue;
+            var v = f.GetValue(src);
+            if (v != null) f.SetValue(dst, v);
+        }
+    }
 }

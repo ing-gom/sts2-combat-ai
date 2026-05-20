@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Sts2CombatAI.Sim;
 
 namespace Sts2CombatAI.Planner;
@@ -54,7 +56,11 @@ internal enum SequencingTier
 /// </summary>
 internal static class PowerSequencingTier
 {
-    private static readonly IReadOnlyDictionary<string, SequencingTier> _tiers =
+    // v0.10 — Mutable for JSON-load (LoadFromJson REPLACES). Public read-only
+    // view kept for any future caller that wants to enumerate.
+    public static IReadOnlyDictionary<string, SequencingTier> Tiers => _tiers;
+
+    private static readonly Dictionary<string, SequencingTier> _tiers =
         new Dictionary<string, SequencingTier>
         {
             // ─── Setup (multiplies same-turn plays) ─────────────────────────────
@@ -250,17 +256,57 @@ internal static class PowerSequencingTier
     /// <summary>
     /// Effective tier of a Power card. When a card applies multiple powers (rare —
     /// most apply one), the highest-priority tier wins.
+    ///
+    /// v0.10 — Falls back to Id-derived power name when PowerApps is empty.
+    /// ~24 powers (AUTOMATION, BARRICADE, MAYHEM, REAPER_FORM, UNMOVABLE, TRACKING,
+    /// THE_SEALED_THRONE, AGGRESSION, etc.) apply their power via PowerCmd.Apply&lt;X&gt;()
+    /// inside OnPlay rather than as a PowerVar in DynamicVars, so PowerApps is
+    /// empty at snapshot time. Without the fallback these cards always classified
+    /// Unknown — skipping every tier-conditional bonus (drawTrigEarly etc.).
+    /// Mirror of PlanScorer.cs:467 idDerived block.
     /// </summary>
     public static SequencingTier Classify(SimCard card)
     {
-        if (!card.IsPower || card.PowerApps.Count == 0) return SequencingTier.Unknown;
+        if (!card.IsPower) return SequencingTier.Unknown;
         SequencingTier? best = null;
         foreach (var kvp in card.PowerApps)
         {
             var t = ClassifyPower(kvp.Key);
             if (best == null || (int)t > (int)best.Value) best = t;
         }
+        if (best == null)
+        {
+            string derived = IdToPowerName(card.Id);
+            if (!string.IsNullOrEmpty(derived))
+            {
+                var t = ClassifyPower(derived);
+                if (t != SequencingTier.Unknown) best = t;
+            }
+        }
         return best ?? SequencingTier.Unknown;
+    }
+
+    /// <summary>
+    /// Local copy of PlanScorer.IdToPowerName so PowerSequencingTier doesn't
+    /// reach across into PlanScorer internals. Converts "CARD.AUTOMATION" →
+    /// "AutomationPower". Returns empty for malformed input.
+    /// </summary>
+    private static string IdToPowerName(string? cardId)
+    {
+        if (string.IsNullOrEmpty(cardId)) return "";
+        int dot = cardId.IndexOf('.');
+        string body = dot >= 0 ? cardId.Substring(dot + 1) : cardId;
+        if (string.IsNullOrEmpty(body)) return "";
+        var sb = new System.Text.StringBuilder(body.Length + 5);
+        bool capitalize = true;
+        foreach (char c in body)
+        {
+            if (c == '_') { capitalize = true; continue; }
+            if (capitalize) { sb.Append(char.ToUpperInvariant(c)); capitalize = false; }
+            else { sb.Append(char.ToLowerInvariant(c)); }
+        }
+        sb.Append("Power");
+        return sb.ToString();
     }
 
     /// <summary>
@@ -415,6 +461,33 @@ internal static class PowerSequencingTier
                     if (v > 0) { b += v; parts.Add($"playTrigSyn=+{v}"); }
                 }
 
+                // v0.10 — Cumulative-counter Scaling powers (AUTOMATION's
+                // AfterCardDrawn counter etc.). The carryover value across
+                // remaining turns is ALREADY captured by automationTick in
+                // EffectSynergy. Deploy-order within THIS turn only matters
+                // when mid-turn draws are still pending (Skim, Backflip,
+                // draw-axis attacks). Without those, step-1 vs step-N
+                // placement produces identical trigger counts — both wait
+                // for next turn's hand draw to start ticking.
+                //
+                // Magnitude: handDrawCount × 100. Small nudge proportional
+                // to remaining mid-turn draws. Earlier prototype used
+                // remainingTurns × 400 which double-counted automationTick's
+                // carryover value — caught when the user pointed out that
+                // AUTOMATION is fundamentally a next-turn-onwards power.
+                if (self.Axes.Contains("DRAW_ON_DRAW"))
+                {
+                    int handDrawCount = 0;
+                    foreach (var c in state.Hand)
+                    {
+                        if (ReferenceEquals(c, self)) continue;
+                        if (!c.IsPlayable || c.IsCurseOrStatus) continue;
+                        if (c.DrawCount > 0) handDrawCount += c.DrawCount;
+                    }
+                    int v = handDrawCount * w.DrawTrigEarlyPerHandDraw;
+                    if (v > 0) { b += v; parts.Add($"drawTrigInHand({handDrawCount})=+{v}"); }
+                }
+
                 int aliveEnemies = state.Enemies.Count(e => e.IsAlive);
                 int totalHp = EnemyTurnSimulator.TotalAliveEnemyHp(state);
                 if (aliveEnemies <= 1 && totalHp <= 25)
@@ -437,5 +510,49 @@ internal static class PowerSequencingTier
         }
 
         return (b, parts.Count == 0 ? "" : string.Join(",", parts));
+    }
+
+    // ─── JSON load / save ───────────────────────────────────────────────────
+    // v0.10 — power_sequencing.json overlays the in-memory tier map. Format:
+    //   { "tiers": { "PowerName": "Setup|Scaling|Defensive|Tempo|SelfHarm" } }
+    // Load REPLACES the map (single source of truth once written). Conditional
+    // magnitudes inside the switch (urgency penalties, defLeak etc.) stay in
+    // code for now — those are tied to algorithm shape, not pure lookup data.
+
+    private sealed class _SequencingFile
+    {
+        public Dictionary<string, string> tiers { get; set; } = new();
+    }
+
+    private static readonly JsonSerializerOptions _seqJsonOpts = new() { WriteIndented = true };
+
+    public static void WriteDefaultsTo(string path)
+    {
+        if (File.Exists(path)) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+            var f = new _SequencingFile();
+            foreach (var kv in _tiers) f.tiers[kv.Key] = kv.Value.ToString();
+            File.WriteAllText(path, JsonSerializer.Serialize(f, _seqJsonOpts));
+        }
+        catch { /* best-effort */ }
+    }
+
+    public static void LoadFromJson(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            var f = JsonSerializer.Deserialize<_SequencingFile>(File.ReadAllText(path), _seqJsonOpts);
+            if (f == null) return;
+            _tiers.Clear();
+            foreach (var kv in f.tiers)
+            {
+                if (System.Enum.TryParse<SequencingTier>(kv.Value, ignoreCase: true, out var t))
+                    _tiers[kv.Key] = t;
+            }
+        }
+        catch { /* malformed → keep defaults */ }
     }
 }

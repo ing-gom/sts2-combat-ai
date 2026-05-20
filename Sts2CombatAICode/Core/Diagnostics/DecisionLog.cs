@@ -66,6 +66,14 @@ internal static class DecisionLog
         public int TurnHpEnd { get; set; }
         public int TurnDamageTaken { get; set; }
         public int TurnCardsPlayed { get; set; }
+        // v0.10 — Per-target score breakdowns for the chosen card's
+        // AnyEnemy targeting options. Empty for self-target / AOE plays.
+        // Used to diagnose why a particular target won — when the log
+        // shows STRIKE hit the high-HP buff enemy instead of the low-HP
+        // lethal-killable thorny enemy, this surfaces both score breakdowns
+        // side-by-side without needing to re-run the planner on the snapshot.
+        // Format: "0:scoreN[detail1,detail2,...]|1:scoreN[...]" (idx:score[details])
+        public string TargetBreakdowns { get; set; } = "";
     }
 
     public static void Record(Entry e)

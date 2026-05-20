@@ -136,6 +136,24 @@ internal static class CardReflection
         catch { return false; }
     }
 
+    /// <summary>
+    /// v0.10 — True when the card carries the Galvanized affliction
+    /// (applied by GalvanicPower — decompile sts2.decompiled.cs:314903).
+    /// Galvanized cards deal Amount damage to the owner on play
+    /// (ValueProp.Unpowered, block-absorbed). Used by PlanScorer to
+    /// model the HP cost of playing a Power card under a galvanic source.
+    /// </summary>
+    public static bool HasGalvanizedAffliction(CardModel card)
+    {
+        try
+        {
+            var aff = _afflictionProp?.GetValue(card);
+            if (aff == null) return false;
+            return aff.GetType().Name == "Galvanized";
+        }
+        catch { return false; }
+    }
+
     // v0.10 — CardModel.HasTurnEndInHandEffect is a virtual bool property
     // overridden by status / hand-decay cards (INFECTION, Burn-style).
     // INFECTION's OnTurnEndInHand deals DynamicVars.Damage to the owner

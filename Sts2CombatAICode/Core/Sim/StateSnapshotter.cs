@@ -503,6 +503,22 @@ internal static class StateSnapshotter
             if (discardPileRaw != null)
                 foreach (var card in discardPileRaw) discardPile.Add(BuildSimCard(card, requirePlayability: false));
 
+            // v0.10 — Sum GalvanicPower amount across all sources in combat.
+            // Typically a single galvanic enemy, but additive on the rare
+            // multi-source case. Player-side GalvanicPower (curses, mod-applied)
+            // is also summed defensively.
+            int galvanicAmount = 0;
+            if (playerPowerDict != null
+                && playerPowerDict.TryGetValue("GalvanicPower", out var pgAmt))
+                galvanicAmount += pgAmt;
+            foreach (var enemy in enemies)
+            {
+                if (!enemy.IsAlive) continue;
+                if (enemy.Powers != null
+                    && enemy.Powers.TryGetValue("GalvanicPower", out var egAmt))
+                    galvanicAmount += egAmt;
+            }
+
             return new SimState
             {
                 PlayerHp = hp,
@@ -550,6 +566,7 @@ internal static class StateSnapshotter
                 DrawPile = drawPile,
                 DiscardPile = discardPile,
                 PlayerStars = playerStars,
+                GalvanicAmount = galvanicAmount,
                 PlayerDoom = playerDoom,
                 PlayerOrbCount = orbCount,
                 PlayerOrbCapacity = orbCapacity,
@@ -682,6 +699,9 @@ internal static class StateSnapshotter
             // Smog affliction (SmoggyPower / LivingFog) — card can't be
             // played until SmoggyPower's AfterTurnEnd clears it.
             IsSmogged = CardReflection.HasSmogAffliction(card),
+            // v0.10 — Galvanized affliction (GalvanicPower). Deals damage
+            // on play through the normal block-absorbing path.
+            IsGalvanized = CardReflection.HasGalvanizedAffliction(card),
             TurnEndInHandSelfDamage = turnEndInHandDmg,
         };
     }

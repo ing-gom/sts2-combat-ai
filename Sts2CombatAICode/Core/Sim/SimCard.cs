@@ -117,6 +117,18 @@ internal sealed record SimCard
     public bool IsSmogged { get; init; }
 
     /// <summary>
+    /// v0.10 — Galvanized affliction (from GalvanicPower — decompile
+    /// sts2.decompiled.cs:314903-314944). When a Galvanized card is
+    /// played, the source's GalvanicPower.Amount damage hits the owner
+    /// (block-absorbed, ValueProp.Unpowered). Power cards bear the
+    /// affliction by default (GalvanicPower.AfterCardEnteredCombat
+    /// afflicts unafflicted Powers on entry). PlanScorer Power branch
+    /// reads this with <see cref="SimState.GalvanicAmount"/> to model
+    /// the HP cost of deploying a Power under a galvanic enemy.
+    /// </summary>
+    public bool IsGalvanized { get; init; }
+
+    /// <summary>
     /// v0.10 — Self-damage dealt at TURN END if this card sits in hand.
     /// INFECTION = 3 (decompile sts2.decompiled.cs:353764 — Owner takes
     /// DynamicVars.Damage). Goes through the player's block, so high
@@ -308,15 +320,35 @@ internal sealed record SimCard
             total = tgt.HardenedShellRemaining;
         }
 
-        // v0.9 — Thorns reflect: each hit costs us tgt.ThornsAmount HP
-        // (subtract from effective output as "value loss"). Same direction
-        // as PlanScorer.cs:964-989. For multi-target, sum reflects.
+        // v0.9 — Thorns reflect: each hit costs us tgt.ThornsAmount damage.
+        // v0.10 — STS2 ThornsPower routes reflect through normal block
+        // absorption (decompile + empirical verification). Simulate per-hit
+        // block soak so multi-hit reflects only count the post-block leak as
+        // value-loss. Block here is shared across this card's hits AND
+        // any subsequent thorny enemies (AOE).
+        int blockBudget = state.PlayerBlock;
         int thornsLoss = 0;
-        if (tgt != null) thornsLoss = tgt.ThornsAmount * hits;
+        if (tgt != null)
+        {
+            for (int r = 0; r < hits; r++)
+            {
+                int absorbed = System.Math.Min(tgt.ThornsAmount, blockBudget);
+                blockBudget -= absorbed;
+                thornsLoss += tgt.ThornsAmount - absorbed;
+            }
+        }
         else if (Target == MegaCrit.Sts2.Core.Entities.Cards.TargetType.AllEnemies)
         {
             foreach (var e in state.Enemies)
-                if (e.IsAlive) thornsLoss += e.ThornsAmount * hits;
+            {
+                if (!e.IsAlive || e.ThornsAmount <= 0) continue;
+                for (int r = 0; r < hits; r++)
+                {
+                    int absorbed = System.Math.Min(e.ThornsAmount, blockBudget);
+                    blockBudget -= absorbed;
+                    thornsLoss += e.ThornsAmount - absorbed;
+                }
+            }
         }
         // 1 HP loss ≈ 1 dmg-equivalent value (rough conversion). Tunable.
         total = System.Math.Max(0, total - thornsLoss);

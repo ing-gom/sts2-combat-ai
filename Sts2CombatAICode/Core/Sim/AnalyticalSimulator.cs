@@ -304,13 +304,25 @@ internal static class AnalyticalSimulator
                     shellLeft = System.Math.Max(0, shellLeft - totalDmg);
 
                 // v0.5 — thorns reflect: each hit we deal to a thorny enemy costs
-                // us ThornsAmount HP. Multi-hit cards trigger per hit. Bypass our
-                // block (thorns is "lose HP" in STS). PlayerIntangible doesn't
-                // affect reflected damage in canonical STS, so don't cap here.
+                // us ThornsAmount damage per hit. Multi-hit cards trigger per hit.
+                // v0.10 — STS2 ThornsPower.BeforeDamageReceived invokes
+                // CreatureCmd.Damage on the dealer with ValueProp.Unpowered, which
+                // routes through normal block absorption — verified empirically
+                // (Turn 2 STRIKE killed a Thorns:2 enemy with player_block 5→3,
+                // hp 60→60) and against the STS2 decompile. Block soaks reflect
+                // per-hit until depleted.
                 if (enemy.ThornsAmount > 0 && totalDmg > 0)
                 {
                     int hits = System.Math.Max(1, card.Hits);
-                    newPlayerHp = System.Math.Max(0, newPlayerHp - enemy.ThornsAmount * hits);
+                    for (int r = 0; r < hits; r++)
+                    {
+                        int reflect = enemy.ThornsAmount;
+                        int absorbed = System.Math.Min(reflect, newPlayerBlock);
+                        newPlayerBlock -= absorbed;
+                        int leak = reflect - absorbed;
+                        if (leak > 0)
+                            newPlayerHp = System.Math.Max(0, newPlayerHp - leak);
+                    }
                 }
 
                 // Attached debuff stacks. v0.5 — extend beyond Vulnerable/Weak so

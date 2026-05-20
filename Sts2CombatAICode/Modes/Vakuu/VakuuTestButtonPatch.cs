@@ -34,6 +34,10 @@ internal static class VakuuTestButtonPatch
 {
     private const string PlayButtonName = "VakuuTestButton";
     private const string StepButtonName = "VakuuStepButton";
+    /// <summary>Name of the small "● N" badge attached as a child of the Play button.
+    /// Read by <see cref="TestButtonPoller"/> each tick to reflect
+    /// <see cref="Sts2CombatAI.Diagnostics.DecisionLogPersister"/> state.</summary>
+    public const string RecBadgeName = "VakuuRecBadge";
 
     /// <summary>
     /// Combat round number in which the planner was last triggered via the Play button.
@@ -105,6 +109,23 @@ internal static class VakuuTestButtonPatch
                 playBtn.AddThemeColorOverride("font_pressed_color", new Color(0.9f, 0.7f, 0.3f));
                 playBtn.Pressed += () => _ = OnPlayPressedAsync();
                 instance.CallDeferred(Node.MethodName.AddChild, playBtn);
+
+                // Recording-status badge — sits in the top-right of the Play button.
+                // Hidden until the persister actually flushes the first entry, so the
+                // user has a positive confirmation that "if the game crashes now,
+                // at least N entries are on disk." Poller updates Text/Visible each tick.
+                var recBadge = new Label
+                {
+                    Name = RecBadgeName,
+                    Text = "",
+                    Position = new Vector2(endTurnSize.X - 56, 2),
+                    ZIndex = 1001,
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    Visible = false,
+                };
+                recBadge.AddThemeFontSizeOverride("font_size", 14);
+                recBadge.AddThemeColorOverride("font_color", new Color(1f, 0.30f, 0.30f));
+                playBtn.CallDeferred(Node.MethodName.AddChild, recBadge);
             }
 
             if (!hasStep)

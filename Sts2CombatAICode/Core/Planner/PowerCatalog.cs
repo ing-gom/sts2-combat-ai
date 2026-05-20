@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 
 namespace Sts2CombatAI.Planner;
 
@@ -23,9 +25,14 @@ namespace Sts2CombatAI.Planner;
 /// </summary>
 internal static class PowerCatalog
 {
-    public const int DefaultValue = 200;
+    // v0.10 — DefaultValue + dicts converted to mutable to support JSON-load.
+    // Public read-only views preserve existing external code references.
+    public static int DefaultValue { get; private set; } = 200;
 
-    public static readonly IReadOnlyDictionary<string, int> SelfBuff = new Dictionary<string, int>
+    public static IReadOnlyDictionary<string, int> SelfBuff => _selfBuff;
+    public static IReadOnlyDictionary<string, int> EnemyDebuff => _enemyDebuff;
+
+    private static readonly Dictionary<string, int> _selfBuff = new Dictionary<string, int>
     {
         // ─── Tier S+ (Tempo / game-changing) ────────────────────────────────
         { "EnergyNextTurnPower",     1500 },  // +N energy next turn
@@ -270,7 +277,7 @@ internal static class PowerCatalog
         { "SpeedsterPower",           350 },  // AoE 2 /card drawn
     };
 
-    public static readonly IReadOnlyDictionary<string, int> EnemyDebuff = new Dictionary<string, int>
+    private static readonly Dictionary<string, int> _enemyDebuff = new Dictionary<string, int>
     {
         // ─── Tier S (DoT — long-fight value) ────────────────────────────────
         { "PoisonPower",              700 },
@@ -342,10 +349,10 @@ internal static class PowerCatalog
     }
 
     public static int LookupSelfBuff(string powerName) =>
-        SelfBuff.TryGetValue(powerName, out var v) ? v : HeuristicFallback(powerName, true);
+        _selfBuff.TryGetValue(powerName, out var v) ? v : HeuristicFallback(powerName, true);
 
     public static int LookupEnemyDebuff(string powerName) =>
-        EnemyDebuff.TryGetValue(powerName, out var v) ? v : HeuristicFallback(powerName, false);
+        _enemyDebuff.TryGetValue(powerName, out var v) ? v : HeuristicFallback(powerName, false);
 
     /// <summary>
     /// Diminishing-returns scaling for power stacks.
@@ -375,4 +382,60 @@ internal static class PowerCatalog
 
     public static int ValueEnemyDebuff(string powerName, int stacks) =>
         ApplyStackCurve(LookupEnemyDebuff(powerName), stacks);
+
+    // ─── JSON load / save ───────────────────────────────────────────────────
+    // v0.10 — Single-file power_catalog.json with three sections:
+    //   { "default_value": 200, "self_buff": { "X": 1500, ... },
+    //     "enemy_debuff": { "Y": 400, ... } }
+    // Load behavior: REPLACES entire dict (so JSON is single source of truth
+    // once written). Missing file = keep code defaults. Stack curve and
+    // heuristic fallback stay in code; they're algorithm shape, not per-power
+    // numeric.
+
+    private sealed class _Catalog
+    {
+        public int default_value { get; set; } = 200;
+        public Dictionary<string, int> self_buff { get; set; } = new();
+        public Dictionary<string, int> enemy_debuff { get; set; } = new();
+    }
+
+    private static readonly JsonSerializerOptions _jsonOpts = new()
+    {
+        WriteIndented = true,
+    };
+
+    /// <summary>Write current code defaults to {path} if missing. Idempotent.</summary>
+    public static void WriteDefaultsTo(string path)
+    {
+        if (File.Exists(path)) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+            var c = new _Catalog
+            {
+                default_value = DefaultValue,
+                self_buff = new Dictionary<string, int>(_selfBuff),
+                enemy_debuff = new Dictionary<string, int>(_enemyDebuff),
+            };
+            File.WriteAllText(path, JsonSerializer.Serialize(c, _jsonOpts));
+        }
+        catch { /* best-effort */ }
+    }
+
+    /// <summary>Load and REPLACE catalog from {path}. No-op if missing/invalid.</summary>
+    public static void LoadFromJson(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            var c = JsonSerializer.Deserialize<_Catalog>(File.ReadAllText(path), _jsonOpts);
+            if (c == null) return;
+            DefaultValue = c.default_value;
+            _selfBuff.Clear();
+            foreach (var kv in c.self_buff) _selfBuff[kv.Key] = kv.Value;
+            _enemyDebuff.Clear();
+            foreach (var kv in c.enemy_debuff) _enemyDebuff[kv.Key] = kv.Value;
+        }
+        catch { /* malformed → keep defaults */ }
+    }
 }

@@ -140,6 +140,61 @@ For deeper offline analysis, every combat is also dumped as NDJSON to
 `{user_data}/Sts2CombatAI/decision_log/`. Parse it with
 `scripts/parse_decision_log.py`.
 
+## Configuration (v0.10+)
+
+All planner-tuning knobs are externalized to JSON under
+`{user_data}/Sts2CombatAI/scoring_weights/`. First mod launch writes defaults;
+user or AI edits override at next launch. Missing files / missing fields fall
+back to code defaults — partial JSON is safe.
+
+```
+{user_data}/Sts2CombatAI/scoring_weights/
+├── balanced.json            70+ dials for the Balanced playstyle
+├── defensive.json           70+ dials for Defensive
+├── aggressive.json          70+ dials for Aggressive
+├── killer.json              70+ dials for Killer
+├── power_catalog.json       ~164 Power value lookups (self-buff + enemy-debuff)
+├── power_sequencing.json    Power → tier (Setup/Scaling/Defensive/Tempo/SelfHarm)
+└── planner_config.json      depth/beam/MC params + training-data toggle
+```
+
+### What each file controls
+
+- **`{preset}.json`** — every scoring magnitude visible in the breakdown log
+  (PowerCardBonus, LethalRangeBonuses, BlockUnderThreatBonus, BurstDamage
+  ratios, WastedBlockPenalty, MinPlayScore, thorns / galvanic / 0-cost-power
+  bonuses, draw-trigger bonuses, the HP-fraction multiplier cascade, etc.).
+- **`power_catalog.json`** — per-power score (SelfBuff section for player-side
+  application, EnemyDebuff for enemy-side) + `default_value` fallback for
+  unknown powers.
+- **`power_sequencing.json`** — within-turn play order for multi-Power hands.
+  Setup (apply first — Strength, Vulnerable, Vigor) > Scaling (long-fight
+  permanents — DemonForm, EchoForm) > Defensive (block / mitigation) > Tempo
+  (energy / draw) > SelfHarm (avoid).
+- **`planner_config.json`** — algorithm-level: `next_turn_discount`,
+  `monte_carlo_samples`, `beam_k` (depth-N search width),
+  `training_data_enabled`.
+
+### Training-data mode
+
+Set `"training_data_enabled": true` in `planner_config.json` to enable dense
+per-step recording for offline AI tuning workflows. Output:
+`{user_data}/Sts2CombatAI/training_data/{timestamp}_F{floor}_{char}_{id}.ndjson`.
+
+Each NDJSON line is one decision step containing:
+- snapshot summary
+- the chosen `(card_id, target_idx)` flagged
+- a `candidates` array — EVERY `(card, target)` the planner considered,
+  with full `PlanScorer.Breakdown` (total + base + effect + target_bonus +
+  threat_bonus + raw details string)
+
+Lets an offline tuner map "JSON dial change → decision change" without
+re-running the planner: the same snapshot scored under a new weight set gives
+the candidate score that would have won.
+
+Significant perf cost (~5-10 candidates × ~3-5 alive enemies = 15-50 extra
+breakdown calls per step) — keep disabled in normal play.
+
 ## Build (developers)
 
 ```bash

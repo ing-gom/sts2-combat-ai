@@ -1,5 +1,89 @@
 # Changelog
 
+## v0.10.0 (2026-05-20)
+
+**STS2-accurate thorns + Galvanic modeling, config externalization, training-data
+exporter.** Major scoring + tuning overhaul.
+
+### Combat decisions
+
+- **Thorns rule sync (STS2-accurate).** Decompile-verified: STS2 thorns reflect
+  routes through `CreatureCmd.Damage(..., ValueProp.Unpowered)`, i.e. block
+  ABSORBS reflect (opposite of STS1). Updated `AnalyticalSimulator`,
+  `EnemyTurnSimulator`, `PlanScorer thornsPenalty`, `IsLethalThisTurn` thorns
+  cost, and `SimCard.EffectiveDmgPerEnergy` to simulate per-hit block soak.
+  Detail log now shows `THORNS(raw{X},leak{Y})` so the block-absorbed portion
+  is visible.
+- **Lethal-with-thorns recognition.** `IsLethalThisTurn` now (1) includes
+  X-cost cards by treating cost = current energy and hits = energy + ChemicalX,
+  (2) simulates stars-gain skills (VENERATE) first to unlock star-blocked
+  attacks (FALLING_STAR), (3) demotes suicide-lethal when chain reflect
+  exceeds `HP − ThornsSuicideLethalHpMargin`. The chosen attack's thorns
+  penalty is damped by `ThornsLethalDampDivisor` (default ÷10) in lethal mode
+  so setup attacks in a multi-card kill chain win over defense.
+- **Block-vs-thorn scenario penalty.** Non-lethal attacks into thorny enemies
+  compare hpLoss(block-only) vs hpLoss(attack-through-thorns + reduced block);
+  `ThornsBlockBetterPenalty` (-3000) fires when block-only is meaningfully
+  safer.
+- **Galvanic damage modeling.** Galvanic-enemy mechanic (Power play under
+  GalvanicPower deals N damage, block-absorbed). New
+  `CardReflection.HasGalvanizedAffliction`, `SimCard.IsGalvanized`,
+  `SimState.GalvanicAmount`. PlanScorer Power branch subtracts
+  `max(0, GalvanicAmount − PlayerBlock) × GalvanicPenaltyPerLeakHp`,
+  suppressed in lethal mode.
+- **0-cost Power priority.** `FreePlay0CostPowerBonus` (+2500) — upgraded
+  AUTOMATION etc. that don't compete with attacks for energy now deploy early
+  instead of at the end of the turn.
+- **Cumulative-counter draw bonus.** `DRAW_ON_DRAW` Scaling powers (AUTOMATION)
+  get `DrawTrigEarlyPerHandDraw × handDrawCount` to reflect within-turn extra
+  triggers when the hand still has draw effects.
+- **Setup-skill lethal exemption.** Stars-gain skills (VENERATE) that unlock
+  the lethal-chain star-cost attack are exempt from `LethalModeNonAttackPenalty`
+  so the chain commits instead of losing to STRIKE on firstScore guard.
+- **Wasted-block fix.** Removed inverted `!allInert` exclusion — wasted-block
+  penalty now fires when all enemies are stunned/inert (the most wasted case).
+- **`PowerSequencingTier.Classify` Id-derived fallback.** 24 powers
+  (AUTOMATION / BARRICADE / MAYHEM / REAPER_FORM / UNMOVABLE etc.) with empty
+  `PowerApps` now classify properly via Id→PowerName instead of falling to
+  `Unknown` and missing all tier-conditional bonuses.
+
+### Configuration externalization
+
+All planner-tuning knobs are now JSON-loadable at
+`{user_data}/Sts2CombatAI/scoring_weights/`:
+
+- `balanced.json` / `defensive.json` / `aggressive.json` / `killer.json` —
+  70+ playstyle dials each (PlanScorerWeights)
+- `power_catalog.json` — ~164 per-power values + DefaultValue fallback
+- `power_sequencing.json` — Power → SequencingTier map
+- `planner_config.json` — `next_turn_discount`, `monte_carlo_samples`,
+  `beam_k`, `training_data_enabled`
+
+Defaults written on first launch; user/AI edits override at next launch.
+Missing files / fields fall back to code defaults. HP-fraction multiplier
+cascade (`ThornsHpFractionMultipliers`) is also externalized as a data table.
+
+### Training data exporter (opt-in)
+
+New `TrainingDataExporter` dumps **dense per-step candidate breakdowns** when
+`training_data_enabled=true`. Each NDJSON line has the chosen `(card, target)`
+plus every alternative considered with full `PlanScorer.Breakdown`. Lets an
+offline tuner map "JSON dial change → decision change" without re-running the
+planner. Files under `{user_data}/Sts2CombatAI/training_data/`.
+
+### Diagnostics
+
+- New `target_breakdowns` field on every `decision_log` NDJSON entry — for
+  AnyEnemy attacks, per-target full breakdown side-by-side. Diagnoses target-
+  selection cases (why adj1 was picked over adj2) without re-running.
+- Vakuu Play / Step button now carries a small `● N` recording badge showing
+  how many decision-log entries have been flushed to disk this combat.
+
+### Validation
+
+- main DLL 빌드 클린 (경고 2 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **112 passed / 0 failed**
+
 ## v0.9.8 (2026-05-20)
 
 **Doc-comment cleanup — `PlanScorer.BreakdownInternal` 의 IsCurseOrStatus

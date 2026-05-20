@@ -40,6 +40,7 @@ internal static class DecisionLogPersister
     private static StreamWriter? _writer;
     private static string? _currentPath;
     private static DecisionLog.Entry? _pending;
+    private static int _entriesCommitted;
 
     /// <summary>Set false from ModConfig to disable persistence at runtime.</summary>
     public static bool Enabled
@@ -47,6 +48,18 @@ internal static class DecisionLogPersister
         get => _enabled;
         set => _enabled = value;
     }
+
+    /// <summary>True while a combat NDJSON file is open for writing.
+    /// UI badges read this to confirm the persister is armed.</summary>
+    public static bool IsOpen => _writer != null;
+
+    /// <summary>Number of entries that have actually been flushed to disk
+    /// in the currently-open file. Excludes the pending (uncommitted) entry.
+    /// Resets to 0 on each <see cref="OpenForCombat"/>.</summary>
+    public static int EntriesCommitted => _entriesCommitted;
+
+    /// <summary>File name (no directory) of the currently-open NDJSON, or null.</summary>
+    public static string? CurrentFileName => _currentPath is null ? null : Path.GetFileName(_currentPath);
 
     public static void Install()
     {
@@ -89,6 +102,7 @@ internal static class DecisionLogPersister
             // immediately — no manual Flush needed per step.
             _writer = new StreamWriter(_currentPath, append: false, Encoding.UTF8) { AutoFlush = true };
             _pending = null;
+            _entriesCommitted = 0;
             MainFile.Logger.Info($"[CombatAI] DecisionLog opened: {fname}");
         }
         catch (Exception ex)
@@ -150,6 +164,7 @@ internal static class DecisionLogPersister
         try
         {
             _writer.WriteLine(SerializeEntry(_pending));
+            _entriesCommitted++;
         }
         catch (Exception ex)
         {
@@ -218,7 +233,10 @@ internal static class DecisionLogPersister
         Append(sb, "alternatives", e.AlternativeCards); sb.Append(',');
         AppendInt(sb, "runner_up_delta", e.RunnerUpDelta); sb.Append(',');
         Append(sb, "snapshot", e.SnapshotSummary); sb.Append(',');
-        Append(sb, "breakdown", e.BreakdownDetails);
+        Append(sb, "breakdown", e.BreakdownDetails); sb.Append(',');
+        // v0.10 — Per-target breakdowns for AnyEnemy attacks. Empty for
+        // self/AOE targeting. See DecisionLog.Entry comment for format.
+        Append(sb, "target_breakdowns", e.TargetBreakdowns);
         sb.Append('}');
         return sb.ToString();
     }

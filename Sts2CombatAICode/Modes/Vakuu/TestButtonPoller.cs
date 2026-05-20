@@ -52,6 +52,7 @@ internal sealed partial class TestButtonPoller : Node
                 // hook firing). CloseForCombat is idempotent; safe to call
                 // every tick we're out of combat.
                 Sts2CombatAI.Diagnostics.DecisionLogPersister.CloseForCombat();
+                Sts2CombatAI.Diagnostics.TrainingDataExporter.CloseForCombat();
                 return;
             }
 
@@ -76,6 +77,26 @@ internal sealed partial class TestButtonPoller : Node
             if (endTurn.GetNodeOrNull("VakuuStepButton") is Button stepBtn)
             {
                 stepBtn.Disabled = !(combatActive && playerPhase) || VakuuTestButtonPatch.StepInFlight;
+            }
+
+            // Recording badge: positive confirmation that decision-log NDJSON has
+            // hit disk this combat. Visible only after the first commit so an open-
+            // but-empty file (planner armed, no card played yet) doesn't lie about
+            // having survivable state. Tooltip on the Play button surfaces the
+            // file name so the user can grep it in `decision_log/`.
+            if (endTurn.GetNodeOrNull("VakuuTestButton") is Button playBtn)
+            {
+                if (playBtn.GetNodeOrNull(VakuuTestButtonPatch.RecBadgeName) is Label badge)
+                {
+                    int count = Sts2CombatAI.Diagnostics.DecisionLogPersister.EntriesCommitted;
+                    bool show = Sts2CombatAI.Diagnostics.DecisionLogPersister.IsOpen && count > 0;
+                    badge.Visible = show;
+                    if (show) badge.Text = $"● {count}";
+                }
+                var fname = Sts2CombatAI.Diagnostics.DecisionLogPersister.CurrentFileName;
+                playBtn.TooltipText = fname is null
+                    ? "Vakuu Play — run planner for this turn"
+                    : $"Vakuu Play — log: {fname}";
             }
         }
         catch (Exception ex)

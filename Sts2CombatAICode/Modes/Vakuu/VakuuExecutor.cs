@@ -89,10 +89,11 @@ internal static class VakuuExecutor
             var startChar = player.Creature?.GetType().Name ?? "unknown";
             int startFloor = 0;
             try { startFloor = combatState.RoundNumber; } catch { /* defensive */ }
-            DecisionLogPersister.OpenForCombat(
-                startChar,
-                startFloor,
-                System.DateTime.Now.Ticks.ToString());
+            var combatIdStr = System.DateTime.Now.Ticks.ToString();
+            DecisionLogPersister.OpenForCombat(startChar, startFloor, combatIdStr);
+            if (Sts2CombatAI.Diagnostics.TrainingDataExporter.Enabled)
+                Sts2CombatAI.Diagnostics.TrainingDataExporter.OpenForCombat(
+                    startChar, startFloor, combatIdStr);
         }
 
         LastPlannedTurnRound = combatState.RoundNumber;
@@ -258,6 +259,29 @@ internal static class VakuuExecutor
                         return $"{c.id}@{c.targetIdx}={c.total}{deltaTag}";
                     }));
 
+                // v0.10 — Per-target breakdowns for AnyEnemy-targeted attacks.
+                // Lets offline log analysis see WHY a target was chosen by
+                // showing both candidates side-by-side. Cheap (1 extra Score
+                // call per alive enemy on the chosen card). No-op for self/
+                // AllEnemies targeting (planner emits only -1 there).
+                string targetBreakdowns = "";
+                if (plan.Value.Card.Target == MegaCrit.Sts2.Core.Entities.Cards.TargetType.AnyEnemy
+                    && snapshot.Enemies.Count > 1)
+                {
+                    var parts = new System.Collections.Generic.List<string>();
+                    for (int i = 0; i < snapshot.Enemies.Count; i++)
+                    {
+                        if (!snapshot.Enemies[i].IsAlive) continue;
+                        var bd = PlanScorer.Breakdown(plan.Value.Card, i, snapshot, pickWeights);
+                        // Use full breakdown details so target-specific bonuses
+                        // (LETHAL, killIntentSave, buff, vuln, minion, THORNS)
+                        // surface explicitly. '|' separates targets, ';' inside
+                        // (instead of ',') so the field is JSON-safe and parseable.
+                        parts.Add($"{i}:{bd.Total}[{bd.Details.Replace(',', ';')}]");
+                    }
+                    targetBreakdowns = string.Join("|", parts);
+                }
+
                 var stepEntry = new DecisionLog.Entry
                 {
                     Timestamp = System.DateTime.Now,
@@ -279,8 +303,22 @@ internal static class VakuuExecutor
                     Character = player.Creature?.GetType().Name ?? "",
                     AlternativeCards = altStr,
                     RunnerUpDelta = runnerUpDelta,
+                    TargetBreakdowns = targetBreakdowns,
                 };
                 DecisionLog.Record(stepEntry);
+                // v0.10 (Phase 5) — Dense per-step training data dump. No-op
+                // when Enabled=false (default). Walks ALL candidates with full
+                // PlanScorer.Breakdown for offline ML training workflows.
+                if (Sts2CombatAI.Diagnostics.TrainingDataExporter.Enabled)
+                {
+                    Sts2CombatAI.Diagnostics.TrainingDataExporter.RecordStep(
+                        snapshot, combatState.RoundNumber, step + 1,
+                        PlaystyleState.Current.ToString(),
+                        player.Creature?.GetType().Name ?? "",
+                        plan.Value.Card.Id, plan.Value.TargetIdx,
+                        pickWeights,
+                        ActionPlanner.EnumerateCandidates(snapshot));
+                }
                 // v0.10 — Streaming append: persister holds this entry in
                 // 'pending' so UpdateLastOutcome below can mutate its outcome
                 // fields (same instance reference); the previous entry is

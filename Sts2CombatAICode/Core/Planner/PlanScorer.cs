@@ -441,6 +441,42 @@ internal static class PlanScorer
         {
             int baseBonus = allInert ? w.PowerCardBonusWhenAllInert : w.PowerCardBonus;
             int costTie = cost * (w.CostMultiplier / 4);
+            // v0.10 — 0-cost Power priority. Upgraded scaling powers
+            // (AUTOMATION+ : cost 1→0, AfterCardDrawn counter) don't compete
+            // with attacks/defense for energy, AND their cumulative effect
+            // strictly benefits from earlier deployment (every card drawn
+            // after deploy ticks the counter). Without this bonus, the
+            // dmg-based attack scores dominated and 0-cost powers slipped
+            // to the last step of the turn (observed 22:29 log Turn 3:
+            // AUTOMATION+ played at step 4 of 5, missing 3 trigger draws
+            // this turn alone). The bonus is suppressed in lethal mode —
+            // when we can kill this turn, the carryover never materializes.
+            int freePlayBonus = 0;
+            if (cost == 0 && !lethalThisTurn)
+            {
+                freePlayBonus = w.FreePlay0CostPowerBonus;
+                if (freePlayBonus != 0) details.Add($"freePlay0Cost={freePlayBonus}");
+            }
+
+            // v0.10 — Galvanic HP-cost. Playing a Galvanized Power card
+            // deals state.GalvanicAmount damage to the player (block-
+            // absorbed, ValueProp.Unpowered — decompile :314942). Subtract
+            // the post-block leak as score penalty at -100/HP. Suppressed
+            // in lethal mode (no carryover need: enemies die before another
+            // galvanic trigger could matter). Stacks with thorns-style
+            // self-damage penalties when both fire.
+            int galvanicPenalty = 0;
+            if (card.IsGalvanized && state.GalvanicAmount > 0 && !lethalThisTurn)
+            {
+                int absorbed = System.Math.Min(state.GalvanicAmount, state.PlayerBlock);
+                int hpLeak = state.GalvanicAmount - absorbed;
+                if (hpLeak > 0)
+                {
+                    galvanicPenalty = -hpLeak * w.GalvanicPenaltyPerLeakHp;
+                    details.Add($"galvanic(amt{state.GalvanicAmount},leak{hpLeak})={galvanicPenalty}");
+                }
+            }
+
             details.Add(allInert ? $"allInertBonus={baseBonus}" : $"powerBase={baseBonus}");
             int effect = 0;
             foreach (var (powerName, amount) in card.PowerApps)
@@ -555,11 +591,11 @@ internal static class PlanScorer
             // skip Power-type cards inside RelicCatalog.
             int relicBonusPower = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
 
-            int total = baseBonus + effect + costTie + energyBonus + fightCtx
+            int total = baseBonus + effect + costTie + energyBonus + fightCtx + freePlayBonus + galvanicPenalty
                         + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower;
             return new ScoreBreakdown(total, "Power",
-                Base: baseBonus + costTie,
-                Effect: effect + energyBonus + fightCtx + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower,
+                Base: baseBonus + costTie + freePlayBonus,
+                Effect: effect + energyBonus + fightCtx + galvanicPenalty + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower,
                 TargetBonus: 0, ThreatBonus: 0,
                 Details: string.Join(",", details));
         }
@@ -1076,16 +1112,32 @@ internal static class PlanScorer
             // at HP 10 than at HP 80 — flat -100/point under-penalised low-HP
             // thorns plays, letting AI attack instead of defending.
             int thornsPenalty = 0;
-            int thornsDamage = 0;  // raw HP cost from this attack's thorns reflects
+            int thornsDamage = 0;  // POST-BLOCK HP cost from this attack's thorns reflects
             int hits = System.Math.Max(1, card.Hits);
+            // v0.10 — STS2 thorns is absorbed by block per hit (decompile +
+            // empirical verified). Block soaks reflect before HP — model
+            // per-hit absorption against the current PlayerBlock budget.
+            int thornsBlockBudget = state.PlayerBlock;
             if (isAoe)
             {
-                int aliveThorns = state.Enemies.Where(e => e.IsAlive).Sum(e => e.ThornsAmount);
-                if (aliveThorns > 0)
+                int reflectTotal = 0;
+                int leakTotal = 0;
+                foreach (var e in state.Enemies)
                 {
-                    thornsPenalty = -aliveThorns * hits * 100;
-                    thornsDamage = aliveThorns * hits;
-                    details.Add($"THORNS_AOE{thornsPenalty}");
+                    if (!e.IsAlive || e.ThornsAmount <= 0) continue;
+                    for (int r = 0; r < hits; r++)
+                    {
+                        int absorbed = System.Math.Min(e.ThornsAmount, thornsBlockBudget);
+                        thornsBlockBudget -= absorbed;
+                        leakTotal += e.ThornsAmount - absorbed;
+                        reflectTotal += e.ThornsAmount;
+                    }
+                }
+                if (reflectTotal > 0)
+                {
+                    thornsPenalty = -leakTotal * w.ThornsPenaltyPerLeakHp;
+                    thornsDamage = leakTotal;
+                    details.Add($"THORNS_AOE(raw{reflectTotal},leak{leakTotal})={thornsPenalty}");
                 }
             }
             else if (targetIdx >= 0 && targetIdx < state.Enemies.Count)
@@ -1093,22 +1145,42 @@ internal static class PlanScorer
                 int thorns = state.Enemies[targetIdx].ThornsAmount;
                 if (thorns > 0)
                 {
-                    thornsPenalty = -thorns * hits * 100;
-                    thornsDamage = thorns * hits;
-                    details.Add($"THORNS{thornsPenalty}");
+                    int reflectTotal = thorns * hits;
+                    int leakTotal = 0;
+                    for (int r = 0; r < hits; r++)
+                    {
+                        int absorbed = System.Math.Min(thorns, thornsBlockBudget);
+                        thornsBlockBudget -= absorbed;
+                        leakTotal += thorns - absorbed;
+                    }
+                    thornsPenalty = -leakTotal * w.ThornsPenaltyPerLeakHp;
+                    thornsDamage = leakTotal;
+                    details.Add($"THORNS(raw{reflectTotal},leak{leakTotal})={thornsPenalty}");
                 }
             }
             // v0.7.40 — HP-fraction multiplier. Compounds with the flat penalty.
+            // v0.10 — Cascade externalized to PlanScorerWeights.ThornsHpFractionMultipliers
+            // (JSON-tunable). Pick the highest threshold satisfied.
             if (thornsDamage > 0)
             {
                 int playerHp = System.Math.Max(1, state.PlayerHp);
                 double hpFrac = thornsDamage / (double)playerHp;
-                int oldPenalty = thornsPenalty;
-                if (hpFrac >= 0.5)       thornsPenalty = thornsPenalty * 3;
-                else if (hpFrac >= 0.25) thornsPenalty = thornsPenalty * 2;
-                else if (hpFrac >= 0.10) thornsPenalty = thornsPenalty * 15 / 10;
-                if (thornsPenalty != oldPenalty)
-                    details.Add($"THORNS_HP({hpFrac:F2})x{thornsPenalty/(double)oldPenalty:F1}");
+                double mul = 1.0;
+                double matchedThreshold = 0.0;
+                foreach (var b in w.ThornsHpFractionMultipliers)
+                {
+                    if (hpFrac >= b.MinHpFrac && b.MinHpFrac > matchedThreshold)
+                    {
+                        mul = b.Multiplier;
+                        matchedThreshold = b.MinHpFrac;
+                    }
+                }
+                if (mul != 1.0)
+                {
+                    int oldPenalty = thornsPenalty;
+                    thornsPenalty = (int)(thornsPenalty * mul);
+                    details.Add($"THORNS_HP({hpFrac:F2})x{mul:F1}");
+                }
 
                 // v0.7.70 — Block-alternative bias. If hand has a meaningful
                 // block card AND we're NOT delivering lethal AND the trade
@@ -1138,9 +1210,59 @@ internal static class PlanScorer
                         bool nearKill = effectiveTotal >= t.EffectiveHp * 7 / 10;
                         if (!nearKill)
                         {
-                            int blockBias = -150;
+                            int blockBias = w.ThornsBlockAvailableBias;
                             thornsPenalty += blockBias;
                             details.Add($"THORNS_BLOCK_AVAIL={blockBias}");
+                        }
+                    }
+                }
+                // v0.10 — Lethal-mode thorns damp. When the hand can lethal
+                // the combat this turn (IsLethalThisTurn already demotes
+                // suicide-lethal), every alive enemy will be dead before
+                // its attack lands — so thorns reflect is the ENTIRE HP
+                // cost of the turn, not extra. Setup attacks in a 2-3 card
+                // lethal chain were losing to defense because thornsPenalty
+                // ran from -2000 to -6000+ while the finisher's +5000
+                // RealLethalKillBonus didn't reach them. Damping divisor
+                // (default 10 → 1/10) is JSON-tunable.
+                if (lethalThisTurn && thornsDamage < state.PlayerHp - w.ThornsLethalDampHpMargin
+                    && w.ThornsLethalDampDivisor > 1)
+                {
+                    int dampedPenalty = thornsPenalty / w.ThornsLethalDampDivisor;
+                    if (dampedPenalty != thornsPenalty)
+                    {
+                        details.Add($"THORNS_LETHAL_DAMP({thornsPenalty}→{dampedPenalty})");
+                        thornsPenalty = dampedPenalty;
+                    }
+                }
+
+                // v0.10 — Block-vs-thorn-attack scenario penalty. When this
+                // attack into a thorny enemy doesn't kill anyone (no lethal,
+                // not even the target), compare total turn HP loss between:
+                //   B. block-only: spend all energy on block, take enemy hit.
+                //   C. block-then-attack-thorn: lose thorns reflect AND take
+                //      enemy hit (with whatever block survived this card's
+                //      energy spend). Thorns bypasses block in STS2 so the
+                //      reflect is pure HP loss either way.
+                // Penalize the attack when B is clearly safer. Catches the
+                // "defend → attack thorn enemy → enemy turn lands with no
+                // block left" trap.
+                if (!lethalThisTurn && targetIdx >= 0 && targetIdx < state.Enemies.Count)
+                {
+                    var tgt = state.Enemies[targetIdx];
+                    bool killsTarget = effectiveTotal >= tgt.EffectiveHp;
+                    if (!killsTarget && tgt.ThornsAmount > 0)
+                    {
+                        int enemyLeakNow = Sts2CombatAI.Sim.EnemyTurnSimulator.PredictRawLeak(state);
+                        int extraBlockAll = BestBlockInEnergyBudget(state, state.PlayerEnergy, card);
+                        int extraBlockMinus = BestBlockInEnergyBudget(state, state.PlayerEnergy - card.Cost, card);
+                        int hpLossB = System.Math.Max(0, enemyLeakNow - extraBlockAll);
+                        int hpLossC = thornsDamage + System.Math.Max(0, enemyLeakNow - extraBlockMinus);
+                        if (hpLossB + w.ThornsBlockBetterMargin < hpLossC)
+                        {
+                            int blockOnlyBias = w.ThornsBlockBetterPenalty;
+                            thornsPenalty += blockOnlyBias;
+                            details.Add($"THORNS_BLOCK_BETTER(C={hpLossC},B={hpLossB})={blockOnlyBias}");
                         }
                     }
                 }
@@ -1522,8 +1644,17 @@ internal static class PlanScorer
             // Wasted-block penalty: only for blocks that genuinely accomplish nothing.
             // If neutralize fires (block fully absorbs an incoming hit), it's by definition
             // NOT wasted — these two rules used to fight each other.
+            //
+            // v0.10 — Removed `!allInert` exclusion. Originally the gate
+            // skipped the penalty when all enemies were inert (stunned /
+            // threat=None), but that's the MOST wasted case: block decays
+            // at turn end and the inert enemies aren't dealing damage this
+            // turn. Observed 22:54 log Turn 2 step 3-4: after both alive
+            // enemies became Inert (stunned post-kill), AI still played
+            // PARTICLE_WALL + DEFEND_REGENT because their +block-per-point
+            // scores stayed positive without the wasted-block penalty.
             int wastedBlock = (card.Target == TargetType.Self && card.Block > 0
-                && threat < w.NoThreatRatio && !allInert && !neutralizes) ? w.WastedBlockPenalty : 0;
+                && (threat < w.NoThreatRatio || allInert) && !neutralizes) ? w.WastedBlockPenalty : 0;
             // v0.2.6 — Energy gain context applies to Skill carriers too (Adrenaline-style).
             int energyBonus = EvaluateEnergyGain(card, state, w);
             if (energyBonus != 0) details.Add($"energyCtx={energyBonus}");
@@ -1657,8 +1788,38 @@ internal static class PlanScorer
             // Energy / draw / setup-debuff skills also penalised — by
             // definition we already have lethal damage in hand, so nothing
             // else this turn matters.
-            int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
+            //
+            // v0.10 — Exemption for stars-gain setup skills (VENERATE, etc.).
+            // When IsLethalThisTurn Phase 0 included a star-cost attack that
+            // THIS skill's StarsGain would unlock, the skill is part of the
+            // lethal chain — NOT dead weight. Without this carve-out the
+            // -3000 penalty drives the skill's firstScore below 0, and the
+            // firstScore guard (ActionPlanner line 274-276) forces the
+            // planner to pick the highest-positive STRIKE first, skipping
+            // the unlock altogether. Observed: 22:06 log Turn 3 step 1
+            // hand=[STRIKE,STRIKE,FALLING_STAR(unplayable),VENERATE,...]
+            // VENERATE → FALLING_STAR → STRIKE → STRIKE was the optimal kill
+            // sequence but planner picked STRIKE → STRIKE then stopped.
+            bool isLethalSetupSkill = false;
+            if (lethalThisTurn && card.StarsGain > 0)
+            {
+                int starsAfter = state.PlayerStars + card.StarsGain;
+                foreach (var c in state.Hand)
+                {
+                    if (c.IsPlayable) continue;
+                    if (!c.IsAttack) continue;
+                    if (ActionPlanner.StarCostByCardId.TryGetValue(c.Id ?? "", out int sc)
+                        && state.PlayerStars < sc && starsAfter >= sc)
+                    {
+                        isLethalSetupSkill = true;
+                        break;
+                    }
+                }
+            }
+            int lethalPenalty = (lethalThisTurn && !isLethalSetupSkill)
+                ? w.LethalModeNonAttackPenalty : 0;
             if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
+            if (isLethalSetupSkill) details.Add("lethalUnlock(exempt)");
 
             if (fetchPollutionPenalty != 0) details.Add($"fetchPoll={fetchPollutionPenalty}");
             if (comboBonus != 0) details.Add(comboDetail);
@@ -2343,6 +2504,65 @@ internal static class PlanScorer
     }
 
     /// <summary>
+    /// v0.10 — X-cost card detection. X-cost cards carry the "X_COST" axis
+    /// (mirror of <see cref="SimCard.EffectiveDmgPerEnergy"/> line 271).
+    /// Their Cost is reported as -1 by the game (StarCost / EnergyCost both
+    /// resolve to X at play time), so the lethal-detector treats them by
+    /// "consume all remaining energy" semantics.
+    /// </summary>
+    private static bool IsXCostCard(SimCard c)
+        => c.Axes != null && c.Axes.Contains("X_COST");
+
+    /// <summary>
+    /// v0.10 — Ordering value for the lethal-detector's greedy attack chain.
+    /// X-cost cards rank by full-energy damage potential (Damage × hits at
+    /// current energy + ChemicalX bonus); other cards by damage/cost ratio.
+    /// Larger value = play first.
+    /// </summary>
+    private static int OrderingScore(SimCard c, int currentEnergy, int xBonus)
+    {
+        if (IsXCostCard(c))
+        {
+            int hits = System.Math.Max(1, currentEnergy + xBonus);
+            return c.Damage * hits * 100;
+        }
+        int costDivisor = c.Cost == 0 ? 1 : System.Math.Max(1, c.Cost);
+        return c.TotalDamage * 100 / costDivisor;
+    }
+
+    /// <summary>
+    /// v0.10 — Greedy "max raw block we can buy with the given energy
+    /// budget, excluding one specific card". Used by the block-vs-thorn-
+    /// attack scenario penalty so the scoring card itself isn't double-
+    /// counted as both attacker and block source.
+    ///
+    /// Picks by block-per-energy ratio (cost 0 treated as cost 1 for the
+    /// ratio so free skills rank by raw block). Returns RAW block — Dex /
+    /// Frail / WastedBlock are not applied. Good enough for coarse
+    /// scenario comparison (penalty granularity is ±3000).
+    /// </summary>
+    private static int BestBlockInEnergyBudget(SimState state, int energyBudget, SimCard exclude)
+    {
+        if (energyBudget <= 0) return 0;
+        var blockCards = state.Hand
+            .Where(c => !ReferenceEquals(c, exclude)
+                        && c.IsPlayable && !c.IsCurseOrStatus
+                        && c.Block > 0 && c.Cost >= 0)
+            .OrderByDescending(c =>
+                c.Block * 100 / System.Math.Max(1, c.Cost == 0 ? 1 : c.Cost))
+            .ToList();
+        int energy = energyBudget;
+        int totalBlock = 0;
+        foreach (var c in blockCards)
+        {
+            if (c.Cost > energy) continue;
+            energy -= c.Cost;
+            totalBlock += c.Block;
+        }
+        return totalBlock;
+    }
+
+    /// <summary>
     /// v0.6 — Lethal-this-turn detection. Greedy-pick playable attacks in
     /// damage-per-energy order, apply per-enemy Vulnerable / Weak self /
     /// damage caps, sum the projected damage, and return true if it covers
@@ -2361,6 +2581,11 @@ internal static class PlanScorer
     ///     undetected for these — false negative, safe.
     ///   • Strength-from-Setup-this-turn not modelled (we'd need to score
     ///     play order). Lethal detected at current Strength only.
+    ///
+    /// v0.10 — Demotes lethal to false when the thorns reflect cost of the
+    /// chosen attack chain would itself kill the player (or push within the
+    /// safety margin). Suicide-lethal is not lethal: the planner should
+    /// switch to block-only and finish next turn instead.
     /// </summary>
     private static bool IsLethalThisTurn(SimState state)
     {
@@ -2371,17 +2596,71 @@ internal static class PlanScorer
 
         int energy = state.PlayerEnergy;
         bool playerWeak = state.PlayerWeak > 0;
+        int chemicalXBonus = (state.PlayerRelics != null
+            && state.PlayerRelics.ContainsKey("ChemicalX")) ? 2 : 0;
+
+        // v0.10 — Phase 0: stars-budget simulation. Hand may contain skills
+        // that generate stars (VENERATE +2, etc.); these unlock star-cost
+        // attacks (FALLING_STAR @ 2 stars) for the lethal chain. Without
+        // this, IsPlayable=false on star-blocked attacks dropped them
+        // wholesale even when their unlocker was right there in hand.
+        //
+        // Only fires when there's an actual star-blocked attack to unlock,
+        // so we don't waste energy on stars-gain skills in non-star hands.
+        int simulatedStars = state.PlayerStars;
+        bool hasStarBlockedAttack = false;
+        foreach (var c in state.Hand)
+        {
+            if (c.IsPlayable) continue;
+            if (!c.IsAttack) continue;
+            if (ActionPlanner.StarCostByCardId.ContainsKey(c.Id))
+            {
+                hasStarBlockedAttack = true;
+                break;
+            }
+        }
+        if (hasStarBlockedAttack)
+        {
+            // Play stars-gain skills cheapest-first to maximize leftover
+            // energy for the attack chain. Skip those that exceed remaining
+            // energy (no fractional plays).
+            var starsGainSkills = state.Hand
+                .Where(c => c.IsPlayable && c.StarsGain > 0 && !c.IsAttack)
+                .OrderBy(c => c.Cost == 0 ? 1 : System.Math.Max(1, c.Cost))
+                .ToList();
+            foreach (var sk in starsGainSkills)
+            {
+                int cost = System.Math.Max(0, sk.Cost);
+                if (cost > energy) continue;
+                energy -= cost;
+                simulatedStars += sk.StarsGain;
+            }
+        }
 
         // Greedy damage-per-energy ordering. Cost 0 treated as cost 1 for
-        // the ratio so free attacks rank by raw damage.
+        // the ratio so free attacks rank by raw damage. v0.10 — X-cost
+        // cards (Axes contains "X_COST", Cost == -1) are folded in: their
+        // ordering value uses Damage × currentEnergy (best-case hits if
+        // played first), and at play time they consume all remaining
+        // energy with hits scaled accordingly. Star-cost attacks unlocked
+        // by Phase 0 also qualify.
         var attacks = state.Hand
-            .Where(c => c.IsAttack && c.IsPlayable
-                        && c.Cost >= 0 && c.Cost <= energy)
-            .OrderByDescending(c =>
-                c.TotalDamage * 100 / System.Math.Max(1, c.Cost == 0 ? 1 : c.Cost))
+            .Where(c => c.IsAttack
+                        && (IsXCostCard(c) || (c.Cost >= 0 && c.Cost <= energy))
+                        && (c.IsPlayable
+                            || (ActionPlanner.StarCostByCardId.TryGetValue(c.Id, out int sc)
+                                && simulatedStars >= sc)))
+            .OrderByDescending(c => OrderingScore(c, energy, chemicalXBonus))
             .ToList();
 
         int totalReachable = 0;
+        // v0.10 — Track thorns reflect cost across the chain. Single-target
+        // attacks reflect from the chosen target; AOE attacks reflect from
+        // every alive thorny enemy per hit. Multi-hit cards reflect per hit.
+        // STS2 thorns is absorbed by player block (decompile-verified). We
+        // share a block budget across the chain so block isn't double-counted.
+        int totalThornsCost = 0;
+        int thornsBlockBudget = state.PlayerBlock;
         // v0.7.82 — Vigor budget. Single-shot: only the FIRST attack in this chain
         // gets the Vigor bonus, subsequent attacks see 0.
         int vigorRemaining = state.PlayerVigor;
@@ -2389,13 +2668,31 @@ internal static class PlanScorer
         bool lethalityRemaining = state.PlayerLethality > 0;
         foreach (var atk in attacks)
         {
-            if (atk.Cost > energy) continue;
-            energy -= atk.Cost;
+            bool xCost = IsXCostCard(atk);
+            // X-cost: consume all remaining energy. Other cards: pay listed Cost.
+            int effectiveCost = xCost ? energy : atk.Cost;
+            if (!xCost && effectiveCost > energy) continue;
+            if (xCost && energy <= 0) continue;  // no energy to spend on X-cost
+            // v0.10 — Star-cost gate: subtract star cost from simulatedStars
+            // budget so multiple star-cost attacks in hand don't all "play"
+            // when only N stars are available.
+            int starCost = 0;
+            if (ActionPlanner.StarCostByCardId.TryGetValue(atk.Id, out int sc2))
+                starCost = sc2;
+            if (starCost > simulatedStars) continue;
+            simulatedStars -= starCost;
+            energy -= effectiveCost;
             int useVigor = vigorRemaining;
             vigorRemaining = 0;
             bool useLethality = lethalityRemaining;
             lethalityRemaining = false;
 
+            // v0.10 — X-cost hits = spent energy + ChemicalX bonus (mirror of
+            // SimCard.EffectiveDmgPerEnergy line 270-281). Non-X cards use
+            // their static Hits.
+            int hits = xCost
+                ? System.Math.Max(1, effectiveCost + chemicalXBonus)
+                : System.Math.Max(1, atk.Hits);
             if (atk.Target == TargetType.AllEnemies)
             {
                 foreach (var e in state.Enemies)
@@ -2405,7 +2702,7 @@ internal static class PlanScorer
                         state.PlayerStrength, useVigor, e.VulnerableAmount > 0, playerWeak);
                     if (e.DamageCapPerHit > 0 && per > e.DamageCapPerHit)
                         per = e.DamageCapPerHit;
-                    int eachTotal = per * System.Math.Max(1, atk.Hits);
+                    int eachTotal = per * hits;
                     // v0.7.84 — Damage multipliers per enemy.
                     eachTotal = StatusMath.ApplyDamageMultipliers(eachTotal, state,
                         defenderVulnerable: e.VulnerableAmount > 0,
@@ -2414,6 +2711,19 @@ internal static class PlanScorer
                         && eachTotal > e.HardenedShellRemaining)
                         eachTotal = e.HardenedShellRemaining;
                     totalReachable += eachTotal;
+                    // v0.10 — Thorns reflect: AOE attack reflects per hit
+                    // from every alive thorny enemy. STS2 thorns is absorbed
+                    // by block (decompile + empirical verified); simulate
+                    // per-hit block soak against the shared chain budget.
+                    if (e.ThornsAmount > 0)
+                    {
+                        for (int r = 0; r < hits; r++)
+                        {
+                            int absorbed = System.Math.Min(e.ThornsAmount, thornsBlockBudget);
+                            thornsBlockBudget -= absorbed;
+                            totalThornsCost += e.ThornsAmount - absorbed;
+                        }
+                    }
                 }
             }
             else
@@ -2431,16 +2741,35 @@ internal static class PlanScorer
                     state.PlayerStrength, useVigor, bestEnemy.VulnerableAmount > 0, playerWeak);
                 if (bestEnemy.DamageCapPerHit > 0 && per > bestEnemy.DamageCapPerHit)
                     per = bestEnemy.DamageCapPerHit;
-                int eachTotal = per * System.Math.Max(1, atk.Hits);
+                int eachTotal = per * hits;
                 // v0.7.84 — Damage multipliers.
                 eachTotal = StatusMath.ApplyDamageMultipliers(eachTotal, state,
                     defenderVulnerable: bestEnemy.VulnerableAmount > 0,
                     defenderWeak: bestEnemy.WeakAmount > 0, lethalityActive: useLethality);
                 totalReachable += eachTotal;
+                // v0.10 — Single-target thorns reflect: block-absorbed per hit
+                // from the shared chain budget.
+                if (bestEnemy.ThornsAmount > 0)
+                {
+                    for (int r = 0; r < hits; r++)
+                    {
+                        int absorbed = System.Math.Min(bestEnemy.ThornsAmount, thornsBlockBudget);
+                        thornsBlockBudget -= absorbed;
+                        totalThornsCost += bestEnemy.ThornsAmount - absorbed;
+                    }
+                }
             }
         }
 
-        return totalReachable >= totalEnemyHp;
+        if (totalReachable < totalEnemyHp) return false;
+
+        // v0.10 — Suicide-lethal guard. If the thorns reflect of this lethal
+        // chain itself kills the player (or leaves them within SafetyMargin),
+        // it isn't lethal — call the chain off so the planner switches to
+        // block-only. Safety margin via Balanced weights (JSON-tunable, default 4).
+        var balanced = PlanScorerWeights.Balanced;
+        if (totalThornsCost >= state.PlayerHp - balanced.ThornsSuicideLethalHpMargin) return false;
+        return true;
     }
 
     private static (int bonus, string details) ScoreAttackTarget(
