@@ -2401,6 +2401,23 @@ internal static class PlanScorer
             if (target.HasHealIntent)    { s += 800; parts.Add("killHealer+800"); }
             if (target.HasSummonIntent)  { s += 700; parts.Add("killSummoner+700"); }
             if (target.HasDebuffIntent)  { s += 400; parts.Add("killDebuffer+400"); }
+            // v0.9.4 — SandpitPower carrier kill (The Insatiable). The power's
+            // counter ticks at AfterSideTurnStartLate(Enemy); when it transitions
+            // to 0 the AfterRemoved hook force-kills player + pets + Osty
+            // regardless of HP/revive. Killing the carrier averts the loss.
+            // Magnitude scales inverse to remaining stacks — smaller = more urgent.
+            if (target.SandpitAmount > 0)
+            {
+                int sandpitBonus = target.SandpitAmount switch
+                {
+                    1   => 4000,
+                    2   => 2500,
+                    3   => 1500,
+                    _   => 800,
+                };
+                s += sandpitBonus;
+                parts.Add($"killSandpit(stk={target.SandpitAmount})=+{sandpitBonus}");
+            }
         }
         else
         {

@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.9.4 (2026-05-20)
+
+**SandpitPower carrier 처치 가중치 (v0.9.1 P5 follow-up) + Tests 디렉토리
+subrepo 안 이주 (internal restructure).**
+
+### SandpitPower kill-bonus boost
+
+`v0.9.1 P5` 의 minimum viable scope 가 "PlanScorer kill-bonus boost +
+FranticEscape 회복 모델링은 follow-up" 으로 남긴 부분. 본 release 는
+kill-bonus boost 만 처리. **FranticEscape Status-card 회복 모델링은
+별도 release 예정 (작업 분량 큰 별도 단계 — Status 카드 인식 +
+`EnergyCost.AddThisCombat(1)` cost escalation 추적).**
+
+`PlanScorer` 의 `effectiveDamage >= target.EffectiveHp` lethal 분기에
+`SimEnemy.SandpitAmount > 0` 가드 + 잔여 stack 별 가중치 추가:
+
+| SandpitAmount | kill-bonus | 의미 |
+|---|---|---|
+| 1 | +4000 | 다음 enemy turn 끝에 즉사 — 절대 시급 |
+| 2 | +2500 | 2 turns 후 즉사 — 매우 시급 |
+| 3 | +1500 | 3 turns — 중간 |
+| 4+ | +800 | 초기 stack — 여유 |
+
+debug log 라벨: `killSandpit(stk=N)=+M`. SandpitAmount > 0 인 적이
+없으면 0 cost (기존 동작 영향 없음).
+
+### Tests 디렉토리 이주
+
+`Sts2CombatAI.Tests/` 가 parent (card-advisor-dev) repo 의 untracked
+sibling 으로 floating 상태였음 → v0.9.1/B-#4 의 csproj 변경이 어디에도
+committed 안 되는 위치 문제. `Sts2CombatAI/Sts2CombatAI.Tests/` 로 이주.
+
+변경:
+- 디렉토리 자체 이동 (Program.cs + csproj)
+- csproj 의 path 일괄 `..\Sts2CombatAI\` → `..\` (상위 한 단계 → 같은 단계)
+- main csproj 에 `<Compile Remove="Sts2CombatAI.Tests\**" />` + None /
+  EmbeddedResource 동일 — Godot.NET.Sdk 의 wildcard glob 이 Tests 의
+  Program.cs 까지 잡아 AssemblyInfo 중복 빌드 에러 방지
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **101 passed / 0 failed** (회귀 없음)
+
+### Follow-up
+
+- FranticEscape Status-card 회복 모델링 — Player deck 의 FranticEscape
+  카드 인식, `OnPlay → SandpitPower Amount +1`, `EnergyCost.AddThisCombat(1)`
+  추적, PlanScorer 가 deadline 임박 시 FranticEscape 사용 권유
+- TODO #2 — CalculatedDamage runtime preview 검증 (게임 플레이 필요)
+
 ## v0.9.3 (2026-05-20)
 
 **HandSynergy 4 per-card-play powers 확장 + ECHOING_SLASH chain-aware

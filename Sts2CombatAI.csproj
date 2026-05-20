@@ -38,6 +38,16 @@
         <None Include="Sts2CombatAI.json" />
     </ItemGroup>
 
+    <!-- Tests project lives under Sts2CombatAI.Tests/ inside this folder
+         (v0.9.4 — moved from sibling). The Godot SDK's wildcard Compile
+         glob would otherwise pull Tests/Program.cs into the main DLL,
+         causing duplicate AssemblyInfo. Explicit exclusion. -->
+    <ItemGroup>
+        <Compile Remove="Sts2CombatAI.Tests\**" />
+        <None Remove="Sts2CombatAI.Tests\**" />
+        <EmbeddedResource Remove="Sts2CombatAI.Tests\**" />
+    </ItemGroup>
+
     <ItemGroup>
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/card_triggers.json" LogicalName="Sts2CombatAI.card_triggers.json" />
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/pool_means.json" LogicalName="Sts2CombatAI.pool_means.json" />
