@@ -982,6 +982,37 @@ internal static class AnalyticalSimulator
             // v0.10 — Relic counter advancement (PenNib/Nunchaku/Kunai/etc.).
             // Built above; absent or empty → reuse prior dict instance.
             PlayerRelics = newPlayerRelics,
+            // Per-turn play counters. Without these, depth-N lookahead can't see
+            // that "play a Skill first → LUNAR_BLAST hits +1" or
+            // "play an Attack first → FINISHER hits +1". PlanScorer's
+            // EstimateVariableHits for COMBO-axis payoff cards reads exactly
+            // these fields; leaving them frozen at snapshot value makes every
+            // simulated reorder score the payoff card with stale hits.
+            TurnAttacksPlayed = next.TurnAttacksPlayed + (card.IsAttack ? 1 : 0),
+            TurnSkillsPlayed  = next.TurnSkillsPlayed  + (card.IsSkill  ? 1 : 0),
+            // Energy spent this card: 0 when a Free*Power covered it, else
+            // min(card.Cost, available). X-cost cards keep their static Cost
+            // proxy here — close enough for HELIX_DRILL ordering since X cards
+            // are usually played last anyway.
+            TurnEnergySpent   = next.TurnEnergySpent
+                + (freeApplied ? 0 : System.Math.Max(0, System.Math.Min(card.Cost, next.PlayerEnergy))),
+            // Stars gained: positive inflow only (RADIATE counts positive
+            // StarsModifiedEntry deltas). card.StarCost is a consumption and
+            // doesn't subtract here.
+            TurnStarsGained   = next.TurnStarsGained + System.Math.Max(0, card.StarsGain),
+            // True draws this card. DEATH_MARCH's CalculatedDamage reads this.
+            TurnCardsDrawn    = next.TurnCardsDrawn + (card.DrawCount > 0 ? card.DrawCount : 0),
+            // OstyAttack-tagged plays — each such play triggers one Osty
+            // attack in-game (catalog OSTY axis mirrors CardTag.OstyAttack).
+            // RATTLE's CalculatedHits = 1 + TurnOstyAttacks so the depth-N
+            // lookahead needs this counter to grow as setup OstyAttack cards
+            // (FETCH / POKE / RIGHT_HAND_HAND / SIC_EM / etc.) are played first.
+            TurnOstyAttacks   = next.TurnOstyAttacks + (card.Axes != null && card.Axes.Contains("OSTY") ? 1 : 0),
+            // Ethereal plays. PULL_FROM_BELOW's CalculatedHits multiplier
+            // walks CombatHistory entries with WasEthereal — combat-scoped, no
+            // turn filter. Depth-N: playing an Ethereal first (or forced into
+            // play via SWEEPING_GAZE etc.) bumps PULL_FROM_BELOW's later score.
+            CombatEtherealPlayed = next.CombatEtherealPlayed + (card.IsEthereal ? 1 : 0),
         };
     }
 
