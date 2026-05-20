@@ -1,5 +1,58 @@
 # Changelog
 
+## v0.9.6 (2026-05-20)
+
+**SurvivalProjection 에 SandpitPower hard deadline 통합 — carrier 처치
+시간이 deadline 보다 길면 race 가 자동으로 Losing 으로 flip.**
+
+### 배경
+
+v0.9.4 의 killSandpit kill-bonus + v0.9.5 의 FranticEscape urgency 는
+*특정 조건에서만* fire:
+- killSandpit: 이번 턴 carrier lethal 도달 가능 시
+- FranticEscape: 해당 카드가 손에 있을 때
+
+**Gap**: carrier 처치 시간이 deadline 보다 길고 (lethal 도달 불가) 동시에
+FranticEscape 도 손에 없을 때, PlanScorer 의 다른 분기는 sandpit deadline
+을 모름 → 일반 score 로 적당한 카드 선택. AdvanceTurn 의 `newPlayerHp=0`
+처리는 **sim-time 만**, score-time 에는 추가 신호 없음.
+
+### 변경
+
+`SurvivalProjection.Compute` 에 sandpit deadline 통합:
+
+```
+sandpitDeadline = min(SandpitAmount across alive enemies, 0 if none)
+if sandpitDeadline > 0 && turnsToKill > sandpitDeadline:
+    turnsToDeath = min(turnsToDeath, sandpitDeadline)
+```
+
+→ `RaceOutcome` 이 자동으로 **Losing** 으로 flip → 기존 `RaceBonus` 의
+Losing 분기 (Attack +80 / Block −60 / Power −100) 가 fire. carrier-target
+preference 는 v0.9.4 의 killSandpit 가 이미 처리하므로 추가 per-target
+bias 불필요.
+
+`Projection` struct 에 진단 필드 `SandpitDeadline` 추가 (alive 적 중
+최소 SandpitAmount, 0 = 없음). 결정 로그에서 race flip 원인 추적 가능.
+
+### FranticEscape draw probability 는 미반영
+
+v0.9.5 의 BreakdownFranticEscape 가 손에 있는 FranticEscape 만 처리.
+draw pile / discard pile 에 있을 가능성 + 다음 N turns 안에 draw 될 확률
+은 모델링 안 함. **이 작업은 deck 시뮬 + PoolMeans 통합이 필요하고
+실제 게임 발생 빈도가 매우 좁아 marginal — skip.**
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **101 passed / 0 failed**
+
+### Follow-up
+
+- TODO #2 — CalculatedDamage runtime preview 검증 (게임 플레이 필요)
+- FranticEscape IsPlayable 게임 실측 (v0.9.5 score 가 실제로 fire 하는지)
+- (선택적) FranticEscape draw probability 모델링
+
 ## v0.9.5 (2026-05-20)
 
 **FranticEscape Status-card urgency scoring — SandpitPower deadline 임박

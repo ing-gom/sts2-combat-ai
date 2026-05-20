@@ -48,14 +48,22 @@ internal static class SurvivalProjection
         public readonly RaceOutcome Race;
         public readonly int NetHpLossPerTurn;        // diagnostic
         public readonly int NetDamagePerTurn;        // diagnostic
+        // v0.9.6 — Smallest SandpitAmount across alive enemies (0 = no
+        // SandpitPower active). Used to cap TurnsToDeath: a SandpitPower
+        // carrier whose counter transitions to 0 force-kills player +
+        // pets + Osty regardless of HP/revive (The Insatiable). If our
+        // damage runway can't kill the carrier before its deadline, the
+        // race flips to Losing so attack-leaning RaceBonus kicks in.
+        public readonly int SandpitDeadline;
 
-        public Projection(int ttd, int ttk, RaceOutcome race, int netHpLoss, int netDmg)
+        public Projection(int ttd, int ttk, RaceOutcome race, int netHpLoss, int netDmg, int sandpitDeadline)
         {
             TurnsToDeath = ttd;
             TurnsToKill = ttk;
             Race = race;
             NetHpLossPerTurn = netHpLoss;
             NetDamagePerTurn = netDmg;
+            SandpitDeadline = sandpitDeadline;
         }
     }
 
@@ -93,7 +101,7 @@ internal static class SurvivalProjection
             totalRegen += RemainingTurnsEstimator.EnemyRegen(e);
         }
         if (totalEnemyHp <= 0)
-            return new Projection(99, 0, RaceOutcome.Decided, netHpLoss, throughput.AvgDamagePerTurn);
+            return new Projection(99, 0, RaceOutcome.Decided, netHpLoss, throughput.AvgDamagePerTurn, 0);
 
         int netDpt = Math.Max(0, throughput.AvgDamagePerTurn - totalAutoBlock - totalRegen);
         // Add player DoT on enemies (Poison/Constrict/Doom) as parallel damage stream.
@@ -108,6 +116,26 @@ internal static class SurvivalProjection
 
         int turnsToKill = Math.Max(1, totalEnemyHp / netDpt);
 
+        // v0.9.6 — SandpitPower hard deadline. The Insatiable's SandpitPower
+        // decrements at AfterSideTurnStartLate(Enemy); the transition to 0
+        // force-kills player + pets + Osty regardless of HP / revive
+        // (decompile sts2.decompiled.cs:318071-318104). If TurnsToKill can't
+        // beat the carrier's deadline the race is *actually* lost — cap
+        // TurnsToDeath at the deadline so RaceOutcome flips to Losing and
+        // the existing attack-leaning RaceBonus pushes carrier-clearing
+        // damage. carrier-target preference is already enforced via the
+        // killSandpit kill-bonus (v0.9.4) at lethal-detection time, so no
+        // additional per-target bias is needed here.
+        int sandpitDeadline = 0;
+        foreach (var e in state.Enemies)
+        {
+            if (!e.IsAlive) continue;
+            if (e.SandpitAmount > 0 && (sandpitDeadline == 0 || e.SandpitAmount < sandpitDeadline))
+                sandpitDeadline = e.SandpitAmount;
+        }
+        if (sandpitDeadline > 0 && turnsToKill > sandpitDeadline)
+            turnsToDeath = Math.Min(turnsToDeath, sandpitDeadline);
+
         // === Race outcome ===
         RaceOutcome race;
         if (turnsToDeath == 99) race = RaceOutcome.Winning;
@@ -115,7 +143,7 @@ internal static class SurvivalProjection
         else if (turnsToDeath <= turnsToKill) race = RaceOutcome.Losing;
         else race = RaceOutcome.Tight;
 
-        return new Projection(turnsToDeath, turnsToKill, race, netHpLoss, netDpt);
+        return new Projection(turnsToDeath, turnsToKill, race, netHpLoss, netDpt, sandpitDeadline);
     }
 
     /// <summary>
