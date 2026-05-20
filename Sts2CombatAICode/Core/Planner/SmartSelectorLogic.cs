@@ -67,7 +67,7 @@ internal static class SmartSelectorLogic
         // selection prompt scoring sees the same producer axes that the main
         // planner sees. Without this, LEADING_STRIKE etc. would score without
         // SHIV_PRODUCER inside the selector even after our catalog patch.
-        axes = StateSnapshotter.AugmentTokenProducerAxes(axes, effect);
+        axes = TokenProducerAxes.AugmentTokenProducerAxes(axes, effect);
         var simCard = new SimCard
         {
             Id = id,
