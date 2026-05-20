@@ -1,5 +1,58 @@
 # Changelog
 
+## v0.9.5 (2026-05-20)
+
+**FranticEscape Status-card urgency scoring — SandpitPower deadline 임박
+시 AI 가 자동 사용 권유.**
+
+### 배경
+
+v0.9.4 의 SandpitPower kill-bonus boost 는 carrier 처치 *가능* 한 시점
+에만 동작. carrier HP 가 높거나 lethal 도달 못 하는 시나리오에서는
+player 가 FranticEscape Status 카드로 deadline 을 연장하는 것이 유일한
+생존 전략. v0.9.4 까지는 AI 가 Status 카드를 dead-weight 로 처리해
+사용 안 했음.
+
+FranticEscape 메커니즘 (`sts2.decompiled.cs:351885`):
+
+- `CardType.Status`, cost 1, `TargetType.Self`
+- OnPlay: SandpitPower.Amount += 1 (deadline 1 enemy turn 연장)
+- `EnergyCost.AddThisCombat(1)` — 다음 사용 시 cost +1 (combat 내 누적)
+- `CanBeGeneratedInCombat = false` — 콤뱃 중 새 생성 안 됨
+
+### 변경
+
+`PlanScorer.BreakdownInternal` 의 `IsCurseOrStatus` 분기에 FRANTIC_ESCAPE
+우선 처리 추가. 별도 helper `BreakdownFranticEscape(card, state)` 가
+alive 적 중 **최소 SandpitAmount** 로 urgency 결정:
+
+| 최소 SandpitAmount | Score | 라벨 |
+|---|---|---|
+| 1 | +4500 | `sandpit-deadline(stk=1→2)` |
+| 2 | +3000 | `sandpit-deadline(stk=2→3)` |
+| 3 | +1500 | `sandpit-deadline(stk=3→4)` |
+| 4+ | +500 | `sandpit-deadline(stk=N→N+1)` |
+| (no sandpit active) | −200 | `no-sandpit-active` |
+
+EnergyCost escalation 별도 추적 불필요 — game reflection 의
+`GetWithModifiers(CostModifiers.All)` 가 `AddThisCombat` 누적을 실시간
+반영해 `SimCard.Cost` 에 들어옴. cost ≥ player 의 사용 가능 energy 면
+candidate enumeration 단계에서 자연 필터링.
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **101 passed / 0 failed**
+
+### Follow-up
+
+- TODO #2 — CalculatedDamage runtime preview 검증 (CONFLAGRATION 등 4
+  카드, 게임 플레이 필요)
+- SurvivalProjection 통합 가치 검토 — SandpitPower active 시점에 carrier
+  처치 불가 + FranticEscape 부재 시나리오의 lethal-path prediction. 현재
+  AdvanceTurn 의 `newPlayerHp = 0` 처리는 sim-time-only, score-time 에는
+  추가 신호 없음.
+
 ## v0.9.4 (2026-05-20)
 
 **SandpitPower carrier 처치 가중치 (v0.9.1 P5 follow-up) + Tests 디렉토리

@@ -156,10 +156,57 @@ internal static class PlanScorer
         return bd with { Total = adjusted, Details = details };
     }
 
+    /// <summary>
+    /// v0.9.5 — FRANTIC_ESCAPE (The Insatiable) urgency scorer. OnPlay does
+    /// <c>SandpitPower.Amount += 1</c> against the carrier targeting the
+    /// owner — i.e. buys exactly one extra enemy turn before the instakill
+    /// trigger fires (decompile <c>sts2.decompiled.cs:351909</c>).
+    /// EnergyCost escalates by 1 per play via <c>AddThisCombat(1)</c>, so
+    /// repeated use becomes prohibitively expensive; play it only when
+    /// urgency justifies the cost. The card's live SimCard.Cost already
+    /// reflects accumulated escalation, so no extra tracking is needed here.
+    ///
+    /// Score scales inverse to the most-urgent SandpitAmount across alive
+    /// enemies. When no SandpitPower is active the card is dead-weight that
+    /// also dirties the EnergyCost ledger if played — small negative.
+    /// </summary>
+    private static ScoreBreakdown BreakdownFranticEscape(SimCard card, SimState state)
+    {
+        int minStk = int.MaxValue;
+        foreach (var e in state.Enemies)
+        {
+            if (!e.IsAlive) continue;
+            if (e.SandpitAmount > 0 && e.SandpitAmount < minStk)
+                minStk = e.SandpitAmount;
+        }
+        if (minStk == int.MaxValue)
+        {
+            return new ScoreBreakdown(-200, "Status-FranticEscape-Inert",
+                -200, 0, 0, 0, "no-sandpit-active");
+        }
+        int score = minStk switch
+        {
+            1   => 4500,
+            2   => 3000,
+            3   => 1500,
+            _   => 500,
+        };
+        return new ScoreBreakdown(score, "Status-FranticEscape", score, 0, 0, 0,
+            $"sandpit-deadline(stk={minStk}→{minStk + 1})");
+    }
+
     private static ScoreBreakdown BreakdownInternal(SimCard card, int targetIdx, SimState state, PlanScorerWeights w)
     {
         if (card.IsCurseOrStatus)
         {
+            // v0.9.5 — FRANTIC_ESCAPE (The Insatiable's deadline-extension card,
+            // Status cost 1, OnPlay → SandpitPower.Amount +1, escalates own cost
+            // by EnergyCost.AddThisCombat(1) on each play). Special handling so
+            // the AI plays it precisely when SandpitPower carriers are close to
+            // expiring, not as a generic dead-weight status.
+            if (card.Id == "FRANTIC_ESCAPE")
+                return BreakdownFranticEscape(card, state);
+
             // Most curse/status cards are Unplayable (Wound / Dazed / Void / Injury) — already
             // filtered out of candidate enumeration by IsPlayable. The few that ARE playable
             // (Burn for one — sits in hand and deals self-damage at turn end if not played)
