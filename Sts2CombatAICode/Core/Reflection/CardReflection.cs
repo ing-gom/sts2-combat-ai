@@ -136,6 +136,33 @@ internal static class CardReflection
         catch { return false; }
     }
 
+    // v0.10 — CardModel.HasTurnEndInHandEffect is a virtual bool property
+    // overridden by status / hand-decay cards (INFECTION, Burn-style).
+    // INFECTION's OnTurnEndInHand deals DynamicVars.Damage to the owner
+    // (decompile sts2.decompiled.cs:353749-353765). Used to model the
+    // self-damage trail for cards that pile up in hand because they're
+    // Unplayable and never get discarded by play.
+    private static readonly PropertyInfo? _hasTurnEndInHandEffectProp =
+        AccessTools.Property(typeof(CardModel), "HasTurnEndInHandEffect");
+
+    /// <summary>
+    /// v0.10 — True when the card runs OnTurnEndInHand each turn while sitting
+    /// in hand (INFECTION = 3 self-damage / turn). Combined with the card's
+    /// Damage var (already captured by GetEffectSummary), tells the planner
+    /// how much HP it'll bleed per turn the card stays unplayed in hand.
+    /// Reflection failure returns false (conservative — no penalty modeled).
+    /// </summary>
+    public static bool HasTurnEndInHandEffect(CardModel card)
+    {
+        if (_hasTurnEndInHandEffectProp == null) return false;
+        try
+        {
+            var v = _hasTurnEndInHandEffectProp.GetValue(card);
+            return v is bool b && b;
+        }
+        catch { return false; }
+    }
+
     // CardModel runtime keywords. Includes both inherent keywords (Strike,
     // Minion, Exhaust on Shiv) and TEMPORARY keywords applied at runtime
     // (HAND_TRICK's "Add Sly to a Skill in hand this turn" lands as a Sly

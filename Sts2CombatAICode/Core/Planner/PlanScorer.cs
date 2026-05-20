@@ -1760,8 +1760,13 @@ internal static class PlanScorer
         {
             if (targetIdx < 0 || targetIdx >= state.Enemies.Count) return 0;
             var target = state.Enemies[targetIdx];
-            if (!target.IsAlive || target.Powers == null || target.Powers.Count == 0)
-                return 0;
+            // Skip only when there's NO threshold-relevant state at all.
+            // OnDeathSpawnsCount is a non-Powers signal (carved out into its
+            // own SimEnemy field) so we still want to enter ScoreThresholds
+            // even when the Powers dict is empty / unpopulated by tests.
+            bool hasThresholdState = (target.Powers != null && target.Powers.Count > 0)
+                                  || target.OnDeathSpawnsCount > 0;
+            if (!target.IsAlive || !hasThresholdState) return 0;
             totalBonus = ScoreThresholdsForEnemy(target, effectiveTotal, w, details);
         }
         else
@@ -1770,7 +1775,9 @@ internal static class PlanScorer
             int hits = System.Math.Max(1, card.Hits);
             foreach (var e in state.Enemies)
             {
-                if (!e.IsAlive || e.Powers == null || e.Powers.Count == 0) continue;
+                bool eHasThresholdState = (e.Powers != null && e.Powers.Count > 0)
+                                       || e.OnDeathSpawnsCount > 0;
+                if (!e.IsAlive || !eHasThresholdState) continue;
                 int perHit = StatusMath.EffectivePerHitCapped(card.Damage,
                     state.PlayerStrength, state.PlayerVigor, e, playerIsWeak);
                 perHit = StatusMath.ApplyDamageMultipliers(perHit, state,
@@ -1824,6 +1831,26 @@ internal static class PlanScorer
                 bonus += v;
                 details.Add($"bombPriority(counter{bombCounter})=+{v}");
             }
+        }
+
+        // v0.10 — InfestedPower kill-suppression. Killing a carrier triggers
+        // AfterDeath → spawn N reinforcements (Wrigglers for the Phrog
+        // Parasite Elite). Combat does NOT end while InfestedPower exists
+        // (ShouldStopCombatFromEnding=true), so the kill just resets total
+        // enemy HP upward and starts INFECTION pile-up. Penalize lethal-
+        // this-hit so the planner picks stall / debuff / block over chip-
+        // kill until burst-window can clear all spawns.
+        //
+        // Phase 1 scope (2026-05-20 defeat log): blanket penalty. Future
+        // refinement: relax when player damage budget for current turn
+        // can also clear N × Wriggler HP (~20 each).
+        if (target.OnDeathSpawnsCount > 0 && hpAfter <= 0 && currentHp > 0)
+        {
+            int spawnPenalty = -1200 * target.OnDeathSpawnsCount;
+            const int SpawnPenaltyCap = -5000;
+            if (spawnPenalty < SpawnPenaltyCap) spawnPenalty = SpawnPenaltyCap;
+            bonus += spawnPenalty;
+            details.Add($"infestedKill(spawns{target.OnDeathSpawnsCount})={spawnPenalty}");
         }
 
         // Stun threshold: ShriekPower (TerrorEel), PlowPower (CeremonialBeast).
@@ -2739,6 +2766,39 @@ internal static class PlanScorer
         else handBonus = w.DrawNoCostBottleneckBonus;
 
         handBonus += rescueBonus;
+
+        // v0.10 — Hand-pollution boost. Status / curse cards sitting in hand
+        // with OnTurnEndInHand effects (INFECTION = 3 self-dmg / turn / card)
+        // bleed HP every turn they linger. They also occupy hand slots, so the
+        // remaining playable surface is smaller than Hand.Count suggests. A
+        // fresh draw has two compounded benefits: (a) likely a non-status
+        // card replacing a dead slot, (b) pulls block/utility cards that can
+        // absorb the bleed (the rescue path above only fires when the bleed
+        // crosses a hard HP threshold — this covers the grey zone below it).
+        //
+        // Skip when there's no bleed or no pollution (clean hand needs no
+        // boost — STATUS_CONSUMER cards handle the "pollution but no bleed"
+        // case via their own +180/status logic).
+        if (state.PlayerHandTurnEndDamage > 0)
+        {
+            int statusInHand = 0;
+            for (int i = 0; i < state.Hand.Count; i++)
+            {
+                var c = state.Hand[i];
+                if (ReferenceEquals(c, card)) continue;
+                if (c.IsCurseOrStatus) statusInHand++;
+            }
+            if (statusInHand > 0)
+            {
+                // 150 per status × DrawCount, capped at 600 — order of
+                // magnitude below BlockUnderThreatBonus (2000) so this nudges
+                // rather than overrides defense in true-crisis turns.
+                int pollutionBoost = statusInHand * 150 * System.Math.Max(1, card.DrawCount);
+                const int PollutionBoostCap = 600;
+                if (pollutionBoost > PollutionBoostCap) pollutionBoost = PollutionBoostCap;
+                handBonus += pollutionBoost;
+            }
+        }
 
         // v0.2.9 — small pile thinning: very small pile (<=2) reduces draw value
         // because there's little new info to fetch.

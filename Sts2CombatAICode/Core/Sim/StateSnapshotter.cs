@@ -575,6 +575,7 @@ internal static class StateSnapshotter
                 CombatEtherealPlayed = combatEtherealPlayed,
                 TurnOstyAttacks = turnOstyAttacks,
                 PlayerStatusCardCount = playerStatusCardCount,
+                PlayerHandTurnEndDamage = ComputeHandTurnEndDamage(hand),
                 TurnCardsDrawn = turnCardsDrawn,
                 PlayerStarCostCardCount = playerStarCostCardCount,
                 PlayerOstyAttackCardCount = playerOstyAttackCardCount,
@@ -649,6 +650,16 @@ internal static class StateSnapshotter
         if (!isSly && Reflection.CardReflection.HasSlyKeyword(card))
             isSly = true;
 
+        // v0.10 — Status / hand-decay cards (INFECTION = 3 self-dmg/turn).
+        // GetEffectSummary already populated effect.Damage from the card's
+        // DamageVar; we only need to know whether that damage applies as
+        // OnTurnEndInHand rather than OnPlay. Reflection-only flag — no
+        // catalog dependency, so new game-version status cards are picked
+        // up automatically as long as they override HasTurnEndInHandEffect.
+        int turnEndInHandDmg = 0;
+        if (CardReflection.HasTurnEndInHandEffect(card) && effect.Damage > 0)
+            turnEndInHandDmg = effect.Damage;
+
         return new SimCard
         {
             Id = id,
@@ -671,6 +682,7 @@ internal static class StateSnapshotter
             // Smog affliction (SmoggyPower / LivingFog) — card can't be
             // played until SmoggyPower's AfterTurnEnd clears it.
             IsSmogged = CardReflection.HasSmogAffliction(card),
+            TurnEndInHandSelfDamage = turnEndInHandDmg,
         };
     }
 
@@ -696,6 +708,23 @@ internal static class StateSnapshotter
                 case "SovereignBlade": sovereign++; break;
             }
         }
+    }
+
+    /// <summary>
+    /// v0.10 — Sum of self-damage from in-hand status cards that fire
+    /// OnTurnEndInHand (INFECTION = 3 dmg per card per turn). The
+    /// TurnEndInHandSelfDamage field is set in BuildSimCard via reflection
+    /// on CardModel.HasTurnEndInHandEffect. Survival projection uses this
+    /// to model deck-pollution bleed so the planner doesn't think a hand
+    /// stacked with INFECTION is "safe" because no enemy intent moves.
+    /// </summary>
+    private static int ComputeHandTurnEndDamage(System.Collections.Generic.IList<SimCard> hand)
+    {
+        if (hand == null || hand.Count == 0) return 0;
+        int total = 0;
+        for (int i = 0; i < hand.Count; i++)
+            total += hand[i].TurnEndInHandSelfDamage;
+        return total;
     }
 
     private static bool WasSpawnedThisTurn(object? monster)
@@ -780,6 +809,13 @@ internal static class StateSnapshotter
         // Capture the raw stack — AdvanceTurn handles the decrement and
         // models the instakill in survival sim.
         int sandpit = powerDict.TryGetValue("SandpitPower", out var sp) ? sp : 0;
+
+        // v0.10 — InfestedPower (Phrog Parasite Elite, decompile :315807).
+        // Amount = spawn count on death (always 4 in the base monster).
+        // Killing the carrier triggers AfterDeath → spawn Wrigglers AND
+        // ShouldStopCombatFromEnding=true → combat continues. Both make
+        // chip-killing counterproductive — see SimEnemy.OnDeathSpawnsCount.
+        int onDeathSpawns = powerDict.TryGetValue("InfestedPower", out var inf) ? inf : 0;
 
         // HardenedShell — read live DisplayAmount (Amount − damageReceivedThisTurn).
         // The dict above only has the static Amount, not the live remaining cap.
@@ -898,6 +934,7 @@ internal static class StateSnapshotter
             TerritorialAmount = territorial,
             PaperCutsAmount = paperCuts,
             SandpitAmount = sandpit,
+            OnDeathSpawnsCount = onDeathSpawns,
         };
     }
 

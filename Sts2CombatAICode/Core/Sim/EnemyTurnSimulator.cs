@@ -43,7 +43,12 @@ internal static class EnemyTurnSimulator
             // v0.7.83 — Buffer cancels hits before block applies.
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-            int intangibleLeak = Math.Max(0, hitsAfterBuffer - intangibleBlock);
+            // v0.10 — In-hand turn-end self-damage (INFECTION etc.) lands as
+            // a regular damage instance via CreatureCmd.Damage → goes through
+            // block. Under Intangible each instance still caps to 1.
+            int handTurnEndHits = s.PlayerHandTurnEndDamage > 0
+                ? CountHandTurnEndInstances(s) : 0;
+            int intangibleLeak = Math.Max(0, hitsAfterBuffer + handTurnEndHits - intangibleBlock);
             // v0.10 — TungstenRod reduces HP loss by 1 per source (per hit).
             // Under Intangible each hit lands as 1 HP loss before TungstenRod,
             // so TungstenRod cancels every leaked hit (each becomes 0). Use
@@ -96,6 +101,15 @@ internal static class EnemyTurnSimulator
                 if (dmg > 0) dmgInstances.Add(dmg);
             }
         }
+        // v0.10 — In-hand turn-end self-damage (INFECTION: 3 / card / turn,
+        // canonical CreatureCmd.Damage at OnTurnEndInHand). Fires before
+        // enemy turn → consumes player block alongside enemy attacks. Add
+        // as a damage instance so it stacks naturally with Buffer / block
+        // / Thorns calculations. One instance per card so Buffer can
+        // cancel them like any other hit.
+        if (s.PlayerHandTurnEndDamage > 0)
+            AddHandTurnEndInstances(s, dmgInstances);
+
         // v0.7.83 — Buffer cancels largest instances first. Greedy + sort.
         int bufferLeft = s.PlayerBuffer;
         if (bufferLeft > 0 && dmgInstances.Count > 0)
@@ -198,7 +212,11 @@ internal static class EnemyTurnSimulator
             }
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
             int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
-            int leakIntangible = Math.Max(0, hitsAfterBuffer - blkIntangible);
+            // v0.10 — Mirror PredictPlayerDmg: in-hand turn-end self-damage
+            // (INFECTION) caps to 1 each under Intangible.
+            int handTurnEndHits = s.PlayerHandTurnEndDamage > 0
+                ? CountHandTurnEndInstances(s) : 0;
+            int leakIntangible = Math.Max(0, hitsAfterBuffer + handTurnEndHits - blkIntangible);
             // v0.10 — TungstenRod cancels every leaked Intangible hit (each
             // is 1 HP loss → -1 = 0). Mirrors PredictPlayerDmg.
             if (leakIntangible > 0 && HasTungstenRod(s))
@@ -233,6 +251,11 @@ internal static class EnemyTurnSimulator
                 if (dmg > 0) dmgInstances.Add(dmg);
             }
         }
+        // v0.10 — Mirror PredictPlayerDmg: in-hand turn-end self-damage
+        // (INFECTION) joins the dmg-instance pool before Buffer / block.
+        if (s.PlayerHandTurnEndDamage > 0)
+            AddHandTurnEndInstances(s, dmgInstances);
+
         int bufferLeft = s.PlayerBuffer;
         if (bufferLeft > 0 && dmgInstances.Count > 0)
         {
@@ -278,6 +301,37 @@ internal static class EnemyTurnSimulator
 
     public static int CountIncomingAttackers(SimState s) =>
         s.Enemies.Count(e => e.IsAlive && e.HasAttackIntent && e.TotalIntentDamage > 0);
+
+    /// <summary>
+    /// v0.10 — Number of damage instances (one per in-hand card with
+    /// OnTurnEndInHand). Used under Intangible where instance count
+    /// matters more than total magnitude (each capped to 1).
+    /// </summary>
+    private static int CountHandTurnEndInstances(SimState s)
+    {
+        if (s.Hand == null || s.Hand.Count == 0) return 0;
+        int n = 0;
+        for (int i = 0; i < s.Hand.Count; i++)
+            if (s.Hand[i].TurnEndInHandSelfDamage > 0) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// v0.10 — Append one damage instance per in-hand card that fires
+    /// OnTurnEndInHand. Each instance = that card's
+    /// <see cref="SimCard.TurnEndInHandSelfDamage"/>. INFECTION pile-up
+    /// shows up as three "3 dmg" hits, not one consolidated "9 dmg" hit —
+    /// matters for Buffer (cancels per-instance) and block accounting.
+    /// </summary>
+    private static void AddHandTurnEndInstances(SimState s, System.Collections.Generic.List<int> dmgInstances)
+    {
+        if (s.Hand == null || s.Hand.Count == 0) return;
+        for (int i = 0; i < s.Hand.Count; i++)
+        {
+            int d = s.Hand[i].TurnEndInHandSelfDamage;
+            if (d > 0) dmgInstances.Add(d);
+        }
+    }
 
     /// <summary>
     /// Threat ratio in [0, ∞): predicted-damage / current-hp. > threshold = "consider blocking".

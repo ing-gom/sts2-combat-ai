@@ -116,6 +116,18 @@ internal sealed record SimCard
     /// </summary>
     public bool IsSmogged { get; init; }
 
+    /// <summary>
+    /// v0.10 — Self-damage dealt at TURN END if this card sits in hand.
+    /// INFECTION = 3 (decompile sts2.decompiled.cs:353764 — Owner takes
+    /// DynamicVars.Damage). Goes through the player's block, so high
+    /// block-gain turns absorb it. Captured at snapshot time from
+    /// CardModel.HasTurnEndInHandEffect + the card's Damage var.
+    ///
+    /// 0 for cards without this mechanic. Summed into
+    /// <see cref="SimState.PlayerHandTurnEndDamage"/> for survival projection.
+    /// </summary>
+    public int TurnEndInHandSelfDamage { get; init; }
+
     public bool IsAttack => Kind == CardType.Attack;
     public bool IsSkill => Kind == CardType.Skill;
     public bool IsPower => Kind == CardType.Power;

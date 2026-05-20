@@ -354,6 +354,21 @@ internal sealed record SimState
     public int PlayerStatusCardCount { get; init; }
 
     /// <summary>
+    /// v0.10 — Total self-damage the player will take at THIS turn's end
+    /// from cards currently sitting in hand with OnTurnEndInHand effects.
+    /// Sum of <see cref="SimCard.TurnEndInHandSelfDamage"/> across the
+    /// Hand pile. INFECTION × N → 3N self-dmg this turn.
+    ///
+    /// The damage goes through player block (canonical CreatureCmd.Damage
+    /// — NOT HpLoss), so it absorbs from <see cref="PlayerBlock"/> first.
+    /// <see cref="EnemyTurnSimulator.PredictPlayerDmg"/> folds it in
+    /// alongside enemy attack instances so survival projection accounts
+    /// for the pile-up. Without this the planner thinks an INFECTION-
+    /// loaded hand is "safe" because no enemy intent reflects the bleed.
+    /// </summary>
+    public int PlayerHandTurnEndDamage { get; init; }
+
+    /// <summary>
     /// v0.9.7 — Number of cards drawn by the player this turn (CardDrawnEntry
     /// with !FromHandDraw — i.e. true draws from draw pile, excluding the
     /// hand→pile→hand re-draw cycle). DEATH_MARCH's CalculatedDamage multiplier

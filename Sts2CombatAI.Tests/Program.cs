@@ -93,6 +93,11 @@ public static class Program
         Run("Enemy Strength: kill-priority bonus", Test_StrengthTargetPriority);
         Run("Enemy Artifact: blocks our debuff scoring", Test_ArtifactBlocksDebuff);
         Run("Enemy Ritual: highest target priority", Test_RitualEnemyPriority);
+        Run("Infested kill: lethal-this-hit penalized", Test_InfestedKillPenalty);
+        Run("Infested: chip damage not penalized", Test_InfestedChipNotPenalized);
+        Run("Infection: in-hand turn-end damage in survival projection", Test_InfectionInHandSelfDamage);
+        Run("Infection: damage absorbed by player block", Test_InfectionAbsorbedByBlock);
+        Run("Infection: draw card scores higher when hand polluted", Test_DrawBoostOnHandPollution);
         Run("Draw: empty pile ??penalty (futile)", Test_DrawEmptyPile);
         Run("Draw: large pile + weak hand ??high bonus", Test_DrawLargePile);
 
@@ -129,9 +134,99 @@ public static class Program
         Run("v0.8.8: AdvanceTurn — FlameBarrier expires after one turn", Test_AdvanceTurnFlameBarrierExpires);
         Run("v0.8.8: AdvanceTurn — UnmovableUsedThisTurn re-arms (false)", Test_AdvanceTurnUnmovableRearm);
 
+        // Per-turn counter propagation through ApplyCardPlay — guards the LUNAR_BLAST
+        // / FINISHER / HELIX_DRILL / DEATH_MARCH / RADIATE depth-N sequencing fix.
+        Run("Sim: ApplyCardPlay increments TurnSkillsPlayed on Skill", Test_SimTurnSkillsPlayed);
+        Run("Sim: ApplyCardPlay increments TurnAttacksPlayed on Attack", Test_SimTurnAttacksPlayed);
+        Run("Sim: ApplyCardPlay adds Cost to TurnEnergySpent (non-free)", Test_SimTurnEnergySpent);
+        Run("Sim: ApplyCardPlay leaves TurnEnergySpent unchanged when freeApplied", Test_SimTurnEnergySpentFree);
+        Run("Sim: ApplyCardPlay increments TurnOstyAttacks on OSTY-tagged play", Test_SimTurnOstyAttacks);
+        Run("Sim: ApplyCardPlay increments CombatEtherealPlayed on Ethereal play", Test_SimCombatEtherealPlayed);
+
         Console.WriteLine();
         Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
         return _failed;
+    }
+
+    private static void Test_SimTurnOstyAttacks()
+    {
+        // FETCH is OSTY-tagged in the catalog → each play triggers one Osty attack.
+        var fetch = new SimCard
+        {
+            Id = "FETCH", Cost = 0, Kind = CardType.Skill,
+            Target = TargetType.Self, SourceRef = null,
+            Axes = new[] { "OSTY", "DRAW_CONDITIONAL", "FREE_ATTACK" },
+            Effect = new CardEffectSummary(),
+        };
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { fetch },
+            enemies: new() { Enemy(hp: 30) }) with { TurnOstyAttacks = 1 };
+        var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], -1);
+        Assert(next.TurnOstyAttacks == 2,
+            $"OSTY-tagged play should bump TurnOstyAttacks 1→2 (got {next.TurnOstyAttacks})");
+    }
+
+    private static void Test_SimCombatEtherealPlayed()
+    {
+        var ethereal = new SimCard
+        {
+            Id = "GHOST_STRIKE", Cost = 1, Kind = CardType.Attack,
+            Target = TargetType.AnyEnemy, SourceRef = null,
+            IsEthereal = true,
+            Effect = new CardEffectSummary { Damage = 5, Hits = 1 },
+        };
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { ethereal },
+            enemies: new() { Enemy(hp: 30) }) with { CombatEtherealPlayed = 2 };
+        var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], 0);
+        Assert(next.CombatEtherealPlayed == 3,
+            $"Ethereal play should bump CombatEtherealPlayed 2→3 (got {next.CombatEtherealPlayed})");
+    }
+
+    private static void Test_SimTurnSkillsPlayed()
+    {
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { Skill("DEFEND", cost: 1, block: 5, selfTarget: true) },
+            enemies: new() { Enemy(hp: 30) }) with { TurnSkillsPlayed = 2 };
+        var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], targetIdx: -1);
+        Assert(next.TurnSkillsPlayed == 3,
+            $"After Skill play, TurnSkillsPlayed should bump 2→3 (got {next.TurnSkillsPlayed})");
+        Assert(next.TurnAttacksPlayed == state.TurnAttacksPlayed,
+            $"Skill play must not touch TurnAttacksPlayed (was {state.TurnAttacksPlayed}, got {next.TurnAttacksPlayed})");
+    }
+
+    private static void Test_SimTurnAttacksPlayed()
+    {
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { Attack("Strike", cost: 1, damage: 6) },
+            enemies: new() { Enemy(hp: 30) }) with { TurnAttacksPlayed = 1 };
+        var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], 0);
+        Assert(next.TurnAttacksPlayed == 2,
+            $"After Attack play, TurnAttacksPlayed should bump 1→2 (got {next.TurnAttacksPlayed})");
+        Assert(next.TurnSkillsPlayed == state.TurnSkillsPlayed,
+            $"Attack play must not touch TurnSkillsPlayed (was {state.TurnSkillsPlayed}, got {next.TurnSkillsPlayed})");
+    }
+
+    private static void Test_SimTurnEnergySpent()
+    {
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { Attack("Bash", cost: 2, damage: 8) },
+            enemies: new() { Enemy(hp: 30) });
+        var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], 0);
+        Assert(next.TurnEnergySpent == 2,
+            $"After cost-2 attack, TurnEnergySpent should be 2 (got {next.TurnEnergySpent})");
+    }
+
+    private static void Test_SimTurnEnergySpentFree()
+    {
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { Attack("Strike", cost: 1, damage: 6) },
+            enemies: new() { Enemy(hp: 30) }) with { PlayerFreeAttacks = 1 };
+        var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], 0);
+        Assert(next.TurnEnergySpent == 0,
+            $"Free attack must not bump TurnEnergySpent (got {next.TurnEnergySpent})");
+        Assert(next.PlayerFreeAttacks == 0,
+            $"FreeAttacks counter should decrement to 0 (got {next.PlayerFreeAttacks})");
     }
 
     // ─── v0.8.6 Power propagation tests ────────────────────────────────────
@@ -1098,6 +1193,135 @@ public static class Program
         var ritual = PlanScorer.Score(stateRitual.Hand[0], 1, stateRitual);
         Assert(ritual > vuln,
             $"Ritual enemy ({ritual}) should beat Vulnerable normal ({vuln})");
+    }
+
+    private static void Test_InfestedKillPenalty()
+    {
+        // v0.10 — Killing an InfestedPower carrier (Phrog Parasite Elite Prism)
+        // spawns N Wrigglers + combat continues. Lethal-this-hit on a splitter
+        // should score LOWER than the same lethal on a vanilla enemy.
+        var strikeBig = Attack("StrikeBig", cost: 1, damage: 25, hits: 1);
+        var vanillaState = MakeState(playerHp: 50, energy: 3,
+            hand: new() { strikeBig },
+            enemies: new() { Enemy(hp: 23) });
+        var infestedState = MakeState(playerHp: 50, energy: 3,
+            hand: new() { strikeBig },
+            enemies: new() {
+                Enemy(hp: 23) with { OnDeathSpawnsCount = 4 },
+            });
+        var sVanilla = PlanScorer.Score(vanillaState.Hand[0], 0, vanillaState);
+        var sInfested = PlanScorer.Score(infestedState.Hand[0], 0, infestedState);
+        Assert(sInfested < sVanilla - 3000,
+            $"Infested:4 lethal ({sInfested}) should be << vanilla lethal ({sVanilla}) — diff {sVanilla - sInfested}");
+    }
+
+    private static void Test_InfectionInHandSelfDamage()
+    {
+        // v0.10 — INFECTION (3 self-dmg / turn-end / card) was invisible
+        // to survival projection. Three INFECTION in hand, 0 block, no enemy
+        // attacks → PredictPlayerDmg should report 9, not 0.
+        var infection = new SimCard
+        {
+            Id = "INFECTION", Cost = 0, Kind = CardType.Status,
+            Target = TargetType.None, SourceRef = null,
+            Effect = new CardEffectSummary { Damage = 3 },
+            IsPlayable = false,
+            TurnEndInHandSelfDamage = 3,
+        };
+        // Non-attacking enemy so we isolate the in-hand source.
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { infection, infection, infection },
+            enemies: new() { Enemy(hp: 30, hasDefendIntent: true) })
+            with { PlayerHandTurnEndDamage = 9 };
+        int dmg = EnemyTurnSimulator.PredictPlayerDmg(state);
+        Assert(dmg >= 9,
+            $"3× INFECTION (9 self-dmg) should appear in survival projection — got {dmg}");
+    }
+
+    private static void Test_InfectionAbsorbedByBlock()
+    {
+        // INFECTION fires before enemy turn while player block is intact —
+        // CreatureCmd.Damage respects block. With 9 block and 3× INFECTION
+        // (9 dmg), no HP loss is projected.
+        var infection = new SimCard
+        {
+            Id = "INFECTION", Cost = 0, Kind = CardType.Status,
+            Target = TargetType.None, SourceRef = null,
+            Effect = new CardEffectSummary { Damage = 3 },
+            IsPlayable = false,
+            TurnEndInHandSelfDamage = 3,
+        };
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { infection, infection, infection },
+            enemies: new() { Enemy(hp: 30, hasDefendIntent: true) },
+            playerBlock: 9)
+            with { PlayerHandTurnEndDamage = 9 };
+        int dmg = EnemyTurnSimulator.PredictPlayerDmg(state);
+        Assert(dmg == 0,
+            $"9 block should fully absorb 3× INFECTION (9 dmg) — got {dmg}");
+    }
+
+    private static void Test_DrawBoostOnHandPollution()
+    {
+        // v0.10 — When hand is polluted with status cards bleeding HP
+        // (INFECTION × 3 in hand → PlayerHandTurnEndDamage > 0), a draw card
+        // should score HIGHER than the same draw card on a clean hand.
+        // Models the "grey zone" below crisis threshold where DrawRescue
+        // doesn't fire but pollution still drags hand efficiency.
+        var infection = new SimCard
+        {
+            Id = "INFECTION", Cost = 0, Kind = CardType.Status,
+            Target = TargetType.None, SourceRef = null,
+            Effect = new CardEffectSummary { Damage = 3 },
+            IsPlayable = false,
+            TurnEndInHandSelfDamage = 3,
+        };
+        var drawCard = new SimCard
+        {
+            Id = "DRAW2", Cost = 1, Kind = CardType.Skill,
+            Target = TargetType.Self, SourceRef = null,
+            Effect = new CardEffectSummary { DrawCount = 2 },
+        };
+        var realCard = Attack("Strike", cost: 1, damage: 6);
+        // Clean hand: drawCard + Strike, healthy enemy
+        var cleanState = MakeState(playerHp: 50, energy: 3,
+            hand: new() { drawCard, realCard },
+            enemies: new() { Enemy(hp: 30) })
+            with { DrawPileSize = 10, DiscardPileSize = 5 };
+        // Polluted hand: drawCard + Strike + 3 INFECTION, same enemy
+        var pollutedState = MakeState(playerHp: 50, energy: 3,
+            hand: new() { drawCard, realCard, infection, infection, infection },
+            enemies: new() { Enemy(hp: 30) })
+            with {
+                DrawPileSize = 10,
+                DiscardPileSize = 5,
+                PlayerHandTurnEndDamage = 9,
+            };
+        int sClean = PlanScorer.Score(cleanState.Hand[0], -1, cleanState);
+        int sPolluted = PlanScorer.Score(pollutedState.Hand[0], -1, pollutedState);
+        Assert(sPolluted > sClean,
+            $"Draw on polluted hand ({sPolluted}) should outrank draw on clean ({sClean})");
+    }
+
+    private static void Test_InfestedChipNotPenalized()
+    {
+        // Chip damage that does NOT kill the Infested carrier should NOT
+        // trigger the spawn penalty — the penalty fires only on lethal-this-hit.
+        var strike = Attack("Strike", cost: 1, damage: 6, hits: 1);
+        var vanillaState = MakeState(playerHp: 50, energy: 3,
+            hand: new() { strike },
+            enemies: new() { Enemy(hp: 30) });
+        var infestedState = MakeState(playerHp: 50, energy: 3,
+            hand: new() { strike },
+            enemies: new() {
+                Enemy(hp: 30) with { OnDeathSpawnsCount = 4 },
+            });
+        var sVanilla = PlanScorer.Score(vanillaState.Hand[0], 0, vanillaState);
+        var sInfested = PlanScorer.Score(infestedState.Hand[0], 0, infestedState);
+        // Allow a tiny noise window — the two scores should be effectively equal
+        // (chip doesn't trigger the lethal-spawn branch).
+        Assert(System.Math.Abs(sVanilla - sInfested) < 100,
+            $"Chip vs Infested ({sInfested}) should ≈ vs vanilla ({sVanilla}) — got delta {sVanilla - sInfested}");
     }
 
     private static void Test_ModeInferApotheosis()

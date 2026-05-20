@@ -159,6 +159,23 @@ internal sealed record SimEnemy
     /// </summary>
     public int SandpitAmount { get; init; }
 
+    /// <summary>
+    /// v0.10 — On-death spawn count. When this enemy dies, Amount new
+    /// monsters spawn in its place. InfestedPower (Phrog Parasite Elite)
+    /// is the canonical source: spawns N Wrigglers (decompile
+    /// sts2.decompiled.cs:315807 — InfestedPower.AfterDeath). Wrigglers
+    /// alternate between Bite (~6 dmg attack) and Wriggle (adds 1 INFECTION
+    /// to discard + self-buff +2 Strength). Combat does NOT end while
+    /// InfestedPower exists (ShouldStopCombatFromEnding=true), so chip-
+    /// killing the carrier just resets enemy HP totals upward AND poisons
+    /// the deck with INFECTION cards over time.
+    ///
+    /// Planner uses this to penalize lethal-this-hit decisions on splitter
+    /// carriers unless we have burst-window to clear the spawns too.
+    /// 0 = no spawn-on-death, kill freely.
+    /// </summary>
+    public int OnDeathSpawnsCount { get; init; }
+
     // v0.1.2 — encounter-role classification (set by Snapshotter)
     public bool IsBoss { get; init; }      // boss-room top creature (highest HP in boss/elite encounter)
     public bool IsElite { get; init; }     // any creature in an elite encounter
@@ -190,6 +207,7 @@ internal sealed record SimEnemy
             if (IsBoss) tags.Add("BOSS");
             else if (IsElite) tags.Add("ELITE");
             if (IsMinion) tags.Add("minion");
+            if (OnDeathSpawnsCount > 0) tags.Add($"spawns{OnDeathSpawnsCount}");
             return tags.Count == 0 ? "?" : string.Join("+", tags);
         }
     }
