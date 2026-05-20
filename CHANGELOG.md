@@ -86,6 +86,80 @@ ONE_TWO_PUNCH / BURST / SIGNAL_BOOST 는 "다음 사용 [공격|스킬|파워] �
   실패하면 hits=0 으로 영영 사용 안 됨 (반대 방향 버그). 안전을 위해 min-1
   floor 로 status quo 유지. counter 배선 시 promote 예정.
 
+### P4 — SmoggyPower / LivingFog skill lockout
+
+LivingFog 의 Smoggy 메커니즘 모델링: 카드에 `Affliction.Smog` 가 부착되면
+해당 카드 자체가 playable 불가. 또한 player 에 SmoggyPower 가 활성인 동안
+같은 턴 두 번째 Skill 이후로 잠금.
+
+Bound (ChainsOfBindingPower) 패턴 미러:
+
+- `CardReflection.HasSmogAffliction` — `CardModel.Affliction is Smog` 판정
+- `SimCard.IsSmogged` — `StateSnapshotter.BuildSimCard` 에서 채움
+- `SimState.PlayerSmoggy` (스택수) + `SmoggySkillPlayedThisTurn` (history walk)
+- `ActionPlanner.EnumerateCandidates` — Smogged 카드 + `(Skill && SmoggyActive
+  && alreadyPlayed)` 후보 prune
+- `AnalyticalSimulator` — SmoggyActive 중 Skill 플레이 후 flag set, 턴 경계
+  reset. `PlayerSmoggy` 자체는 persistent (StackType.Single) 이라 record `with`
+  로 carry.
+
+### P5 — SandpitPower instakill 생존 sim (The Insatiable)
+
+`The Insatiable` 의 `LiquifyGround` 가 SandpitPower 4 stack 부여. 매
+`AfterSideTurnStartLate(Enemy)` 에 −1 감소, 0 으로 transition 하는 순간
+`AfterRemoved` hook 이 player + pets + Osty 를 HP/부활 무관 즉사 처리
+(decompile `sts2.decompiled.cs:318071-318104`). 절대 생존 deadline.
+
+- `SimEnemy.SandpitAmount` — enemy.Powers dict 에서 raw stack 캡처
+- `StateSnapshotter` 의 enemy 빌드에서 캡처
+- `AnalyticalSimulator.AdvanceTurn` — −1/turn decrement, 살아있는 carrier 의
+  카운터가 >0 → 0 으로 transition 하면 `newPlayerHp=0` 설정 → 생존 sim 이
+  해당 branch 를 loss 로 평가 → 모든 plan 이 카운터 expire 전 carrier 처치
+  강제.
+
+**Minimum viable scope**: PlanScorer kill-bonus boost + FranticEscape
+status-card 회복 모델링은 v0.9.x follow-up.
+
+### P6 — RelicCatalog 인프라 + 10 high-impact 렐릭
+
+STS2 `RelicModel` 서브클래스 294 개 중 대다수는 이미 SimState 에 자연
+반영됨 (Akabeko Vigor 8 → PlayerVigor, Anchor +10 block → PlayerBlock,
+WhisperingEarring/VelvetChoker max energy +1 → PlayerEnergy, Brimstone
++2 Str/turn → PlayerStrength, Bellows hand upgrade → card.Damage 직접 갱신,
+CrackedCore Lightning orb → OrbQueue 등). **카드 플레이의 결과**에 의존하는
+렐릭만 별도 catalog 필요 — trigger counter, kill reward, type-tag damage bonus.
+초안의 "30-50 wire" 는 과대평가, 실제로는 10 개 안팎이면 high-impact 커버.
+
+**데이터 모델**:
+
+- `SimState.PlayerRelics` — `IReadOnlyDictionary<string, int>` (class-name →
+  counter/1)
+- `CombatReflection.GetPlayerRelics(Player)` — `RelicModel.ShowCounter` +
+  `DisplayAmount` 캡처
+- `StateSnapshotter` 매 step 캡처 + `FormatForLog` 에 `relicTag` 추가 (godot.log
+  가시화)
+
+**Catalog** (`Sts2CombatAICode/Core/Planner/RelicCatalog.cs`, 261 lines):
+
+- `ComputeCardBonus(card, targetIdx, state, w, details)` 단일 진입점
+- PlanScorer 의 Attack/Skill/Power 3 분기에 `relicBonus*` 한 줄씩 wire
+  (`total` + `EffectByCard` 양쪽)
+
+**10 렐릭 효과**:
+
+| 렐릭 | counter | trigger | bonus |
+|---|---|---|---|
+| PenNib | `AttacksPlayed % 10 == 9` | 다음 attack ×2 | `dmg × DamagePerPointBonus` |
+| StrikeDummy | (presence) | STRIKE 패밀리 카드 | `+3 dmg/hit × hits × 50` |
+| GremlinHorn | (presence) | 카드가 적 처치 | `+400` (energy+draw 근사) |
+| IronClub | `CardsPlayed % 4 == 3` | 다음 카드 +1 draw | `+200` |
+| VelvetChoker | `cardsPlayedThisTurn` | ≥6 hard / ≥5 warn | `-2000 / -50` |
+| Kunai | `AttacksPlayed % 3 == 2` | 다음 attack +Dex | `+400` |
+| Shuriken | `AttacksPlayed % 3 == 2` | 다음 attack +Str | `+600` |
+| LetterOpener | `SkillsPlayed % 3 == 2` | 다음 skill 5 dmg AOE | `5 × 50 × min(3, alive)` |
+| OrnamentalFan | `AttacksPlayed % 3 == 2` | 다음 attack +4 blk | `4 × 30` |
+| Nunchaku | `AttacksPlayed % 10 == 9` | 다음 attack +1 energy | `+500` |
+
 ### 검증
 
 - `dotnet build -c Debug` 클린 (warning 1 / error 0, sts2 충돌 경고는 기존).
@@ -108,6 +182,10 @@ ONE_TWO_PUNCH / BURST / SIGNAL_BOOST 는 "다음 사용 [공격|스킬|파워] �
 - HandSynergy 에 AfterimagePower / SerpentFormPower / PanachePower /
   DanseMacabrePower 등 "카드 사용시 부가효과" 파워 추가 (현재 PowerCatalog
   평면 tier 만 받음).
+- SandpitPower (P5) follow-up: PlanScorer kill-bonus boost (deadline 가까울수록
+  carrier 처치 가중) + FranticEscape status-card 회복 모델링.
+- ECHOING_SLASH (P3) chain-aware 확장 — 현재 single-repeat half-credit, AOE
+  보드 정리시 cascading kill 다회 chain 미반영.
 
 ## v0.8.9 (2026-05-19)
 
