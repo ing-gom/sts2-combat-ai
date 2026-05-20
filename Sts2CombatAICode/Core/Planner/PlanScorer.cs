@@ -1933,6 +1933,26 @@ internal static class PlanScorer
         if (card.Id == "BARRAGE")
             return state.PlayerOrbCount;
 
+        // v0.9.2 — 5 conditional-hits cards backed by SimState counters
+        // captured in StateSnapshotter. Each mirrors the card's
+        // CalculatedHits multiplier source verified against decompile:
+        //   HELIX_DRILL     353179 — EnergySpentEntry sum (this turn)
+        //   RADIATE         357507 — StarsModifiedEntry positive-delta sum
+        //   PULL_FROM_BELOW 357330 — CardPlayFinishedEntry.WasEthereal (combat)
+        //   RATTLE          357678 — CreatureAttackedEntry from player.Osty
+        //   FLAK_CANNON     351453 — Status cards in piles excl. Exhaust
+        // RATTLE returns 1 + count (its multiplier embeds the +1 base).
+        if (card.Id == "HELIX_DRILL")
+            return state.TurnEnergySpent;
+        if (card.Id == "RADIATE")
+            return state.TurnStarsGained;
+        if (card.Id == "PULL_FROM_BELOW")
+            return state.CombatEtherealPlayed;
+        if (card.Id == "RATTLE")
+            return 1 + state.TurnOstyAttacks;
+        if (card.Id == "FLAK_CANNON")
+            return state.PlayerStatusCardCount;
+
         return 0;
     }
 
@@ -1944,19 +1964,17 @@ internal static class PlanScorer
     /// that 0 instead of forcing the default min-1 floor so premature plays
     /// score as actual-zero damage.
     ///
-    /// Membership is gated on whether we have a reliable zero-state value:
-    ///   • LUNAR_BLAST — skills/turn (explicit EstimateVariableHits override)
-    ///   • FINISHER    — attacks/turn (explicit override)
-    ///   • BARRAGE     — orbs slotted (explicit override via PlayerOrbCount)
-    ///   • FLECHETTES  — skills in hand (ApplyFlechettesHandSkills safety net)
-    ///
-    /// Other CalculatedHits cards (FLAK_CANNON, HELIX_DRILL, PULL_FROM_BELOW,
-    /// RADIATE, RATTLE) deliberately excluded — no explicit counter is wired
-    /// up yet, and if the game's PreviewValue closure ever fails to compute
-    /// the live trigger value those cards would silently score 0 hits / 0
-    /// damage. Keeping them on the default min-1 floor preserves status quo
-    /// behaviour. Promote them here once a counter is added in SimState or a
-    /// fallback handler exists.
+    /// All members have explicit EstimateVariableHits overrides backed by
+    /// SimState counters captured in StateSnapshotter:
+    ///   • LUNAR_BLAST     — skills/turn (TurnSkillsPlayed)
+    ///   • FINISHER        — attacks/turn (TurnAttacksPlayed)
+    ///   • BARRAGE         — orbs slotted (PlayerOrbCount)
+    ///   • FLECHETTES      — skills in hand (ApplyFlechettesHandSkills safety net)
+    ///   • HELIX_DRILL     — energy spent this turn (TurnEnergySpent)          [v0.9.2]
+    ///   • RADIATE         — stars gained this turn (TurnStarsGained)          [v0.9.2]
+    ///   • PULL_FROM_BELOW — ethereal plays this combat (CombatEtherealPlayed) [v0.9.2]
+    ///   • RATTLE          — 1 + Osty attacks this turn (TurnOstyAttacks)      [v0.9.2]
+    ///   • FLAK_CANNON     — Status cards in piles (PlayerStatusCardCount)     [v0.9.2]
     ///
     /// TEAR_ASUNDER intentionally excluded — its EstimateVariableHits override
     /// returns <c>1 + CombatPlayerHpLossEvents</c>, always ≥ 1, so the base
@@ -1966,6 +1984,7 @@ internal static class PlanScorer
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         "LUNAR_BLAST", "FINISHER", "BARRAGE", "FLECHETTES",
+        "HELIX_DRILL", "RADIATE", "PULL_FROM_BELOW", "RATTLE", "FLAK_CANNON",
     };
 
     private static bool AllowsZeroHits(SimCard card)

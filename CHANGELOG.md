@@ -1,5 +1,72 @@
 # Changelog
 
+## v0.9.2 (2026-05-20)
+
+**5 conditional-hits 카드 (FLAK_CANNON / HELIX_DRILL / PULL_FROM_BELOW /
+RADIATE / RATTLE) 의 hit count 를 SimState counter 로 명시적 배선.**
+
+### 배경
+
+v0.9.1 의 P1 (`CalculatedHits=0` reflection bug fix) 에서 LUNAR_BLAST /
+FINISHER / BARRAGE / FLECHETTES 4개 카드만 `_zeroHitsCards` 로 promote
+됐고, 다른 5개는 counter 미배선이라 status-quo (min-1 hit floor) 로 두
+었음. 게임의 PreviewValue closure 가 실패하면 0 hits 로 영영 사용 안
+됨 (반대 방향 버그).
+
+디컴파일 audit 결과 v0.9.1 follow-up TODO 의 추정과 실제 multiplier
+source 가 상당히 다름:
+
+| 카드 | follow-up 추정 | 실제 multiplier (decompile) |
+|---|---|---|
+| FLAK_CANNON | 이번 턴 소멸 Ammunition 수 | Owner 의 Status 카드 수 (Exhaust 제외, snapshot) |
+| HELIX_DRILL | `cpe.CardPlay.Card.EnergyCost` 누적 | `EnergySpentEntry` history walk |
+| PULL_FROM_BELOW | "휘발성" Volatile keyword | `CardPlayFinishedEntry.WasEthereal` count (combat) |
+| RADIATE | 이번 턴 사용한 별 수 | `StarsModifiedEntry.Amount > 0` sum (별 획득 양) |
+| RATTLE | 이번 콤뱃 해골 공격 수 | `CreatureAttackedEntry` Actor==Osty + 이번 턴 |
+
+### SimState 5 신축 필드
+
+- `TurnEnergySpent` — HELIX_DRILL
+- `TurnStarsGained` — RADIATE (positive-delta only)
+- `CombatEtherealPlayed` — PULL_FROM_BELOW (no turn gate)
+- `TurnOstyAttacks` — RATTLE (+1 base added in PlanScorer)
+- `PlayerStatusCardCount` — FLAK_CANNON (pile snapshot, no history)
+
+### StateSnapshotter 확장
+
+- 변수 선언 확장 + Osty reference 캡처 (`player.Osty`) walk loop 전에
+  한 번 (RATTLE 의 `CreatureAttackedEntry.Actor == player.Osty` 비교용)
+- `CardPlayFinishedEntry` 분기에 `WasEthereal` 처리 추가 — turn gate
+  위에 두어 combat 전체 카운트 (PULL_FROM_BELOW 가 `HappenedThisTurn`
+  filter 안 거는 점 반영)
+- 새 entry type 3개 분기 추가:
+  - `EnergySpentEntry`: turn-gated, `Actor==creature` → sum `Amount`
+  - `StarsModifiedEntry`: turn-gated, `Actor==creature`, `Amount>0` → sum
+  - `CreatureAttackedEntry`: turn-gated, `Actor==playerOsty` → count
+- Status card count: 별도 walk over `player.PlayerCombatState.AllCards`
+  with `Type==Status && Pile.Type != Exhaust`
+
+### PlanScorer
+
+- `EstimateVariableHits` 에 5 카드 ID override 추가 (BARRAGE 분기 다음).
+  RATTLE 은 `1 + TurnOstyAttacks` (multiplier 가 +1 base 내장).
+- `_zeroHitsCards` HashSet 4 → 9 entry. doc-comment 의 "deliberately
+  excluded" 단락을 9-entry 통합 표로 갱신.
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests` 빌드 클린 + **101 passed / 0 failed** (회귀 없음)
+
+### Follow-up (v0.9.x 후속 — `docs/remote_todos_v0.9.1_followup.md`)
+
+- TODO #3 — HandSynergy 4 powers 확장 (Afterimage / SerpentForm /
+  Panache / DanseMacabre)
+- TODO #5 — ECHOING_SLASH chain-aware multi-kill 확장
+- TODO #2 — CalculatedDamage runtime preview 검증 (게임 플레이 필요)
+- SandpitPower (v0.9.1 P5) follow-up — PlanScorer kill-bonus boost +
+  FranticEscape status-card 회복 모델링
+
 ## v0.9.1 (2026-05-20)
 
 **조건부 트리거 카드 (LUNAR_BLAST / FINISHER + 8종) 사전 사용 방지 및 sequencing 가치 반영.**

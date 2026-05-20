@@ -314,6 +314,46 @@ internal sealed record SimState
     public int TurnSkillsPlayed { get; init; }
 
     /// <summary>
+    /// v0.9.2 — Total energy spent by this player this turn, summed from
+    /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
+    /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
+    /// PlanScorer's EstimateVariableHits subtracts the self cost when needed.
+    /// </summary>
+    public int TurnEnergySpent { get; init; }
+
+    /// <summary>
+    /// v0.9.2 — Stars *gained* by this player this turn (positive-delta
+    /// StarsModifiedEntry amounts summed). RADIATE's CalculatedHits multiplier
+    /// reads positive StarsModifiedEntry amounts only, so "stars used" loses
+    /// the underlying signal — what matters is the inflow this turn.
+    /// </summary>
+    public int TurnStarsGained { get; init; }
+
+    /// <summary>
+    /// v0.9.2 — Number of Ethereal card plays finished by this player this
+    /// combat (no turn filter — PULL_FROM_BELOW's multiplier walks the whole
+    /// CombatHistory.Entries with no HappenedThisTurn gate).
+    /// </summary>
+    public int CombatEtherealPlayed { get; init; }
+
+    /// <summary>
+    /// v0.9.2 — Attacks by this player's Osty (Necrobinder skeleton) this
+    /// turn, from CreatureAttackedEntry where Actor == player.Osty. RATTLE's
+    /// CalculatedHits = 1 + this count (self play counts as the +1 base).
+    /// 0 when no Osty summoned, when Osty is dead, or for non-Necrobinder
+    /// runs.
+    /// </summary>
+    public int TurnOstyAttacks { get; init; }
+
+    /// <summary>
+    /// v0.9.2 — Status cards (CardType.Status — Wound / Slime / Burn / Void /
+    /// Smog) currently owned by the player across all piles except Exhaust.
+    /// FLAK_CANNON's CalculatedHits = GetStatuses(card.Owner).Count() — this
+    /// is a snapshot count, not a turn/combat history walk.
+    /// </summary>
+    public int PlayerStatusCardCount { get; init; }
+
+    /// <summary>
     /// v0.9 — Per-target attack count this turn. Keyed by SimEnemy index
     /// (position in <see cref="Enemies"/> list at snapshot time). Powers
     /// BEAT_INTO_SHAPE's "Forge +5 per OTHER attack on this target this turn"

@@ -316,6 +316,20 @@ internal static class StateSnapshotter
             var playerRelics = CombatReflection.GetPlayerRelics(player);
 
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            // v0.9.2 — Counters for the 5 CalculatedHits cards that scale on
+            // history-derived triggers: HELIX_DRILL (energy spent this turn),
+            // RADIATE (stars gained this turn), PULL_FROM_BELOW (combat-wide
+            // ethereal plays), RATTLE (Osty attacks this turn). Accumulated in
+            // the same single-pass walk as turnAttacksPlayed/turnSkillsPlayed.
+            int turnEnergySpent = 0, turnStarsGained = 0,
+                combatEtherealPlayed = 0, turnOstyAttacks = 0;
+            // v0.9.2 — Osty reference captured before the history walk so
+            // CreatureAttackedEntry can compare its Actor against this
+            // player's skeleton (RATTLE's exact source pattern). Null when no
+            // Osty is summoned or for non-Necrobinder characters.
+            object? playerOsty = null;
+            try { playerOsty = (object?)player.Osty; }
+            catch (System.Exception ex) { LogReflectionFailureOnce("player-osty", ex); }
             // v0.9 — Track whether any Bound card was already played this turn
             // (ChainsOfBindingPower mechanic). When true, no further Bound
             // cards may be played until next turn.
@@ -342,6 +356,13 @@ internal static class StateSnapshotter
                     {
                         if (entry is CardPlayFinishedEntry cpe)
                         {
+                            // v0.9.2 — Combat-wide ethereal play count for
+                            // PULL_FROM_BELOW. Counted before the turn/side
+                            // gate because the card's multiplier walks the
+                            // entire CombatHistory.Entries with no
+                            // HappenedThisTurn filter.
+                            if (cpe.WasEthereal && cpe.CardPlay?.Card?.Owner == player)
+                                combatEtherealPlayed++;
                             if (cpe.RoundNumber != cs.RoundNumber) continue;
                             if (cpe.CurrentSide != cs.CurrentSide) continue;
                             // Owner check — only count this player's plays in multiplayer.
@@ -393,10 +414,56 @@ internal static class StateSnapshotter
                             if (dre.Receiver != creature) continue;
                             if (dre.Result.UnblockedDamage > 0) combatHpLossEvents++;
                         }
+                        // v0.9.2 — Turn-gated counters for HELIX_DRILL /
+                        // RADIATE / RATTLE. Each mirrors the exact filter the
+                        // card's CalculatedHits multiplier uses (decompile
+                        // sts2.decompiled.cs lines 353179 / 357507 / 357678).
+                        else if (entry is EnergySpentEntry ese)
+                        {
+                            if (ese.RoundNumber != cs.RoundNumber) continue;
+                            if (ese.CurrentSide != cs.CurrentSide) continue;
+                            if (ese.Actor != creature) continue;
+                            turnEnergySpent += ese.Amount;
+                        }
+                        else if (entry is StarsModifiedEntry sme)
+                        {
+                            if (sme.RoundNumber != cs.RoundNumber) continue;
+                            if (sme.CurrentSide != cs.CurrentSide) continue;
+                            if (sme.Actor != creature) continue;
+                            if (sme.Amount > 0) turnStarsGained += sme.Amount;
+                        }
+                        else if (entry is CreatureAttackedEntry cae)
+                        {
+                            if (playerOsty == null) continue;
+                            if (cae.RoundNumber != cs.RoundNumber) continue;
+                            if (cae.CurrentSide != cs.CurrentSide) continue;
+                            if (System.Object.ReferenceEquals(cae.Actor, playerOsty))
+                                turnOstyAttacks++;
+                        }
                     }
                 }
             }
             catch (System.Exception ex) { LogReflectionFailureOnce("history-walk", ex); }
+
+            // v0.9.2 — Status cards currently owned by the player across all
+            // piles except Exhaust. FLAK_CANNON's CalculatedHits multiplier
+            // counts exactly this set (decompile sts2.decompiled.cs:351477).
+            int playerStatusCardCount = 0;
+            try
+            {
+                var allCards = player.PlayerCombatState?.AllCards;
+                if (allCards != null)
+                {
+                    foreach (var c in allCards)
+                    {
+                        if (c == null) continue;
+                        if (c.Type != CardType.Status) continue;
+                        if (c.Pile?.Type == PileType.Exhaust) continue;
+                        playerStatusCardCount++;
+                    }
+                }
+            }
+            catch (System.Exception ex) { LogReflectionFailureOnce("status-card-count", ex); }
 
             // v0.5.1 — Pile cards skip the CanPlay() check (irrelevant outside hand)
             // but reuse the same builder so Effect / Cost / Kind are consistent with
@@ -475,6 +542,11 @@ internal static class StateSnapshotter
                 SovereignBladeCount = sovereignBladeCount,
                 TurnAttacksPlayed = turnAttacksPlayed,
                 TurnSkillsPlayed = turnSkillsPlayed,
+                TurnEnergySpent = turnEnergySpent,
+                TurnStarsGained = turnStarsGained,
+                CombatEtherealPlayed = combatEtherealPlayed,
+                TurnOstyAttacks = turnOstyAttacks,
+                PlayerStatusCardCount = playerStatusCardCount,
                 TurnAttacksByTargetIdx = (IReadOnlyDictionary<int, int>?)turnAttacksByTargetIdx
                     ?? new Dictionary<int, int>(),
                 CombatPlayerHpLossEvents = combatHpLossEvents,
