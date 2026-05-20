@@ -228,14 +228,19 @@ internal static class PlanScorer
             if (card.Id == "FRANTIC_ESCAPE")
                 return BreakdownFranticEscape(card, state);
 
-            // Most curse/status cards are Unplayable (Wound / Dazed / Void / Injury) — already
-            // filtered out of candidate enumeration by IsPlayable. The few that ARE playable
-            // (Burn for one — sits in hand and deals self-damage at turn end if not played)
-            // are worth using when there's spare energy: spending 1 energy on Burn avoids the
-            // 2 HP tick. Score is small but above MinPlayScore so it gets picked only when no
-            // attack / defend / power play is available, never above a real card.
+            // v0.9.8 — Status / Curse cards normally carry CardKeyword.Unplayable
+            // (Wound / Dazed / Burn / Void / Injury all explicitly set it via
+            // CanonicalKeywords — including Burn, which is *not* playable; its
+            // self-damage fires from OnTurnEndInHand, not OnPlay). Game CanPlay()
+            // returns false for those, so candidate enumeration filters them
+            // out before reaching here.
+            //
+            // FRANTIC_ESCAPE is the only known playable Status — handled above as
+            // a special case. The branch below remains as a guard for any future
+            // playable Status / Curse card discovered later. Small positive so
+            // it ranks above MinPlayScore but never above a real card.
             if (card.IsPlayable)
-                return new ScoreBreakdown(200, "Status-Playable", 200, 0, 0, 0, "status-spend-to-discard");
+                return new ScoreBreakdown(200, "Status-Playable", 200, 0, 0, 0, "playable-status-fallback");
             return new ScoreBreakdown(w.CursePenalty, "Curse", w.CursePenalty, 0, 0, 0, "never-play");
         }
 

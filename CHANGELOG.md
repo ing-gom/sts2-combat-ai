@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.9.8 (2026-05-20)
+
+**Doc-comment cleanup — `PlanScorer.BreakdownInternal` 의 IsCurseOrStatus
+분기 코멘트 정정.**
+
+v0.9.5 의 코멘트가 "(Burn for one — sits in hand and deals self-damage at
+turn end if not played) — playable" 이라 주장했지만 디컴파일 audit 결과
+**Burn 도 `CardKeyword.Unplayable` 명시적 보유** (line 347589):
+
+- Wound / Dazed / Burn / Void / Injury 모두 `CanonicalKeywords` 에 Unplayable
+- Burn 의 self-damage 는 `OnTurnEndInHand` 에서 fire (not OnPlay)
+- 일반 Status / Curse 카드는 게임 `CanPlay()` 가 false → candidate 단계 필터
+
+확인된 유일한 **playable Status** 는 FRANTIC_ESCAPE (v0.9.5 special-case
+처리됨). `IsPlayable` 가드 fallback 은 future-proof guard 로 유지, 부정확한
+"Burn" 예시 제거 + detail 라벨 `status-spend-to-discard` → `playable-status-fallback`
+으로 정정.
+
+코드 동작 영향 없음 — 코멘트 + detail 문자열만.
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **101 passed / 0 failed**
+
 ## v0.9.7 (2026-05-20)
 
 **4 CalculatedDamageVar 카드 (CONFLAGRATION / DEATH_MARCH / CRESCENT_SPEAR
