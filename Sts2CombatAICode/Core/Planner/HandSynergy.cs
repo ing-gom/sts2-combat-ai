@@ -84,6 +84,15 @@ internal static class HandSynergy
         int remainingOrbCards = state.Hand.Count(c =>
             !ReferenceEquals(c, self) && c.IsPlayable
             && (c.ChannelCount > 0 || c.EvokeCount > 0));
+        // v0.9.3 — per-card-play power beneficiaries. Afterimage / SerpentForm
+        // trigger on every owner card played; DanseMacabre only on cost ≥ 2;
+        // Panache cycles every 5 cards (AoE trigger). Curses / statuses can't
+        // be played and so don't trigger any of these.
+        int remainingPlayable = state.Hand.Count(c =>
+            !ReferenceEquals(c, self) && c.IsPlayable && !c.IsCurseOrStatus);
+        int remainingExpensive = state.Hand.Count(c =>
+            !ReferenceEquals(c, self) && c.IsPlayable && !c.IsCurseOrStatus && c.Cost >= 2);
+        int aliveEnemies = state.Enemies.Count(e => e.IsAlive);
 
         // Subtract the single beneficiary the depth-2 lookahead will independently
         // credit. Negative-clamp so a hand with 0–1 beneficiaries returns 0.
@@ -134,6 +143,33 @@ internal static class HandSynergy
             // PowerCatalog already values Vigor ~250 for stack; HandSynergy
             // adds a per-shot scaling when an attack is queued.
             "VigorPower" => remainingAttacks > 0 ? amount * 50 : -100,
+
+            // v0.9.3 — Per-card-play powers. PowerCatalog already provides a
+            // flat tier credit; HandSynergy adds the hand-aware marginal value
+            // ("play me first to maximise future triggers"). Same `-1` clamp
+            // pattern as Rage/Focus to avoid double-counting the depth-2
+            // lookahead's first-card credit.
+
+            // AfterimagePower (Silent AFTERIMAGE): +Amount block per any card
+            // played by the owner. Beneficiaries = remaining playable cards.
+            "AfterimagePower" => System.Math.Max(0, remainingPlayable - 1) * amount * 30,
+
+            // SerpentFormPower (Silent SERPENT_FORM): +Amount damage to a
+            // random hittable enemy per any card played by the owner. Random
+            // targeting + already-low-HP enemies dying first shave value,
+            // so per-damage 25 (vs DamagePerPointBonus 50).
+            "SerpentFormPower" => System.Math.Max(0, remainingPlayable - 1) * amount * 25,
+
+            // PanachePower (shared PANACHE): every 5 cards played, the
+            // counter triggers an AoE for Amount damage to all enemies.
+            // remainingPlayable / 5 estimates cycles available; alive enemy
+            // count scales the AoE; 50 ≈ DamagePerPointBonus.
+            "PanachePower" => (remainingPlayable / 5) * amount * aliveEnemies * 50,
+
+            // DanseMacabrePower (Necrobinder DANSE_MACABRE): when a card with
+            // EnergyCost.GetResolved() >= 2 is played, gain Amount block.
+            // Beneficiaries = remaining expensive (cost ≥ 2) playable cards.
+            "DanseMacabrePower" => System.Math.Max(0, remainingExpensive - 1) * amount * 30,
 
             _ => 0,
         };

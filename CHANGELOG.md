@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.9.3 (2026-05-20)
+
+**HandSynergy 4 per-card-play powers 확장 + ECHOING_SLASH chain-aware
+multi-kill 평가.**
+
+### TODO #3 — HandSynergy 4 powers
+
+PowerCatalog 의 flat tier (AfterimagePower 700 / DanseMacabrePower 800
+/ PanachePower 400 / SerpentFormPower 350) 위에 hand-aware marginal
+value 추가. "지금 손에 X 카드가 있을 때의 sequencing payoff" — Rage /
+Focus 의 `-1` clamp 패턴과 동일.
+
+| Power | Effect (디컴파일) | HandSynergy 식 |
+|---|---|---|
+| AfterimagePower | 카드 사용시 +Amount block | `(remainingPlayable − 1) × amount × 30` |
+| SerpentFormPower | 카드 사용시 random 적 +Amount dmg | `(remainingPlayable − 1) × amount × 25` |
+| PanachePower | **5장당** AOE +Amount dmg | `(remainingPlayable / 5) × amount × aliveEnemies × 50` |
+| DanseMacabrePower | cost ≥ 2 카드 사용시 +Amount block | `(remainingExpensive − 1) × amount × 30` |
+
+신규 변수:
+
+- `remainingPlayable` — owner 손 카드 중 playable + non-curse/status
+- `remainingExpensive` — playable + non-curse/status + cost ≥ 2
+- `aliveEnemies` — Enemy 중 alive
+
+**디컴파일 정정**: follow-up 문서가 PanachePower 를 "10장당" 으로 추정
+했지만 실제 source (`CardsLeft = 5` 초기값) 는 **5장당** trigger.
+
+### TODO #5 — ECHOING_SLASH chain valuation
+
+v0.9.1 의 `ApplyEchoingSlashOverkillBonus` 가 single-repeat half-credit
+만 카운트 → AOE 보드 정리시 cascading kill 다회 chain 미반영.
+
+새 chain-aware 알고리즘:
+
+1. `perHit = self.Damage + max(0, PlayerStrength)`, Weak ×0.75
+2. 살아있는 적을 effective HP (`Hp + Block`) **오름차순** 정렬
+3. 누적 `chains = 1`; 각 적 순회 — `dmg ≥ effHp` → `chains++` (cap 3).
+   per-enemy Vulnerable / DamageCapPerHit 적용
+4. 보너스 = `(chains − 1) × self.Damage × DamageInHand / 2`
+   - "−1" 은 첫 hit 을 base scorer 가 이미 credit 했으므로 제외
+
+라벨 변경: `echoingRepeat` → `echoingChain`.
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **101 passed / 0 failed**
+
+### Follow-up
+
+- TODO #2 — CalculatedDamage runtime preview 검증 (게임 플레이 필요)
+- SandpitPower (v0.9.1 P5) PlanScorer kill-bonus boost + FranticEscape
+  status-card 회복 모델링
+
 ## v0.9.2 (2026-05-20)
 
 **5 conditional-hits 카드 (FLAK_CANNON / HELIX_DRILL / PULL_FROM_BELOW /

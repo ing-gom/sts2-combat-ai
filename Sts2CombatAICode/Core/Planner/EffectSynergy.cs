@@ -5190,34 +5190,39 @@ internal static class EffectSynergy
         parts.Add($"strangleChip(plays={remaining}x{HpLossPerCard}x{aliveEnemies})=+{v}");
     }
 
-    /// <summary>ECHOING_SLASH (Silent, 1c AOE 10dmg): if it kills an enemy,
-    /// repeats the effect. Approximate the kill-then-repeat as an effective
-    /// <c>+1 hit</c> when any single enemy's effective HP (HP + Block) is at
-    /// or below the card's per-enemy damage. Conservative: only counts the
-    /// first repeat (chain repeats are possible but rare in practice).</summary>
+    /// <summary>ECHOING_SLASH (Silent, 1c AOE 10dmg): kills an enemy → repeat
+    /// the AOE. v0.9.3 — single-repeat half-credit replaced by chain-aware
+    /// estimate (up to <c>MaxChains</c>=3). Enemies sorted by effective HP
+    /// (HP + Block); each consecutive kill adds one chain. Bonus =
+    /// <c>(chains−1) × self.Damage × DamageInHand / 2</c> (the base scorer
+    /// already credits the first AOE wave, so subtract 1).</summary>
     private static void ApplyEchoingSlashOverkillBonus(SimCard self, int targetIdx, SimState state, ref int b, List<string> parts)
     {
         if (self.Damage <= 0) return;
         int perHit = self.Damage + System.Math.Max(0, state.PlayerStrength);
         if (state.PlayerWeak > 0) perHit = (int)(perHit * 0.75);
-        bool likelyKill = false;
-        foreach (var e in state.Enemies)
+
+        var sortedEnemies = state.Enemies
+            .Where(e => e.IsAlive)
+            .OrderBy(e => e.Hp + e.Block)
+            .ToList();
+
+        int chains = 1;
+        const int MaxChains = 3;
+        foreach (var e in sortedEnemies)
         {
-            if (!e.IsAlive) continue;
-            int effHp = e.Hp + e.Block;
             int dmg = perHit;
             if (e.VulnerableAmount > 0) dmg = (int)(dmg * StatusMath.VulnerableMult);
             if (e.DamageCapPerHit > 0 && dmg > e.DamageCapPerHit) dmg = e.DamageCapPerHit;
-            if (dmg >= effHp) { likelyKill = true; break; }
+            if (dmg >= e.Hp + e.Block) chains++;
+            if (chains >= MaxChains) break;
         }
-        if (!likelyKill) return;
-        // Repeat = a second AOE instance. Conservative half-credit since the
-        // first repeat may itself not kill (the AI's effHits-based pathway
-        // already values the first hit fully).
-        int repeatDmg = self.Damage / 2;
-        int v = repeatDmg * EffectScoringWeights.DamageInHand;
+        if (chains <= 1) return;
+
+        int extraChains = chains - 1;
+        int v = extraChains * self.Damage * EffectScoringWeights.DamageInHand / 2;
         b += v;
-        parts.Add($"echoingRepeat(likelyKill,+{repeatDmg}×{EffectScoringWeights.DamageInHand})=+{v}");
+        parts.Add($"echoingChain(chains={chains},+{extraChains}×{self.Damage}÷2)=+{v}");
     }
 
     /// <summary>STOMP (Ironclad, 3c AOE 12dmg): cost -1 per Attack already
