@@ -354,6 +354,31 @@ internal sealed record SimState
     public int PlayerStatusCardCount { get; init; }
 
     /// <summary>
+    /// v0.9.7 — Number of cards drawn by the player this turn (CardDrawnEntry
+    /// with !FromHandDraw — i.e. true draws from draw pile, excluding the
+    /// hand→pile→hand re-draw cycle). DEATH_MARCH's CalculatedDamage multiplier
+    /// reads exactly this count (decompile sts2.decompiled.cs:349298).
+    /// </summary>
+    public int TurnCardsDrawn { get; init; }
+
+    /// <summary>
+    /// v0.9.7 — Snapshot count of star-cost cards owned by the player across
+    /// all piles (matches Regent's CRESCENT_SPEAR multiplier: cards where
+    /// CanonicalStarCost >= 0 OR HasStarCostX, decompile :348904). Includes
+    /// the card itself if it has a star cost. No turn/combat history walk.
+    /// </summary>
+    public int PlayerStarCostCardCount { get; init; }
+
+    /// <summary>
+    /// v0.9.7 — Snapshot count of player's cards tagged CardTag.OstyAttack
+    /// (Necrobinder Osty-attack family). SQUEEZE's CalculatedDamage multiplier
+    /// counts these excluding the SQUEEZE card itself (decompile :360306).
+    /// Includes the SQUEEZE card in this raw count; subtract 1 at scoring
+    /// time when card.Id == "SQUEEZE".
+    /// </summary>
+    public int PlayerOstyAttackCardCount { get; init; }
+
+    /// <summary>
     /// v0.9 — Per-target attack count this turn. Keyed by SimEnemy index
     /// (position in <see cref="Enemies"/> list at snapshot time). Powers
     /// BEAT_INTO_SHAPE's "Forge +5 per OTHER attack on this target this turn"

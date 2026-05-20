@@ -195,6 +195,27 @@ internal static class PlanScorer
             $"sandpit-deadline(stk={minStk}→{minStk + 1})");
     }
 
+    // v0.9.7 — CalcDmgProbe dedup set. Logged once per (id, previewDamage,
+    // counter) triplet so identical scoring states don't flood the log.
+    // Reset would require restarting the mod — fine for in-combat diagnosis.
+    private static readonly System.Collections.Generic.HashSet<string> _calcDmgProbeLogged
+        = new(System.StringComparer.OrdinalIgnoreCase);
+
+    private static void LogCalcDmgProbeOnce(string id, int previewDamage, int counter)
+    {
+        string key = $"{id}:d={previewDamage}:c={counter}";
+        lock (_calcDmgProbeLogged)
+        {
+            if (!_calcDmgProbeLogged.Add(key)) return;
+        }
+        try
+        {
+            MainFile.Logger?.Info(
+                $"[CalcDmgProbe] {id} previewDamage={previewDamage} counter={counter}");
+        }
+        catch { /* MainFile.Logger may not be initialised in test contexts */ }
+    }
+
     private static ScoreBreakdown BreakdownInternal(SimCard card, int targetIdx, SimState state, PlanScorerWeights w)
     {
         if (card.IsCurseOrStatus)
@@ -216,6 +237,23 @@ internal static class PlanScorer
             if (card.IsPlayable)
                 return new ScoreBreakdown(200, "Status-Playable", 200, 0, 0, 0, "status-spend-to-discard");
             return new ScoreBreakdown(w.CursePenalty, "Curse", w.CursePenalty, 0, 0, 0, "never-play");
+        }
+
+        // v0.9.7 — CalcDmgProbe: 4 CalculatedDamageVar 카드의 preview damage 와
+        // SimState 의 derived counter 를 단발 로그로 출력. game-play 검증 시
+        // mismatch 없으면 PreviewValue 신뢰 가능; 차이가 보이면 다음 release 에서
+        // fallback override 결정. SQUEEZE 의 counter 는 자기 자신 제외.
+        if (card.Id is "CONFLAGRATION" or "DEATH_MARCH" or "CRESCENT_SPEAR" or "SQUEEZE")
+        {
+            int counter = card.Id switch
+            {
+                "CONFLAGRATION"  => state.TurnAttacksPlayed,
+                "DEATH_MARCH"    => state.TurnCardsDrawn,
+                "CRESCENT_SPEAR" => state.PlayerStarCostCardCount,
+                "SQUEEZE"        => System.Math.Max(0, state.PlayerOstyAttackCardCount - 1),
+                _                => 0,
+            };
+            LogCalcDmgProbeOnce(card.Id, card.Damage, counter);
         }
 
         int cost = card.Cost;

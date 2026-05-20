@@ -323,6 +323,10 @@ internal static class StateSnapshotter
             // the same single-pass walk as turnAttacksPlayed/turnSkillsPlayed.
             int turnEnergySpent = 0, turnStarsGained = 0,
                 combatEtherealPlayed = 0, turnOstyAttacks = 0;
+            // v0.9.7 — DEATH_MARCH's CalculatedDamage multiplier counts non-hand-
+            // draw CardDrawnEntry this turn (real draws from draw pile, excluding
+            // hand→pile→hand cycles).
+            int turnCardsDrawn = 0;
             // v0.9.2 — Osty reference captured before the history walk so
             // CreatureAttackedEntry can compare its Actor against this
             // player's skeleton (RATTLE's exact source pattern). Null when no
@@ -440,15 +444,28 @@ internal static class StateSnapshotter
                             if (System.Object.ReferenceEquals(cae.Actor, playerOsty))
                                 turnOstyAttacks++;
                         }
+                        // v0.9.7 — DEATH_MARCH counter: this turn's non-hand-draw
+                        // CardDrawnEntry by this player (decompile sts2.decompiled.cs:349298).
+                        else if (entry is CardDrawnEntry cde)
+                        {
+                            if (cde.RoundNumber != cs.RoundNumber) continue;
+                            if (cde.CurrentSide != cs.CurrentSide) continue;
+                            if (cde.Actor != creature) continue;
+                            if (cde.FromHandDraw) continue;
+                            turnCardsDrawn++;
+                        }
                     }
                 }
             }
             catch (System.Exception ex) { LogReflectionFailureOnce("history-walk", ex); }
 
             // v0.9.2 — Status cards currently owned by the player across all
-            // piles except Exhaust. FLAK_CANNON's CalculatedHits multiplier
-            // counts exactly this set (decompile sts2.decompiled.cs:351477).
+            // piles except Exhaust (FLAK_CANNON's CalculatedHits multiplier).
+            // v0.9.7 — Extended in the same walk: star-cost cards (CRESCENT_SPEAR)
+            // and OstyAttack-tag cards (SQUEEZE) deck-wide snapshots.
             int playerStatusCardCount = 0;
+            int playerStarCostCardCount = 0;
+            int playerOstyAttackCardCount = 0;
             try
             {
                 var allCards = player.PlayerCombatState?.AllCards;
@@ -457,13 +474,24 @@ internal static class StateSnapshotter
                     foreach (var c in allCards)
                     {
                         if (c == null) continue;
-                        if (c.Type != CardType.Status) continue;
-                        if (c.Pile?.Type == PileType.Exhaust) continue;
-                        playerStatusCardCount++;
+                        if (c.Type == CardType.Status && c.Pile?.Type != PileType.Exhaust)
+                            playerStatusCardCount++;
+                        try
+                        {
+                            if (c.CanonicalStarCost >= 0 || c.HasStarCostX)
+                                playerStarCostCardCount++;
+                        }
+                        catch { }
+                        try
+                        {
+                            if (c.Tags != null && c.Tags.Contains(CardTag.OstyAttack))
+                                playerOstyAttackCardCount++;
+                        }
+                        catch { }
                     }
                 }
             }
-            catch (System.Exception ex) { LogReflectionFailureOnce("status-card-count", ex); }
+            catch (System.Exception ex) { LogReflectionFailureOnce("deck-card-count", ex); }
 
             // v0.5.1 — Pile cards skip the CanPlay() check (irrelevant outside hand)
             // but reuse the same builder so Effect / Cost / Kind are consistent with
@@ -547,6 +575,9 @@ internal static class StateSnapshotter
                 CombatEtherealPlayed = combatEtherealPlayed,
                 TurnOstyAttacks = turnOstyAttacks,
                 PlayerStatusCardCount = playerStatusCardCount,
+                TurnCardsDrawn = turnCardsDrawn,
+                PlayerStarCostCardCount = playerStarCostCardCount,
+                PlayerOstyAttackCardCount = playerOstyAttackCardCount,
                 TurnAttacksByTargetIdx = (IReadOnlyDictionary<int, int>?)turnAttacksByTargetIdx
                     ?? new Dictionary<int, int>(),
                 CombatPlayerHpLossEvents = combatHpLossEvents,

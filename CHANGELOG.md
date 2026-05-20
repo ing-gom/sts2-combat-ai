@@ -1,5 +1,75 @@
 # Changelog
 
+## v0.9.7 (2026-05-20)
+
+**4 CalculatedDamageVar 카드 (CONFLAGRATION / DEATH_MARCH / CRESCENT_SPEAR
+/ SQUEEZE) 의 multiplier source 디컴파일 audit + SimState counter 신축
++ 단발 진단 로그 (PreviewValue 검증용).**
+
+### 배경
+
+v0.9.1 follow-up TODO #2: 4 카드는 `CalculatedDamageVar` 사용 — base
++ extra × N 식으로 damage 가 런타임에 갱신. `CardReflection.cs:372`
+가 `_updatePreview?.Invoke()` 호출 후 PreviewValue 를 읽으니 game 의
+closure 가 fire 하면 자동 갱신. 다만 PreviewValue 가 fail 했을 때의
+fallback 안전망 + game 의 multiplier source 와 우리 가정의 mismatch
+검증이 미비.
+
+### 디컴파일 audit
+
+| 카드 | follow-up 추정 | 실제 multiplier (decompile) |
+|---|---|---|
+| **Conflagration** | "이번턴 다른 공격수" | `CardPlaysFinished` turn + Type==Attack + Owner==self → `TurnAttacksPlayed` 재사용 ✓ |
+| **CrescentSpear** | "사용된 별 카드" | `PlayerCombatState.AllCards.Count(c => c.CanonicalStarCost >= 0 \|\| c.HasStarCostX)` — deck 안의 별-cost 카드 (사용 여부 무관) |
+| **DeathMarch** | "콤뱃 죽인 카드 수" | `CardDrawnEntry` turn + Actor==self + `!FromHandDraw` — 이번 턴 draw 수 |
+| **Squeeze** | "skeleton dmg" | `PlayerCombatState.AllCards.Count(c => c.Tags.Contains(OstyAttack) && c != card)` — deck 의 OstyAttack tag 카드 (자기 제외) |
+
+**4 카드 중 3 카드 의미 정정** (v0.9.2 audit 와 같은 패턴).
+
+### 변경
+
+**SimState 신축 3 필드**:
+
+- `TurnCardsDrawn` — DEATH_MARCH (CardDrawnEntry, !FromHandDraw 필터)
+- `PlayerStarCostCardCount` — CRESCENT_SPEAR (deck-wide snapshot)
+- `PlayerOstyAttackCardCount` — SQUEEZE (deck-wide snapshot, 자기 포함)
+
+**StateSnapshotter 확장**:
+
+- history walk 에 `CardDrawnEntry` 분기 추가 (turn-gated, Actor==creature,
+  !FromHandDraw)
+- 기존 v0.9.2 의 Status card deck walk 를 확장 — 한 pass 안에 status /
+  star-cost / OstyAttack-tag 세 카운트 동시 누적 (각 try/catch 보호)
+
+**PlanScorer 진단 로그**:
+
+`BreakdownInternal` 시작 부분에 4 카드 ID 매칭 시 `[CalcDmgProbe] {id}
+previewDamage={X} counter={Y}` 단발 로그. `(id, damage, counter)` 별
+1회만 출력 (dedup set). SQUEEZE 의 counter 는 자기 제외 (`-1`).
+
+게임 플레이로 검증 시 mismatch 발견되면 다음 release 에서 fallback
+override (`EstimateVariableHits` 류 explicit damage 식) 결정. 현
+release 는 **PreviewValue 신뢰 + 측정만**.
+
+### Tests 호환
+
+`PlanScorer` 가 `MainFile.Logger` 호출 추가 → Tests csproj 가 MainFile
+exclude 하여 빌드 fail → `Sts2CombatAI.Tests/MainFileStub.cs` 신규 (Tests
+빌드 시에만 매치되는 namespace-level stub, `Logger => null` 반환). 위
+v0.9.4 의 Tests 제외 ItemGroup 과 일관된 처리.
+
+### 검증
+
+- main DLL 빌드 클린 (경고 1 기존 / 오류 0)
+- `Sts2CombatAI.Tests`: **101 passed / 0 failed**
+
+### Follow-up (게임 플레이 의존)
+
+- **TODO #2 마지막 단계**: Insatiable 보스 콤뱃에서 `[CalcDmgProbe]` 라벨
+  콤뱃 로그 확인. PreviewValue 와 counter 가 디컴파일 audit 와 일치하면
+  완전 종결, mismatch 발견 시 fallback override 다음 release.
+- FranticEscape IsPlayable=true 실측 (v0.9.5).
+
 ## v0.9.6 (2026-05-20)
 
 **SurvivalProjection 에 SandpitPower hard deadline 통합 — carrier 처치
