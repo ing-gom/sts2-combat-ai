@@ -28,6 +28,13 @@
 
     <ItemGroup>
         <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="All"/>
+        <!-- Phase C — ONNX runtime to load PPO models exported from
+             sts2-combat-core/python/export_onnx.py. Used by
+             Onnx/OnnxPolicy.cs in dual-log mode.  -->
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1">
+            <Private>true</Private>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </PackageReference>
     </ItemGroup>
 
     <ItemGroup>
@@ -52,6 +59,14 @@
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/card_triggers.json" LogicalName="Sts2CombatAI.card_triggers.json" />
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/pool_means.json" LogicalName="Sts2CombatAI.pool_means.json" />
         <EmbeddedResource Include="Sts2CombatAICode/Core/Data/role_needs.json" LogicalName="Sts2CombatAI.role_needs.json" />
+        <!-- Phase C — PPO model + vocab from sts2-combat-core. Optional;
+             OnnxPolicy quietly disables itself if these aren't embedded. -->
+        <EmbeddedResource Include="Sts2CombatAICode/Core/Onnx/ppo.onnx"
+                          LogicalName="Sts2CombatAI.ppo.onnx"
+                          Condition="Exists('Sts2CombatAICode/Core/Onnx/ppo.onnx')" />
+        <EmbeddedResource Include="Sts2CombatAICode/Core/Onnx/vocab.json"
+                          LogicalName="Sts2CombatAI.vocab.json"
+                          Condition="Exists('Sts2CombatAICode/Core/Onnx/vocab.json')" />
     </ItemGroup>
 
     <Target Name="CheckDependencyPaths">
@@ -59,9 +74,27 @@
                Condition="'$(Sts2DataDir)' == '' or !Exists('$(Sts2DataDir)')" />
     </Target>
 
+    <PropertyGroup>
+        <_OnnxNativeDir>$(NuGetPackageRoot)microsoft.ml.onnxruntime/1.20.1/</_OnnxNativeDir>
+        <_OnnxManagedDir>$(NuGetPackageRoot)microsoft.ml.onnxruntime.managed/1.20.1/</_OnnxManagedDir>
+    </PropertyGroup>
+
     <Target Name="CopyToModsFolderOnBuild" AfterTargets="PostBuildEvent">
         <Message Text="Copying .dll and manifest to mods folder." Importance="high" />
         <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsPath)$(MSBuildProjectName)/" />
         <Copy SourceFiles="$(AssemblyName).json" DestinationFolder="$(ModsPath)$(MSBuildProjectName)/" />
+        <!-- Phase C — ONNX from NuGet cache. Native pkg ships only the .so/.dll
+             in runtimes/, managed pkg ships the assembly in lib/. Both needed. -->
+        <ItemGroup>
+            <_OnnxFiles Include="$(_OnnxManagedDir)lib/netstandard2.0/Microsoft.ML.OnnxRuntime.dll"
+                        Condition="Exists('$(_OnnxManagedDir)lib/netstandard2.0/Microsoft.ML.OnnxRuntime.dll')" />
+            <_OnnxFiles Include="$(_OnnxNativeDir)runtimes/win-x64/native/onnxruntime.dll"
+                        Condition="Exists('$(_OnnxNativeDir)runtimes/win-x64/native/onnxruntime.dll')" />
+            <_OnnxFiles Include="$(_OnnxNativeDir)runtimes/win-x64/native/onnxruntime_providers_shared.dll"
+                        Condition="Exists('$(_OnnxNativeDir)runtimes/win-x64/native/onnxruntime_providers_shared.dll')" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_OnnxFiles)"
+              DestinationFolder="$(ModsPath)$(MSBuildProjectName)/"
+              Condition="@(_OnnxFiles->Count()) &gt; 0" />
     </Target>
 </Project>

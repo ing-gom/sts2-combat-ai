@@ -1,0 +1,3977 @@
+[sts2-combat-core] initializing ModelDb...
+[sts2-combat-core] ModelDb ready
+{
+  "cardCount": 577,
+  "monsterCount": 101,
+  "cards": [
+    {
+      "id": "ABRASIVE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "ACCELERANT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ACCURACY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ACROBATICS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ADAPTIVE_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "ADRENALINE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "AFTERIMAGE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "AFTERLIFE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "AGGRESSION",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ALCHEMIZE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ALIGNMENT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "ALL_FOR_ONE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "ANGER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "ANOINTED",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ANTICIPATE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "APOTHEOSIS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "APPARITION",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ARMAMENTS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ARSENAL",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ASCENDERS_BANE",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "ASHEN_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "ASSASSINATE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "ASTRAL_PULSE",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 0
+    },
+    {
+      "id": "AUTOMATION",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BACKFLIP",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BACKSTAB",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "BAD_LUCK",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "BALL_LIGHTNING",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BANSHEES_CRY",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 9
+    },
+    {
+      "id": "BARRAGE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BARRICADE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "BASH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "BATTLE_TRANCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BEACON_OF_HOPE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BEAM_CELL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "BEAT_DOWN",
+      "type": "Skill",
+      "targetType": "RandomEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "BEAT_INTO_SHAPE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BECKON",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 1
+    },
+    {
+      "id": "BEGONE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BELIEVE_IN_YOU",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 0
+    },
+    {
+      "id": "BIASED_COGNITION",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BIG_BANG",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BLACK_HOLE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BLADE_DANCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BLADE_OF_INK",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BLIGHT_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BLOOD_WALL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "BLOODLETTING",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BLUDGEON",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "BLUR",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BODY_SLAM",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BODYGUARD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BOLAS",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "BOMBARDMENT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "BONE_SHARDS",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "BOOST_AWAY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BOOT_SEQUENCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BORROWED_TIME",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BOUNCING_FLASK",
+      "type": "Skill",
+      "targetType": "RandomEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "BRAND",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BREAK",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BREAKTHROUGH",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "BRIGHTEST_FLAME",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "BUBBLE_BUBBLE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "BUFFER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "BULK_UP",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "BULLET_TIME",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "BULLY",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "BULWARK",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "BUNDLE_OF_JOY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BURN",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "BURNING_PACT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BURST",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "BURY",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 4
+    },
+    {
+      "id": "BYRD_SWOOP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "BYRDONIS_EGG",
+      "type": "Quest",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "CALAMITY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "CALCIFY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CALCULATED_GAMBLE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "CALL_OF_THE_VOID",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CALTROPS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CAPACITOR",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CAPTURE_SPIRIT",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "CASCADE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": -1
+    },
+    {
+      "id": "CATASTROPHE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "CELESTIAL_MIGHT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "CHAOS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CHARGE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CHARGE_BATTERY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CHILD_OF_THE_STARS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CHILL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "CINDER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "CLASH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "CLAW",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "CLEANSE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CLOAK_AND_DAGGER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CLOAK_OF_STARS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "CLUMSY",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "COLD_SNAP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "COLLISION_COURSE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "COLOSSUS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "COMET",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "COMPACT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "COMPILE_DRIVER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "CONFLAGRATION",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "CONQUEROR",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "CONSUMING_SHADOW",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "CONVERGENCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "COOLANT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "COOLHEADED",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "COORDINATE",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 1
+    },
+    {
+      "id": "CORROSIVE_WAVE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CORRUPTION",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "COSMIC_INDIFFERENCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "COUNTDOWN",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CRASH_LANDING",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "CREATIVE_AI",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "CRESCENT_SPEAR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "CRIMSON_MANTLE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CRUELTY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "CRUSH_UNDER",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "CURSE_OF_THE_BELL",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DAGGER_SPRAY",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "DAGGER_THROW",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DANSE_MACABRE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DARK_EMBRACE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "DARK_SHACKLES",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "DARKNESS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DASH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "DAZED",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DEADLY_POISON",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DEATH_MARCH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DEATHBRINGER",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 2
+    },
+    {
+      "id": "DEATHS_DOOR",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEBILITATE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DEBRIS",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 1
+    },
+    {
+      "id": "DEBT",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DECAY",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DECISIONS_DECISIONS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "DEFEND_DEFECT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFEND_IRONCLAD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFEND_NECROBINDER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFEND_REGENT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFEND_SILENT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFILE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFLECT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "DEFRAGMENT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DEFY",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DELAY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "DEMESNE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "DEMON_FORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "DEMONIC_SHIELD",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 0
+    },
+    {
+      "id": "DEPRECATED_CARD",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DEVASTATE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DEVOUR_LIFE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DIRGE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": -1
+    },
+    {
+      "id": "DISCOVERY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DISINTEGRATION",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DISMANTLE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DISTRACTION",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DODGE_AND_ROLL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DOMINATE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DOUBLE_ENERGY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DOUBT",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "DRAIN_POWER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "DRAMATIC_ENTRANCE",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 0
+    },
+    {
+      "id": "DREDGE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DRUM_OF_BATTLE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "DUAL_WIELD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DUALCAST",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "DYING_STAR",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "ECHO_FORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "ECHOING_SLASH",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "EIDOLON",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "END_OF_DAYS",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 3
+    },
+    {
+      "id": "ENERGY_SURGE",
+      "type": "Skill",
+      "targetType": "AllAllies",
+      "baseCost": 1
+    },
+    {
+      "id": "ENFEEBLING_TOUCH",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "ENLIGHTENMENT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "ENTHRALLED",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 2
+    },
+    {
+      "id": "ENTRENCH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "ENTROPY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ENVENOM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "EQUILIBRIUM",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "ERADICATE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": -1
+    },
+    {
+      "id": "ESCAPE_PLAN",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "ETERNAL_ARMOR",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "EVIL_EYE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "EXPECT_A_FIGHT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "EXPERTISE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "EXPOSE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "EXTERMINATE",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "FALLING_STAR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "FAN_OF_KNIVES",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "FASTEN",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FEAR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FEED",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FEEDING_FRENZY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "FEEL_NO_PAIN",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FERAL",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "FETCH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "FIEND_FIRE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "FIGHT_ME",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "FIGHT_THROUGH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FINESSE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "FINISHER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FISTICUFFS",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FLAK_CANNON",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "FLAME_BARRIER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "FLANKING",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "FLASH_OF_STEEL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "FLATTEN",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "FLECHETTES",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FLICK_FLACK",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "FOCUSED_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FOLLOW_THROUGH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "FOLLY",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "FOOTWORK",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FORBIDDEN_GRIMOIRE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "FOREGONE_CONCLUSION",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FORGOTTEN_RITUAL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FRANTIC_ESCAPE",
+      "type": "Status",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FRIENDSHIP",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FTL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "FUEL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "FURNACE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "FUSION",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "GAMMA_BLAST",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "GANG_UP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "GATHER_LIGHT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "GENESIS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "GENETIC_ALGORITHM",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "GIANT_ROCK",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "GLACIER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "GLASSWORK",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "GLIMMER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "GLIMPSE_BEYOND",
+      "type": "Skill",
+      "targetType": "AllAllies",
+      "baseCost": 1
+    },
+    {
+      "id": "GLITTERSTREAM",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "GLOW",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "GO_FOR_THE_EYES",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "GOLD_AXE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "GRAND_FINALE",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 0
+    },
+    {
+      "id": "GRAVE_WARDEN",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "GRAVEBLAST",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "GREED",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "GUARDS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "GUIDING_STAR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "GUILTY",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "GUNK_UP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "HAILSTORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HAMMER_TIME",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "HAND_OF_GREED",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "HAND_TRICK",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HANG",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "HAUNT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HAVOC",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HAZE",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 3
+    },
+    {
+      "id": "HEADBUTT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "HEAVENLY_DRILL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": -1
+    },
+    {
+      "id": "HEGEMONY",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "HEIRLOOM_HAMMER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "HELIX_DRILL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "HELLO_WORLD",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HELLRAISER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "HEMOKINESIS",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "HIDDEN_CACHE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HIDDEN_DAGGERS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "HIDDEN_GEM",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HIGH_FIVE",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 2
+    },
+    {
+      "id": "HOLOGRAM",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "HOTFIX",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "HOWL_FROM_BEYOND",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 3
+    },
+    {
+      "id": "HUDDLE_UP",
+      "type": "Skill",
+      "targetType": "AllAllies",
+      "baseCost": 1
+    },
+    {
+      "id": "HYPERBEAM",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 2
+    },
+    {
+      "id": "I_AM_INVINCIBLE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ICE_LANCE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "IGNITION",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 1
+    },
+    {
+      "id": "IMPATIENCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "IMPERVIOUS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "INFECTION",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "INFERNAL_BLADE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "INFERNO",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "INFINITE_BLADES",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "INFLAME",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "INJURY",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "INTERCEPT",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 1
+    },
+    {
+      "id": "INVOKE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "IRON_WAVE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "ITERATION",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "JACK_OF_ALL_TRADES",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "JACKPOT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "JUGGERNAUT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "JUGGLING",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "KINGLY_KICK",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 4
+    },
+    {
+      "id": "KINGLY_PUNCH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "KNIFE_TRAP",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "KNOCKDOWN",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "KNOCKOUT_BLOW",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "KNOW_THY_PLACE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "LANTERN_KEY",
+      "type": "Quest",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "LARGESSE",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 0
+    },
+    {
+      "id": "LEADING_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "LEAP",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "LEG_SWEEP",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "LEGION_OF_BONE",
+      "type": "Skill",
+      "targetType": "AllAllies",
+      "baseCost": 2
+    },
+    {
+      "id": "LETHALITY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "LIFT",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 1
+    },
+    {
+      "id": "LIGHTNING_ROD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "LOOP",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "LUMINESCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "LUNAR_BLAST",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "MACHINE_LEARNING",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "MAD_SCIENCE",
+      "type": "None",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "MAKE_IT_SO",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "MALAISE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": -1
+    },
+    {
+      "id": "MANGLE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "MANIFEST_AUTHORITY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "MASTER_OF_STRATEGY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "MASTER_PLANNER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "MAUL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "MAYHEM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "MELANCHOLY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "MEMENTO_MORI",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "METAMORPHOSIS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "METEOR_SHOWER",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 0
+    },
+    {
+      "id": "METEOR_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 5
+    },
+    {
+      "id": "MIMIC",
+      "type": "Skill",
+      "targetType": "AnyAlly",
+      "baseCost": 1
+    },
+    {
+      "id": "MIND_BLAST",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "MIND_ROT",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "MINION_DIVE_BOMB",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "MINION_SACRIFICE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "MINION_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "MIRAGE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "MISERY",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "MODDED",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "MOLTEN_FIST",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "MOMENTUM_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "MONARCHS_GAZE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "MONOLOGUE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "MULTI_CAST",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": -1
+    },
+    {
+      "id": "MURDER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "NECRO_MASTERY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "NEGATIVE_PULSE",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "NEOWS_FURY",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "NEUROSURGE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "NEUTRALIZE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "NEUTRON_AEGIS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "NIGHTMARE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "NO_ESCAPE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "NORMALITY",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "NOSTALGIA",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "NOT_YET",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "NOXIOUS_FUMES",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "NULL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "OBLIVION",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "OFFERING",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "OMNISLICE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "ONE_TWO_PUNCH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ORBIT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "OUTBREAK",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "OUTMANEUVER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "OVERCLOCK",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PACTS_END",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 0
+    },
+    {
+      "id": "PAGESTORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PALE_BLUE_DOT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PANACHE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PANIC_BUTTON",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PARRY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PARSE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PARTICLE_WALL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PATTER",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PECK",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "PERFECTED_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "PHANTOM_BLADES",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PHOTON_CUT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "PIERCING_WAIL",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "PILLAGE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "PILLAR_OF_CREATION",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PINPOINT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "POISONED_STAB",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "POKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "POMMEL_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "POOR_SLEEP",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "POUNCE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "PRECISE_CUT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "PREDATOR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "PREP_TIME",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PREPARED",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PRIMAL_FORCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PRODUCTION",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PROLONG",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PROPHESIZE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "PROTECTOR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "PROWESS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "PULL_AGGRO",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "PULL_FROM_BELOW",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "PURITY",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "PUTREFY",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "PYRE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "QUADCAST",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "QUASAR",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "RADIATE",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 0
+    },
+    {
+      "id": "RAGE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "RAINBOW",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "RALLY",
+      "type": "Skill",
+      "targetType": "AllAllies",
+      "baseCost": 2
+    },
+    {
+      "id": "RAMPAGE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "RATTLE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "REANIMATE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "REAP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "REAPER_FORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "REAVE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "REBOOT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "REBOUND",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "REFINE_BLADE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "REFLECT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "REFLEX",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "REFRACT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "REGRET",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "RELAX",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "REND",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "RESONANCE",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "RESTLESSNESS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "RICOCHET",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "RIGHT_HAND_HAND",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "RIP_AND_TEAR",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "ROCKET_PUNCH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "ROLLING_BOULDER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "ROYAL_GAMBLE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "ROYALTIES",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "RUPTURE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SACRIFICE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SALVO",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SCAVENGE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SCOURGE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SCRAPE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SCRAWL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SCULPTING_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SEANCE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SECOND_WIND",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SECRET_TECHNIQUE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "SECRET_WEAPON",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "SEEKER_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SEEKING_EDGE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SENTRY_MODE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SERPENT_FORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "SETUP_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SEVEN_STARS",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 2
+    },
+    {
+      "id": "SEVERANCE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "SHADOW_SHIELD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SHADOW_STEP",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SHADOWMELD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SHAME",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "SHARED_FATE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "SHATTER",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "SHINING_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SHIV",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "SHOCKWAVE",
+      "type": "Skill",
+      "targetType": "AllEnemies",
+      "baseCost": 2
+    },
+    {
+      "id": "SHROUD",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SHRUG_IT_OFF",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SIC_EM",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SIGNAL_BOOST",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SKEWER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": -1
+    },
+    {
+      "id": "SKIM",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SLEIGHT_OF_FLESH",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SLICE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "SLIMED",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 1
+    },
+    {
+      "id": "SLOTH",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "SMOKESTACK",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SNAKEBITE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "SNAP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SNEAKY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SOLAR_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SOOT",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "SOUL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "SOUL_STORM",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SOVEREIGN_BLADE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "SOW",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "SPECTRUM_SHIFT",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SPEEDSTER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SPINNER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SPIRIT_OF_ASH",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SPITE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "SPLASH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SPOILS_MAP",
+      "type": "Quest",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "SPOILS_OF_BATTLE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SPORE_MIND",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 1
+    },
+    {
+      "id": "SPUR",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SQUASH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SQUEEZE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "STACK",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "STAMPEDE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "STARDUST",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "STOKE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "STOMP",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 3
+    },
+    {
+      "id": "STONE_ARMOR",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "STORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "STORM_OF_STEEL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "STRANGLE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "STRATAGEM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "STRIKE_DEFECT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "STRIKE_IRONCLAD",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "STRIKE_NECROBINDER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "STRIKE_REGENT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "STRIKE_SILENT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SUBROUTINE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SUCKER_PUNCH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SUMMON_FORTH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SUNDER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "SUPERCRITICAL",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "SUPERMASSIVE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SUPPRESS",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "SURVIVOR",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SWEEPING_BEAM",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "SWEEPING_GAZE",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "SWORD_BOOMERANG",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "SWORD_SAGE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "SYNCHRONIZE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "SYNTHESIS",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "TACTICIAN",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "TAG_TEAM",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "TANK",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "TAUNT",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "TEAR_ASUNDER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "TEMPEST",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": -1
+    },
+    {
+      "id": "TERRAFORMING",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "TESLA_COIL",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 0
+    },
+    {
+      "id": "THE_BOMB",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "THE_GAMBIT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "THE_HUNT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "THE_SCYTHE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "THE_SEALED_THRONE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "THE_SMITH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "THINKING_AHEAD",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "THRASH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "THRUMMING_HATCHET",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "THUNDER",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "THUNDERCLAP",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": 1
+    },
+    {
+      "id": "TIMES_UP",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "TOOLS_OF_THE_TRADE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "TORIC_TOUGHNESS",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "TOXIC",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 1
+    },
+    {
+      "id": "TRACKING",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "TRANSFIGURE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "TRASH_TO_TREASURE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "TREMBLE",
+      "type": "Skill",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "TRUE_GRIT",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "TURBO",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "TWIN_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "TYRANNY",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ULTIMATE_DEFEND",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "ULTIMATE_STRIKE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "UNDEATH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "UNLEASH",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "UNMOVABLE",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "UNRELENTING",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "UNTOUCHABLE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "UP_MY_SLEEVE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 2
+    },
+    {
+      "id": "UPPERCUT",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "UPROAR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 2
+    },
+    {
+      "id": "VEILPIERCER",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "VENERATE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "VICIOUS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "VOID",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "VOID_FORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "VOLLEY",
+      "type": "Attack",
+      "targetType": "RandomEnemy",
+      "baseCost": -1
+    },
+    {
+      "id": "VOLTAIC",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "WASTE_AWAY",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "WELL_LAID_PLANS",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "WHIRLWIND",
+      "type": "Attack",
+      "targetType": "AllEnemies",
+      "baseCost": -1
+    },
+    {
+      "id": "WHISTLE",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 3
+    },
+    {
+      "id": "WHITE_NOISE",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    },
+    {
+      "id": "WISH",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "WISP",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 0
+    },
+    {
+      "id": "WOUND",
+      "type": "Status",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "WRAITH_FORM",
+      "type": "Power",
+      "targetType": "Self",
+      "baseCost": 3
+    },
+    {
+      "id": "WRITHE",
+      "type": "Curse",
+      "targetType": "None",
+      "baseCost": 0
+    },
+    {
+      "id": "WROUGHT_IN_WAR",
+      "type": "Attack",
+      "targetType": "AnyEnemy",
+      "baseCost": 1
+    },
+    {
+      "id": "ZAP",
+      "type": "Skill",
+      "targetType": "Self",
+      "baseCost": 1
+    }
+  ],
+  "monsters": [
+    {
+      "id": "ASSASSIN_RUBY_RAIDER",
+      "minHp": 18,
+      "maxHp": 23
+    },
+    {
+      "id": "AXE_RUBY_RAIDER",
+      "minHp": 20,
+      "maxHp": 22
+    },
+    {
+      "id": "AXEBOT",
+      "minHp": 40,
+      "maxHp": 44
+    },
+    {
+      "id": "BOWLBUG_EGG",
+      "minHp": 21,
+      "maxHp": 22
+    },
+    {
+      "id": "BOWLBUG_NECTAR",
+      "minHp": 35,
+      "maxHp": 38
+    },
+    {
+      "id": "BOWLBUG_ROCK",
+      "minHp": 45,
+      "maxHp": 48
+    },
+    {
+      "id": "BOWLBUG_SILK",
+      "minHp": 40,
+      "maxHp": 43
+    },
+    {
+      "id": "BRUTE_RUBY_RAIDER",
+      "minHp": 30,
+      "maxHp": 33
+    },
+    {
+      "id": "BYGONE_EFFIGY",
+      "minHp": 127,
+      "maxHp": 127
+    },
+    {
+      "id": "BYRDONIS",
+      "minHp": 81,
+      "maxHp": 84
+    },
+    {
+      "id": "CALCIFIED_CULTIST",
+      "minHp": 38,
+      "maxHp": 41
+    },
+    {
+      "id": "CEREMONIAL_BEAST",
+      "minHp": 252,
+      "maxHp": 252
+    },
+    {
+      "id": "CHOMPER",
+      "minHp": 60,
+      "maxHp": 64
+    },
+    {
+      "id": "CORPSE_SLUG",
+      "minHp": 25,
+      "maxHp": 27
+    },
+    {
+      "id": "CROSSBOW_RUBY_RAIDER",
+      "minHp": 18,
+      "maxHp": 21
+    },
+    {
+      "id": "CRUSHER",
+      "minHp": 209,
+      "maxHp": 209
+    },
+    {
+      "id": "CUBEX_CONSTRUCT",
+      "minHp": 65,
+      "maxHp": 65
+    },
+    {
+      "id": "DAMP_CULTIST",
+      "minHp": 51,
+      "maxHp": 53
+    },
+    {
+      "id": "DECIMILLIPEDE_SEGMENT_BACK",
+      "minHp": 40,
+      "maxHp": 46
+    },
+    {
+      "id": "DECIMILLIPEDE_SEGMENT_FRONT",
+      "minHp": 40,
+      "maxHp": 46
+    },
+    {
+      "id": "DECIMILLIPEDE_SEGMENT_MIDDLE",
+      "minHp": 40,
+      "maxHp": 46
+    },
+    {
+      "id": "DEVOTED_SCULPTOR",
+      "minHp": 162,
+      "maxHp": 162
+    },
+    {
+      "id": "DOORMAKER",
+      "minHp": 489,
+      "maxHp": 489
+    },
+    {
+      "id": "ENTOMANCER",
+      "minHp": 145,
+      "maxHp": 145
+    },
+    {
+      "id": "EXOSKELETON",
+      "minHp": 24,
+      "maxHp": 28
+    },
+    {
+      "id": "EYE_WITH_TEETH",
+      "minHp": 6,
+      "maxHp": 6
+    },
+    {
+      "id": "FABRICATOR",
+      "minHp": 150,
+      "maxHp": 150
+    },
+    {
+      "id": "FAT_GREMLIN",
+      "minHp": 13,
+      "maxHp": 17
+    },
+    {
+      "id": "FLAIL_KNIGHT",
+      "minHp": 101,
+      "maxHp": 101
+    },
+    {
+      "id": "FLYCONID",
+      "minHp": 47,
+      "maxHp": 49
+    },
+    {
+      "id": "FOGMOG",
+      "minHp": 74,
+      "maxHp": 74
+    },
+    {
+      "id": "FOSSIL_STALKER",
+      "minHp": 51,
+      "maxHp": 53
+    },
+    {
+      "id": "FROG_KNIGHT",
+      "minHp": 191,
+      "maxHp": 191
+    },
+    {
+      "id": "FUZZY_WURM_CRAWLER",
+      "minHp": 55,
+      "maxHp": 57
+    },
+    {
+      "id": "GAS_BOMB",
+      "minHp": 7,
+      "maxHp": 7
+    },
+    {
+      "id": "GLOBE_HEAD",
+      "minHp": 148,
+      "maxHp": 148
+    },
+    {
+      "id": "GREMLIN_MERC",
+      "minHp": 47,
+      "maxHp": 49
+    },
+    {
+      "id": "GUARDBOT",
+      "minHp": 16,
+      "maxHp": 20
+    },
+    {
+      "id": "HAUNTED_SHIP",
+      "minHp": 63,
+      "maxHp": 63
+    },
+    {
+      "id": "HUNTER_KILLER",
+      "minHp": 121,
+      "maxHp": 121
+    },
+    {
+      "id": "INFESTED_PRISM",
+      "minHp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "INKLET",
+      "minHp": 11,
+      "maxHp": 17
+    },
+    {
+      "id": "KIN_FOLLOWER",
+      "minHp": 58,
+      "maxHp": 59
+    },
+    {
+      "id": "KIN_PRIEST",
+      "minHp": 190,
+      "maxHp": 190
+    },
+    {
+      "id": "KNOWLEDGE_DEMON",
+      "minHp": 379,
+      "maxHp": 379
+    },
+    {
+      "id": "LAGAVULIN_MATRIARCH",
+      "minHp": 222,
+      "maxHp": 222
+    },
+    {
+      "id": "LEAF_SLIME_M",
+      "minHp": 32,
+      "maxHp": 35
+    },
+    {
+      "id": "LEAF_SLIME_S",
+      "minHp": 11,
+      "maxHp": 15
+    },
+    {
+      "id": "LIVING_FOG",
+      "minHp": 80,
+      "maxHp": 80
+    },
+    {
+      "id": "LIVING_SHIELD",
+      "minHp": 55,
+      "maxHp": 55
+    },
+    {
+      "id": "LOUSE_PROGENITOR",
+      "minHp": 134,
+      "maxHp": 136
+    },
+    {
+      "id": "MAGI_KNIGHT",
+      "minHp": 82,
+      "maxHp": 82
+    },
+    {
+      "id": "MAWLER",
+      "minHp": 72,
+      "maxHp": 72
+    },
+    {
+      "id": "MECHA_KNIGHT",
+      "minHp": 300,
+      "maxHp": 300
+    },
+    {
+      "id": "MYTE",
+      "minHp": 61,
+      "maxHp": 67
+    },
+    {
+      "id": "NIBBIT",
+      "minHp": 42,
+      "maxHp": 46
+    },
+    {
+      "id": "NOISEBOT",
+      "minHp": 18,
+      "maxHp": 23
+    },
+    {
+      "id": "OVICOPTER",
+      "minHp": 124,
+      "maxHp": 130
+    },
+    {
+      "id": "OWL_MAGISTRATE",
+      "minHp": 234,
+      "maxHp": 234
+    },
+    {
+      "id": "PHANTASMAL_GARDENER",
+      "minHp": 26,
+      "maxHp": 31
+    },
+    {
+      "id": "PHROG_PARASITE",
+      "minHp": 61,
+      "maxHp": 64
+    },
+    {
+      "id": "PUNCH_CONSTRUCT",
+      "minHp": 55,
+      "maxHp": 55
+    },
+    {
+      "id": "QUEEN",
+      "minHp": 400,
+      "maxHp": 400
+    },
+    {
+      "id": "ROCKET",
+      "minHp": 199,
+      "maxHp": 199
+    },
+    {
+      "id": "SCROLL_OF_BITING",
+      "minHp": 31,
+      "maxHp": 38
+    },
+    {
+      "id": "SEAPUNK",
+      "minHp": 44,
+      "maxHp": 46
+    },
+    {
+      "id": "SEWER_CLAM",
+      "minHp": 56,
+      "maxHp": 56
+    },
+    {
+      "id": "SHRINKER_BEETLE",
+      "minHp": 38,
+      "maxHp": 40
+    },
+    {
+      "id": "SKULKING_COLONY",
+      "minHp": 70,
+      "maxHp": 70
+    },
+    {
+      "id": "SLIMED_BERSERKER",
+      "minHp": 266,
+      "maxHp": 266
+    },
+    {
+      "id": "SLITHERING_STRANGLER",
+      "minHp": 53,
+      "maxHp": 55
+    },
+    {
+      "id": "SLUDGE_SPINNER",
+      "minHp": 37,
+      "maxHp": 39
+    },
+    {
+      "id": "SLUMBERING_BEETLE",
+      "minHp": 86,
+      "maxHp": 86
+    },
+    {
+      "id": "SNAPPING_JAXFRUIT",
+      "minHp": 31,
+      "maxHp": 33
+    },
+    {
+      "id": "SNEAKY_GREMLIN",
+      "minHp": 10,
+      "maxHp": 14
+    },
+    {
+      "id": "SOUL_FYSH",
+      "minHp": 211,
+      "maxHp": 211
+    },
+    {
+      "id": "SOUL_NEXUS",
+      "minHp": 234,
+      "maxHp": 234
+    },
+    {
+      "id": "SPECTRAL_KNIGHT",
+      "minHp": 93,
+      "maxHp": 93
+    },
+    {
+      "id": "SPINY_TOAD",
+      "minHp": 116,
+      "maxHp": 119
+    },
+    {
+      "id": "STABBOT",
+      "minHp": 18,
+      "maxHp": 23
+    },
+    {
+      "id": "TERROR_EEL",
+      "minHp": 140,
+      "maxHp": 140
+    },
+    {
+      "id": "TEST_SUBJECT",
+      "minHp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "THE_FORGOTTEN",
+      "minHp": 106,
+      "maxHp": 106
+    },
+    {
+      "id": "THE_INSATIABLE",
+      "minHp": 321,
+      "maxHp": 321
+    },
+    {
+      "id": "THE_LOST",
+      "minHp": 93,
+      "maxHp": 93
+    },
+    {
+      "id": "THE_OBSCURA",
+      "minHp": 123,
+      "maxHp": 123
+    },
+    {
+      "id": "THIEVING_HOPPER",
+      "minHp": 79,
+      "maxHp": 79
+    },
+    {
+      "id": "TOADPOLE",
+      "minHp": 21,
+      "maxHp": 25
+    },
+    {
+      "id": "TORCH_HEAD_AMALGAM",
+      "minHp": 199,
+      "maxHp": 199
+    },
+    {
+      "id": "TOUGH_EGG",
+      "minHp": 14,
+      "maxHp": 18
+    },
+    {
+      "id": "TRACKER_RUBY_RAIDER",
+      "minHp": 21,
+      "maxHp": 25
+    },
+    {
+      "id": "TUNNELER",
+      "minHp": 87,
+      "maxHp": 87
+    },
+    {
+      "id": "TURRET_OPERATOR",
+      "minHp": 41,
+      "maxHp": 41
+    },
+    {
+      "id": "TWIG_SLIME_M",
+      "minHp": 26,
+      "maxHp": 28
+    },
+    {
+      "id": "TWIG_SLIME_S",
+      "minHp": 7,
+      "maxHp": 11
+    },
+    {
+      "id": "TWO_TAILED_RAT",
+      "minHp": 17,
+      "maxHp": 21
+    },
+    {
+      "id": "VANTOM",
+      "minHp": 173,
+      "maxHp": 173
+    },
+    {
+      "id": "VINE_SHAMBLER",
+      "minHp": 61,
+      "maxHp": 61
+    },
+    {
+      "id": "WATERFALL_GIANT",
+      "minHp": 240,
+      "maxHp": 240
+    },
+    {
+      "id": "WRIGGLER",
+      "minHp": 17,
+      "maxHp": 21
+    },
+    {
+      "id": "ZAPBOT",
+      "minHp": 18,
+      "maxHp": 23
+    }
+  ]
+}

@@ -198,6 +198,23 @@ internal static class VakuuExecutor
                     break;
                 }
 
+                // Phase C — dual log: run the ONNX PPO advisor alongside the
+                // heuristic PlanScorer and log both. PlanScorer is still
+                // authoritative; this surfaces whether the RL-trained policy
+                // would agree, disagree, or pick a different target. Quietly
+                // skipped when the model isn't embedded in the build.
+                var onnxRec = Sts2CombatAI.Onnx.OnnxAdvisor.Recommend(snapshot);
+                if (onnxRec != null)
+                {
+                    string planChoice = $"{plan.Value.Card.Id}@{plan.Value.TargetIdx}";
+                    string onnxChoice = onnxRec.IsEndTurn
+                        ? "<EndTurn>"
+                        : onnxRec.CardId;
+                    string agree = onnxRec.CardId == plan.Value.Card.Id ? "AGREE" : "diff";
+                    MainFile.Logger.Info(
+                        $"[CombatAI][onnx]   plan={planChoice}  ppo={onnxChoice}  {agree}");
+                }
+
                 // v0.4 — dump the top scoring candidates so we can see *why* a particular card
                 // won. Shows first-score + second-step-best + lookahead total per candidate.
                 // v0.5 — also show which follow-up the depth-2 picked, so combo decisions
