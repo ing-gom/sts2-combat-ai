@@ -143,6 +143,16 @@ public static class Program
         Run("Sim: ApplyCardPlay increments TurnOstyAttacks on OSTY-tagged play", Test_SimTurnOstyAttacks);
         Run("Sim: ApplyCardPlay increments CombatEtherealPlayed on Ethereal play", Test_SimCombatEtherealPlayed);
 
+        // v0.23 Phase 8 / 8b — DamageCapPerHit-aware planner penalties. Tests
+        // assert the breakdown details surface the named penalties under the
+        // documented preconditions. Same code path runs inside ActionPlanner
+        // depth-N beam (PlanScorer.Score → BreakdownInternal), so these
+        // double as regression guards for the depth-N integration.
+        Run("Phase 8: capWaste fires on BLUDGEON (raw 32 vs cap 9 = 3.56x)", Test_Phase8CapWasteOnHeavyOverflow);
+        Run("Phase 8: capWaste does NOT fire on UPPERCUT (raw 13 vs cap 9 = 1.44x)", Test_Phase8CapWasteSkipsMildOverflow);
+        Run("Phase 8b: slowAttrition fires on BARRICADE at HP 28 vs HardToKill", Test_Phase8bSlowAttritionAtLowHp);
+        Run("Phase 8b: slowAttrition does NOT fire at HP 60 (above threshold)", Test_Phase8bSlowAttritionNotAtHealthyHp);
+
         Console.WriteLine();
         Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
         return _failed;
@@ -1967,6 +1977,78 @@ public static class Program
             Effect = CardEffectSummary.Empty,
             IsPlayable = false,   // curses are unplayable by default in STS2
         };
+
+    // v0.23 Phase 8 / 8b — DamageCapPerHit-aware penalties.
+    //
+    // PlanScorer.Score → Breakdown → BreakdownInternal is the entry point
+    // shared by both the 1-step picker and ActionPlanner's depth-N beam
+    // (see ActionPlanner.cs lines 257 / 489 / 526 / 556). Verifying the
+    // penalty appears in Breakdown.Details under the documented conditions
+    // proves the depth-N beam is also using the new weights — no separate
+    // wiring exists.
+
+    private static void Test_Phase8CapWasteOnHeavyOverflow()
+    {
+        // BLUDGEON-class: raw 32 dmg, cost 3, hits 1 vs HardToKill cap 9.
+        // ratio = 32 / 9 = 3.56× — well above DamageCapWasteMinRatio (1.5).
+        var bigAttack = Attack("Bludgeon", cost: 3, damage: 32);
+        var enemyCapped = Enemy(hp: 50, hasAttackIntent: true, intentDamage: 10)
+            with { DamageCapPerHit = 9 };
+        var state = MakeState(playerHp: 80, energy: 3,
+            hand: new() { bigAttack }, enemies: new() { enemyCapped });
+        var bd = PlanScorer.Breakdown(bigAttack, 0, state);
+        Assert(bd.Details.Contains("capWaste"),
+            $"capWaste should fire on raw 32 vs cap 9 (3.56× ratio). Details: {bd.Details}");
+    }
+
+    private static void Test_Phase8CapWasteSkipsMildOverflow()
+    {
+        // UPPERCUT-class: raw 13 dmg, cost 2, hits 1 vs cap 9.
+        // ratio = 13 / 9 = 1.44× — below 1.5× threshold. Skipped intentionally
+        // because mild overflow still leaves room for legitimate setup value
+        // (UPPERCUT applies Weak; the follow-up Vulnerable attack benefits).
+        var midAttack = Attack("Uppercut", cost: 2, damage: 13);
+        var enemyCapped = Enemy(hp: 50, hasAttackIntent: true, intentDamage: 10)
+            with { DamageCapPerHit = 9 };
+        var state = MakeState(playerHp: 80, energy: 3,
+            hand: new() { midAttack }, enemies: new() { enemyCapped });
+        var bd = PlanScorer.Breakdown(midAttack, 0, state);
+        Assert(!bd.Details.Contains("capWaste"),
+            $"capWaste should NOT fire on raw 13 vs cap 9 (1.44× < 1.5× threshold). Details: {bd.Details}");
+    }
+
+    private static void Test_Phase8bSlowAttritionAtLowHp()
+    {
+        // BARRICADE-class cost-3 Power, Player HP 28 (≤ 32 threshold),
+        // any alive enemy with DamageCapPerHit > 0. All three conditions
+        // satisfied → slowAttrition penalty stacks on hpPressurePower.
+        var barricade = Power("Barricade", cost: 3,
+            power: "BarricadePower", amount: 1);
+        var enemyCapped = Enemy(hp: 50, hasAttackIntent: true, intentDamage: 10)
+            with { DamageCapPerHit = 9 };
+        var state = MakeState(playerHp: 28, energy: 3,
+            hand: new() { barricade }, enemies: new() { enemyCapped });
+        var bd = PlanScorer.Breakdown(barricade, -1, state);
+        Assert(bd.Details.Contains("slowAttrition"),
+            $"slowAttrition should fire at HP 28 vs HardToKill. Details: {bd.Details}");
+    }
+
+    private static void Test_Phase8bSlowAttritionNotAtHealthyHp()
+    {
+        // Same Power + same enemy, but Player HP 60 — above 32 threshold,
+        // so hpPressurePower itself doesn't fire and the slowAttrition stack
+        // is gated off. Critical: without this gate, slowAttrition would
+        // mistakenly down-rank Powers in healthy fights against capped foes.
+        var barricade = Power("Barricade", cost: 3,
+            power: "BarricadePower", amount: 1);
+        var enemyCapped = Enemy(hp: 50, hasAttackIntent: true, intentDamage: 10)
+            with { DamageCapPerHit = 9 };
+        var state = MakeState(playerHp: 60, energy: 3,
+            hand: new() { barricade }, enemies: new() { enemyCapped });
+        var bd = PlanScorer.Breakdown(barricade, -1, state);
+        Assert(!bd.Details.Contains("slowAttrition"),
+            $"slowAttrition should NOT fire at HP 60 (> 32 threshold). Details: {bd.Details}");
+    }
 
     private static SimEnemy Enemy(int hp, int block = 0,
         bool hasAttackIntent = false, int intentDamage = 0, int intentRepeats = 1,
