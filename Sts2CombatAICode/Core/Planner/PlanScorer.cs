@@ -611,6 +611,25 @@ internal static class PlanScorer
             {
                 hpPressurePenalty = w.HpPressurePowerPenalty;
                 details.Add($"hpPressurePower(hp{state.PlayerHp})={hpPressurePenalty}");
+
+                // v0.23 Phase 8b — slow-attrition compounding penalty.
+                // When any alive enemy caps incoming damage (HardToKill /
+                // Intangible), the player's per-turn dealt is also bounded,
+                // so a future-payoff Power has even fewer remaining turns to
+                // amortise. Stack a small extra penalty on top of the
+                // HpPressurePower base. Fires only when both conditions hold,
+                // so non-cap fights and full-HP fights are unaffected.
+                bool slowAttritionFight = false;
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (e.IsAlive && e.DamageCapPerHit > 0) { slowAttritionFight = true; break; }
+                }
+                if (slowAttritionFight)
+                {
+                    hpPressurePenalty += w.SlowAttritionPowerExtraPenalty;
+                    details.Add($"slowAttrition={w.SlowAttritionPowerExtraPenalty}");
+                }
             }
 
             // v0.7.33 — Self-damage penalty (Power cards rarely carry HP loss,
@@ -717,13 +736,32 @@ internal static class PlanScorer
             // v0.4 — per-hit damage cap from IntangiblePower (=1) or HardToKillPower (=Amount).
             // Clamp single-target effective per-hit; multi-hit cards still get value because they
             // chip away cap times Hits times instead of one huge hit being wasted.
+            int capWastePenalty = 0;
             if (!isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count)
             {
                 var capTarget = state.Enemies[targetIdx];
                 if (capTarget.DamageCapPerHit > 0 && effectivePerHit > capTarget.DamageCapPerHit)
                 {
+                    int rawPerHit = effectivePerHit;
                     details.Add($"DMG_CAP({capTarget.DamageCapPerHit}):{effectivePerHit}→{capTarget.DamageCapPerHit}");
                     effectivePerHit = capTarget.DamageCapPerHit;
+
+                    // v0.23 Phase 8 — Cap-waste opportunity-cost penalty.
+                    // The clamp above equalizes effective-per-hit so a 32-dmg
+                    // BLUDGEON and a 6-dmg STRIKE both score "9 dmg" against a
+                    // 9-cap Exoskeleton. But BLUDGEON costs 3 energy while STRIKE
+                    // costs 1 — the same 3 energy buys 3× STRIKE for 18-24 dmg.
+                    // Without this penalty the planner treats them as equally
+                    // valued post-clamp. Fires only on cost ≥ 2 (cheap attacks
+                    // can't pivot anyway) and only when raw exceeds cap by
+                    // DamageCapWasteMinRatio (otherwise the loss is marginal).
+                    if (cost >= 2
+                        && rawPerHit >= capTarget.DamageCapPerHit * w.DamageCapWasteMinRatio)
+                    {
+                        int wasted = (rawPerHit - capTarget.DamageCapPerHit) * effHits;
+                        capWastePenalty = -(wasted * w.DamageCapWastePenaltyPerLost);
+                        details.Add($"capWaste(raw{rawPerHit}×{effHits})={capWastePenalty}");
+                    }
                 }
             }
             int effectiveTotal = effectivePerHit * effHits;
@@ -1457,7 +1495,7 @@ internal static class PlanScorer
                 details.Add($"burstChain[{targetIdx}]=+{burstChainBonus}");
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus;
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus + capWastePenalty;
             // v0.9 — Per-energy efficiency diagnostic. Shows BOTH raw dmg/E
             // (Strength/Vigor/Enchant from PreviewValue) AND effective dmg/E
             // (with Vuln/Weak/Echo/X-cost folded in). When they differ

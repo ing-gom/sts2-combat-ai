@@ -276,6 +276,43 @@ internal sealed class PlanScorerWeights
     /// not first-turn (which would fire too eagerly).</summary>
     public int HpPressurePowerThreshold = 32;
 
+    /// <summary>v0.23 (Phase 8) — Per-wasted-damage penalty for cost ≥ 2 attacks
+    /// hitting a target with DamageCapPerHit. The existing scoring already
+    /// clamps effective per-hit to the cap (so a 32-dmg BLUDGEON on a 9-cap
+    /// Exoskeleton scores as if it dealt 9), but that only equalizes its
+    /// score with a 6-dmg STRIKE — it doesn't reflect the OPPORTUNITY COST of
+    /// burning 3 energy on a play whose ceiling is 9 dmg when the same 3
+    /// energy buys 3× STRIKE for 18-24 dmg.
+    ///
+    /// Fires only when raw per-hit damage exceeds the cap by a meaningful
+    /// margin (DamageCapWasteMinRatio). At 1.5× cap (e.g. raw 14+ vs cap 9),
+    /// the card is clearly leaking damage; below that, the cap is more of
+    /// a soft ceiling and the cost is justified.
+    ///
+    /// Magnitude tuned so BLUDGEON (raw 32, cap 9 → waste 23) gets a
+    /// meaningful but not crushing penalty: 23 × 50 = 1150. Big enough to
+    /// drop BLUDGEON below an equivalent cheap-hit chain, small enough that
+    /// a finisher-class cost-3 attack (HEAVY_BLADE +Strength → 18 dmg)
+    /// against a cap-9 enemy still wins when no cheaper alternative exists.</summary>
+    public int DamageCapWastePenaltyPerLost = 50;
+
+    /// <summary>Minimum ratio (raw / cap) above which DamageCapWastePenaltyPerLost
+    /// fires. 1.5 = "raw is at least 1.5× the cap". Below this, cap is a
+    /// soft loss and the card may still be fine. Range (1.0, 3.0); higher
+    /// values mean penalty fires only for VERY wasteful cards.</summary>
+    public double DamageCapWasteMinRatio = 1.5;
+
+    /// <summary>v0.23 Phase 8b — Extra Power penalty when the fight is a
+    /// slow-attrition cap-waste matchup (any alive enemy has DamageCapPerHit
+    /// from HardToKill / Intangible) AND the player is below
+    /// HpPressurePowerThreshold. Stacks on top of HpPressurePowerPenalty.
+    /// Rationale: caps the player's dealt-damage-per-turn, so future-payoff
+    /// Powers compound the throughput shortage that low HP can't survive.
+    /// Tuned small (−150) so it only nudges close picks (ExoskeletonsNormal
+    /// T6: BARRICADE 1271 vs IRON_WAVE 1258, gap 13) and leaves obvious
+    /// Power-required scenarios alone.</summary>
+    public int SlowAttritionPowerExtraPenalty = -150;
+
     /// <summary>Galvanic HP-cost penalty per leak HP (Galvanized power play under
     /// GalvanicPower source). Was inline -100/leak.</summary>
     public int GalvanicPenaltyPerLeakHp = 100;
