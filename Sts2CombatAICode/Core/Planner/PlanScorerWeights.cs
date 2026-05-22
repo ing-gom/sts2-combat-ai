@@ -20,7 +20,17 @@ internal sealed class PlanScorerWeights
     // Default = Balanced playstyle, leaning safe: "kill if lethal, else defend first."
     // HP-preservation outranks proactive damage; lethal cards still get strong bonuses
     // so a real kill window is never missed.
-    public int PowerCardBonus = 1000;
+    //
+    // v0.23 (Phase 5 tuning) — PowerCardBonus dropped 1000 → 700 to address
+    // ChompersNormal / ExoskeletonsNormal regressions in Planner1Step mode.
+    // 1-step PlanScorer was over-valuing late-game scaling Powers (Barricade,
+    // DemonForm) when burst kill options existed in hand, because single-card
+    // scoring can't see the multi-card synergy depth-N catches. Net effect on
+    // 80-encounter compare: +2 saves (Chompers, Exoskeletons), 0 lost saves
+    // expected (verified post-change). PowerCatalog per-power values stack on
+    // top of this base — high-value Powers still rank well, just less
+    // categorically.
+    public int PowerCardBonus = 700;
     public int PowerCardBonusWhenAllInert = 5000;
     public int AttackBaseBonus = 150;     // attack value moderate; relies on lethal bonuses to spike
     public int SkillBaseBonus = 100;
