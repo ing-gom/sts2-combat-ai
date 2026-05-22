@@ -273,6 +273,15 @@ internal static class PlanScorer
         // heavily penalised so attacks win the score comparison.
         bool lethalThisTurn = IsLethalThisTurn(state);
 
+        // v0.23 Phase 5b — Per-enemy burst-window. When lethalThisTurn is
+        // false but the chain can still finish ≥ 1 enemy this turn, the
+        // 1-step picker should still favor that burst sequence over scaling
+        // Powers. Skipped when lethalThisTurn is true (LethalModeNonAttackPenalty
+        // already enforces "attack only" mode there).
+        System.Collections.Generic.HashSet<int> burstKillable =
+            lethalThisTurn ? new() : FindBurstKillableEnemies(state);
+        bool hasBurstWindow = burstKillable.Count > 0;
+
         // v0.6.2 — Status / Curse pile pollution penalty for fetch cards.
         // Anointed / Echo of Fallen / Apotheosis etc. pull a card from the
         // draw or discard pile; if that pile is loaded with Wound / Slime /
@@ -575,6 +584,19 @@ internal static class PlanScorer
             int lethalPenalty = lethalThisTurn ? w.LethalModeNonAttackPenalty : 0;
             if (lethalPenalty != 0) details.Add($"lethalMode={lethalPenalty}");
 
+            // v0.23 Phase 5b — Burst-window defer. A burst window means the
+            // hand can finish at least one enemy this turn via the attack
+            // chain. Cost ≥ 2 Powers claim energy that the chain needs;
+            // defer them. 0-cost / 1-cost Powers exempt (Inflame T1 = cost 1
+            // is the classic 'open-with-Power' play and doesn't compete with
+            // a 3-energy burst). Only fires when not already in lethal mode.
+            int burstDefer = 0;
+            if (hasBurstWindow && cost >= 2)
+            {
+                burstDefer = w.BurstChainPowerDeferPenalty;
+                details.Add($"burstDeferPower={burstDefer}");
+            }
+
             // v0.7.33 — Self-damage penalty (Power cards rarely carry HP loss,
             // but DOOM_SELF Powers and a few Necrobinder Powers do).
             int selfDmgPowerPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn);
@@ -592,7 +614,7 @@ internal static class PlanScorer
             int relicBonusPower = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
 
             int total = baseBonus + effect + costTie + energyBonus + fightCtx + freePlayBonus + galvanicPenalty
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower + burstDefer;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie + freePlayBonus,
                 Effect: effect + energyBonus + fightCtx + galvanicPenalty + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower,
@@ -1405,7 +1427,21 @@ internal static class PlanScorer
             // triggers), IronClub (every-4-cards +1 draw — also fires here).
             int relicBonusAtk = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk;
+            // v0.23 Phase 5b — Burst-chain attack bonus. When the hand can
+            // finish at least one enemy this turn and THIS attack is aimed
+            // at one of those killable enemies, push the score above
+            // alternative Powers/skills. Single-target only — AOE already
+            // gets credit from hitting every enemy and doesn't need this
+            // extra nudge.
+            int burstChainBonus = 0;
+            if (hasBurstWindow && !isAoe && targetIdx >= 0
+                && burstKillable.Contains(targetIdx))
+            {
+                burstChainBonus = w.BurstChainAttackBonus;
+                details.Add($"burstChain[{targetIdx}]=+{burstChainBonus}");
+            }
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus;
             // v0.9 — Per-energy efficiency diagnostic. Shows BOTH raw dmg/E
             // (Strength/Vigor/Enchant from PreviewValue) AND effective dmg/E
             // (with Vuln/Weak/Echo/X-cost folded in). When they differ
@@ -2587,6 +2623,71 @@ internal static class PlanScorer
     /// safety margin). Suicide-lethal is not lethal: the planner should
     /// switch to block-only and finish next turn instead.
     /// </summary>
+    /// v0.23 Phase 5b — Per-enemy burst-window detector. Returns the set of
+    /// enemy indices that the current hand can kill THIS TURN with a greedy
+    /// energy-budgeted attack chain routed to that target. Approximation —
+    /// no Vigor / Lethality first-attack multiplier, no thorns reflect, no
+    /// X-cost / star-cost gating (those are rare in regression cases). The
+    /// 1-step PlanScorer uses this to bias attack scores toward burst chains
+    /// and defer costly Powers when the chain is viable.
+    ///
+    /// Why a separate detector (not reuse IsLethalThisTurn): IsLethalThisTurn
+    /// checks whether the TOTAL chain kills EVERY enemy. Common regression
+    /// case (Chompers, Exoskeletons) has multiple enemies where killing one
+    /// at a time over several turns is the right plan — the all-or-nothing
+    /// lethal check returns false but burst-windows still exist per-enemy.
+    internal static System.Collections.Generic.HashSet<int> FindBurstKillableEnemies(SimState state)
+    {
+        var killable = new System.Collections.Generic.HashSet<int>();
+        if (state.Enemies.Count == 0) return killable;
+        bool playerWeak = state.PlayerWeak > 0;
+
+        for (int ti = 0; ti < state.Enemies.Count; ti++)
+        {
+            var target = state.Enemies[ti];
+            if (!target.IsAlive) continue;
+            int needed = target.Hp + target.Block;
+            if (needed <= 0) continue;
+
+            int energy = state.PlayerEnergy;
+            int totalDamage = 0;
+
+            // Greedy damage-per-energy ordering. Single-target attacks
+            // routed to `target`; AOE damage counts (also hits other enemies
+            // but we only need the per-target sum here).
+            var attacks = state.Hand
+                .Where(c => c.IsAttack && c.IsPlayable && c.Cost >= 0 && c.Cost <= energy)
+                .OrderByDescending(c => OrderingScore(c, energy, 0))
+                .ToList();
+
+            foreach (var atk in attacks)
+            {
+                if (atk.Cost > energy) continue;
+                energy -= atk.Cost;
+                int hits = System.Math.Max(1, atk.Hits);
+                int per = StatusMath.EffectiveAttackDmg(atk.Damage,
+                    state.PlayerStrength, 0,
+                    target.VulnerableAmount > 0, playerWeak);
+                if (target.DamageCapPerHit > 0 && per > target.DamageCapPerHit)
+                    per = target.DamageCapPerHit;
+                int eachTotal = per * hits;
+                eachTotal = StatusMath.ApplyDamageMultipliers(eachTotal, state,
+                    defenderVulnerable: target.VulnerableAmount > 0,
+                    defenderWeak: target.WeakAmount > 0,
+                    lethalityActive: false);
+                if (target.HardenedShellRemaining > 0
+                    && eachTotal > target.HardenedShellRemaining)
+                    eachTotal = target.HardenedShellRemaining;
+                totalDamage += eachTotal;
+                if (totalDamage >= needed) break;  // early-out
+            }
+
+            if (totalDamage >= needed)
+                killable.Add(ti);
+        }
+        return killable;
+    }
+
     private static bool IsLethalThisTurn(SimState state)
     {
         int totalEnemyHp = 0;

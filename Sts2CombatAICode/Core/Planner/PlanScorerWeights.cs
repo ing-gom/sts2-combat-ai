@@ -224,6 +224,26 @@ internal sealed class PlanScorerWeights
     /// Was inline 2500.</summary>
     public int FreePlay0CostPowerBonus = 2500;
 
+    // ─── v0.23 Phase 5b — burst-window detector (single-enemy lethal) ─────────
+    // IsLethalThisTurn covers "kill all enemies this turn" — common in late combat
+    // but misses the more frequent case of "kill at least one enemy this turn"
+    // where a 1-step picker would otherwise prefer a scaling Power (Barricade,
+    // DemonForm) over the multi-card burst chain. These knobs bias scoring when
+    // FindBurstKillableEnemies(state) returns non-empty.
+
+    /// <summary>Bonus added to single-target attacks aimed at an enemy the hand
+    /// can finish this turn (sum of greedy energy-budgeted attack chain meets
+    /// HP+Block). Pushes the chain over alternative Powers/skills when burst
+    /// window detected but full-clear isn't possible.</summary>
+    public int BurstChainAttackBonus = 1500;
+
+    /// <summary>Defer penalty for cost ≥ 2 Power cards when at least one enemy
+    /// is single-turn-killable. 0-cost Powers exempt (Inflame T1 doesn't compete
+    /// with the burst chain for energy). Magnitude tuned to flip a high-value
+    /// scaling Power below a cheap burst attack without breaking saves where
+    /// the Power was the genuinely best play.</summary>
+    public int BurstChainPowerDeferPenalty = -1500;
+
     /// <summary>Galvanic HP-cost penalty per leak HP (Galvanized power play under
     /// GalvanicPower source). Was inline -100/leak.</summary>
     public int GalvanicPenaltyPerLeakHp = 100;
