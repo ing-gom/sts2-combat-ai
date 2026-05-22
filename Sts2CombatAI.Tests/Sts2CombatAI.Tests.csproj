@@ -78,6 +78,7 @@
         <Compile Include="..\Sts2CombatAICode\Core\Planner\SurvivalProjection.cs" Link="Planner\SurvivalProjection.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Planner\WinConditionInference.cs" Link="Planner\WinConditionInference.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Planner\PlanScorer.cs" Link="Planner\PlanScorer.cs" />
+        <Compile Include="..\Sts2CombatAICode\Core\Planner\CopyValueScorer.cs" Link="Planner\CopyValueScorer.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Planner\SmartSelectorLogic.cs" Link="Planner\SmartSelectorLogic.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Planner\SelectorMode.cs" Link="Planner\SelectorMode.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Diagnostics\DecisionLog.cs" Link="Diagnostics\DecisionLog.cs" />

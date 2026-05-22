@@ -153,6 +153,15 @@ public static class Program
         Run("Phase 8b: slowAttrition fires on BARRICADE at HP 28 vs HardToKill", Test_Phase8bSlowAttritionAtLowHp);
         Run("Phase 8b: slowAttrition does NOT fire at HP 60 (above threshold)", Test_Phase8bSlowAttritionNotAtHealthyHp);
 
+        // v0.23 Phase 9b — CopyValueScorer model semantics. Locks in the
+        // per-energy × playability × fight-length scoring so future tuning
+        // doesn't accidentally regress fetch-card decisions (DUAL_WIELD copy
+        // pick, ARMAMENTS upgrade pick) wired through Sts2CombatCore's
+        // PlannerCardSelector.
+        Run("Phase 9b: PlayabilityFactor cost ladder (0->1.0, 1->0.95, 3->0.30)", Test_Phase9bPlayabilityFactorLadder);
+        Run("Phase 9b: TWIN_STRIKE > BLUDGEON copy value (multi-hit cheap > big single)", Test_Phase9bTwinStrikeBeatsBludgeonCopy);
+        Run("Phase 9b: BLUDGEON > STRIKE copy value w/o multi-hit alt (raw dmg dominates)", Test_Phase9bStrikeBeatsBludgeonCopyNoStrength);
+
         Console.WriteLine();
         Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
         return _failed;
@@ -2048,6 +2057,69 @@ public static class Program
         var bd = PlanScorer.Breakdown(barricade, -1, state);
         Assert(!bd.Details.Contains("slowAttrition"),
             $"slowAttrition should NOT fire at HP 60 (> 32 threshold). Details: {bd.Details}");
+    }
+
+    // v0.23 Phase 9b — CopyValueScorer model. Verifies the per-energy ×
+    // playability × fight-length model produces the expected ranking for
+    // representative DUAL_WIELD copy candidates. Sts2CombatCore wires this
+    // into PlannerCardSelector — these tests catch model regressions before
+    // they reach the 80-encounter benchmark.
+
+    private static void Test_Phase9bPlayabilityFactorLadder()
+    {
+        Assert(System.Math.Abs(CopyValueScorer.PlayabilityFactor(0) - 1.00) < 1e-9,
+            $"cost 0 should be 1.00, got {CopyValueScorer.PlayabilityFactor(0)}");
+        Assert(System.Math.Abs(CopyValueScorer.PlayabilityFactor(1) - 0.95) < 1e-9,
+            $"cost 1 should be 0.95, got {CopyValueScorer.PlayabilityFactor(1)}");
+        Assert(System.Math.Abs(CopyValueScorer.PlayabilityFactor(2) - 0.60) < 1e-9,
+            $"cost 2 should be 0.60, got {CopyValueScorer.PlayabilityFactor(2)}");
+        Assert(System.Math.Abs(CopyValueScorer.PlayabilityFactor(3) - 0.30) < 1e-9,
+            $"cost 3 should be 0.30, got {CopyValueScorer.PlayabilityFactor(3)}");
+        Assert(System.Math.Abs(CopyValueScorer.PlayabilityFactor(4) - 0.10) < 1e-9,
+            $"cost 4+ should be 0.10, got {CopyValueScorer.PlayabilityFactor(4)}");
+    }
+
+    private static void Test_Phase9bTwinStrikeBeatsBludgeonCopy()
+    {
+        // Realistic mid-fight Ironclad with Strength +2 (from Inflame): hand
+        // has BLUDGEON (cost 3, 32 dmg single-hit → 34 dmg with Str) and
+        // TWIN_STRIKE (cost 1, 5×2 hits → 7×2 = 14 dmg with Str).
+        // PlanScorer would rank BLUDGEON higher for "play now" because the
+        // raw-damage point bonus dominates. CopyValueScorer should rank
+        // TWIN_STRIKE higher for copy value: 14 × 50 × 0.95 = 665 vs
+        // BLUDGEON's 34 × 50 × 0.30 = 510.
+        var bludgeon = Attack("Bludgeon", cost: 3, damage: 32, hits: 1);
+        var twinStrike = Attack("TwinStrike", cost: 1, damage: 5, hits: 2);
+        var enemy = Enemy(hp: 60, hasAttackIntent: true, intentDamage: 10);
+        var state = MakeState(playerHp: 60, energy: 3,
+            hand: new() { bludgeon, twinStrike }, enemies: new() { enemy })
+            with { PlayerStrength = 2 };
+
+        double bludgeonCopy = CopyValueScorer.Score(bludgeon, 0, state);
+        double twinStrikeCopy = CopyValueScorer.Score(twinStrike, 0, state);
+        Assert(twinStrikeCopy > bludgeonCopy,
+            $"TWIN_STRIKE copy ({twinStrikeCopy:F1}) should outvalue BLUDGEON copy ({bludgeonCopy:F1}) — cost-1 multi-hit with Str buff beats cost-3 single-hit per playability discount");
+    }
+
+    private static void Test_Phase9bStrikeBeatsBludgeonCopyNoStrength()
+    {
+        // No buffs, no multi-hit — pure raw single-hit vs single-hit.
+        // BLUDGEON has 5.3× raw damage advantage (32 vs 6) but takes a 3.17×
+        // playability discount (0.95/0.30). Net: BLUDGEON wins 1.68×. With
+        // the current calibration STRIKE does NOT outscore BLUDGEON in this
+        // case — model intentionally preserves big-attack copies when no
+        // multi-hit alternative exists. Asserts the inverse direction so the
+        // calibration boundary is documented; flip-test guard.
+        var bludgeon = Attack("Bludgeon", cost: 3, damage: 32, hits: 1);
+        var strike = Attack("Strike", cost: 1, damage: 6, hits: 1);
+        var enemy = Enemy(hp: 60, hasAttackIntent: true, intentDamage: 10);
+        var state = MakeState(playerHp: 60, energy: 3,
+            hand: new() { bludgeon, strike }, enemies: new() { enemy });
+
+        double bludgeonCopy = CopyValueScorer.Score(bludgeon, 0, state);
+        double strikeCopy = CopyValueScorer.Score(strike, 0, state);
+        Assert(bludgeonCopy > strikeCopy,
+            $"BLUDGEON copy ({bludgeonCopy:F1}) should outvalue STRIKE copy ({strikeCopy:F1}) — without multi-hit alternative, raw damage advantage exceeds playability discount");
     }
 
     private static SimEnemy Enemy(int hp, int block = 0,
