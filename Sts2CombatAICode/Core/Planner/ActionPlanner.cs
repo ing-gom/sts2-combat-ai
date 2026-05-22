@@ -149,6 +149,33 @@ internal static class ActionPlanner
         catch { /* malformed → keep defaults */ }
     }
 
+    /// <summary>
+    /// v0.23 — Process-stable string hash for use as Monte Carlo / RNG seed.
+    /// .NET 5+ randomizes <c>string.GetHashCode()</c> per process by default
+    /// (security hardening against hash-flooding) — call sites that need
+    /// reproducibility across runs have to opt out.
+    ///
+    /// 32-bit FNV-1a roll. Cheap, deterministic, and collision rate is fine
+    /// for our card-id namespace (< 1200 distinct keys). Does NOT match any
+    /// other hash the game uses; never use this for content lookup.
+    /// </summary>
+    private static int StableStringHash(string? s)
+    {
+        if (string.IsNullOrEmpty(s)) return 0;
+        unchecked
+        {
+            const uint offset = 2166136261u;
+            const uint prime  = 16777619u;
+            uint h = offset;
+            for (int i = 0; i < s.Length; i++)
+            {
+                h ^= s[i];
+                h *= prime;
+            }
+            return (int)h;
+        }
+    }
+
     private static string WhyFiltered(SimCard c, SimState state)
     {
         if (!c.IsPlayable)
@@ -276,7 +303,14 @@ internal static class ActionPlanner
                     // run reproduces. The seed mixes hand size + player HP +
                     // a candidate-specific salt to avoid all first-card
                     // candidates sharing identical samples.
-                    int seed = nextState.Hand.Count * 31 + nextState.PlayerHp + card.Id.GetHashCode();
+                    //
+                    // v0.23 (Phase 6) — Stable string hash. .NET 5+ randomizes
+                    // string.GetHashCode() per process, so the same card.Id
+                    // produced a different seed every run, drifting the Monte
+                    // Carlo samples and producing ±1 win-count noise in the
+                    // PlannerDepthN benchmark across reruns. StableStringHash
+                    // is an FNV-1a 32-bit roll, deterministic across processes.
+                    int seed = nextState.Hand.Count * 31 + nextState.PlayerHp + StableStringHash(card.Id);
                     var rng = new System.Random(seed);
                     int sampleTotal = 0;
                     int sampleCount = 0;
