@@ -597,6 +597,22 @@ internal static class PlanScorer
                 details.Add($"burstDeferPower={burstDefer}");
             }
 
+            // v0.23 Phase 7 — HP-pressure penalty. Future-payoff Powers
+            // (Barricade, Demon Form, Inflame on cost-2 upgrades) need the
+            // player to live multiple more turns to break even. Below
+            // HpPressurePowerThreshold, the player is one bad turn from
+            // dying; spend energy on damage / block now, not on next-turn
+            // carryover. Fires independently of burst-window — caps the
+            // common "no kill this turn but HP critical" gap. Suppressed
+            // in lethal mode (already attack-only via LethalModeNonAttackPenalty).
+            int hpPressurePenalty = 0;
+            if (!lethalThisTurn && cost >= 2
+                && state.PlayerHp <= w.HpPressurePowerThreshold)
+            {
+                hpPressurePenalty = w.HpPressurePowerPenalty;
+                details.Add($"hpPressurePower(hp{state.PlayerHp})={hpPressurePenalty}");
+            }
+
             // v0.7.33 — Self-damage penalty (Power cards rarely carry HP loss,
             // but DOOM_SELF Powers and a few Necrobinder Powers do).
             int selfDmgPowerPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn);
@@ -614,7 +630,7 @@ internal static class PlanScorer
             int relicBonusPower = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
 
             int total = baseBonus + effect + costTie + energyBonus + fightCtx + freePlayBonus + galvanicPenalty
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower + burstDefer;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower + burstDefer + hpPressurePenalty;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie + freePlayBonus,
                 Effect: effect + energyBonus + fightCtx + galvanicPenalty + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower,

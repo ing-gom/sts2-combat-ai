@@ -98,7 +98,18 @@ internal sealed class PlanScorerWeights
     // returns null instead of forcing a play. Lets Vakuu hold energy / cards when there's
     // no meaningful payoff left this turn (e.g. enemies already at 0 HP, no threat to block,
     // no upside left on the remaining hand).
-    public int MinPlayScore = 80;
+    //
+    // v0.23 (Phase 7) — dropped 80 → 0. Discovered via Sts2CombatCore's
+    // planner-benchmark that Planner1Step was playing 5-7 fewer cards per
+    // encounter than Random (17 vs 25 on ExoskeletonsNormal), leaving
+    // ok-but-not-great cards in hand and forfeiting their damage. The 80
+    // floor was tuned for Vakuu auto-play where holding energy across
+    // turns can be valuable, but in single-step scenarios it just throttles
+    // throughput. depth-N already evaluates the multi-card chain so its
+    // throughput was unaffected. Set to 0 so any positive-score card plays
+    // (PlanScorer already returns -10000 for Curse and large negatives for
+    // WastedAttack / WastedBlock — those still get filtered).
+    public int MinPlayScore = 0;
 
     // v0.2.6 — Power card context (fight-length heuristic).
     // Short fight (low total enemy HP) → Powers don't have time to pay off.
@@ -243,6 +254,27 @@ internal sealed class PlanScorerWeights
     /// scaling Power below a cheap burst attack without breaking saves where
     /// the Power was the genuinely best play.</summary>
     public int BurstChainPowerDeferPenalty = -1500;
+
+    /// <summary>v0.23 (Phase 7) — HP-pressure penalty on cost ≥ 2 Power cards.
+    /// When Player HP / MaxHp ≤ HpPressurePowerThreshold, future-payoff Power
+    /// plays (Barricade, Demon Form, etc.) lose value because the player may
+    /// not survive long enough to collect the carryover. Fires independently
+    /// of burst-window: relevant for the common "no kill this turn, but
+    /// player is taking heavy damage" mid-fight pattern.
+    ///
+    /// Discovered via ExoskeletonsNormal T6 trace (Sts2CombatCore compare,
+    /// 2026-05-22): BARRICADE score 2771 vs IRON_WAVE 1258 at Player HP
+    /// 28/80 = 35%. No burst window → burst-defer didn't fire → Power
+    /// kept its full score even though the player died next turn before
+    /// Barricade's block-carry could pay off.</summary>
+    public int HpPressurePowerPenalty = -1500;
+
+    /// <summary>Absolute HP threshold below which HpPressurePowerPenalty fires.
+    /// SimState doesn't carry MaxHp so we use a flat HP value — chosen at 32
+    /// to approximate "below 40% of an 80-MaxHp Ironclad" while still firing
+    /// on the Silent/Necrobinder 70 MaxHp class. Mid-fight pressure threshold,
+    /// not first-turn (which would fire too eagerly).</summary>
+    public int HpPressurePowerThreshold = 32;
 
     /// <summary>Galvanic HP-cost penalty per leak HP (Galvanized power play under
     /// GalvanicPower source). Was inline -100/leak.</summary>
