@@ -32,6 +32,17 @@ internal sealed class PlanScorerWeights
     // categorically.
     public int PowerCardBonus = 700;
     public int PowerCardBonusWhenAllInert = 5000;
+    // Sleeping-enemy Power-card bonus. When any alive enemy carries
+    // AsleepPower or SlumberPower (Lagavulin Matriarch, Slumbering Beetle),
+    // the player gets free turns where setup buffs (Barricade, Demon Form,
+    // Inflame) accrue value without taking retaliation. The 1-step scorer
+    // already rates these cards highly via PowerCatalog, but the depth-N
+    // beam's 2-step lookahead under-weighs the multi-turn block-carry +
+    // strength-scaling payoff (sleep phase is 5+ turns, well past horizon).
+    // This explicit bonus surfaces the future value at scoring time so the
+    // beam keeps the Power card in its top-K candidates. P1 already wins
+    // these fights via single-card scoring; this lever only nudges depth-N.
+    public int SleepingEnemyPowerBonus = 500;
     public int AttackBaseBonus = 150;     // attack value moderate; relies on lethal bonuses to spike
     public int SkillBaseBonus = 100;
     public int CostMultiplier = 30;

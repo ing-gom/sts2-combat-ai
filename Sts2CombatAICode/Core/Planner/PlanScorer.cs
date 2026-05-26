@@ -632,6 +632,33 @@ internal static class PlanScorer
                 }
             }
 
+            // Sleeping-enemy Power bonus. AsleepPower (Lagavulin) and
+            // SlumberPower (Slumbering Beetle) give the player free
+            // turns — setup buffs accrue without retaliation. PlanScorer's
+            // single-step view already rates Barricade / Demon Form high,
+            // but the depth-N beam's 2-step lookahead under-weighs the
+            // multi-turn carry (block carry, +Strength every turn) because
+            // sleep phases run 5+ turns past the horizon. Explicit bonus
+            // surfaces the future value at scoring time. Suppressed in
+            // lethal mode (already attack-only via LethalModeNonAttackPenalty).
+            int sleepingEnemyBonus = 0;
+            if (!lethalThisTurn)
+            {
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (!e.IsAlive) continue;
+                    bool asleep = (e.Powers.TryGetValue("AsleepPower", out var ap) && ap > 0)
+                               || (e.Powers.TryGetValue("SlumberPower", out var sp) && sp > 0);
+                    if (asleep)
+                    {
+                        sleepingEnemyBonus = w.SleepingEnemyPowerBonus;
+                        details.Add($"sleepingEnemy={sleepingEnemyBonus}");
+                        break;
+                    }
+                }
+            }
+
             // v0.7.33 — Self-damage penalty (Power cards rarely carry HP loss,
             // but DOOM_SELF Powers and a few Necrobinder Powers do).
             int selfDmgPowerPenalty = ComputeSelfDamagePenalty(card, state, lethalThisTurn);
@@ -649,7 +676,7 @@ internal static class PlanScorer
             int relicBonusPower = RelicCatalog.ComputeCardBonus(card, targetIdx, state, w, details);
 
             int total = baseBonus + effect + costTie + energyBonus + fightCtx + freePlayBonus + galvanicPenalty
-                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower + burstDefer + hpPressurePenalty;
+                        + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + selfDmgPowerPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower + burstDefer + hpPressurePenalty + sleepingEnemyBonus;
             return new ScoreBreakdown(total, "Power",
                 Base: baseBonus + costTie + freePlayBonus,
                 Effect: effect + energyBonus + fightCtx + galvanicPenalty + powerOrbBonus + tierOrdering + tierCond + buildBonus + powerAmpBonus + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + relicBonusPower,
