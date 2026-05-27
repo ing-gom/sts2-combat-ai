@@ -328,7 +328,12 @@ internal static class PlanScorer
         // throughput value feeds DeckThroughput.CoreCardBonusFor below
         // without a second compute.
         var throughput = DeckThroughput.Compute(state);
-        int ctxBonus = CombatContext.ContextBonus(card, combatProfile, throughput);
+        // 2026-05-27 C-path — finishers identified early so their total
+        // budget can gate the ContextBonus Boss-attrition overlay. Result
+        // is re-used by FinisherBonus below (no second Identify call).
+        var finishers = FinisherIdentifier.Identify(state);
+        int ctxBonus = CombatContext.ContextBonus(card, combatProfile,
+            throughput, finishers.TotalBudget);
         if (ctxBonus != 0)
         {
             comboBonus += ctxBonus;
@@ -410,8 +415,8 @@ internal static class PlanScorer
         // v0.7.61 — Finisher recognition. Identify top-3 cards in deck by
         // estimated effective damage (state-aware). Bonus / penalty depends
         // on whether NOW is the time to deploy the finisher (Cleanup/Burst
-        // = yes, Setup/Opening = hold).
-        var finishers = FinisherIdentifier.Identify(state);
+        // = yes, Setup/Opening = hold). (finishers computed above for
+        // the C-path ContextBonus overlay.)
         int finisherBonus = FinisherIdentifier.FinisherBonus(card, finishers, planStage, raceProj);
         if (finisherBonus != 0)
         {
