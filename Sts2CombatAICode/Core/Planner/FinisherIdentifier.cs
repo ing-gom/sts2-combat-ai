@@ -50,17 +50,10 @@ internal static class FinisherIdentifier
     {
         public readonly List<Finisher> TopFinishers;
         public readonly HashSet<string> FinisherIds;
-        // 2026-05-27 C-path — total burst budget across top-K finishers
-        // (state-resolved damage, post-Vuln/Str/Weak). Used by
-        // CombatContext.ContextBonus to gate the Boss-attrition lean
-        // independently of DPT: a deck can have moderate sustained DPT
-        // yet still lack the burst budget to close a Boss in a window.
-        public readonly int TotalBudget;
-        public Result(List<Finisher> top, HashSet<string> ids, int totalBudget)
+        public Result(List<Finisher> top, HashSet<string> ids)
         {
             TopFinishers = top;
             FinisherIds = ids;
-            TotalBudget = totalBudget;
         }
     }
 
@@ -79,8 +72,7 @@ internal static class FinisherIdentifier
             .ToList();
 
         var ids = new HashSet<string>(top.Select(f => f.CardId));
-        int totalBudget = top.Sum(f => f.EstimatedDamage);
-        return new Result(top, ids, totalBudget);
+        return new Result(top, ids);
     }
 
     private static void Scan(IReadOnlyList<SimCard> pile, SimState state,

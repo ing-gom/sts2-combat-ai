@@ -111,8 +111,7 @@ internal static class CombatContext
     /// without overriding direct effect scoring.
     /// </summary>
     public static int ContextBonus(SimCard card, CombatProfile profile,
-                                    DeckThroughput.Profile? throughput = null,
-                                    int? finisherBudget = null)
+                                    DeckThroughput.Profile? throughput = null)
     {
         if (card.IsCurseOrStatus) return 0;
         var axes = card.Axes;
@@ -204,23 +203,6 @@ internal static class CombatContext
             if (card.IsPower) bonus += 40;
             if (axes.Contains("SCALING")) bonus += 40;
             if (card.Block > 0) bonus += 30;
-
-            // 2026-05-27 C-path — finisher budget overlay. When the deck
-            // also lacks burst budget (top-K finisher sum below the
-            // single-Boss-window threshold), the planner has no realistic
-            // path to close the Boss in a couple of turns. Stack extra
-            // attrition lean: prioritize Block accumulation and SCALING
-            // setup that turns the long fight winnable instead of betting
-            // on a finisher window that won't materialize.
-            if (finisherBudget.HasValue
-                && finisherBudget.Value < FinisherBudgetThreshold)
-            {
-                if (card.Block > 0) bonus += 20;
-                if (axes.Contains("SCALING")) bonus += 20;
-                // Powers already +40 above; another +10 nudges them past
-                // mid-fight burst attacks when the burst can't finish.
-                if (card.IsPower) bonus += 10;
-            }
         }
 
         return bonus;
@@ -233,12 +215,4 @@ internal static class CombatContext
     /// bias-sweep (sampled deck stays below). Anything in this range
     /// gets the attrition lean.
     private const int WeakDeckDptThreshold = 30;
-
-    /// Threshold for the C-path finisher-budget Boss-attrition overlay.
-    /// Total top-K finisher damage below this means the deck cannot close
-    /// a Boss inside a single burst window (typical Boss HP 150-250, so
-    /// 80 represents "less than ~half a kill in one wave"). Tuned to
-    /// avoid firing on strong decks (Whirlwind / KinglyPunch finisher
-    /// stacks easily push budget past 80).
-    private const int FinisherBudgetThreshold = 80;
 }
