@@ -133,11 +133,16 @@ internal sealed class SimStateAdapter
 
     private static int MapIntent(SimEnemy e)
     {
+        // 2026-05-27 B-train: mirror Episode.ResolveIntent priority and
+        // Python _INTENT_TYPE_TO_INT dict exactly. Attack > Defend > Buff
+        // > Debuff > Heal > Hidden; Summon falls through to 0 (Python
+        // dict miss on the "Summon" key).
         if (e.HasAttackIntent) return 1;
-        if (e.HasDebuffIntent) return 4;
+        if (e.HasDefendIntent) return 2;
         if (e.HasBuffIntent) return 3;
+        if (e.HasDebuffIntent) return 4;
         if (e.HasHealIntent) return 5;
-        if (e.HasSummonIntent) return 3;
+        if (e.IsHidden) return 7;
         return 0;
     }
 }
