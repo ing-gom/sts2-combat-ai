@@ -12,7 +12,7 @@ namespace Sts2CombatAI.Onnx;
 /// RL-trained policy would agree with the heuristic.
 internal static class OnnxAdvisor
 {
-    public sealed record Recommendation(int CardIndex, string CardId, bool IsEndTurn, string Reason);
+    public sealed record Recommendation(int CardIndex, string CardId, bool IsEndTurn, string Reason, int TargetIndex = -1);
 
     private static OnnxPolicy? _policy;
     private static SimStateAdapter? _adapter;
@@ -74,12 +74,31 @@ internal static class OnnxAdvisor
             var mask = _adapter.BuildMask(state, _policy.ActionCount);
             int action = _policy.PredictAction(features, mask);
             if (action < 0) return null;
+
+            // 2026-05-27 F (action-space expansion): pick decode layout
+            // based on the trained ONNX's output dim.
+            int expandedEndTurn = _adapter.MaxHandSize * _adapter.MaxEnemies;
+            bool isExpanded = _policy.ActionCount == expandedEndTurn + 1;
+
+            if (isExpanded)
+            {
+                if (action == expandedEndTurn)
+                    return new Recommendation(-1, "<EndTurn>", true, "ppo-EndTurn");
+                int cardIdx = action / _adapter.MaxEnemies;
+                int tgtIdx = action % _adapter.MaxEnemies;
+                if (cardIdx >= state.Hand.Count)
+                    return new Recommendation(cardIdx, "<OOB>", false, "ppo-out-of-hand", tgtIdx);
+                var card = state.Hand[cardIdx];
+                return new Recommendation(cardIdx, card.Id, false, "ppo-argmax", tgtIdx);
+            }
+
+            // Legacy card-only layout.
             if (action == _adapter.MaxHandSize)
                 return new Recommendation(-1, "<EndTurn>", true, "ppo-EndTurn");
             if (action >= state.Hand.Count)
                 return new Recommendation(action, "<OOB>", false, "ppo-out-of-hand");
-            var card = state.Hand[action];
-            return new Recommendation(action, card.Id, false, "ppo-argmax");
+            var legacyCard = state.Hand[action];
+            return new Recommendation(action, legacyCard.Id, false, "ppo-argmax");
         }
         catch (Exception ex)
         {

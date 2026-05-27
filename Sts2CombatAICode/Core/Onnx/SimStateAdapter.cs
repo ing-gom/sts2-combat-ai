@@ -114,20 +114,56 @@ internal sealed class SimStateAdapter
 
     public bool[] BuildMask(SimState state, int actionCount)
     {
+        // 2026-05-27 F (action-space expansion): supports both layouts —
+        //   actionCount == MaxHandSize + 1  -> legacy Discrete(11), card-only
+        //   actionCount == MaxHandSize * MaxEnemies + 1 -> new Discrete(41),
+        //                                                  (card, target) flat
+        // Picks the layout from the trained ONNX's output dim so the same
+        // adapter works for both checkpoint families during rollout.
         var mask = new bool[actionCount];
-        bool anyAlive = false;
-        foreach (var e in state.Enemies) if (e.Hp > 0) { anyAlive = true; break; }
+        int expandedEndTurn = MaxHandSize * MaxEnemies;
+        bool isExpanded = actionCount == expandedEndTurn + 1;
 
-        for (int i = 0; i < MaxHandSize && i < actionCount; i++)
+        if (!isExpanded)
+        {
+            // Legacy card-only mask.
+            bool anyAlive = false;
+            foreach (var e in state.Enemies) if (e.Hp > 0) { anyAlive = true; break; }
+            for (int i = 0; i < MaxHandSize && i < actionCount; i++)
+            {
+                if (i >= state.Hand.Count) continue;
+                var c = state.Hand[i];
+                if (c.Cost > state.PlayerEnergy) continue;
+                if (c.IsAttack && !anyAlive) continue;
+                mask[i] = true;
+            }
+            if (MaxHandSize < actionCount) mask[MaxHandSize] = true;
+            return mask;
+        }
+
+        // Expanded (card, target) mask. Matches env.py action_masks:
+        //   - targeted card: only alive enemy slots are valid
+        //   - non-targeted card: only target slot 0 is valid (mirrors the
+        //     "don't waste policy capacity on 4 identical actions" rule)
+        for (int i = 0; i < MaxHandSize; i++)
         {
             if (i >= state.Hand.Count) continue;
             var c = state.Hand[i];
             if (c.Cost > state.PlayerEnergy) continue;
-            // Treat attacks as requiring an enemy target; skills/powers default valid.
-            if (c.IsAttack && !anyAlive) continue;
-            mask[i] = true;
+            int baseIdx = i * MaxEnemies;
+            if (c.IsAttack)
+            {
+                for (int j = 0; j < MaxEnemies && j < state.Enemies.Count; j++)
+                {
+                    if (state.Enemies[j].Hp > 0) mask[baseIdx + j] = true;
+                }
+            }
+            else
+            {
+                mask[baseIdx + 0] = true;
+            }
         }
-        if (MaxHandSize < actionCount) mask[MaxHandSize] = true; // EndTurn
+        mask[expandedEndTurn] = true;
         return mask;
     }
 
