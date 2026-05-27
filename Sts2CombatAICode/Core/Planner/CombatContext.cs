@@ -36,10 +36,18 @@ internal static class CombatContext
         public readonly bool HasArtifactEnemy;      // enemy with ArtifactAmount > 0 (blocks debuffs)
         public readonly bool HasThornsEnemy;        // enemy with ThornsAmount > 0
         public readonly int AliveEnemies;
+        // B5a follow-up — Boss encounter detection. SimEnemy.IsBoss is set
+        // by the Snapshotter (boss-room top creature with the highest HP);
+        // PlanScorer had no Boss-aware scoring path before this. Adds a
+        // "weak-deck-vs-Boss should play defensive attrition" branch in
+        // ContextBonus; the strong-deck baseline gets unchanged scoring
+        // (the bonus only triggers when the deck's expected damage budget
+        // can't outpace the Boss).
+        public readonly bool HasBoss;
 
         public CombatProfile(bool multiHit, bool bigHit, bool aoe, bool buffing,
                               bool longFight, bool shortFight, bool artifact,
-                              bool thorns, int alive)
+                              bool thorns, int alive, bool hasBoss)
         {
             HasMultiHitAttacker = multiHit;
             HasSingleBigHitter = bigHit;
@@ -50,6 +58,7 @@ internal static class CombatContext
             HasArtifactEnemy = artifact;
             HasThornsEnemy = thorns;
             AliveEnemies = alive;
+            HasBoss = hasBoss;
         }
     }
 
@@ -57,6 +66,7 @@ internal static class CombatContext
     {
         bool multiHit = false, bigHit = false, buffing = false;
         bool artifact = false, thorns = false;
+        bool hasBoss = false;
         int alive = 0;
         foreach (var e in state.Enemies)
         {
@@ -68,6 +78,10 @@ internal static class CombatContext
             if (e.HasBuffIntent) buffing = true;
             if (e.ArtifactAmount > 0) artifact = true;
             if (e.ThornsAmount > 0) thorns = true;
+            // B5a follow-up — any Boss in the roster flips the flag.
+            // Snapshotter set IsBoss on the boss-room top creature (one
+            // per encounter at most), so the flag is effectively per-fight.
+            if (e.IsBoss) hasBoss = true;
         }
         int turns = RemainingTurnsEstimator.From(state);
         return new CombatProfile(
@@ -79,7 +93,8 @@ internal static class CombatContext
             shortFight: turns <= 2,
             artifact: artifact,
             thorns: thorns,
-            alive: alive);
+            alive: alive,
+            hasBoss: hasBoss);
     }
 
     /// <summary>
@@ -156,6 +171,31 @@ internal static class CombatContext
         {
             if (card.IsAttack && card.TotalDamage >= 10) bonus += 50;  // preempt kill bias
             if (card.Block >= 8) bonus += 50;
+        }
+
+        // B5a follow-up — Boss encounter biases. The B5a-tree planner-
+        // bias-sweep showed PlanScorer drops to 22% on Boss with a sampled
+        // deck vs 66% on the strong deck (44pp gap). The strong deck's
+        // multi-turn burst combos (Inflame→DemonForm→Whirlwind) aren't
+        // present on a random sample, so the Boss-side rule has to lean
+        // toward attrition: defend first, scale gradually, conserve cycles.
+        // Magnitudes deliberately small (≤80) so they nudge ties without
+        // overriding direct effect scoring or breaking the strong-deck
+        // baseline (planner-benchmark guard).
+        if (profile.HasBoss)
+        {
+            // Boss fights are long and HP-heavy. Powers/scaling pay off
+            // over many turns; cantrip block stays useful for the whole
+            // duration. Mirror the IsLongFight bias but keyed off Boss
+            // identity rather than turn-count estimation (RemainingTurns
+            // can underestimate Boss fights when the burst-window check
+            // says "lethal soon" but the Boss has 50+ HP left).
+            if (card.IsPower) bonus += 40;
+            if (axes.Contains("SCALING")) bonus += 40;
+            if (card.Block > 0) bonus += 30;
+            // Boss + single big hitter (most Boss fights) → block reads
+            // shouldn't be discouraged. The HasSingleBigHitter branch
+            // above already gives +80, this is additive.
         }
 
         return bonus;
