@@ -60,12 +60,18 @@ internal sealed class SimStateAdapter
     {
         var v = new float[FeatureDim];
         int j = 0;
-        v[j++] = 0; // turn — SimState has no turn count; not critical for argmax
-        v[j++] = 1f; // currentSideIsPlayer
+        // 2026-05-27 — all six player fields now sourced from SimState
+        // proper, matching the layout `Sts2CombatEnv._encode` produces from
+        // `Episode.BuildObservation`. Previously turn/maxHp/maxEnergy were
+        // 0 or duplicated from current values, which silently broke ONNX
+        // inference against any model trained on the Python encoder. See
+        // docs/hybrid-boss-debug.md in sts2-combat-core for the full diff.
+        v[j++] = state.Turn;
+        v[j++] = 1f; // currentSideIsPlayer (Snapshotter only fires on player turn)
         v[j++] = state.PlayerHp;
-        v[j++] = state.PlayerHp; // pMaxHp — SimState doesn't track separately
+        v[j++] = state.PlayerMaxHp;
         v[j++] = state.PlayerEnergy;
-        v[j++] = state.PlayerEnergy; // playerMaxEnergy — best guess
+        v[j++] = state.PlayerMaxEnergy;
 
         for (int i = 0; i < MaxEnemies; i++)
         {
@@ -73,7 +79,7 @@ internal sealed class SimStateAdapter
             {
                 var e = state.Enemies[i];
                 v[j++] = e.Hp;
-                v[j++] = e.Hp; // SimEnemy has no MaxHp
+                v[j++] = e.MaxHp;
                 v[j++] = e.Block;
                 v[j++] = e.Hp > 0 ? 1f : 0f;
                 v[j++] = MapIntent(e);
@@ -100,10 +106,9 @@ internal sealed class SimStateAdapter
             }
         }
 
-        // SimState pile counts — best effort
         v[j++] = state.DrawPile?.Count ?? 0;
         v[j++] = state.DiscardPile?.Count ?? 0;
-        v[j++] = 0; // exhaust — SimState doesn't track
+        v[j++] = state.ExhaustPileCount;
         return v;
     }
 

@@ -14,6 +14,10 @@ internal sealed record SimEnemy
     public required int Block { get; init; }
     public required int IntentDamage { get; init; }
     public required int IntentRepeats { get; init; }
+    // Encoder-parity field (added 2026-05-27): SimStateAdapter previously
+    // emitted Hp for both current and max because SimEnemy didn't track
+    // MaxHp. See docs/hybrid-boss-debug.md (sts2-combat-core repo).
+    public int MaxHp { get; init; }
     // Nullable for testability — live snapshotter always provides a real Creature.
     public Creature? SourceRef { get; init; }
 

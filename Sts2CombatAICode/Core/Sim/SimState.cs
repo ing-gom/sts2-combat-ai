@@ -18,6 +18,16 @@ internal sealed record SimState
     public required int PlayerEnergy { get; init; }
     public required List<SimEnemy> Enemies { get; init; }
     public required List<SimCard> Hand { get; init; }
+    // Encoder-parity fields (added 2026-05-27): SimStateAdapter previously
+    // hardcoded 0 / PlayerHp / PlayerEnergy for these because SimState
+    // didn't carry them, which caused the ONNX advisor in OnnxAdvisor.Recommend
+    // to score a mis-encoded observation vs the Sts2CombatEnv layout the
+    // model was trained on. See docs/hybrid-boss-debug.md in the
+    // sts2-combat-core repo for the full diff and root-cause writeup.
+    public int Turn { get; init; }
+    public int PlayerMaxHp { get; init; }
+    public int PlayerMaxEnergy { get; init; }
+    public int ExhaustPileCount { get; init; }
 
     /// <summary>
     /// v0.7.2 — Player character entry id. STS2 has 5 characters:

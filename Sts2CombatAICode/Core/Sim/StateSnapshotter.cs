@@ -43,6 +43,18 @@ internal static class StateSnapshotter
             int hp = (int)(CombatReflection.CreatureHpField?.GetValue(creature) ?? 0);
             int block = (int)(CombatReflection.CreatureBlockField?.GetValue(creature) ?? 0);
             int energy = (int)(CombatReflection.PcsEnergyField?.GetValue(pcs) ?? 0);
+            // Encoder-parity additions (2026-05-27): SimStateAdapter needs
+            // these so the obs vector matches what Sts2CombatEnv._encode
+            // emits. Snapshot once here; SimState carries them through to
+            // the Encode call. See docs/hybrid-boss-debug.md.
+            int maxHp = (int)(CombatReflection.CreatureMaxHpField?.GetValue(creature) ?? hp);
+            // MaxEnergy: PlayerCombatState exposes it via the publicizer
+            // (mirror of pcs.MaxEnergy in BuildObservation). Try direct
+            // property access; fall back to current energy when the field
+            // isn't reachable (mod-side reflection variant).
+            int maxEnergy = energy;
+            try { maxEnergy = (int)pcs.GetType().GetProperty("MaxEnergy")?.GetValue(pcs)!; }
+            catch { /* fall back to current energy */ }
 
             int playerStr = CombatReflection.GetPowerAmount(creature, "StrengthPower");
             int playerDex = CombatReflection.GetPowerAmount(creature, "DexterityPower");
@@ -526,6 +538,11 @@ internal static class StateSnapshotter
                 PlayerEnergy = energy,
                 Enemies = enemies,
                 Hand = hand,
+                // Encoder-parity fields (snapshot here so SimStateAdapter
+                // can emit the same numbers Sts2CombatEnv._encode does).
+                PlayerMaxHp = maxHp,
+                PlayerMaxEnergy = maxEnergy,
+                ExhaustPileCount = exhaustPileSize,
                 CharacterId = characterId,
                 PlayerStrength = playerStr,
                 PlayerDexterity = playerDex,
@@ -916,6 +933,9 @@ internal static class StateSnapshotter
         {
             Hp = hp,
             Block = block,
+            // Encoder-parity (2026-05-27): SimEnemy now carries MaxHp so
+            // SimStateAdapter can emit it instead of duplicating Hp.
+            MaxHp = (int)(CombatReflection.CreatureMaxHpField?.GetValue(enemy) ?? hp),
             IntentDamage = totalDmg,
             IntentRepeats = 1, // already aggregated
             SourceRef = enemy,
