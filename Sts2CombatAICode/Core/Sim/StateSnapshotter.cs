@@ -540,6 +540,12 @@ internal static class StateSnapshotter
                 Hand = hand,
                 // Encoder-parity fields (snapshot here so SimStateAdapter
                 // can emit the same numbers Sts2CombatEnv._encode does).
+                // 2026-05-27 — Turn pulled from cs.RoundNumber so the obs
+                // vector's index 0 (turn) matches Episode.BuildObservation
+                // instead of always emitting 0. RoundNumber is 1-based
+                // (combat starts at 1); Episode._turn is 0-based (Reset
+                // sets it to 0, ++ on each EndTurn). Subtract 1 to align.
+                Turn = System.Math.Max(0, cs.RoundNumber - 1),
                 PlayerMaxHp = maxHp,
                 PlayerMaxEnergy = maxEnergy,
                 ExhaustPileCount = exhaustPileSize,
