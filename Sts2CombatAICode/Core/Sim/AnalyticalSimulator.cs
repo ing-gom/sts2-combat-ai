@@ -71,6 +71,16 @@ internal static class AnalyticalSimulator
         int playedIdx = newHand.FindIndex(c => c == card);
         if (playedIdx >= 0) newHand.RemoveAt(playedIdx);
 
+        // 2026-05-28 MCTS-P0 — make a mutable DiscardPile copy so the
+        // played card lands in the actual list when it doesn't exhaust.
+        // Previously only DiscardPileSize (int) tracked the change, so
+        // a downstream simulator-parity check saw mod-side
+        // DiscardPile.Count stuck at the pre-play value while sts2.dll
+        // post-play snapshot already moved the card. Mirrors hand: a
+        // fresh list per call, copy of the cloned tail, plus the played
+        // card at the end (record value equality preserves identity).
+        var newDiscardPile = new List<SimCard>(next.DiscardPile ?? new List<SimCard>());
+
         // 3. Apply card effects
         int newPlayerStr = next.PlayerStrength;
         int newPlayerDex = next.PlayerDexterity;
@@ -699,8 +709,29 @@ internal static class AnalyticalSimulator
         // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
         // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
         // a downstream card sees reflects the realistic pile sizes including this card.
-        if (!card.IsExhaust)
+        // 2026-05-28 MCTS-P0 — also push into newDiscardPile (actual list) so
+        // SimState.DiscardPile.Count and DiscardPileSize stay in sync. When the
+        // card exhausts, bump ExhaustPileCount instead. Power cards skip both
+        // discard AND exhaust paths: sts2.dll moves them to a hidden PowerPile
+        // (the effect persists as a Creature.Power, the card itself leaves play
+        // entirely). Previously mod sim sent them to discard, which produced
+        // 100% divergence on every Power card in the parity probe (76/76).
+        int newExhaustPileCount = next.ExhaustPileCount;
+        if (card.IsPower)
+        {
+            // Power moves to PowerPile (untracked in SimState — the Power
+            // catalog stack now lives on PlayerPowers / PlayerStrength etc.).
+            // No discard/exhaust counter update.
+        }
+        else if (!card.IsExhaust)
+        {
             discardAfter += 1;
+            newDiscardPile.Add(card);
+        }
+        else
+        {
+            newExhaustPileCount += 1;
+        }
 
         // v0.7.85 — AfterimagePower: gain N block on every card played (including
         // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
@@ -977,6 +1008,11 @@ internal static class AnalyticalSimulator
             Hand = newHand,
             DrawPileSize = drawPileAfter,
             DiscardPileSize = discardAfter,
+            // 2026-05-28 MCTS-P0 — DiscardPile list + ExhaustPileCount
+            // propagated alongside the size counters so simulator-parity
+            // audit sees the played card in mod sim's post-play state.
+            DiscardPile = newDiscardPile,
+            ExhaustPileCount = newExhaustPileCount,
             // v0.9 — propagate per-target attack counter for depth-N forge math.
             TurnAttacksByTargetIdx = newTurnAttacksByTgt,
             // v0.9 — propagate updated SB count so a second Forge in the
