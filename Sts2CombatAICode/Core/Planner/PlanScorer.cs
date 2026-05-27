@@ -323,7 +323,12 @@ internal static class PlanScorer
         // thorns / buffing) and award per-card bonuses for cards that match
         // the encounter shape. Modest magnitudes (50-150).
         var combatProfile = CombatContext.Profile(state);
-        int ctxBonus = CombatContext.ContextBonus(card, combatProfile);
+        // B-2: throughput is needed early so CombatContext's Boss
+        // attrition branch can gate on the weak-deck flag. The same
+        // throughput value feeds DeckThroughput.CoreCardBonusFor below
+        // without a second compute.
+        var throughput = DeckThroughput.Compute(state);
+        int ctxBonus = CombatContext.ContextBonus(card, combatProfile, throughput);
         if (ctxBonus != 0)
         {
             comboBonus += ctxBonus;
@@ -347,7 +352,7 @@ internal static class PlanScorer
         // v0.7.55 — Deck throughput core-card bonus. Highly-efficient cards
         // (top-3 attackers / defenders by per-energy ratio) get an extra
         // nudge so the AI prefers them over mediocre filler.
-        var throughput = DeckThroughput.Compute(state);
+        // (throughput computed above for the B-2 weak-deck gate)
         int coreBonus = DeckThroughput.CoreCardBonusFor(card, throughput);
         if (coreBonus != 0)
         {

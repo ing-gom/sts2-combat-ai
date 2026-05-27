@@ -102,10 +102,16 @@ internal static class CombatContext
     /// and biases toward cards that are particularly effective for THIS
     /// encounter type.
     ///
+    /// `throughput` is the deck's overall damage / cycling profile from
+    /// `DeckThroughput.Compute`. Used to gate the Boss conservative bonus
+    /// so strong decks (high AvgDamagePerTurn) don't lose finisher
+    /// priority on Boss fights — only weak decks get the attrition lean.
+    ///
     /// Magnitudes intentionally modest (30-150 points) so they nudge ties
     /// without overriding direct effect scoring.
     /// </summary>
-    public static int ContextBonus(SimCard card, CombatProfile profile)
+    public static int ContextBonus(SimCard card, CombatProfile profile,
+                                    DeckThroughput.Profile? throughput = null)
     {
         if (card.IsCurseOrStatus) return 0;
         var axes = card.Axes;
@@ -179,25 +185,34 @@ internal static class CombatContext
         // multi-turn burst combos (Inflame→DemonForm→Whirlwind) aren't
         // present on a random sample, so the Boss-side rule has to lean
         // toward attrition: defend first, scale gradually, conserve cycles.
-        // Magnitudes deliberately small (≤80) so they nudge ties without
-        // overriding direct effect scoring or breaking the strong-deck
-        // baseline (planner-benchmark guard).
-        if (profile.HasBoss)
+        //
+        // B-2: gate the bonus on a *weak-deck* flag — DeckThroughput's
+        // AvgDamagePerTurn below WeakDeckDptThreshold means the deck
+        // can't outpace the Boss with burst plays and benefits from the
+        // attrition lean. Strong decks (Inflame + Whirlwind etc.) keep
+        // their finisher priority on Boss fights, which was lost in B-1
+        // (expensive-arm Boss WP dropped 6.3pp). Threshold tuned so the
+        // strong-deck baseline keeps treating the bonus as inactive.
+        if (profile.HasBoss && throughput.HasValue
+            && throughput.Value.AvgDamagePerTurn < WeakDeckDptThreshold)
         {
             // Boss fights are long and HP-heavy. Powers/scaling pay off
             // over many turns; cantrip block stays useful for the whole
             // duration. Mirror the IsLongFight bias but keyed off Boss
-            // identity rather than turn-count estimation (RemainingTurns
-            // can underestimate Boss fights when the burst-window check
-            // says "lethal soon" but the Boss has 50+ HP left).
+            // identity rather than turn-count estimation.
             if (card.IsPower) bonus += 40;
             if (axes.Contains("SCALING")) bonus += 40;
             if (card.Block > 0) bonus += 30;
-            // Boss + single big hitter (most Boss fights) → block reads
-            // shouldn't be discouraged. The HasSingleBigHitter branch
-            // above already gives +80, this is additive.
         }
 
         return bonus;
     }
+
+    /// Threshold for the weak-deck Boss-attrition bias. AvgDamagePerTurn
+    /// below this means the deck doesn't have the burst budget to race a
+    /// Boss directly; defensive scaling is the better strategy. Tuned via
+    /// planner-benchmark.ps1 (strong deck stays above this) + planner-
+    /// bias-sweep (sampled deck stays below). Anything in this range
+    /// gets the attrition lean.
+    private const int WeakDeckDptThreshold = 30;
 }
