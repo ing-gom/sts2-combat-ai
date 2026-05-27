@@ -35,6 +35,12 @@ internal static class AnalyticalSimulator
         // updated count and don't double-consume the same free play.
         // v0.7.21 — CorruptionPower: Skill cards cost 0 combat-wide. Persistent
         // (no decrement); checked as a global flag on the state.
+        // 2026-05-28 MCTS-P0 A — capture pre-spend energy for X-cost cards.
+        // sts2 spends ALL current energy on an X-cost card and that pre-spend
+        // value is the X value the card's hits/effect uses. Mod sim's damage
+        // calc previously read card.Hits which was the catalog value (1 for
+        // X-cost), so WHIRLWIND etc. silently under-damaged by ~10 HP/cast.
+        int preSpendEnergy = next.PlayerEnergy;
         int newFreeAttacks = next.PlayerFreeAttacks;
         int newFreeSkills = next.PlayerFreeSkills;
         int newFreePowers = next.PlayerFreePowers;
@@ -286,8 +292,22 @@ internal static class AnalyticalSimulator
                 // sees the same Vigor amount, matching STS canonical behavior.
                 // v0.7.86 — AccuracyPower → +N damage for Shiv. Folded into base.
                 int adjustedBase = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, next);
+                // 2026-05-28 MCTS-P0 A — X-cost cards (WHIRLWIND, etc.) use
+                // pre-spend energy as their hit count, not the catalog
+                // card.Hits value. SimCard.EffectiveDamage applies the same
+                // rule (SimCard.cs:282-293); replicate here so the depth-N
+                // damage path agrees. Mirrors FinisherIdentifier and
+                // SimCard's path so the three damage estimators stay in
+                // sync with sts2.dll's GetTotalDamage.
+                int hitsForDmg = card.Hits;
+                if (card.Axes != null && card.Axes.Contains("X_COST"))
+                {
+                    int xBonus = (next.PlayerRelics != null
+                        && next.PlayerRelics.ContainsKey("ChemicalX")) ? 2 : 0;
+                    hitsForDmg = System.Math.Max(1, preSpendEnergy + xBonus);
+                }
                 int totalDmg = StatusMath.EffectivePerEnemyTotal(
-                    adjustedBase, card.Hits, newPlayerStr, newPlayerVigor, enemy, playerWeak);
+                    adjustedBase, hitsForDmg, newPlayerStr, newPlayerVigor, enemy, playerWeak);
                 // v0.7.84 — Apply damage multipliers. Lethality fires on first
                 // attack only; the next attack in depth-N lookahead sees
                 // newPlayerLethality=0 below.
