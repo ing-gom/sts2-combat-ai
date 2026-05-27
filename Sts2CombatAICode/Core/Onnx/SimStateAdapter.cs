@@ -17,7 +17,29 @@ internal sealed class SimStateAdapter
 {
     public int MaxHandSize { get; } = 10;
     public int MaxEnemies { get; } = 4;
-    public int FeatureDim => 6 + 6 * MaxEnemies + 2 * MaxHandSize + 3;
+
+    // 2026-05-27 B (obs expansion) — fixed-slot core player powers the
+    // encoder appends after the pile-count block. Must match
+    // env.py CORE_PLAYER_POWERS exactly (same names, same order) for
+    // train/inference encoder parity. ML iteration sprint reject of
+    // capacity/budget/specialist/BC variants pointed at info-bound, so
+    // this surfaces the buff stacks PlanScorer's logic reads (Strength
+    // for damage, FeelNoPain for Ironclad block, Vuln/Weak/Frail for
+    // player-side defensive math).
+    private static readonly string[] CorePlayerPowers = new[]
+    {
+        "StrengthPower",
+        "VigorPower",
+        "BufferPower",
+        "FeelNoPainPower",
+        "RagePower",
+        "JuggernautPower",
+        "VulnerablePower",
+        "WeakPower",
+        "FrailPower",
+    };
+
+    public int FeatureDim => 6 + 6 * MaxEnemies + 2 * MaxHandSize + 3 + CorePlayerPowers.Length;
 
     private readonly Dictionary<string, int> _cardToIdx;
     public int VocabSize { get; }
@@ -109,6 +131,23 @@ internal sealed class SimStateAdapter
         v[j++] = state.DrawPile?.Count ?? 0;
         v[j++] = state.DiscardPile?.Count ?? 0;
         v[j++] = state.ExhaustPileCount;
+
+        // 2026-05-27 B (obs expansion): tail block of core player power
+        // stacks. Order must match env.py CORE_PLAYER_POWERS exactly.
+        // SimState captures each of these via reflection at snapshot time
+        // (Snapshotter sets PlayerStrength / PlayerVigor / PlayerBuffer /
+        // PlayerFeelNoPain / PlayerRage / PlayerJuggernaut / PlayerVuln /
+        // PlayerWeak / PlayerFrail), so this just reads the cached
+        // fields — no extra reflection per encode call.
+        v[j++] = state.PlayerStrength;
+        v[j++] = state.PlayerVigor;
+        v[j++] = state.PlayerBuffer;
+        v[j++] = state.PlayerFeelNoPain;
+        v[j++] = state.PlayerRage;
+        v[j++] = state.PlayerJuggernaut;
+        v[j++] = state.PlayerVulnerable;
+        v[j++] = state.PlayerWeak;
+        v[j++] = state.PlayerFrail;
         return v;
     }
 
