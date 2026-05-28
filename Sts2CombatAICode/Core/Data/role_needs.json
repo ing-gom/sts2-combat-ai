@@ -1124,6 +1124,18 @@
       "role": "BLOCK",
       "w": 0.6,
       "label": "방어 카드 (랜덤 추가의 통계적 가치)"
+    },
+    {
+      "role": "CARD_GEN_PAYOFF",
+      "w": 1.5,
+      "label": "생성 트리거 페이오프"
+    }
+  ],
+  "CARD_GEN_PAYOFF": [
+    {
+      "role": "CARD_GEN",
+      "w": 2.0,
+      "label": "카드 생성 공급"
     }
   ],
   "BLOCK_SCALING": [],
