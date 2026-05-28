@@ -80,6 +80,20 @@ internal static class ActionPlanner
     public static int BeamK = 5;
 
     /// <summary>
+    /// Continuation depth passed to BestContinuation after the first card. 2 =
+    /// the historical "depth-2" baseline (first card + 2 continuation cards).
+    /// Overridable via env var STS2_PLANNER_DEPTH for sweep experiments
+    /// (mirrors STS2_MCTS_SIMS / STS2_MCTS_ROLLOUT pattern in ScenarioVerifier).
+    /// </summary>
+    public static int ContinuationDepth = ResolveContinuationDepth();
+    private static int ResolveContinuationDepth()
+    {
+        var s = System.Environment.GetEnvironmentVariable("STS2_PLANNER_DEPTH");
+        if (int.TryParse(s, out var v) && v > 0) return v;
+        return 2;
+    }
+
+    /// <summary>
     /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
     /// reveals which follow-up card the depth-2 lookahead picked as the "best second
     /// play" after this candidate — invaluable for explaining why a setup card won
@@ -285,7 +299,7 @@ internal static class ActionPlanner
                 // the user manually identifies and the previous AI missed
                 // (see 2026-05-19 20:05 turn 5/6 logs — VEN→FS→SB stun never
                 // surfaced because FS lost the beam cut at 1670 vs DEFEND 2387).
-                secondScore = BestContinuation(nextState, depth: 2, planWeights, beamK: BeamK, out bestNextId);
+                secondScore = BestContinuation(nextState, depth: ContinuationDepth, planWeights, beamK: BeamK, out bestNextId);
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
 
                 // Next-turn projection — discounted because the projection
