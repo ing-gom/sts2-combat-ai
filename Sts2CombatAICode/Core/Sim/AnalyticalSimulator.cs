@@ -743,6 +743,24 @@ internal static class AnalyticalSimulator
                     });
                 }
                 next = next with { Enemies = newEnemies };
+
+                // 2026-05-28 S6-3b: DOMINATE special-case.
+                // Dominate.OnPlay (line 40-42): apply VulnerablePower 1 → read
+                // target's resulting Vuln amount → apply that many Strength to
+                // player. vars.StrengthPerVulnerable=1 is the per-Vuln rate
+                // (currently hardcoded; no card uses != 1).
+                // PowerApps loop above adds VulnerablePower (newVuln update).
+                // Here we add target's final Vuln count to player Strength.
+                if (card.Id == "DOMINATE"
+                    && targetIdx >= 0 && targetIdx < newEnemies.Count)
+                {
+                    int targetVuln = newEnemies[targetIdx].VulnerableAmount;
+                    if (targetVuln > 0)
+                    {
+                        newPlayerStr += targetVuln;
+                        AddPlayerPower("StrengthPower", targetVuln);
+                    }
+                }
             }
 
             // v0.7.95 — Consume one Burst stack after the skill resolves.
