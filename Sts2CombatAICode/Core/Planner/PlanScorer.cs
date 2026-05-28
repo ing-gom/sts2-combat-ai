@@ -31,6 +31,19 @@ internal readonly record struct ScoreBreakdown(
 /// </summary>
 internal static class PlanScorer
 {
+    /// <summary>
+    /// S5 후속: Enrage penalty magnitude per stack. Default 100 (matches
+    /// historical value). Higher discourages Skill plays vs Enrage carriers
+    /// like TestSubjectBoss. Tune via STS2_ENRAGE_PENALTY.
+    /// </summary>
+    public static int EnragePenaltyPerStack = ResolveEnragePenalty();
+    private static int ResolveEnragePenalty()
+    {
+        var s = System.Environment.GetEnvironmentVariable("STS2_ENRAGE_PENALTY");
+        if (int.TryParse(s, out var v) && v >= 0) return v;
+        return 100;
+    }
+
     public static int Score(SimCard card, int targetIdx, SimState state)
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current)).Total;
 
@@ -1804,8 +1817,11 @@ internal static class PlanScorer
             if (totalEnrage > 0)
             {
                 // Each enrage stack = +1 enemy damage per hit; assume ~2 future hits.
-                enragePenalty = -totalEnrage * 100;
-                details.Add($"enrage{enragePenalty}");
+                // Magnitude tunable via STS2_ENRAGE_PENALTY (default 100). S5 diag
+                // showed TestSubjectBoss ending with Strength 6-20 (Enrage:2 → many
+                // Skill plays despite -200 penalty) — likely too weak at default.
+                enragePenalty = -totalEnrage * EnragePenaltyPerStack;
+                if (enragePenalty != 0) details.Add($"enrage{enragePenalty}");
             }
 
             if (buildBonus != 0) details.Add($"buildSyn={buildBonus}");
