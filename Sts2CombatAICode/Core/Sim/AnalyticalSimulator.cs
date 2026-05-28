@@ -216,9 +216,22 @@ internal static class AnalyticalSimulator
                 // EchoFormPower itself is excluded so a self-cast Echo Form
                 // doesn't recursively double its own stack.
                 int amount = powerName == "EchoFormPower" ? rawAmount : rawAmount * echoMul;
+                // 2026-05-28 S6-4: RUPTURE card's PowerVar<StrengthPower> is
+                // a misnomer — Rupture.OnPlay applies RupturePower (using the
+                // Strength var's BaseValue). Redirect StrengthPower → RupturePower
+                // for this card so mod doesn't over-credit Strength gain.
+                // Other PowerVar<StrengthPower> cards (BRAND etc.) DO apply
+                // StrengthPower per decompile, so keep them as-is.
+                string effectivePowerName = (card.Id == "RUPTURE" && powerName == "StrengthPower")
+                    ? "RupturePower" : powerName;
                 // v0.8.2 — Generic dict propagation. Writes EVERY power granted,
                 // including those without an explicit case below.
-                AddPlayerPower(powerName, amount);
+                AddPlayerPower(effectivePowerName, amount);
+                if (effectivePowerName != powerName)
+                {
+                    // Don't fall through to the StrengthPower case below.
+                    continue;
+                }
                 switch (powerName)
                 {
                     // Temporary*Power lasts 1 turn but is fully active for this turn's
@@ -966,6 +979,34 @@ internal static class AnalyticalSimulator
             {
                 newHand.RemoveAt(newHand.Count - 1);
                 newExhaustPileCount++;
+            }
+        }
+
+        // 2026-05-28 S6-4: PILLAGE draw-until-non-attack approximation.
+        // Pillage.OnPlay: do { card = Draw(); } while (card.Type == Attack &&
+        // hand.Count < 10). Mod sim has no native modeling — DrawCount=0 left
+        // the draw unaccounted for. Approximation: walk newDrawPile from the
+        // end (cheap pop), consume attack cards into hand, stop at first
+        // non-Attack or hand-full.
+        if (card.Id == "PILLAGE" && newHand.Count < 10)
+        {
+            int safety = 10;
+            while (safety-- > 0 && newHand.Count < 10)
+            {
+                if (drawPileAfter <= 0)
+                {
+                    if (discardAfter <= 0) break;
+                    drawPileAfter = discardAfter;
+                    discardAfter = 0;
+                    newDrawPile.AddRange(newDiscardPile);
+                    newDiscardPile.Clear();
+                }
+                if (newDrawPile.Count == 0) break;
+                var drawn = newDrawPile[newDrawPile.Count - 1];
+                newDrawPile.RemoveAt(newDrawPile.Count - 1);
+                drawPileAfter--;
+                newHand.Add(drawn);
+                if (!drawn.IsAttack) break;  // stops at first non-Attack
             }
         }
 
