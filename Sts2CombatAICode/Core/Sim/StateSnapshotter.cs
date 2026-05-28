@@ -336,6 +336,9 @@ internal static class StateSnapshotter
             var playerRelics = CombatReflection.GetPlayerRelics(player);
 
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            // 2026-05-28 S6-3a: SPITE's hit count depends on whether player lost
+            // HP this turn (true → hits = Repeat=2, false → hits = 1).
+            bool playerLostHpThisTurn = false;
             // v0.9.2 — Counters for the 5 CalculatedHits cards that scale on
             // history-derived triggers: HELIX_DRILL (energy spent this turn),
             // RADIATE (stars gained this turn), PULL_FROM_BELOW (combat-wide
@@ -436,7 +439,20 @@ internal static class StateSnapshotter
                         else if (entry is DamageReceivedEntry dre)
                         {
                             if (dre.Receiver != creature) continue;
-                            if (dre.Result.UnblockedDamage > 0) combatHpLossEvents++;
+                            if (dre.Result.UnblockedDamage > 0)
+                            {
+                                combatHpLossEvents++;
+                                // 2026-05-28 S6-3a: SPITE's LostHpThisTurn check.
+                                // Spite.cs:48 — `e.HappenedThisTurn(creature.CombatState)
+                                // && e.Receiver == creature && e.Result.UnblockedDamage > 0`.
+                                // Same predicate; gate by current round/side to scope
+                                // to "this turn" (turn-end resets round/side counters).
+                                if (dre.RoundNumber == cs.RoundNumber
+                                    && dre.CurrentSide == cs.CurrentSide)
+                                {
+                                    playerLostHpThisTurn = true;
+                                }
+                            }
                         }
                         // v0.9.2 — Turn-gated counters for HELIX_DRILL /
                         // RADIATE / RATTLE. Each mirrors the exact filter the
@@ -635,6 +651,7 @@ internal static class StateSnapshotter
                 TurnAttacksByTargetIdx = (IReadOnlyDictionary<int, int>?)turnAttacksByTargetIdx
                     ?? new Dictionary<int, int>(),
                 CombatPlayerHpLossEvents = combatHpLossEvents,
+                PlayerLostHpThisTurn = playerLostHpThisTurn,
                 PlayerNoBlock = playerNoBlock,
                 PlayerNoDraw = playerNoDraw,
                 PlayerNoEnergyGain = playerNoEnergyGain,

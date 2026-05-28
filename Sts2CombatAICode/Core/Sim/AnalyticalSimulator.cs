@@ -360,6 +360,14 @@ internal static class AnalyticalSimulator
                     // Math.Max(1,...), over-crediting damage on 0-energy plays.
                     hitsForDmg = System.Math.Max(0, preSpendEnergy + xBonus);
                 }
+                // 2026-05-28 S6-3a: SPITE conditional hits.
+                // SPITE.OnPlay: hits = LostHpThisTurn(player) ? Repeat.IntValue : 1
+                // Mod sim previously used Repeat = 2 always → over-credit when
+                // player healthy this turn. Decompile: Spite.cs line 34.
+                if (card.Id == "SPITE")
+                {
+                    hitsForDmg = next.PlayerLostHpThisTurn ? card.Hits : 1;
+                }
                 // Random AOE: this enemy gets only its share of the
                 // round-robin distribution computed above.
                 if (isRandomAoe && hitsByEnemyIdx != null)

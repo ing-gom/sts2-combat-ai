@@ -428,6 +428,18 @@ internal sealed record SimState
         = new Dictionary<int, int>();
 
     /// <summary>
+    /// 2026-05-28 S6-3a: tracks whether the player has lost HP this turn.
+    /// SPITE checks this via `LostHpThisTurn(base.Owner.Creature)`:
+    ///   - true: hits = Repeat (2 base / 3 upgraded)
+    ///   - false: hits = 1
+    /// Set by StateSnapshotter from CombatManager.History (DamageReceivedEntry
+    /// with Receiver=player and HappenedThisTurn). AnalyticalSimulator flips
+    /// it when a played card causes player HP loss (HpLossAmount > 0 or
+    /// enemy reactive damage exceeds player block).
+    /// </summary>
+    public bool PlayerLostHpThisTurn { get; init; }
+
+    /// <summary>
     /// v0.9 — Enemy-applied shutdown debuffs on the player. Each makes a
     /// whole class of player action useless THIS turn:
     ///   • PlayerNoBlock  — DEFEND/block gain is suppressed (DEFEND scoring
