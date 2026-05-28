@@ -329,6 +329,23 @@ internal static class CardReflection
     };
 
     /// <summary>
+    /// 2026-05-28 100%-parity push: cards with hardcoded WithHitCount(N) in
+    /// OnPlay. Reflection's RepeatVar / CalculatedHits scan misses these
+    /// literals → mod sim defaults to hits=1 and under-credits damage by N-1
+    /// hits per play. Source: decompile audit grep of "WithHitCount\([0-9]+\)".
+    /// </summary>
+    private static readonly System.Collections.Generic.Dictionary<string, int> HardcodedHitCount = new()
+    {
+        ["TWIN_STRIKE"] = 2,
+        ["THRASH"] = 2,
+        ["DAGGER_SPRAY"] = 2,
+        ["MAUL"] = 2,
+        ["REFRACT"] = 2,
+        ["RIP_AND_TEAR"] = 2,
+        ["UPROAR"] = 2,
+    };
+
+    /// <summary>
     /// v0.7.81 — Catalog star_cost fallback. SafeStarCost reflection returned
     /// 0 for verified star-cost cards (FALLING_STAR diagnostic). Mirror of
     /// ActionPlanner.StarCostByCardId — keep in sync.
@@ -665,6 +682,19 @@ internal static class CardReflection
                 && ThisTurnStarsGain.TryGetValue(cardIdEntry, out int catalogStars))
             {
                 starsGain = catalogStars;
+            }
+
+            // 2026-05-28 100%-parity push: hardcoded WithHitCount(N) override.
+            // Some cards specify hit count as a literal in OnPlay rather than
+            // via RepeatVar/CalculatedHits. Reflection can't see literals, so
+            // mod sim defaulted to hits=1 → consistent under-credit damage on
+            // parity probe. Found via sim_parity_anger_full TWIN_STRIKE 9/13
+            // diverging with diff +3..+10 (real did 2× damage, mod predicted 1×).
+            // Source: decompile audit of "WithHitCount(2)" literal usages.
+            if (card?.Id.Entry is { } hcEntry
+                && HardcodedHitCount.TryGetValue(hcEntry, out int hcHits))
+            {
+                hits = hcHits;
             }
 
             return new CardEffectSummary
