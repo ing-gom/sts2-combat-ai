@@ -222,8 +222,15 @@ internal static class AnalyticalSimulator
                 // for this card so mod doesn't over-credit Strength gain.
                 // Other PowerVar<StrengthPower> cards (BRAND etc.) DO apply
                 // StrengthPower per decompile, so keep them as-is.
-                string effectivePowerName = (card.Id == "RUPTURE" && powerName == "StrengthPower")
-                    ? "RupturePower" : powerName;
+                string effectivePowerName = powerName;
+                if (powerName == "StrengthPower")
+                {
+                    if (card.Id == "RUPTURE") effectivePowerName = "RupturePower";
+                    // SETUP_STRIKE applies SetupStrikePower (Str on next Strike)
+                    // not raw StrengthPower → 3 SETUP_STRIKE diverging with
+                    // player_strength +2 (mod credited immediate Str gain).
+                    else if (card.Id == "SETUP_STRIKE") effectivePowerName = "SetupStrikePower";
+                }
                 // v0.8.2 — Generic dict propagation. Writes EVERY power granted,
                 // including those without an explicit case below.
                 AddPlayerPower(effectivePowerName, amount);
