@@ -77,18 +77,13 @@ internal static class StatusMath
     {
         if (baseBlock <= 0) return 0;
         double v = baseBlock + defenderDexterity;
-        // 2026-05-28 100%-parity push: sim_parity probe shows mod over-applies
-        // Frail when calculating block — DEFEND_IRONCLAD diff player_block -1
-        // (mod gives 2, real gives 3 with Frail 1 + Block 3). sts2.dll's
-        // CreatureCmd.GainBlock applies BlockVar.BaseValue raw at command-
-        // resolution time; Frail's per-block-gained reduction happens at a
-        // different stage (likely on Power.AfterAttacked / OnGainBlock hook)
-        // that the headless harness's state capture sees AFTER the gain.
-        // Skipping Frail application here to match headless behavior. Loses
-        // ~25% block fidelity for Frail-affected production plays, but the
-        // planner's block-vs-damage race math already incorporates Frail via
-        // SurvivalProjection, so the leaf value is robust.
-        // if (defenderFrail) v *= FrailMult;
+        // 2026-05-28 reverted Frail-skip: sim_parity probe shows two populations:
+        //  A) real doesn't apply Frail (mod overshoots by Frail × 25%)
+        //  B) real applies Frail canonically (mod undershoots when Frail off)
+        // Net: Frail-canonical is the more common case post BaseValue fix.
+        // Keep Frail mult; investigate Population A separately (likely
+        // Frail-timing edge case where Frail decrements pre-play).
+        if (defenderFrail) v *= FrailMult;
         return Math.Max(0, (int)Math.Floor(v));
     }
 

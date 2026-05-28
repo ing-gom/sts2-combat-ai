@@ -443,8 +443,17 @@ internal static class CardReflection
                     hasCalcBlock = true;
                     continue;
                 }
-                if (v is DamageVar) { if (!hasCalcDamage) damage += amount; continue; }
-                if (v is BlockVar) { if (!hasCalcBlock) block += amount; continue; }
+                // 2026-05-28 100%-parity push: plain DamageVar/BlockVar use
+                // BaseValue (raw upgrade-aware value) so modifier registry's
+                // Strength/Vuln/Weak application doesn't double-count what
+                // PreviewValue already folded in. Parity sample: STRIKE +Str 2
+                // = card.Damage 8 (PreviewValue 6+2) → modifier adds +2 again
+                // → mod predicts 10, real does 8. enemy_hp_sum -2 pattern.
+                // CalculatedDamageVar above keeps PreviewValue since the
+                // scaling extras (PerfectedStrike per-Strike etc.) ARE the
+                // PreviewValue and modifier registry can't replicate them.
+                if (v is DamageVar) { if (!hasCalcDamage) damage += (int)v.BaseValue; continue; }
+                if (v is BlockVar) { if (!hasCalcBlock) block += (int)v.BaseValue; continue; }
                 if (v is RepeatVar) { if (amount > 0) hits = amount; continue; }
                 // HpLossVar — typed subclass for cards that lose HP on play
                 // (BLOOD_WALL, HEMOKINESIS, BRAND, BREAKTHROUGH, BLOODLETTING,
