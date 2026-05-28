@@ -1025,30 +1025,30 @@
       "label": "휘발성 공급"
     }
   ],
-  "_comment_debuff_amplifier": "VULN/WEAK producer 축은 범용 보조라 단독으로는 '빌드 코어' 취급하지 않지만, 스택을 스케일링/조건부로 읽는 AMPLIFIER payoff 카드(악랄함·제압·추적·분쇄 등)는 producer 없이는 공회전하는 진성 synergy. 가중치는 POISON(2.5/3.0) 보다 낮춰(1.5/2.5) 빌드 코어 승격은 억제하면서 amplifier↔producer 페어링만 시너지로 반영. VULN/WEAK 는 legacy 키, VULN_PRODUCER/WEAK_PRODUCER 는 mod BuildSynergy.cs `_PRODUCER` 접미사 매칭용 alias — 동일 가중치 적용.",
+  "_comment_debuff_amplifier": "VULN/WEAK producer 축은 원래 '범용 보조 — 빌드 코어 승격 억제 (1.5/2.5)' 정책이었으나, 2026-05-28 sts2-combat-core/planner-bias-sweep 측정 (Ironclad bias=-2, 720 games)에서 취약 빌드 (DOMINATE+UPPERCUT+SHOCKWAVE+CRUELTY+COLOSSUS+DISMANTLE+MOLTEN_FIST 조합) 88.19% WIN — 자해 빌드 85.42% + random 베이스라인 72.22% 를 상회 — empirical 으로 '빌드 코어' 자격 확인. VULN 가중치를 POISON tier (2.5/3.0) 로 승격. WEAK 는 별도 측정 전까지 보수적 유지. VULN_PRODUCER 는 mod BuildSynergy.cs `_PRODUCER` 접미사 alias — VULN 과 동일 가중치 적용.",
   "VULN": [
     {
       "role": "VULN_AMPLIFIER",
-      "w": 1.5,
+      "w": 2.5,
       "label": "취약 증폭"
     }
   ],
   "VULN_PRODUCER": [
     {
       "role": "VULN_AMPLIFIER",
-      "w": 1.5,
+      "w": 2.5,
       "label": "취약 증폭"
     }
   ],
   "VULN_AMPLIFIER": [
     {
       "role": "VULN",
-      "w": 2.5,
+      "w": 3.0,
       "label": "취약 공급"
     },
     {
       "role": "VULN_PRODUCER",
-      "w": 2.5,
+      "w": 3.0,
       "label": "취약 공급"
     },
     {
