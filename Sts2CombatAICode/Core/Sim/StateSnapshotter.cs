@@ -208,8 +208,16 @@ internal static class StateSnapshotter
             var drawPileRaw = PileType.Draw.GetPile(player)?.Cards;
             var discardPileRaw = PileType.Discard.GetPile(player)?.Cards;
             var exhaustPileRaw = PileType.Exhaust.GetPile(player)?.Cards;
+            // 2026-05-31 — PileType.Play contains cards stuck mid-resolution
+            // (sts2 headless: HEADBUTT's CardSelectCmd.FromSimpleGrid completes
+            // but OnPlayWrapper post-OnPlay doesn't transition the card to
+            // its result pile). Treat them as "discard-equivalent" so mod
+            // sim's post-play DiscardPile.Count matches real game's effective
+            // state. Verified via HBDIAG2 probe: every HEADBUTT play leaves
+            // play=1 across the step boundary.
+            var playPileRaw = PileType.Play.GetPile(player)?.Cards;
             int drawPileSize = drawPileRaw?.Count ?? 0;
-            int discardPileSize = discardPileRaw?.Count ?? 0;
+            int discardPileSize = (discardPileRaw?.Count ?? 0) + (playPileRaw?.Count ?? 0);
             int exhaustPileSize = exhaustPileRaw?.Count ?? 0;
 
             var hand = new List<SimCard>();
@@ -514,6 +522,11 @@ internal static class StateSnapshotter
             var discardPile = new List<SimCard>();
             if (discardPileRaw != null)
                 foreach (var card in discardPileRaw) discardPile.Add(BuildSimCard(card, requirePlayability: false));
+            // Append PileType.Play stuck cards into the discard view — they
+            // can't be re-played from Play and act as discard for next-turn
+            // mechanics. Matches DiscardPileSize calculation above.
+            if (playPileRaw != null)
+                foreach (var card in playPileRaw) discardPile.Add(BuildSimCard(card, requirePlayability: false));
 
             // v0.10 — Sum GalvanicPower amount across all sources in combat.
             // Typically a single galvanic enemy, but additive on the rare

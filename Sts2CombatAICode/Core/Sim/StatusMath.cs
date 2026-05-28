@@ -131,4 +131,63 @@ internal static class StatusMath
     public static int EffectivePerEnemyTotal(int baseDamage, int hits, int attackerStrength,
         SimEnemy target, bool attackerWeak)
         => EffectivePerEnemyTotal(baseDamage, hits, attackerStrength, 0, target, attackerWeak);
+
+    // ─── V2 (DamageModifierRegistry-driven) ──────────────────────────────
+    // Parallel pipeline that delegates per-hit damage to the modifier
+    // registry. Currently produces V1-parity results when the baseline
+    // modifier set is registered. AnalyticalSimulator flips between V1
+    // and V2 via the feature flag — see IDamageModifier doc for the
+    // migration plan.
+
+    public static int EffectivePerHitCappedV2(int baseDamage,
+        SimEnemy target, SimCard card, SimState state,
+        int hitIndex, int totalHits, bool isFirstAttackThisTurn)
+    {
+        // Defensive — module initializer may not fire when this file is
+        // source-included into another csproj. Idempotent; no-op once
+        // the baseline set is registered.
+        BaselineDamageModifiers.RegisterAll();
+
+        var ctx = new DamageContext(state, target, card,
+            hitIndex, totalHits, isFirstAttackThisTurn);
+        int per = DamageModifierRegistry.Resolve(baseDamage, in ctx);
+        return per;
+    }
+
+    public static int EffectivePerEnemyTotalV2(int baseDamage, int hits,
+        SimEnemy target, SimCard card, SimState state, bool isFirstAttackThisTurn)
+    {
+        if (baseDamage <= 0) return 0;
+        // hits=0 is valid for X-cost cards at 0 energy → no damage.
+        if (hits <= 0) return 0;
+        int hitsClamped = hits;
+        int total = 0;
+        for (int h = 0; h < hitsClamped; h++)
+        {
+            // isFirstAttackThisTurn is a CARD-level flag (this whole card is
+            // the first attack of the turn). All hits of that card pick up the
+            // Lethality ×1.5 multiplier — V1's ApplyDamageMultipliers folds
+            // Lethality into the total once, so the per-hit V2 sum agrees only
+            // when all hits get the bonus.
+            total += EffectivePerHitCappedV2(baseDamage, target, card, state,
+                hitIndex: h, totalHits: hitsClamped,
+                isFirstAttackThisTurn: isFirstAttackThisTurn);
+        }
+        // HardenedShell — post-total cap. Stays outside the registry since
+        // it acts on the sum, not per-hit. (Could be promoted to a
+        // "PostTotalCap" stage if other powers want the same shape.)
+        if (target.HardenedShellRemaining > 0)
+        {
+            if (total > target.HardenedShellRemaining)
+                total = target.HardenedShellRemaining;
+        }
+        else if (total > 0 && target.Powers != null
+            && target.Powers.ContainsKey("HardenedShellPower"))
+        {
+            // Shell power present but Remaining counter not snapshotted —
+            // matches V1 conservative "treat as fully spent" branch.
+            total = 0;
+        }
+        return total;
+    }
 }

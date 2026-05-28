@@ -162,9 +162,196 @@ public static class Program
         Run("Phase 9b: TWIN_STRIKE > BLUDGEON copy value (multi-hit cheap > big single)", Test_Phase9bTwinStrikeBeatsBludgeonCopy);
         Run("Phase 9b: BLUDGEON > STRIKE copy value w/o multi-hit alt (raw dmg dominates)", Test_Phase9bStrikeBeatsBludgeonCopyNoStrength);
 
+        // ─── B: IDamageModifier V1↔V2 parity (DamageModifierRegistry spike) ──
+        Run("V2 parity: base damage only (no buffs/debuffs)", Test_V2Parity_BaseDamage);
+        Run("V2 parity: + Strength", Test_V2Parity_Strength);
+        Run("V2 parity: + Vigor", Test_V2Parity_Vigor);
+        Run("V2 parity: + Vulnerable target", Test_V2Parity_Vulnerable);
+        Run("V2 parity: + attacker Weak", Test_V2Parity_AttackerWeak);
+        Run("V2 parity: compound Str+Vigor+Vuln+Weak", Test_V2Parity_Compound);
+        Run("V2 parity: Intangible cap", Test_V2Parity_IntangibleCap);
+        Run("V2 parity: multi-hit (3 hits)", Test_V2Parity_MultiHit);
+        Run("V2 parity: multi-hit + cap", Test_V2Parity_MultiHitCap);
+        Run("V2 parity: Lethality first attack ×1.5", Test_V2Parity_LethalityFirst);
+        Run("V2 parity: Tracking vs Weak target", Test_V2Parity_TrackingVsWeak);
+        Run("V2 parity: Cruelty vs Vuln target", Test_V2Parity_CrueltyVsVuln);
+        Run("V2 parity: HardenedShell total cap", Test_V2Parity_HardenedShell);
+
         Console.WriteLine();
         Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
         return _failed;
+    }
+
+    // ─── V1↔V2 parity test bodies ──────────────────────────────────────────
+    // Each test runs a canonical (state, enemy, card) scenario through both
+    // StatusMath.EffectivePerEnemyTotal (V1) and EffectivePerEnemyTotalV2
+    // (registry-driven) and asserts the totals match. V1 also applies
+    // ApplyDamageMultipliers separately for Lethality/Tracking/Cruelty —
+    // those tests fold that into the V1 expectation explicitly.
+
+    private static void Test_V2Parity_BaseDamage()
+    {
+        var enemy = Enemy(hp: 50);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy });
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"base damage: V1={v1} V2={v2}");
+        Assert(v2 == 6, $"expected 6, got {v2}");
+    }
+
+    private static void Test_V2Parity_Strength()
+    {
+        var enemy = Enemy(hp: 50);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerStrength = 3 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 3, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"+Strength: V1={v1} V2={v2}");
+        Assert(v2 == 9, $"expected 6+3=9, got {v2}");
+    }
+
+    private static void Test_V2Parity_Vigor()
+    {
+        var enemy = Enemy(hp: 50);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerVigor = 5 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 5, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"+Vigor: V1={v1} V2={v2}");
+        Assert(v2 == 11, $"expected 6+5=11, got {v2}");
+    }
+
+    private static void Test_V2Parity_Vulnerable()
+    {
+        var enemy = Enemy(hp: 50, vulnerableAmount: 2);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy });
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"+Vuln: V1={v1} V2={v2}");
+        Assert(v2 == 9, $"expected floor(6*1.5)=9, got {v2}");
+    }
+
+    private static void Test_V2Parity_AttackerWeak()
+    {
+        var enemy = Enemy(hp: 50);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerWeak = 1 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: true);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"+Weak: V1={v1} V2={v2}");
+        Assert(v2 == 4, $"expected floor(6*0.75)=4, got {v2}");
+    }
+
+    private static void Test_V2Parity_Compound()
+    {
+        var enemy = Enemy(hp: 50, vulnerableAmount: 2);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerStrength = 3, PlayerVigor = 2, PlayerWeak = 1 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 3, 2, enemy, attackerWeak: true);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"compound: V1={v1} V2={v2}");
+        // base 6 + str 3 + vigor 2 = 11; * 1.5 vuln = 16.5; * 0.75 weak = 12.375 → floor 12
+        Assert(v2 == 12, $"expected floor(11*1.5*0.75)=12, got {v2}");
+    }
+
+    private static void Test_V2Parity_IntangibleCap()
+    {
+        // SimEnemy.DamageCapPerHit captures Intangible (cap to 1) and HardToKill stacks.
+        var enemy = Enemy(hp: 50) with { DamageCapPerHit = 1 };
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerStrength = 5 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(6, 1, 5, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"Intangible: V1={v1} V2={v2}");
+        Assert(v2 == 1, $"expected cap 1, got {v2}");
+    }
+
+    private static void Test_V2Parity_MultiHit()
+    {
+        var enemy = Enemy(hp: 100);
+        var card = Attack("TWIN_STRIKE", cost: 1, damage: 5, hits: 3);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerStrength = 2 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(5, 3, 2, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(5, 3, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"multi-hit: V1={v1} V2={v2}");
+        Assert(v2 == 21, $"expected (5+2)*3 = 21, got {v2}");
+    }
+
+    private static void Test_V2Parity_MultiHitCap()
+    {
+        // Cap applies per-hit. 3 hits × 2-cap = 6 total.
+        var enemy = Enemy(hp: 100) with { DamageCapPerHit = 2 };
+        var card = Attack("FIEND_FIRE", cost: 2, damage: 5, hits: 3);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerStrength = 4 };
+        int v1 = StatusMath.EffectivePerEnemyTotal(5, 3, 4, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(5, 3, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"multi-hit+cap: V1={v1} V2={v2}");
+        Assert(v2 == 6, $"expected 3 hits × 2 cap = 6, got {v2}");
+    }
+
+    private static void Test_V2Parity_LethalityFirst()
+    {
+        var enemy = Enemy(hp: 50);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerLethality = 1 };
+        // V1 fold: EffectivePerEnemyTotal then ApplyDamageMultipliers with lethalityActive=true
+        int v1Base = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: false);
+        int v1 = StatusMath.ApplyDamageMultipliers(v1Base, state, defenderVulnerable: false,
+            defenderWeak: false, lethalityActive: true);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: true);
+        Assert(v1 == v2, $"Lethality: V1={v1} V2={v2}");
+        Assert(v2 == 9, $"expected floor(6*1.5)=9, got {v2}");
+    }
+
+    private static void Test_V2Parity_TrackingVsWeak()
+    {
+        var enemy = Enemy(hp: 100, weakAmount: 1);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerTracking = 1 };
+        int v1Base = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: false);
+        int v1 = StatusMath.ApplyDamageMultipliers(v1Base, state, defenderVulnerable: false,
+            defenderWeak: true, lethalityActive: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"Tracking: V1={v1} V2={v2}");
+        Assert(v2 == 12, $"expected 6*2=12, got {v2}");
+    }
+
+    private static void Test_V2Parity_CrueltyVsVuln()
+    {
+        var enemy = Enemy(hp: 100, vulnerableAmount: 2);
+        var card = Attack("STRIKE", cost: 1, damage: 6);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
+            with { PlayerCruelty = 1 };
+        int v1Base = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: false);
+        int v1 = StatusMath.ApplyDamageMultipliers(v1Base, state, defenderVulnerable: true,
+            defenderWeak: false, lethalityActive: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"Cruelty: V1={v1} V2={v2}");
+        // V1: base 6 → floor(6*1.5)=9 → floor(9*1.25)=11
+        // V2: base 6 → floor(6*1.5*1.25)=11
+        Assert(v2 == 11, $"expected 11, got {v2}");
+    }
+
+    private static void Test_V2Parity_HardenedShell()
+    {
+        var enemy = Enemy(hp: 100) with { HardenedShellRemaining = 8 };
+        var card = Attack("BLUDGEON", cost: 3, damage: 32);
+        var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy });
+        int v1 = StatusMath.EffectivePerEnemyTotal(32, 1, 0, 0, enemy, attackerWeak: false);
+        int v2 = StatusMath.EffectivePerEnemyTotalV2(32, 1, enemy, card, state, isFirstAttackThisTurn: false);
+        Assert(v1 == v2, $"HardenedShell: V1={v1} V2={v2}");
+        Assert(v2 == 8, $"expected clamp to 8, got {v2}");
     }
 
     private static void Test_SimTurnOstyAttacks()

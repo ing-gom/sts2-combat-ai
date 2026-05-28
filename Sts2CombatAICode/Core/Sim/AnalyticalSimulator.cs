@@ -86,6 +86,12 @@ internal static class AnalyticalSimulator
         // fresh list per call, copy of the cloned tail, plus the played
         // card at the end (record value equality preserves identity).
         var newDiscardPile = new List<SimCard>(next.DiscardPile ?? new List<SimCard>());
+        // Mutable DrawPile copy — same pattern as DiscardPile. Without
+        // this, DrawCount-bearing cards (POMMEL_STRIKE / SHRUG_IT_OFF /
+        // ANGER copy generators) updated DrawPileSize int but left
+        // SimState.DrawPile list at pre-play count, so parity probe
+        // saw consistent draw_pile_count=+1 (mod over-credits).
+        var newDrawPile = new List<SimCard>(next.DrawPile ?? new List<SimCard>());
 
         // 3. Apply card effects
         int newPlayerStr = next.PlayerStrength;
@@ -267,14 +273,58 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 3a-bis. Attack-with-block (IRON_WAVE / BLOOD_WALL etc.) — sts2.dll
+        // marks these via GainsBlock=true and calls CreatureCmd.GainBlock
+        // before damage. The skill branch already covers block-bearing skills
+        // (DEFEND), but attack cards with a Block field fell through with no
+        // block applied → IRON_WAVE 13/13 disagree player_block=-5 in probe.
+        if (card.IsAttack && card.Block > 0)
+        {
+            int attackBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
+            newPlayerBlock += attackBlock;
+        }
+
         // 3b. Attack: deal damage to target(s); also stack attached debuffs on enemy.
         if (card.IsAttack && card.Damage > 0)
         {
+            // 2026-05-31 — SWORD_BOOMERANG-class (TargetType.RandomEnemy +
+            // Repeat>1). sts2.dll's TargetingRandomOpponents distributes N
+            // hits over random alive enemies; mod sim previously treated
+            // RandomEnemy as single-target → all N hits on targetIdx →
+            // block-overflow over-credits enemy_hp_sum (+9..+21 in probe).
+            // Deterministic approximation: round-robin K hits across alive
+            // enemies. Same expected total damage as real for non-block
+            // cases; closer for block cases (no over-allocation on one
+            // shielded target). Total over enemies = exact hitsForCard.
+            bool isRandomAoe = card.Target == TargetType.RandomEnemy;
+            int[]? hitsByEnemyIdx = null;
+            if (isRandomAoe)
+            {
+                int totalHits = card.Hits > 0 ? card.Hits : 1;
+                int aliveCount = 0;
+                for (int i = 0; i < next.Enemies.Count; i++)
+                    if (next.Enemies[i].IsAlive) aliveCount++;
+                if (aliveCount > 0)
+                {
+                    hitsByEnemyIdx = new int[next.Enemies.Count];
+                    int baseHits = totalHits / aliveCount;
+                    int remainder = totalHits % aliveCount;
+                    int aliveSeen = 0;
+                    for (int i = 0; i < next.Enemies.Count; i++)
+                    {
+                        if (!next.Enemies[i].IsAlive) continue;
+                        hitsByEnemyIdx[i] = baseHits + (aliveSeen < remainder ? 1 : 0);
+                        aliveSeen++;
+                    }
+                }
+            }
+
             var newEnemies = new List<SimEnemy>(next.Enemies.Count);
             for (int i = 0; i < next.Enemies.Count; i++)
             {
                 var enemy = next.Enemies[i];
                 bool isTarget = isAoe ? enemy.IsAlive
+                    : isRandomAoe ? (enemy.IsAlive && hitsByEnemyIdx != null && hitsByEnemyIdx[i] > 0)
                     : (i == targetIdx && enemy.IsAlive);
                 if (!isTarget)
                 {
@@ -304,18 +354,34 @@ internal static class AnalyticalSimulator
                 {
                     int xBonus = (next.PlayerRelics != null
                         && next.PlayerRelics.ContainsKey("ChemicalX")) ? 2 : 0;
-                    hitsForDmg = System.Math.Max(1, preSpendEnergy + xBonus);
+                    // X=0 → zero hits → zero damage. Matches sts2.dll's
+                    // Whirlwind.OnPlay: WithHitCount(num) where num=
+                    // CapturedXValue=energy=0. Previously clamped to 1 by
+                    // Math.Max(1,...), over-crediting damage on 0-energy plays.
+                    hitsForDmg = System.Math.Max(0, preSpendEnergy + xBonus);
                 }
-                int totalDmg = StatusMath.EffectivePerEnemyTotal(
-                    adjustedBase, hitsForDmg, newPlayerStr, newPlayerVigor, enemy, playerWeak);
-                // v0.7.84 — Apply damage multipliers. Lethality fires on first
-                // attack only; the next attack in depth-N lookahead sees
-                // newPlayerLethality=0 below.
-                totalDmg = StatusMath.ApplyDamageMultipliers(totalDmg,
-                    next with { PlayerLethality = newPlayerLethality, PlayerTracking = newPlayerTracking, PlayerCruelty = newPlayerCruelty },
-                    defenderVulnerable: enemy.VulnerableAmount > 0,
-                    defenderWeak: enemy.WeakAmount > 0,
-                    lethalityActive: newPlayerLethality > 0);
+                // Random AOE: this enemy gets only its share of the
+                // round-robin distribution computed above.
+                if (isRandomAoe && hitsByEnemyIdx != null)
+                    hitsForDmg = hitsByEnemyIdx[i];
+                // 2026-05-28 B-architecture — damage pipeline now goes
+                // through DamageModifierRegistry (V2). Equivalent to the V1
+                // EffectivePerEnemyTotal + ApplyDamageMultipliers chain when
+                // only baseline modifiers are registered (verified by 13
+                // V1↔V2 parity unit tests); enables un-modeled active powers
+                // to plug in without further StatusMath edits.
+                var dmgState = next with
+                {
+                    PlayerStrength = newPlayerStr,
+                    PlayerVigor = newPlayerVigor,
+                    PlayerWeak = playerWeak ? next.PlayerWeak : 0,
+                    PlayerLethality = newPlayerLethality,
+                    PlayerTracking = newPlayerTracking,
+                    PlayerCruelty = newPlayerCruelty,
+                };
+                int totalDmg = StatusMath.EffectivePerEnemyTotalV2(
+                    adjustedBase, hitsForDmg, enemy, card, dmgState,
+                    isFirstAttackThisTurn: newPlayerLethality > 0);
                 // v0.7.98 — EchoForm doubles the entire attack (each hit lands
                 // twice). Applied after damage-multiplier chain so the doubled
                 // damage benefits from Tracking / Cruelty / Lethality once.
@@ -447,6 +513,34 @@ internal static class AnalyticalSimulator
             }
             next = next with { Enemies = newEnemies };
 
+            // 2026-05-29 — SETUP_STRIKE-class self-power-on-attack. The attack
+            // PowerApps loop above only applies enemy-debuff entries
+            // (Vulnerable / Weak / Frail / …); self-buff entries (StrengthPower
+            // on SETUP_STRIKE etc.) fell through. sts2.dll's SetupStrike
+            // applies SetupStrikePower (Strength wrapper) to self AFTER the
+            // damage, so do the same here — apply once per card play (not per
+            // enemy hit) at end of attack resolution.
+            if (card.PowerApps.Count > 0)
+            {
+                foreach (var (powerName, rawAmount) in card.PowerApps)
+                {
+                    if (IsEnemyDebuff(powerName)) continue;
+                    int amount = powerName == "EchoFormPower" ? rawAmount : rawAmount * echoMul;
+                    AddPlayerPower(powerName, amount);
+                    switch (powerName)
+                    {
+                        case "StrengthPower":
+                        case "TemporaryStrengthPower":
+                            newPlayerStr += amount; break;
+                        case "DexterityPower":
+                        case "TemporaryDexterityPower":
+                            newPlayerDex += amount; break;
+                        case "VigorPower":
+                            newPlayerVigor += amount; break;
+                    }
+                }
+            }
+
             // v0.7.82 — Vigor is single-shot: consumed when this attack resolves.
             // Subsequent attacks in the depth-N lookahead chain see Vigor=0.
             newPlayerVigor = 0;
@@ -475,7 +569,10 @@ internal static class AnalyticalSimulator
             bool selfTarget = card.Target == TargetType.Self
                            || card.Target == TargetType.AnyPlayer;
 
-            if (selfTarget && card.Block > 0)
+            // SECOND_WIND grants block PER non-Attack exhausted, handled in
+            // the post-skill carve-out below. Skip the standard single-grant
+            // here so the per-exhaust loop owns all block math.
+            if (selfTarget && card.Block > 0 && card.Id != "SECOND_WIND")
             {
                 int perPlayBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
@@ -709,7 +806,12 @@ internal static class AnalyticalSimulator
         // mean of a pool barely shifts when one card is plucked out.
         int drawPileAfter = next.DrawPileSize;
         int discardAfter = next.DiscardPileSize;
-        if (card.DrawCount > 0 && drawPileAfter + discardAfter > 0)
+        // Power cards' CardsVar represents the power's amount (e.g. VICIOUS's
+        // CardsVar(1) → ViciousPower(1)), NOT a draw. CardReflection routes
+        // CardsVar → DrawCount uniformly; gate by type so Power cards don't
+        // erroneously draw. Affected before fix: VICIOUS 7/7 with
+        // hand_count=+1 / draw_pile_count=-1 (mod over-drew, real didn't).
+        if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0)
         {
             var avgDraw = MakeAverageDrawCard(next);
             for (int i = 0; i < card.DrawCount; i++)
@@ -717,12 +819,22 @@ internal static class AnalyticalSimulator
                 if (drawPileAfter <= 0)
                 {
                     if (discardAfter <= 0) break;
-                    // Reshuffle simulated: discard pile becomes new draw pile
+                    // Reshuffle simulated: discard pile becomes new draw pile.
                     drawPileAfter = discardAfter;
                     discardAfter = 0;
+                    // Mirror reshuffle on the actual lists — discard contents
+                    // move into draw, discard clears. Real game shuffles the
+                    // order but for Count parity that doesn't matter.
+                    newDrawPile.AddRange(newDiscardPile);
+                    newDiscardPile.Clear();
                 }
                 newHand.Add(avgDraw);
                 drawPileAfter--;
+                // Pop one card off the (now non-empty) drawPile list to keep
+                // DrawPile.Count in sync with DrawPileSize. Order doesn't
+                // matter for the probe; pop from end (O(1)).
+                if (newDrawPile.Count > 0)
+                    newDrawPile.RemoveAt(newDrawPile.Count - 1);
             }
         }
 
@@ -737,6 +849,51 @@ internal static class AnalyticalSimulator
         // entirely). Previously mod sim sent them to discard, which produced
         // 100% divergence on every Power card in the parity probe (76/76).
         int newExhaustPileCount = next.ExhaustPileCount;
+
+        // 2026-05-31 — Random hand-exhaust mechanic (CINDER, TRUE_GRIT base).
+        // sts2.dll: `CombatCardSelection.NextItem(handPile.Cards)` picks an
+        // Rng-driven random card to exhaust. Mod sim deterministic: pop the
+        // LAST card from newHand. Total damage/block elsewhere unchanged.
+        // Card itself follows normal discard/exhaust path below (CINDER/
+        // TRUE_GRIT have ExtraHoverTip Exhaust but no CanonicalKeyword,
+        // so they go to discard via the IsExhaust=false branch).
+        if (card.Id == "CINDER" || card.Id == "TRUE_GRIT")
+        {
+            if (newHand.Count > 0)
+            {
+                newHand.RemoveAt(newHand.Count - 1);
+                newExhaustPileCount++;
+            }
+        }
+
+        // SECOND_WIND: exhaust all non-Attack hand cards, gain card.Block
+        // per exhaust. sts2.dll's SecondWind.OnPlay loops
+        //   foreach (var c in pile.Cards.Where(c => c.Type != CardType.Attack))
+        //     { Exhaust(c); GainBlock(BlockVar); }
+        // Mod sim previously fell through to the standard skill self-block
+        // branch (single grant) and never moved the hand cards → 13/13
+        // SECOND_WIND records diverged in S4 probe (player_block -10..-43,
+        // hand_count +3..+6, exhaust_pile_count -3..-6). Standard branch is
+        // gated above to leave block math here.
+        if (card.Id == "SECOND_WIND")
+        {
+            int nonAttackCount = 0;
+            for (int i = newHand.Count - 1; i >= 0; i--)
+            {
+                if (!newHand[i].IsAttack)
+                {
+                    nonAttackCount++;
+                    newExhaustPileCount++;
+                    newHand.RemoveAt(i);
+                }
+            }
+            if (nonAttackCount > 0 && card.Block > 0)
+            {
+                int perPlayBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
+                newPlayerBlock += nonAttackCount * perPlayBlock;
+            }
+        }
+
         if (card.IsPower)
         {
             // Power moves to PowerPile (untracked in SimState — the Power
@@ -747,6 +904,14 @@ internal static class AnalyticalSimulator
         {
             discardAfter += 1;
             newDiscardPile.Add(card);
+            // ANGER ("이 카드의 복사본을 1장 버린 카드 더미에 추가합니다.") —
+            // real discard gains the played card AND a copy of it; without
+            // the extra append mod sim is short by 1 on every ANGER play.
+            if (card.Id == "ANGER")
+            {
+                discardAfter += 1;
+                newDiscardPile.Add(card);
+            }
         }
         else
         {
@@ -1032,6 +1197,9 @@ internal static class AnalyticalSimulator
             // propagated alongside the size counters so simulator-parity
             // audit sees the played card in mod sim's post-play state.
             DiscardPile = newDiscardPile,
+            // 2026-05-29 — DrawPile list mirrors DrawPileSize (draw-on-play
+            // cards: POMMEL_STRIKE / SHRUG_IT_OFF / ANGER copy etc.).
+            DrawPile = newDrawPile,
             ExhaustPileCount = newExhaustPileCount,
             // v0.9 — propagate per-target attack counter for depth-N forge math.
             TurnAttacksByTargetIdx = newTurnAttacksByTgt,

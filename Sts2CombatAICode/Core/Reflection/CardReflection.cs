@@ -429,6 +429,15 @@ internal static class CardReflection
                 if (v is DamageVar) { if (!hasCalcDamage) damage += amount; continue; }
                 if (v is BlockVar) { if (!hasCalcBlock) block += amount; continue; }
                 if (v is RepeatVar) { if (amount > 0) hits = amount; continue; }
+                // HpLossVar — typed subclass for cards that lose HP on play
+                // (BLOOD_WALL, HEMOKINESIS, BRAND, BREAKTHROUGH, BLOODLETTING,
+                // OFFERING, ...). The DynamicVar-by-Name branch below catches
+                // raw DynamicVars with Name="HpLoss" but typed HpLossVar
+                // falls through there (`typeName == "DynamicVar"` excludes
+                // subclasses). Without this branch mod sim never applies
+                // HP loss for HpLossVar cards → consistent player_hp=+N diff
+                // in parity probe (BLOOD_WALL 12/12 with +2).
+                if (typeName.StartsWith("HpLossVar")) { hpLoss += amount; continue; }
                 // CalculatedVar with Name "CalculatedHits" — runtime hit count
                 // derived from the card's scaling closure (BARRAGE, FINISHER,
                 // FLAK_CANNON, FLECHETTES, HELIX_DRILL, LUNAR_BLAST,

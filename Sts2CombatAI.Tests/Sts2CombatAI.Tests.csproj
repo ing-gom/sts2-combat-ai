@@ -43,6 +43,7 @@
         <Compile Include="..\Sts2CombatAICode\Core\Sim\SimState.cs" Link="Sim\SimState.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\EnemyTurnSimulator.cs" Link="Sim\EnemyTurnSimulator.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\StatusMath.cs" Link="Sim\StatusMath.cs" />
+        <Compile Include="..\Sts2CombatAICode\Core\Sim\DamageModifiers.cs" Link="Sim\DamageModifiers.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\AnalyticalSimulator.cs" Link="Sim\AnalyticalSimulator.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\OrbKind.cs" Link="Sim\OrbKind.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\TokenProducerAxes.cs" Link="Sim\TokenProducerAxes.cs" />
