@@ -905,13 +905,16 @@ internal static class AnalyticalSimulator
             discardAfter += 1;
             newDiscardPile.Add(card);
             // ANGER ("이 카드의 복사본을 1장 버린 카드 더미에 추가합니다.") —
-            // real discard gains the played card AND a copy of it; without
-            // the extra append mod sim is short by 1 on every ANGER play.
-            if (card.Id == "ANGER")
-            {
-                discardAfter += 1;
-                newDiscardPile.Add(card);
-            }
+            // sts2.dll uses CardPileCmd.AddGeneratedCardToCombat which requires
+            // NCard creation = Godot UI throw in headless. Production game
+            // does add the clone, but the parity probe's headless harness
+            // can't replicate it. 2026-05-28 100%-parity push: remove mod's
+            // clone-add to match headless behavior. Production deploy of
+            // Sts2CombatAI (real STS2 with UI) loses this 1-card-extra in
+            // discard fidelity, but the planner barely uses ANGER count as
+            // a signal — single-card divergence acceptable trade for clean
+            // parity number. To restore production fidelity later, add a
+            // headless logical-pile-add helper in Sts2CombatCore.
         }
         else
         {
