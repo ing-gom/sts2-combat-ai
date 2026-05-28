@@ -339,6 +339,10 @@ internal static class StateSnapshotter
             // 2026-05-28 S6-3a: SPITE's hit count depends on whether player lost
             // HP this turn (true → hits = Repeat=2, false → hits = 1).
             bool playerLostHpThisTurn = false;
+            // 2026-05-28 S6-4: FORGOTTEN_RITUAL gains energy if any card was
+            // exhausted this turn. Walks CardExhaustedEntry filtered by player
+            // Owner + HappenedThisTurn.
+            bool playerCardExhaustedThisTurn = false;
             // v0.9.2 — Counters for the 5 CalculatedHits cards that scale on
             // history-derived triggers: HELIX_DRILL (energy spent this turn),
             // RADIATE (stars gained this turn), PULL_FROM_BELOW (combat-wide
@@ -453,6 +457,17 @@ internal static class StateSnapshotter
                                     playerLostHpThisTurn = true;
                                 }
                             }
+                        }
+                        else if (entry is CardExhaustedEntry cee)
+                        {
+                            // 2026-05-28 S6-4: FORGOTTEN_RITUAL etc.
+                            // CombatManager.History.Entries.OfType<CardExhaustedEntry>()
+                            //   .Any(e => e.HappenedThisTurn(combatState)
+                            //          && e.Card.Owner == player)
+                            if (cee.RoundNumber != cs.RoundNumber) continue;
+                            if (cee.CurrentSide != cs.CurrentSide) continue;
+                            if (cee.Card?.Owner != player) continue;
+                            playerCardExhaustedThisTurn = true;
                         }
                         // v0.9.2 — Turn-gated counters for HELIX_DRILL /
                         // RADIATE / RATTLE. Each mirrors the exact filter the
@@ -652,6 +667,7 @@ internal static class StateSnapshotter
                     ?? new Dictionary<int, int>(),
                 CombatPlayerHpLossEvents = combatHpLossEvents,
                 PlayerLostHpThisTurn = playerLostHpThisTurn,
+                PlayerCardExhaustedThisTurn = playerCardExhaustedThisTurn,
                 PlayerNoBlock = playerNoBlock,
                 PlayerNoDraw = playerNoDraw,
                 PlayerNoEnergyGain = playerNoEnergyGain,

@@ -440,6 +440,13 @@ internal sealed record SimState
     public bool PlayerLostHpThisTurn { get; init; }
 
     /// <summary>
+    /// 2026-05-28 S6-4: tracks whether any player card was exhausted this turn.
+    /// FORGOTTEN_RITUAL gains 3 energy if true (WasCardExhaustedThisTurn). Also
+    /// relevant to other 소멸-trigger cards.
+    /// </summary>
+    public bool PlayerCardExhaustedThisTurn { get; init; }
+
+    /// <summary>
     /// v0.9 — Enemy-applied shutdown debuffs on the player. Each makes a
     /// whole class of player action useless THIS turn:
     ///   • PlayerNoBlock  — DEFEND/block gain is suppressed (DEFEND scoring

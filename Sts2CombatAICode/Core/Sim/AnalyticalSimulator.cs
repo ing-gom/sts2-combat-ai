@@ -63,7 +63,16 @@ internal static class AnalyticalSimulator
             else if (card.IsSkill) newFreeSkills--;
             else if (card.IsPower) newFreePowers--;
         }
-        if (card.EnergyGain > 0) energy += card.EnergyGain;
+        if (card.EnergyGain > 0)
+        {
+            // 2026-05-28 S6-4: FORGOTTEN_RITUAL conditional energy gain.
+            // gains 3 energy ONLY if a card was exhausted this turn. Mod's
+            // unconditional grant over-credited. Other EnergyVar cards (NIGHTMARE,
+            // etc.) unconditional — apply for all but FORGOTTEN_RITUAL.
+            bool gateEnergy = card.Id == "FORGOTTEN_RITUAL"
+                && !next.PlayerCardExhaustedThisTurn;
+            if (!gateEnergy) energy += card.EnergyGain;
+        }
         // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
         // energy here. The exact semantics (immediate vs next-turn) varies between
         // STS variants and we don't have a test harness to verify either way.
