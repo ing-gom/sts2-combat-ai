@@ -451,6 +451,15 @@ internal static class AnalyticalSimulator
                 {
                     hitsForDmg = next.Enemies[targetIdx].VulnerableAmount > 0 ? 2 : 1;
                 }
+                // 2026-05-28 S6-4: FIEND_FIRE damage × hand.Count hits.
+                // FiendFire.OnPlay captures hand BEFORE exhausting, so cardCount
+                // includes FIEND_FIRE itself (was in hand at OnPlay entry).
+                // newHand has already had FIEND_FIRE popped (line 78) so +1 to
+                // include FIEND_FIRE in count.
+                if (card.Id == "FIEND_FIRE")
+                {
+                    hitsForDmg = newHand.Count + 1;
+                }
                 // Random AOE: this enemy gets only its share of the
                 // round-robin distribution computed above.
                 if (isRandomAoe && hitsByEnemyIdx != null)
@@ -980,6 +989,17 @@ internal static class AnalyticalSimulator
                 newHand.RemoveAt(newHand.Count - 1);
                 newExhaustPileCount++;
             }
+        }
+
+        // 2026-05-28 S6-4: FIEND_FIRE exhaust all hand cards.
+        // FiendFire.OnPlay: foreach card in hand → exhaust. Then attack
+        // damage × cardCount. The attack hits are already captured in the
+        // hitsForDmg override above. Here we move all remaining hand cards
+        // (newHand) to exhaust pile.
+        if (card.Id == "FIEND_FIRE")
+        {
+            newExhaustPileCount += newHand.Count;
+            newHand.Clear();
         }
 
         // 2026-05-28 S6-4: PILLAGE draw-until-non-attack approximation.
