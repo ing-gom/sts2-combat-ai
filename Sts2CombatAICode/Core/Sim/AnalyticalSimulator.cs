@@ -359,6 +359,33 @@ internal static class AnalyticalSimulator
                 // sees the same Vigor amount, matching STS canonical behavior.
                 // v0.7.86 — AccuracyPower → +N damage for Shiv. Folded into base.
                 int adjustedBase = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, next);
+                // 2026-05-28 S6-3d: CalculatedDamageVar per-card multiplier add-on.
+                // CardReflection now reads CalculationBaseVar.BaseValue (e.g. 4
+                // for BULLY, 6 for PERFECTED_STRIKE), but loses the extra ×
+                // multiplier component which is a runtime closure. Re-add the
+                // multiplier here for known cards.
+                if (card.Id == "BULLY"
+                    && targetIdx >= 0 && targetIdx < next.Enemies.Count)
+                {
+                    // ExtraDamage 2 × target.VulnerablePower
+                    adjustedBase += 2 * next.Enemies[targetIdx].VulnerableAmount;
+                }
+                else if (card.Id == "PERFECTED_STRIKE")
+                {
+                    // ExtraDamage 2 (3 upgraded) × # of Strike-tag cards in deck.
+                    // Strike-tag cards: STRIKE_IRONCLAD, TWIN_STRIKE, POMMEL_STRIKE,
+                    // PERFECTED_STRIKE itself, WILD_STRIKE, SETUP_STRIKE, ASHEN_STRIKE,
+                    // FLASH_OF_STEEL, FLAK_CANNON, etc. (any with CardTag.Strike).
+                    // Counted across hand + draw + discard + exhaust. Approximation:
+                    // walk Hand + DrawPile + DiscardPile + ExhaustPile lists.
+                    int strikeCount = 0;
+                    foreach (var c in next.Hand) if (IsStrikeCard(c.Id)) strikeCount++;
+                    foreach (var c in next.DrawPile) if (IsStrikeCard(c.Id)) strikeCount++;
+                    foreach (var c in next.DiscardPile) if (IsStrikeCard(c.Id)) strikeCount++;
+                    // ExhaustPile is a count, not a list — Strike cards rarely
+                    // exhaust, undercount acceptable
+                    adjustedBase += 2 * strikeCount;
+                }
                 // 2026-05-28 MCTS-P0 A — X-cost cards (WHIRLWIND, etc.) use
                 // pre-spend energy as their hit count, not the catalog
                 // card.Hits value. SimCard.EffectiveDamage applies the same
@@ -1838,6 +1865,23 @@ internal static class AnalyticalSimulator
     /// fields when we track them; powers like Hex / DarkShackles still consume an
     /// Artifact charge but aren't carried forward into nextState).
     /// </summary>
+    /// <summary>
+    /// 2026-05-28 S6-3d: cards tagged with CardTag.Strike for PERFECTED_STRIKE
+    /// multiplier. List from sts2.dll decompile grep "CardTag.Strike". Used
+    /// to count Strike-tag cards across all piles for PERFECTED_STRIKE's
+    /// damage scaling (base 6 + extra 2 × count).
+    /// </summary>
+    private static bool IsStrikeCard(string? id) => id switch
+    {
+        "STRIKE_IRONCLAD" or "STRIKE_SILENT" or "STRIKE_DEFECT"
+        or "STRIKE_NECROBINDER" or "STRIKE_REGENT"
+        or "TWIN_STRIKE" or "POMMEL_STRIKE" or "PERFECTED_STRIKE"
+        or "WILD_STRIKE" or "SETUP_STRIKE" or "ASHEN_STRIKE"
+        or "FLASH_OF_STEEL" or "MEMENTO_MORI" or "SOLAR_STRIKE"
+        or "SHINING_STRIKE" => true,
+        _ => false,
+    };
+
     private static bool IsEnemyDebuff(string powerName) => powerName switch
     {
         "VulnerablePower" or "WeakPower" or "FrailPower"

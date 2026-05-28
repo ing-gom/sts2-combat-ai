@@ -430,16 +430,28 @@ internal static class CardReflection
                 var typeName = v.GetType().Name;
 
                 // CalculatedDamageVar = base + extra × multiplier (final value).
-                // Once we have it, ignore the component vars (Damage / ExtraDamage / CalculationBase).
+                // 2026-05-28 S6-3: try BaseValue first — same Strength double-count
+                // fix as plain DamageVar. PreviewValue includes Strength buff
+                // which then gets re-added by modifier registry.
                 if (typeName.StartsWith("CalculatedDamageVar"))
                 {
-                    damage = amount;
+                    // BaseValue for CalculatedDamageVar typically returns the
+                    // static base component without runtime modifiers. For
+                    // BULLY: CalculationBase=4. Modifier handles Str/Vuln.
+                    // For multiplier-driven cards (PERFECTED_STRIKE per-Strike,
+                    // BULLY per-Vuln), the multiplier IS lost — those need
+                    // per-card special-cases in AnalyticalSimulator. Conservative
+                    // fallback to amount if BaseValue is 0 (i.e. var has no
+                    // static component, only dynamic).
+                    int baseRaw = (int)v.BaseValue;
+                    damage = baseRaw > 0 ? baseRaw : amount;
                     hasCalcDamage = true;
                     continue;
                 }
                 if (typeName.StartsWith("CalculatedBlockVar"))
                 {
-                    block = amount;
+                    int baseRaw = (int)v.BaseValue;
+                    block = baseRaw > 0 ? baseRaw : amount;
                     hasCalcBlock = true;
                     continue;
                 }
