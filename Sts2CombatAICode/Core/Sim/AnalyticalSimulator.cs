@@ -179,7 +179,24 @@ internal static class AnalyticalSimulator
         // turn-resolution math so subsequent depth-N candidates see the lower HP
         // and the HpLoss penalty band in EstimateCardPower fires correctly.
         if (card.HpLossAmount > 0)
+        {
             newPlayerHp = System.Math.Max(0, newPlayerHp - card.HpLossAmount);
+            // 2026-05-28 S6-3c: RupturePower trigger on HP loss.
+            // RuptureCfg: gain N Strength per HP-loss event (stack = N).
+            // BLOOD_WALL/BREAKTHROUGH/HEMOKINESIS/BLOODLETTING/OFFERING/BRAND
+            // are HP-loss-on-play cards; each triggers Rupture once if active.
+            // Mod sim previously didn't trigger → player_strength -1 diff per
+            // play (1 row per BLOOD_WALL etc. with Rupture active).
+            // FeelNoPainPower could ALSO trigger here on exhaust events;
+            // already handled separately around line 898.
+            if (next.PlayerPowers != null
+                && next.PlayerPowers.TryGetValue("RupturePower", out var ruptureStacks)
+                && ruptureStacks > 0)
+            {
+                newPlayerStr += ruptureStacks;
+                AddPlayerPower("StrengthPower", ruptureStacks);
+            }
+        }
 
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
         if (card.IsPower)
