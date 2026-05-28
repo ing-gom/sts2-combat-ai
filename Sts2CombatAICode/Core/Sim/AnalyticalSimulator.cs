@@ -370,6 +370,13 @@ internal static class AnalyticalSimulator
                     // ExtraDamage 2 × target.VulnerablePower
                     adjustedBase += 2 * next.Enemies[targetIdx].VulnerableAmount;
                 }
+                else if (card.Id == "BODY_SLAM")
+                {
+                    // damage = current player block ONLY (CalcBase 0 + Extra 1 × block).
+                    // card.Damage from PreviewValue fallback is 1 (the ExtraDamage
+                    // var amount); override to 0 + player.Block so modifier can add Str.
+                    adjustedBase = next.PlayerBlock;
+                }
                 else if (card.Id == "PERFECTED_STRIKE")
                 {
                     // ExtraDamage 2 (3 upgraded) × # of Strike-tag cards in deck.
@@ -411,6 +418,16 @@ internal static class AnalyticalSimulator
                 if (card.Id == "SPITE")
                 {
                     hitsForDmg = next.PlayerLostHpThisTurn ? card.Hits : 1;
+                }
+                // 2026-05-28 S6-3e: DISMANTLE conditional hits.
+                // hits = target.HasVulnerable ? 2 : 1. Mod doesn't have RepeatVar
+                // for DISMANTLE so hits defaults to 1 — under-credit when target
+                // Vulnerable, no diff when not. Adding HardcodedHitCount=2 would
+                // over-credit non-Vuln case. Special-case here based on target.
+                if (card.Id == "DISMANTLE"
+                    && targetIdx >= 0 && targetIdx < next.Enemies.Count)
+                {
+                    hitsForDmg = next.Enemies[targetIdx].VulnerableAmount > 0 ? 2 : 1;
                 }
                 // Random AOE: this enemy gets only its share of the
                 // round-robin distribution computed above.
@@ -624,7 +641,14 @@ internal static class AnalyticalSimulator
             // SECOND_WIND grants block PER non-Attack exhausted, handled in
             // the post-skill carve-out below. Skip the standard single-grant
             // here so the per-exhaust loop owns all block math.
-            if (selfTarget && card.Block > 0 && card.Id != "SECOND_WIND")
+            // 2026-05-28 S6-3e: enemy-target Skills with GainsBlock=true (e.g.
+            // TAUNT — TargetType.AnyEnemy + 7 block to self + Vuln to target)
+            // still grant block to self. Mod sim's selfTarget check missed
+            // these → TAUNT 0/5 agree with player_block -7 diff per play.
+            bool enemyTargetSkillGainsBlock = card.IsSkill && !selfTarget && card.Block > 0
+                && (card.Id == "TAUNT");
+            if ((selfTarget && card.Block > 0 && card.Id != "SECOND_WIND")
+                || enemyTargetSkillGainsBlock)
             {
                 int perPlayBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
