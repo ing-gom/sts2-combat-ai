@@ -623,13 +623,20 @@ internal static class CardReflection
                             powerApps["EnergyNextTurnPower"] = amount;
                         continue;
                     }
-                    // 2026-05-29 — an EnergyVar named "ExtraCost" is a DEFERRED
-                    // cost, not immediate energy. BORROWED_TIME (Necrobinder):
-                    // EnergyVar(4) gained now + EnergyVar("ExtraCost", 1) applied
-                    // as BorrowedTimePower (future cost increase). Summing both
-                    // over-credited energy by 1 every play (player_energy +1).
-                    // Same deferred-var pattern as BlockNextTurn.
-                    if (v.Name == "ExtraCost") continue;
+                    // 2026-05-29 — deferred-secondary-var audit (general pattern):
+                    // an EnergyVar with a non-default Name is often NOT immediate
+                    // energy gain. Route by name (all decompile-verified):
+                    //   ExtraCost      — BORROWED_TIME: future cost (BorrowedTimePower)
+                    //   EnergyThreshold— IVORY_TILE: a condition/threshold, not gain
+                    //   energyPrefix   — TINKER_TIME: a display-only prefix var
+                    //   LoseEnergy     — BREAD: OnPlay calls LoseEnergy(amount), so
+                    //                    it SUBTRACTS energy (real net = Gain−Lose)
+                    // Summing any of these as +amount over-credited PlayerEnergy.
+                    // Same deferred-var class as BlockNextTurn.
+                    if (v.Name == "ExtraCost"
+                        || v.Name == "EnergyThreshold"
+                        || v.Name == "energyPrefix") continue;
+                    if (v.Name == "LoseEnergy") { energyGain -= amount; continue; }
                     energyGain += amount;
                     continue;
                 }
