@@ -1125,6 +1125,21 @@ internal static class AnalyticalSimulator
             newExhaustPileCount += 1;
         }
 
+        // 2026-05-29 — status-producer cards generate status cards into the
+        // discard pile (sts2.dll: CardPileCmd.AddGeneratedCardToCombat(card,
+        // PileType.Discard)). Headless real game DOES add them (probe shows
+        // discard +N), but the mod sim didn't → consistent discard_pile_count
+        // = -N divergence (GUNK_UP/OVERCLOCK/BOOST_AWAY/FIGHT_THROUGH, ~40 cases).
+        // Mirror the count so pile bookkeeping matches.
+        if (StatusToDiscardCount.TryGetValue(card.Id, out int statusN) && statusN > 0)
+        {
+            for (int s = 0; s < statusN; s++)
+            {
+                discardAfter += 1;
+                newDiscardPile.Add(MakeStatusPlaceholderCard());
+            }
+        }
+
         // v0.7.85 — AfterimagePower: gain N block on every card played (including
         // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
         if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
@@ -2140,5 +2155,30 @@ internal static class AnalyticalSimulator
         SourceRef = null,
         Effect = new CardEffectSummary { Damage = 5, Hits = 1 },
         IsPlayable = true,
+    };
+
+    // 2026-05-29 — status-producer card → number of status cards (Burn/Dazed/
+    // Wound/Slimed/...) added to the DISCARD pile on play. Decompile-verified
+    // (sts2.dll OnPlay: CardPileCmd.AddGeneratedCardToCombat(card, Discard)).
+    private static readonly System.Collections.Generic.Dictionary<string, int> StatusToDiscardCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["GUNK_UP"] = 1,        // Slimed/Gunk → discard
+        ["OVERCLOCK"] = 1,      // Burn → discard
+        ["BOOST_AWAY"] = 1,     // Dazed → discard
+        ["FIGHT_THROUGH"] = 2,  // 2× Wound → discard (OnPlay loop i<2)
+    };
+
+    // Minimal unplayable status placeholder — only the discard-pile COUNT
+    // matters for parity, so contents are inert.
+    private static SimCard MakeStatusPlaceholderCard() => new()
+    {
+        Id = "<status-placeholder>",
+        Cost = 0,
+        Kind = CardType.Status,
+        Target = TargetType.None,
+        SourceRef = null,
+        Effect = new CardEffectSummary(),
+        IsPlayable = false,
     };
 }
