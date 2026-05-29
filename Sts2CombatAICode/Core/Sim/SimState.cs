@@ -222,6 +222,10 @@ internal sealed record SimState
     /// branch so depth-2 sees the boosted orb output.
     /// </summary>
     public int PlayerFocus { get; init; }
+    // 2026-05-29 — ThunderPower (Defect): +Amount damage (Unpowered/flat) each
+    // time a Lightning orb is evoked (ThunderPower.AfterOrbEvoked). Boosts every
+    // lightning evoke this combat; the THUNDER card applies it.
+    public int PlayerThunder { get; init; }
 
     /// <summary>
     /// v0.5 — Per-type "next N plays cost 0" counters from FreeAttackPower /

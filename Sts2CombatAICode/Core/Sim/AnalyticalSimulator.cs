@@ -2055,7 +2055,10 @@ internal static class AnalyticalSimulator
                 energy += 2;
                 break;
             case OrbKind.Lightning:
-                state = DamageWeakest(state, System.Math.Max(0, 8 + focus));
+                // 2026-05-29 — ThunderPower adds +Amount (Unpowered/flat, focus-
+                // independent) per lightning evoke (AfterOrbEvoked). Same target
+                // as the evoke, so fold it into the single weakest-enemy hit.
+                state = DamageWeakest(state, System.Math.Max(0, 8 + focus) + state.PlayerThunder);
                 break;
             case OrbKind.Dark:
                 // Dark accumulator already absorbs Focus per tick from the game; the stored

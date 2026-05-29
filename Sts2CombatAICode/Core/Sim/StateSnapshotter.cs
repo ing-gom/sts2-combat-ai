@@ -98,6 +98,8 @@ internal static class StateSnapshotter
             int playerWeak = CombatReflection.GetPowerAmount(creature, "WeakPower");
             int playerFrail = CombatReflection.GetPowerAmount(creature, "FrailPower");
             int playerFocus = CombatReflection.GetPowerAmount(creature, "FocusPower");
+            // 2026-05-29 — ThunderPower: +Amount damage per Lightning evoke.
+            int playerThunder = CombatReflection.GetPowerAmount(creature, "ThunderPower");
             int playerIntangible = CombatReflection.GetPowerAmount(creature, "IntangiblePower");
             int playerMetallicize = CombatReflection.GetPowerAmount(creature, "MetallicizePower");
             int playerPlatedArmor = CombatReflection.GetPowerAmount(creature, "PlatedArmorPower");
@@ -646,6 +648,7 @@ internal static class StateSnapshotter
                 OrbQueue = orbQueue,
                 OrbEvokeValues = orbEvokeValues,
                 PlayerFocus = playerFocus,
+                PlayerThunder = playerThunder,
                 PlayerIntangible = playerIntangible,
                 PlayerEndOfTurnBlockBonus = playerEotBlockBonus,
                 PlayerFreeAttacks = playerFreeAttacks,
