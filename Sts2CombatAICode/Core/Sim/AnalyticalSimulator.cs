@@ -463,6 +463,19 @@ internal static class AnalyticalSimulator
                     // exhaust, undercount acceptable
                     adjustedBase += 2 * strikeCount;
                 }
+                else if (card.Id == "PRECISE_CUT")
+                {
+                    // 2026-05-29 — CalculatedDamage = CalculationBase(13) +
+                    // ExtraDamage(2) × (-(handCount-1)). Decompile: the multiplier
+                    // delegate returns -(Hand.Cards.Count - 1) (excludes the card
+                    // itself while in hand), so PRECISE_CUT deals MORE with fewer
+                    // other cards in hand (empty-hand reward). CardReflection reads
+                    // CalculationBase (13) as the base; re-add the lost multiplier.
+                    // next.Hand still contains PRECISE_CUT (pre-play), matching the
+                    // delegate's -1 self-exclusion. Floor at 0.
+                    int otherInHand = System.Math.Max(0, next.Hand.Count - 1);
+                    adjustedBase = System.Math.Max(0, adjustedBase - 2 * otherInHand);
+                }
                 // 2026-05-28 MCTS-P0 A — X-cost cards (WHIRLWIND, etc.) use
                 // pre-spend energy as their hit count, not the catalog
                 // card.Hits value. SimCard.EffectiveDamage applies the same
