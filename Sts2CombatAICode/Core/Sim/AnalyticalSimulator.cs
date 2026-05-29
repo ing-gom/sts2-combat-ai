@@ -976,7 +976,18 @@ internal static class AnalyticalSimulator
         // CardsVar → DrawCount uniformly; gate by type so Power cards don't
         // erroneously draw. Affected before fix: VICIOUS 7/7 with
         // hand_count=+1 / draw_pile_count=-1 (mod over-drew, real didn't).
-        if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0)
+        // 2026-05-29 — shiv-generator cards (CLOAK_AND_DAGGER / BLADE_DANCE /
+        // HIDDEN_DAGGERS / ...) route their Cards/Shivs var through DrawCount,
+        // but sts2.dll CREATES Shivs in hand (Shiv.CreateInHand) rather than
+        // drawing from the pile. The mod sim drew from the draw pile →
+        // draw_pile_count = -N divergence (Silent's biggest bookkeeping bucket).
+        // Redirect: add N shiv placeholders to hand, leave the draw pile alone.
+        if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id))
+        {
+            for (int i = 0; i < card.DrawCount; i++)
+                newHand.Add(MakeShivPlaceholderCard());
+        }
+        else if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0)
         {
             var avgDraw = MakeAverageDrawCard(next);
             for (int i = 0; i < card.DrawCount; i++)
@@ -2180,5 +2191,27 @@ internal static class AnalyticalSimulator
         SourceRef = null,
         Effect = new CardEffectSummary(),
         IsPlayable = false,
+    };
+
+    // 2026-05-29 — shiv-generator cards that CREATE Shivs in hand (not draw
+    // from pile). Decompile-verified: each calls Shiv.CreateInHand(N) where N
+    // is the card's Cards/Shivs var (routed to DrawCount by CardReflection).
+    private static readonly System.Collections.Generic.HashSet<string> ShivGenCards =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "CLOAK_AND_DAGGER", "BLADE_DANCE", "HIDDEN_DAGGERS",
+    };
+
+    // Shiv: 0-cost 4-damage attack created in hand. Damage matters if the
+    // planner later "plays" it in lookahead; count matters for hand parity.
+    private static SimCard MakeShivPlaceholderCard() => new()
+    {
+        Id = "SHIV",
+        Cost = 0,
+        Kind = CardType.Attack,
+        Target = TargetType.AnyEnemy,
+        SourceRef = null,
+        Effect = new CardEffectSummary { Damage = 4, Hits = 1 },
+        IsPlayable = true,
     };
 }
