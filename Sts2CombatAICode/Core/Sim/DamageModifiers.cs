@@ -349,7 +349,13 @@ internal static class BaselineDamageModifiers
         // --- Additive (attacker side, base damage adjustment) ---
         DamageModifierRegistry.Register(new StrengthAdditiveModifier());
         DamageModifierRegistry.Register(new VigorAdditiveModifier());
-        DamageModifierRegistry.Register(new AccuracyShivBonusModifier());
+        // 2026-05-29 — AccuracyShivBonusModifier intentionally NOT registered.
+        // AccuracyPower's +stack shiv bonus is already folded into the base via
+        // StatusMath.ApplyCardSpecificDamageBonus (used by BOTH AnalyticalSimulator
+        // line 431 and PlanScorer line 741). Registering the modifier too applied
+        // Accuracy a SECOND time on the AnalyticalSimulator path — SHIV over-dealt
+        // by exactly PlayerAccuracy (sim_parity SHIV enemy_hp -4 with Accuracy 4).
+        // Keep the single fold (shared by sim+planner); drop the duplicate modifier.
 
         // --- Multiplicative (defender-vuln then attacker-weak, then
         //     conditional Tracking / Cruelty / Lethality) ---
