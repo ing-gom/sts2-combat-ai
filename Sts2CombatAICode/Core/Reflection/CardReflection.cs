@@ -516,6 +516,13 @@ internal static class CardReflection
                 // scaling extras (PerfectedStrike per-Strike etc.) ARE the
                 // PreviewValue and modifier registry can't replicate them.
                 if (v is DamageVar) { if (!hasCalcDamage) damage += (int)v.BaseValue; continue; }
+                // 2026-05-29 — a BlockVar named "BlockNextTurn" is deferred block:
+                // OnPlay routes it to BlockNextTurnPower (gained at next turn
+                // start), NOT to the current turn's Block. GLITTERSTREAM has
+                // BlockVar(11) [now] + BlockVar("BlockNextTurn", 5) [next turn];
+                // summing both over-credited current block by 5 (player_block +5
+                // on every play). Exclude it from the current-turn block sum.
+                if (v is BlockVar && v.Name == "BlockNextTurn") continue;
                 if (v is BlockVar) { if (!hasCalcBlock) block += (int)v.BaseValue; continue; }
                 // RepeatVar normally = attack hit count (SWORD_BOOMERANG,
                 // CELESTIAL_MIGHT, ...). But some cards use RepeatVar to drive a
