@@ -71,6 +71,24 @@ internal static class AnalyticalSimulator
             // etc.) unconditional — apply for all but FORGOTTEN_RITUAL.
             bool gateEnergy = card.Id == "FORGOTTEN_RITUAL"
                 && !next.PlayerCardExhaustedThisTurn;
+
+            // 2026-05-29: SUNDER kill-conditional energy. sts2.dll SUNDER.OnPlay
+            // gains energy ONLY when the attack kills the target
+            // (DamageResult.WasTargetKilled). The mod sim granted it
+            // unconditionally → +3 player_energy on every non-kill play (top
+            // Defect divergence, 14 cases). Predict the kill: effective damage
+            // vs target effective HP (hp + block).
+            if (!gateEnergy && card.Id == "SUNDER"
+                && targetIdx >= 0 && targetIdx < next.Enemies.Count)
+            {
+                var tgt = next.Enemies[targetIdx];
+                int effDmg = StatusMath.EffectiveAttackDmg(
+                    card.Damage, next.PlayerStrength, next.PlayerVigor,
+                    tgt.VulnerableAmount > 0, next.PlayerWeak > 0);
+                bool kills = effDmg >= tgt.Hp + tgt.Block;
+                if (!kills) gateEnergy = true;
+            }
+
             if (!gateEnergy) energy += card.EnergyGain;
         }
         // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
