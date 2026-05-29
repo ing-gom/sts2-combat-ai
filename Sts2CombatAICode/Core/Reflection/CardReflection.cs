@@ -456,8 +456,16 @@ internal static class CardReflection
             foreach (var obj in vars)
             {
                 if (obj is DynamicVar pv && pv.GetType().Name == "CalculatedVar"
-                    && (pv.Name == "CalculatedForge" || pv.Name == "CalculatedHits"))
+                    && (pv.Name == "CalculatedForge" || pv.Name == "CalculatedHits"
+                        || pv.Name == "SeekingEdgeAmount"))
                 {
+                    // 2026-05-29 — SOVEREIGN_BLADE (Regent). OnPlay deals
+                    // Attack(DynamicVars.Damage.BaseValue) × Repeat; the
+                    // CalculationBase/CalculationExtra vars feed only the
+                    // SeekingEdgeAmount display calc, NOT the damage. Without
+                    // this, CalculationExtra(1) was summed into damage -> every
+                    // SOVEREIGN_BLADE hit over-dealt by 1 (enemy_hp -1; and with
+                    // ShrinkPower, (15+1)*0.7=11 vs real 15*0.7=10).
                     calcFeedsNonDamage = true;
                     break;
                 }
