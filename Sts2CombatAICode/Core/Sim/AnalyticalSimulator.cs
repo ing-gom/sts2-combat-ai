@@ -1074,6 +1074,24 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-29 — discard→draw retrieval cards. COSMIC_INDIFFERENCE:
+        // CardSelectCmd.FromSimpleGrid over the DISCARD pile, then moves the
+        // chosen card to the DRAW pile (CardPileCmd.Add … PileType.Draw). Count
+        // fixed (1); identity is the player's choice but irrelevant for counts.
+        // Move N from discard → draw.
+        if (DiscardToDrawCount.TryGetValue(card.Id, out int retrN) && retrN > 0)
+        {
+            int moved = System.Math.Min(retrN, newDiscardPile.Count);
+            for (int k = 0; k < moved; k++)
+            {
+                var movedCard = newDiscardPile[newDiscardPile.Count - 1];
+                newDiscardPile.RemoveAt(newDiscardPile.Count - 1);
+                newDrawPile.Add(movedCard);
+                discardAfter -= 1;
+                drawPileAfter += 1;
+            }
+        }
+
         // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
         // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
         // a downstream card sees reflects the realistic pile sizes including this card.
@@ -1226,8 +1244,21 @@ internal static class AnalyticalSimulator
         // model → hand_count = -N divergence. Add N hand placeholders.
         if (CardGenToHandCount.TryGetValue(card.Id, out int handN) && handN > 0)
         {
+            // 2026-05-29 — AddGeneratedCardToCombat(card, PileType.Hand) respects
+            // the hand-10 cap: when the hand is full the generated card OVERFLOWS
+            // to the discard pile (decompile: COLLISION_COURSE/MANIFEST_AUTHORITY
+            // generate Debris/card to Hand, but the headless-inflated hand is >=10
+            // so real routes them to discard). Mirror: hand if room, else discard.
             for (int h = 0; h < handN; h++)
-                newHand.Add(MakeStatusPlaceholderCard());
+            {
+                if (newHand.Count < 10)
+                    newHand.Add(MakeStatusPlaceholderCard());
+                else
+                {
+                    newDiscardPile.Add(MakeStatusPlaceholderCard());
+                    discardAfter += 1;
+                }
+            }
         }
 
         // v0.7.85 — AfterimagePower: gain N block on every card played (including
@@ -2305,6 +2336,14 @@ internal static class AnalyticalSimulator
         ["SURVIVOR"] = 1,         // FromHandForDiscard(1)
         ["ACROBATICS"] = 1,       // FromHandForDiscard(1)
         ["PREPARED"] = 1,         // FromHandForDiscard(cardCount, base 1)
+    };
+
+    // 2026-05-29 — cards that retrieve N cards from the discard pile to the draw
+    // pile (CardSelectCmd over Discard → CardPileCmd.Add PileType.Draw).
+    private static readonly System.Collections.Generic.Dictionary<string, int> DiscardToDrawCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["COSMIC_INDIFFERENCE"] = 1,
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT
