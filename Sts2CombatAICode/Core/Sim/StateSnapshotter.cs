@@ -74,6 +74,8 @@ internal static class StateSnapshotter
             int playerAccuracy = CombatReflection.GetPowerAmount(creature, "AccuracyPower");
             // 2026-05-30 — PhantomBlades: +N to the first shiv each turn.
             int playerPhantomBlades = CombatReflection.GetPowerAmount(creature, "PhantomBladesPower");
+            // 2026-05-30 — ChildOfTheStars: +Amount block per star spent.
+            int playerChildOfTheStars = CombatReflection.GetPowerAmount(creature, "ChildOfTheStarsPower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -628,6 +630,7 @@ internal static class StateSnapshotter
                 PlayerUnmovable = playerUnmovable,
                 PlayerAccuracy = playerAccuracy,
                 PlayerPhantomBlades = playerPhantomBlades,
+                PlayerChildOfTheStars = playerChildOfTheStars,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,

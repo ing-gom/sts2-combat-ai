@@ -1347,6 +1347,12 @@ internal static class AnalyticalSimulator
         if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
             newPlayerBlock += newPlayerAfterimage;
 
+        // 2026-05-30 — ChildOfTheStarsPower: AfterStarsSpent(N) gains Amount×N
+        // block (flat, Unpowered). A star-cost card spends StarCost stars on play.
+        // (PARTICLE_WALL StarCost 2 × ChildOfStars 2 = +4 block.)
+        if (next.PlayerChildOfTheStars > 0 && card.StarCost > 0)
+            newPlayerBlock += next.PlayerChildOfTheStars * card.StarCost;
+
         // v0.7.97 — FeelNoPainPower: gain N block when a card is exhausted.
         // Only fires for cards with the Exhaust keyword (catalog flag); status /
         // curse Ethereal exhaust at turn-end, not on play.

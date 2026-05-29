@@ -355,6 +355,13 @@ internal sealed record SimState
     public int PlayerPhantomBlades { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — ChildOfTheStarsPower (Regent): AfterStarsSpent(N) gains
+    /// Amount×N block (flat, Unpowered). Applied when a star-cost card is played
+    /// (stars spent == the card's star cost).
+    /// </summary>
+    public int PlayerChildOfTheStars { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
