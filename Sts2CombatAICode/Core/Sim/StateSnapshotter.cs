@@ -842,6 +842,14 @@ internal static class StateSnapshotter
         var powerDict = CombatReflection.GetAllPowers(enemy);
         int damageCap = 0;
         if (powerDict.TryGetValue("IntangiblePower", out _)) damageCap = 1;
+        // 2026-05-29 — SlipperyPower caps each incoming hit to 1
+        // (sts2.dll SlipperyPower.ModifyDamageCap returns 1m). Found via the
+        // damage-pipeline trace: Hook.ModifyDamage(17)=>1 on Slippery enemies,
+        // sim dealt full → big enemy_hp over-prediction (SOVEREIGN_BLADE class).
+        // FlutterPower also reduces to 1 (ModifyDamageMultiplicative→1m) on its
+        // active condition; treat as a 1-cap when present.
+        if (powerDict.TryGetValue("SlipperyPower", out var slip) && slip > 0) damageCap = 1;
+        if (powerDict.TryGetValue("FlutterPower", out var flut) && flut > 0) damageCap = 1;
         if (powerDict.TryGetValue("HardToKillPower", out var hard) && hard > 0)
             damageCap = damageCap == 0 ? hard : System.Math.Min(damageCap, hard);
         int thorns = powerDict.TryGetValue("ThornsPower", out var t) ? t : 0;
