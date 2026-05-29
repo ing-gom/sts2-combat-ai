@@ -1115,6 +1115,15 @@ internal static class AnalyticalSimulator
             // catalog stack now lives on PlayerPowers / PlayerStrength etc.).
             // No discard/exhaust counter update.
         }
+        else if (SelfRecycleToDraw.Contains(card.Id))
+        {
+            // 2026-05-29 — self-recycle cards return THIS card to the draw pile
+            // (top) instead of discard (sts2.dll: CardPileCmd.Add(this,
+            // PileType.Draw, Top)). SHINING_STRIKE. Mod sim sent it to discard →
+            // draw_pile_count -1 / discard +1 divergence. Route to draw.
+            drawPileAfter += 1;
+            newDrawPile.Add(card);
+        }
         else if (!card.IsExhaust)
         {
             discardAfter += 1;
@@ -2221,6 +2230,12 @@ internal static class AnalyticalSimulator
         "CLOAK_AND_DAGGER", "BLADE_DANCE", "HIDDEN_DAGGERS",
         "LEADING_STRIKE",  // Damage + Shivs-var shivs created in hand
     };
+
+    // 2026-05-29 — cards that recycle THEMSELVES to the draw pile (top) on
+    // play instead of going to discard (sts2.dll: CardPileCmd.Add(this,
+    // PileType.Draw, Top)). SHINING_STRIKE (Regent).
+    private static readonly System.Collections.Generic.HashSet<string> SelfRecycleToDraw =
+        new(System.StringComparer.OrdinalIgnoreCase) { "SHINING_STRIKE" };
 
     // Shiv: 0-cost 4-damage attack created in hand. Damage matters if the
     // planner later "plays" it in lookahead; count matters for hand parity.
