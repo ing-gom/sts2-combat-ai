@@ -1202,8 +1202,13 @@ internal static class AnalyticalSimulator
 
         // v0.7.85 — AfterimagePower: gain N block on every card played (including
         // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
+        // 2026-05-29 — decompile: AfterimagePower.AfterCardPlayed calls
+        // GainBlock(value, ValueProp.Unpowered) — the block is FLAT, NOT modified
+        // by Dexterity or Frail. The sim wrongly ran it through EffectiveBlock,
+        // so whenever Frail was on the player it under-credited afterimage block
+        // by 25% (player_block divergence correlated with FrailPower in 58 rows).
         if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
-            newPlayerBlock += StatusMath.EffectiveBlock(newPlayerAfterimage, newPlayerDex, playerFrail);
+            newPlayerBlock += newPlayerAfterimage;
 
         // v0.7.97 — FeelNoPainPower: gain N block when a card is exhausted.
         // Only fires for cards with the Exhaust keyword (catalog flag); status /
