@@ -362,6 +362,19 @@ internal static class CardReflection
         ["ESCAPE_PLAN"] = 1,
     };
 
+    // 2026-05-29 — cards whose CardsVar is NOT a draw-into-hand (it's a select /
+    // discard / transform count over the draw or hand pile). Routing it to
+    // drawCount phantom-draws in the sim. Decompile-verified:
+    //   CHARGE         — CardSelectCmd.FromSimpleGrid over the DRAW pile (transform)
+    //   HIDDEN_DAGGERS — CardSelectCmd.FromHandForDiscard(Cards) (discard; the Shivs
+    //                    var is the real hand addition, routed separately)
+    private static readonly System.Collections.Generic.HashSet<string> CardsVarNotDraw =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "CHARGE",
+        "HIDDEN_DAGGERS",
+    };
+
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
     /// (orb channel etc.) while the attack itself is single-hit. RepeatVar must
     /// NOT be read as the hit count for these (would multiply the one-shot
@@ -645,6 +658,18 @@ internal static class CardReflection
                     energyGain += amount;
                     continue;
                 }
+                // 2026-05-29 — a CardsVar does NOT uniformly mean "draw N into
+                // hand". Some cards use it as a SELECT/DISCARD count over the
+                // draw or hand pile (decompile-verified), so routing it to
+                // drawCount makes the sim phantom-draw (hand +N / draw -N rows
+                // that real never produces — confirmed real draws 0 even at
+                // hand well under the 10 cap):
+                //   CHARGE          — FromSimpleGrid over the DRAW pile (transform-
+                //                     select); no hand draw, no pile-count change.
+                //   HIDDEN_DAGGERS  — FromHandForDiscard(Cards) (discard, player-
+                //                     choice); the Shivs var (handled below) is the
+                //                     real hand addition, NOT Cards.
+                if (v is CardsVar && CardsVarNotDraw.Contains(card.Id.Entry)) continue;
                 if (v is CardsVar) { drawCount += amount; continue; }
 
                 // Standalone OstyDamage (Necrobinder summon attack) treated like Damage.
