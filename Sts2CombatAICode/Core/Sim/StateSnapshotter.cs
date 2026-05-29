@@ -76,6 +76,8 @@ internal static class StateSnapshotter
             int playerPhantomBlades = CombatReflection.GetPowerAmount(creature, "PhantomBladesPower");
             // 2026-05-30 — ChildOfTheStars: +Amount block per star spent.
             int playerChildOfTheStars = CombatReflection.GetPowerAmount(creature, "ChildOfTheStarsPower");
+            // 2026-05-30 — Parry: +Amount block when SOVEREIGN_BLADE is played.
+            int playerParry = CombatReflection.GetPowerAmount(creature, "ParryPower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -631,6 +633,7 @@ internal static class StateSnapshotter
                 PlayerAccuracy = playerAccuracy,
                 PlayerPhantomBlades = playerPhantomBlades,
                 PlayerChildOfTheStars = playerChildOfTheStars,
+                PlayerParry = playerParry,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,

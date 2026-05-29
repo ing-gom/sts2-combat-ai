@@ -1353,6 +1353,11 @@ internal static class AnalyticalSimulator
         if (next.PlayerChildOfTheStars > 0 && card.StarCost > 0)
             newPlayerBlock += next.PlayerChildOfTheStars * card.StarCost;
 
+        // 2026-05-30 — ParryPower: +Amount block (flat, Unpowered) when
+        // SOVEREIGN_BLADE is played (ParryPower.AfterSovereignBladePlayed).
+        if (next.PlayerParry > 0 && card.Id == "SOVEREIGN_BLADE")
+            newPlayerBlock += next.PlayerParry;
+
         // v0.7.97 — FeelNoPainPower: gain N block when a card is exhausted.
         // Only fires for cards with the Exhaust keyword (catalog flag); status /
         // curse Ethereal exhaust at turn-end, not on play.

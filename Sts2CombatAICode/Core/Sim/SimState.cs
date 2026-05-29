@@ -362,6 +362,12 @@ internal sealed record SimState
     public int PlayerChildOfTheStars { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — ParryPower (Regent): AfterSovereignBladePlayed gains Amount
+    /// block (flat, Unpowered). Triggers only when SOVEREIGN_BLADE is played.
+    /// </summary>
+    public int PlayerParry { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
