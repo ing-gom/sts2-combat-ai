@@ -1124,6 +1124,24 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-30 — put-back cards: draw N (handled above), then return M cards
+        // from hand to the TOP of the draw pile (CardSelectCmd.FromHand →
+        // CardPileCmd.Add PileType.Draw). PHOTON_CUT: draw 1, put back 1 (net 0);
+        // GLIMMER: draw 3, put back 1 (net +2). Player-choice but count fixed;
+        // identity irrelevant for counts. Also correctly handles the hand-cap edge:
+        // if the draw capped, the put-back still moves a hand card to draw.
+        if (PutBackToDrawCount.TryGetValue(card.Id, out int pbN) && pbN > 0)
+        {
+            int moved = System.Math.Min(pbN, newHand.Count);
+            for (int k = 0; k < moved; k++)
+            {
+                var movedCard = newHand[newHand.Count - 1];
+                newHand.RemoveAt(newHand.Count - 1);
+                newDrawPile.Add(movedCard);
+                drawPileAfter += 1;
+            }
+        }
+
         // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
         // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
         // a downstream card sees reflects the realistic pile sizes including this card.
@@ -2380,6 +2398,15 @@ internal static class AnalyticalSimulator
     {
         ["COSMIC_INDIFFERENCE"] = 1,
         ["HEADBUTT"] = 1,   // FromSimpleGrid over Discard → Add PileType.Draw (top)
+    };
+
+    // 2026-05-30 — cards that draw then return N cards from hand to the draw pile
+    // (FromHand → CardPileCmd.Add PileType.Draw). Net draw = CardsVar − PutBack.
+    private static readonly System.Collections.Generic.Dictionary<string, int> PutBackToDrawCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["PHOTON_CUT"] = 1,   // draw 1, put back 1 (net 0)
+        ["GLIMMER"] = 1,      // draw 3, put back 1 (net +2)
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT

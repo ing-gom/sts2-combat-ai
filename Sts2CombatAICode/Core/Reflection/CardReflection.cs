@@ -373,9 +373,9 @@ internal static class CardReflection
     {
         "CHARGE",
         "HIDDEN_DAGGERS",
-        // PHOTON_CUT: Draw(1) then PutBack(1) hand→draw — net pile change 0.
-        // Excluding the draw models the net (the card cycles 1, no count change).
-        "PHOTON_CUT",
+        // PHOTON_CUT/GLIMMER draw normally then put N back — handled by
+        // AnalyticalSimulator.PutBackToDrawCount (draw, then move N hand→draw),
+        // which also models the hand-cap edge (draw caps, put-back still fires).
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
