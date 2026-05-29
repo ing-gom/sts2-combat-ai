@@ -1269,6 +1269,15 @@ internal static class AnalyticalSimulator
             drawPileAfter += 1;
             newDrawPile.Add(card);
         }
+        else if (RetainOnPlay.Contains(card.Id))
+        {
+            // 2026-05-30 — retain-on-play: GetResultPileType() returns Hand instead
+            // of Discard, so the played card goes BACK to hand (PARTICLE_WALL).
+            // The card was removed from newHand at the start; re-add it (hand-cap:
+            // overflow to discard if the hand is already full).
+            if (newHand.Count < 10) newHand.Add(card);
+            else { discardAfter += 1; newDiscardPile.Add(card); }
+        }
         else if (!card.IsExhaust)
         {
             discardAfter += 1;
@@ -2429,6 +2438,14 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         ["HOLOGRAM"] = 1,
+    };
+
+    // 2026-05-30 — retain-on-play cards: GetResultPileType() returns Hand instead
+    // of Discard, so the played card stays in hand rather than going to discard.
+    private static readonly System.Collections.Generic.HashSet<string> RetainOnPlay =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "PARTICLE_WALL",
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT
