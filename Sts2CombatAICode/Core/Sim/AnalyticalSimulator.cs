@@ -330,8 +330,23 @@ internal static class AnalyticalSimulator
             newPlayerBlock += attackBlock;
         }
 
+        // 2026-05-29 — OSTY-attack gating (Necrobinder). Cards tagged CardTag.
+        // OstyAttack (POKE / FETCH / UNLEASH / RIGHT_HAND_HAND / SIC_EM / ...)
+        // deal their damage via the player's Osty pet: sts2.dll's OnPlay wraps
+        // the DamageCmd in `if (!Osty.CheckMissingWithAnim(Owner))`. When the
+        // Osty is dead/un-summoned the card whiffs (deals 0). The mod sim
+        // previously applied the damage unconditionally → +6/-7 enemy_hp_sum
+        // divergence on every Osty-missing play (Necrobinder parity 58.5%,
+        // worst of all chars; POKE/UNLEASH/FETCH the top offenders). Gate the
+        // damage on Osty presence (SkeletonCount counts alive class-"Osty"
+        // allies). Non-damage effects (FETCH's draw/SKELETON_PRODUCER) are
+        // applied elsewhere and stay intact.
+        bool ostyAttackWhiff = card.Axes != null
+            && card.Axes.Contains("OSTY")
+            && state.SkeletonCount <= 0;
+
         // 3b. Attack: deal damage to target(s); also stack attached debuffs on enemy.
-        if (card.IsAttack && card.Damage > 0)
+        if (card.IsAttack && card.Damage > 0 && !ostyAttackWhiff)
         {
             // 2026-05-31 — SWORD_BOOMERANG-class (TargetType.RandomEnemy +
             // Repeat>1). sts2.dll's TargetingRandomOpponents distributes N
