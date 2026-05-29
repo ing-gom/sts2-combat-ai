@@ -1143,7 +1143,10 @@ internal static class AnalyticalSimulator
         // Card itself follows normal discard/exhaust path below (CINDER/
         // TRUE_GRIT have ExtraHoverTip Exhaust but no CanonicalKeyword,
         // so they go to discard via the IsExhaust=false branch).
-        if (card.Id == "CINDER" || card.Id == "TRUE_GRIT")
+        // 2026-05-30 — SCAVENGE also exhausts 1 hand card: CardSelectCmd.FromHand
+        // (ExhaustSelectionPrompt, 1) → CardCmd.Exhaust. Player-choice but count is
+        // fixed at 1; identity is irrelevant for the exhaust/hand counts.
+        if (card.Id == "CINDER" || card.Id == "TRUE_GRIT" || card.Id == "SCAVENGE")
         {
             if (newHand.Count > 0)
             {
