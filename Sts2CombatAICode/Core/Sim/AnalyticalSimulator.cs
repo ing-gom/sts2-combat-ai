@@ -1053,14 +1053,26 @@ internal static class AnalyticalSimulator
             }
         }
 
-        // 2026-05-29 — DAGGER_THROW-class (draw + FromHandForDiscard) investigated
-        // and INTENTIONALLY NOT pile-modeled. Evidence: the probe's auto-resolver
-        // DECLINES the discard choice, so real never discards (the theorized
-        // discard-1 fix made parity worse, -16 agreements). The residual on these
-        // cards is a draw-pile-state-dependent draw edge case confined to hand /
-        // draw_pile counts — enemy HP, player HP/block/energy all agree exactly
-        // (zero combat-decision impact). Closed as a bookkeeping-only artifact, not
-        // a simulation-accuracy defect. See REPORT section 17.
+        // 2026-05-29 — draw-then-FromHandForDiscard cards. After the draw resolves,
+        // these cards discard N hand cards (player-choice, but COUNT is fixed):
+        //   DAGGER_THROW   — CardSelectCmd.FromHandForDiscard(1)
+        //   HIDDEN_DAGGERS — CardSelectCmd.FromHandForDiscard(Cards.IntValue=2)
+        // The earlier "resolver declines" conclusion was an artifact of the probe
+        // capturing realState MID-choice; once the probe resolves the choice before
+        // snapshotting (SimulatorParityCheck choice loop), real DOES discard and the
+        // divergence is a clean {hand +1, discard -1} = sim missing the discard.
+        // Identity is irrelevant for counts: move min(N, hand) from hand → discard.
+        if (DiscardFromHandCount.TryGetValue(card.Id, out int discN) && discN > 0)
+        {
+            int moved = System.Math.Min(discN, newHand.Count);
+            for (int k = 0; k < moved; k++)
+            {
+                var movedCard = newHand[newHand.Count - 1];
+                newHand.RemoveAt(newHand.Count - 1);
+                newDiscardPile.Add(movedCard);
+                discardAfter += 1;
+            }
+        }
 
         // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
         // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
@@ -2278,6 +2290,19 @@ internal static class AnalyticalSimulator
     {
         ["COLLISION_COURSE"] = 1,    // Debris → hand
         ["MANIFEST_AUTHORITY"] = 1,  // generated card → hand
+    };
+
+    // 2026-05-29 — draw-then-FromHandForDiscard cards: after drawing, the player
+    // discards N hand cards. Count is fixed (decompile); the probe resolves the
+    // choice before snapshotting so real DOES discard. Move N from hand → discard.
+    private static readonly System.Collections.Generic.Dictionary<string, int> DiscardFromHandCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["DAGGER_THROW"] = 1,     // FromHandForDiscard(1)
+        ["HIDDEN_DAGGERS"] = 2,   // FromHandForDiscard(Cards.IntValue=2)
+        ["SURVIVOR"] = 1,         // FromHandForDiscard(1)
+        ["ACROBATICS"] = 1,       // FromHandForDiscard(1)
+        ["PREPARED"] = 1,         // FromHandForDiscard(cardCount, base 1)
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT
