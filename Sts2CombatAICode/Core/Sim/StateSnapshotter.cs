@@ -72,6 +72,8 @@ internal static class StateSnapshotter
             int playerUnmovable = CombatReflection.GetPowerAmount(creature, "UnmovablePower");
             // v0.7.86 — Shiv damage bonus (Silent).
             int playerAccuracy = CombatReflection.GetPowerAmount(creature, "AccuracyPower");
+            // 2026-05-30 — PhantomBlades: +N to the first shiv each turn.
+            int playerPhantomBlades = CombatReflection.GetPowerAmount(creature, "PhantomBladesPower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -343,6 +345,10 @@ internal static class StateSnapshotter
             var playerRelics = CombatReflection.GetPlayerRelics(player);
 
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            // 2026-05-30 — shivs played this turn (PhantomBlades adds its bonus only
+            // to the FIRST shiv each turn, i.e. when this count is 0). Shivs are
+            // Attack-type, so counted within the attack branch by CardTag.Shiv.
+            int turnShivsPlayed = 0;
             // 2026-05-28 S6-3a: SPITE's hit count depends on whether player lost
             // HP this turn (true → hits = Repeat=2, false → hits = 1).
             bool playerLostHpThisTurn = false;
@@ -418,6 +424,15 @@ internal static class StateSnapshotter
                             if (type == CardType.Attack)
                             {
                                 turnAttacksPlayed++;
+                                // 2026-05-30 — shiv subset for PhantomBlades.
+                                try
+                                {
+                                    var tags = cpe.CardPlay.Card.Tags;
+                                    if (tags != null && System.Linq.Enumerable.Contains(tags,
+                                            MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shiv))
+                                        turnShivsPlayed++;
+                                }
+                                catch { }
                                 // Map target Creature → SimEnemy idx via SourceRef.
                                 var target = cpe.CardPlay.Target;
                                 if (target != null)
@@ -612,6 +627,7 @@ internal static class StateSnapshotter
                 PlayerAfterimage = playerAfterimage,
                 PlayerUnmovable = playerUnmovable,
                 PlayerAccuracy = playerAccuracy,
+                PlayerPhantomBlades = playerPhantomBlades,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,
@@ -663,6 +679,7 @@ internal static class StateSnapshotter
                 SovereignBladeCount = sovereignBladeCount,
                 TurnAttacksPlayed = turnAttacksPlayed,
                 TurnSkillsPlayed = turnSkillsPlayed,
+                TurnShivsPlayed = turnShivsPlayed,
                 TurnEnergySpent = turnEnergySpent,
                 TurnStarsGained = turnStarsGained,
                 CombatEtherealPlayed = combatEtherealPlayed,

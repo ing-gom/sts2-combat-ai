@@ -51,8 +51,17 @@ internal static class StatusMath
     public static int ApplyCardSpecificDamageBonus(int baseDamage, string? cardId, SimState state)
     {
         if (string.IsNullOrEmpty(cardId)) return baseDamage;
-        if (state.PlayerAccuracy > 0 && cardId == "SHIV")
-            return baseDamage + state.PlayerAccuracy;
+        if (cardId == "SHIV")
+        {
+            int d = baseDamage;
+            if (state.PlayerAccuracy > 0) d += state.PlayerAccuracy;
+            // 2026-05-30 — PhantomBlades: +Amount to the FIRST shiv each turn
+            // (ModifyDamageAdditive returns Amount only when shivs-played-this-turn
+            // == 0). Subsequent shivs get nothing.
+            if (state.PlayerPhantomBlades > 0 && state.TurnShivsPlayed == 0)
+                d += state.PlayerPhantomBlades;
+            return d;
+        }
         return baseDamage;
     }
 

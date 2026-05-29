@@ -341,6 +341,20 @@ internal sealed record SimState
     public int TurnSkillsPlayed { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — Shivs finished this turn (subset of TurnAttacksPlayed).
+    /// PhantomBladesPower adds +Amount only to the FIRST shiv each turn, i.e.
+    /// when this count is 0 at the moment the shiv resolves.
+    /// </summary>
+    public int TurnShivsPlayed { get; init; }
+
+    /// <summary>
+    /// 2026-05-30 — PhantomBladesPower amount: +N damage to the first shiv played
+    /// each turn (ValueProp powered-attack shivs only). Applied in the shiv damage
+    /// path when TurnShivsPlayed == 0.
+    /// </summary>
+    public int PlayerPhantomBlades { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
