@@ -428,6 +428,24 @@ internal static class CardReflection
             vars ??= _canonicalVarsProp?.GetValue(card) as IEnumerable;
             if (vars == null) return CardEffectSummary.Empty;
 
+            // 2026-05-29 — pre-scan for a CalculatedVar that consumes the
+            // CalculationBase/CalculationExtra components for a NON-damage
+            // effect (Forge amount, hit count). When present, those Calculation*
+            // vars feed that calc, NOT the attack damage — so they must be
+            // excluded from the damage sum. BEAT_INTO_SHAPE: DamageVar(5) +
+            // CalculationBase(5) + CalculationExtra(5) + CalculatedForge → real
+            // damage is 5, but the sim summed all three to 15 (enemy_hp -7.7).
+            bool calcFeedsNonDamage = false;
+            foreach (var obj in vars)
+            {
+                if (obj is DynamicVar pv && pv.GetType().Name == "CalculatedVar"
+                    && (pv.Name == "CalculatedForge" || pv.Name == "CalculatedHits"))
+                {
+                    calcFeedsNonDamage = true;
+                    break;
+                }
+            }
+
             foreach (var obj in vars)
             {
                 if (obj is not DynamicVar v) continue;
@@ -590,7 +608,9 @@ internal static class CardReflection
                     || typeName.StartsWith("CalculationBaseVar")
                     || typeName.StartsWith("CalculationExtraVar"))
                 {
-                    if (!hasCalcDamage && !hasCalcBlock)
+                    // Skip when a non-damage CalculatedVar (Forge/Hits) consumes
+                    // these components (BEAT_INTO_SHAPE) — they aren't damage.
+                    if (!hasCalcDamage && !hasCalcBlock && !calcFeedsNonDamage)
                         damage += amount; // conservative — standalone case
                     continue;
                 }
