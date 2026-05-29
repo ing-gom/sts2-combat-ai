@@ -1142,6 +1142,20 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-30 — discard→hand retrieval (HOLOGRAM): FromSimpleGrid over the
+        // discard pile → CardPileCmd.Add PileType.Hand. Move N from discard → hand,
+        // respecting the hand-10 cap (can't retrieve into a full hand).
+        if (DiscardToHandCount.TryGetValue(card.Id, out int d2hN) && d2hN > 0)
+        {
+            for (int k = 0; k < d2hN && newDiscardPile.Count > 0 && newHand.Count < 10; k++)
+            {
+                var movedCard = newDiscardPile[newDiscardPile.Count - 1];
+                newDiscardPile.RemoveAt(newDiscardPile.Count - 1);
+                newHand.Add(movedCard);
+                discardAfter -= 1;
+            }
+        }
+
         // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
         // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
         // a downstream card sees reflects the realistic pile sizes including this card.
@@ -2407,6 +2421,14 @@ internal static class AnalyticalSimulator
     {
         ["PHOTON_CUT"] = 1,   // draw 1, put back 1 (net 0)
         ["GLIMMER"] = 1,      // draw 3, put back 1 (net +2)
+    };
+
+    // 2026-05-30 — cards that retrieve N cards from discard → hand (FromSimpleGrid
+    // over Discard → CardPileCmd.Add PileType.Hand). HOLOGRAM retrieves 1 (+ exhausts).
+    private static readonly System.Collections.Generic.Dictionary<string, int> DiscardToHandCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["HOLOGRAM"] = 1,
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT
