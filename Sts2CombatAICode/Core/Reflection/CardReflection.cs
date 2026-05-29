@@ -455,17 +455,22 @@ internal static class CardReflection
             bool calcFeedsNonDamage = false;
             foreach (var obj in vars)
             {
+                // 2026-05-29 — a plain CalculatedVar (NOT CalculatedDamageVar/
+                // CalculatedBlockVar) with a non-damage name means the card's
+                // CalculationBase/CalculationExtra components feed THAT calc
+                // (a draw/shiv/energy/channel/focus/forge/hit/etc. count), not
+                // the attack damage. Summing them into damage over-deals by the
+                // CalculationExtra amount. Full set from a sts2.dll CalculatedVar
+                // name scan; all decompile-confirmed non-damage:
+                //   SOVEREIGN_BLADE (SeekingEdgeAmount) — enemy_hp -1/hit
+                //   COMPILE_DRIVER  (CalculatedCards, orb-count draw) — enemy_hp -1/hit
                 if (obj is DynamicVar pv && pv.GetType().Name == "CalculatedVar"
                     && (pv.Name == "CalculatedForge" || pv.Name == "CalculatedHits"
-                        || pv.Name == "SeekingEdgeAmount"))
+                        || pv.Name == "SeekingEdgeAmount" || pv.Name == "CalculatedCards"
+                        || pv.Name == "CalculatedShivs" || pv.Name == "CalculatedEnergy"
+                        || pv.Name == "CalculatedChannels" || pv.Name == "CalculatedDoom"
+                        || pv.Name == "CalculatedFocus"))
                 {
-                    // 2026-05-29 — SOVEREIGN_BLADE (Regent). OnPlay deals
-                    // Attack(DynamicVars.Damage.BaseValue) × Repeat; the
-                    // CalculationBase/CalculationExtra vars feed only the
-                    // SeekingEdgeAmount display calc, NOT the damage. Without
-                    // this, CalculationExtra(1) was summed into damage -> every
-                    // SOVEREIGN_BLADE hit over-dealt by 1 (enemy_hp -1; and with
-                    // ShrinkPower, (15+1)*0.7=11 vs real 15*0.7=10).
                     calcFeedsNonDamage = true;
                     break;
                 }
