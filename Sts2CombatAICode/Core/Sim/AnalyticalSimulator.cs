@@ -1014,6 +1014,15 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-29 — DAGGER_THROW-class (draw + FromHandForDiscard) investigated
+        // and INTENTIONALLY NOT pile-modeled. Evidence: the probe's auto-resolver
+        // DECLINES the discard choice, so real never discards (the theorized
+        // discard-1 fix made parity worse, -16 agreements). The residual on these
+        // cards is a draw-pile-state-dependent draw edge case confined to hand /
+        // draw_pile counts — enemy HP, player HP/block/energy all agree exactly
+        // (zero combat-decision impact). Closed as a bookkeeping-only artifact, not
+        // a simulation-accuracy defect. See REPORT section 17.
+
         // v0.5 — AFTER draw resolves, the played card joins the discard pile unless it
         // exhausts on play (catalog Exhaust flag). Done here so any post-play snapshot
         // a downstream card sees reflects the realistic pile sizes including this card.

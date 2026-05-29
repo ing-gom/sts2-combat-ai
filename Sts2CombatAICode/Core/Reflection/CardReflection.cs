@@ -345,6 +345,23 @@ internal static class CardReflection
         ["UPROAR"] = 2,
     };
 
+    // 2026-05-29 100%-parity push: hardcoded CardPileCmd.Draw(N) override.
+    // A few cards issue the draw as a literal inside OnPlay instead of via a
+    // CardsVar/DynamicVar, so reflection sees no draw and the mod sim draws 0.
+    // Source: decompile audit of "CardPileCmd.Draw(choiceContext, Nm" literal
+    // usages across the Cards namespace — only DaggerThrow (Draw 1, then a
+    // discard-choice the parity probe's resolver declines) and EscapePlan
+    // (Draw 1 unconditionally; the FirstOrDefault only gates the conditional
+    // block). DeprecatedCard is a non-playable placeholder and is excluded.
+    // Verified against sim_parity_silent DAGGER_THROW 14/24 diverging with
+    // {draw_pile +1, hand -1} (real drew, mod didn't). The draw is the
+    // unambiguously-correct real behavior in both probe and live play.
+    private static readonly System.Collections.Generic.Dictionary<string, int> HardcodedDrawCount = new()
+    {
+        ["DAGGER_THROW"] = 1,
+        ["ESCAPE_PLAN"] = 1,
+    };
+
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
     /// (orb channel etc.) while the attack itself is single-hit. RepeatVar must
     /// NOT be read as the hit count for these (would multiply the one-shot
@@ -762,6 +779,15 @@ internal static class CardReflection
                 && HardcodedHitCount.TryGetValue(hcEntry, out int hcHits))
             {
                 hits = hcHits;
+            }
+
+            // 2026-05-29 — literal CardPileCmd.Draw(N) override (see dict comment).
+            // Add to drawCount so AnalyticalSimulator's existing draw-resolution
+            // path (pile decrement + reshuffle) handles it uniformly.
+            if (card?.Id.Entry is { } drEntry
+                && HardcodedDrawCount.TryGetValue(drEntry, out int drDraw))
+            {
+                drawCount += drDraw;
             }
 
             return new CardEffectSummary
