@@ -1009,13 +1009,45 @@ internal static class AnalyticalSimulator
         // drawing from the pile. The mod sim drew from the draw pile →
         // draw_pile_count = -N divergence (Silent's biggest bookkeeping bucket).
         // Redirect: add N shiv placeholders to hand, leave the draw pile alone.
-        if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id))
+        // 2026-05-30 — CALCULATED_GAMBLE: DiscardAndDraw(hand, hand.Count) —
+        // discard the ENTIRE hand, then draw that many (capped at 10). hand.Count
+        // at OnPlay = newHand (the card itself already removed). Net counts:
+        // discard += N, hand → min(N,10), draw pile drains by the redraw (with
+        // reshuffle). The card itself exhausts (handled by the Exhaust flag below).
+        if (card.Id == "CALCULATED_GAMBLE")
         {
-            // Hand caps at 10 (Shiv.CreateInHand respects the same limit as Draw).
+            int n = newHand.Count;
+            newDiscardPile.AddRange(newHand);
+            discardAfter += n;
+            newHand.Clear();
+            for (int i = 0; i < n && newHand.Count < 10; i++)
+            {
+                if (drawPileAfter <= 0)
+                {
+                    if (discardAfter <= 0) break;
+                    drawPileAfter = discardAfter; discardAfter = 0;
+                    newDrawPile.AddRange(newDiscardPile); newDiscardPile.Clear();
+                }
+                newHand.Add(MakeAverageDrawCard(next));
+                drawPileAfter--;
+                if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
+            }
+        }
+        else if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id))
+        {
+            // 2026-05-30 — Shiv.CreateInHand respects the hand-10 cap; at a full
+            // hand the created shiv OVERFLOWS to the discard pile (not lost). Same
+            // as card-gen overflow. Earlier this broke (shivs dropped), which
+            // under-counted discard for CLOAK_AND_DAGGER/HIDDEN_DAGGERS at hand>=10.
             for (int i = 0; i < card.DrawCount; i++)
             {
-                if (newHand.Count >= 10) break;
-                newHand.Add(MakeShivPlaceholderCard());
+                if (newHand.Count < 10)
+                    newHand.Add(MakeShivPlaceholderCard());
+                else
+                {
+                    newDiscardPile.Add(MakeShivPlaceholderCard());
+                    discardAfter += 1;
+                }
             }
         }
         else if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0)
