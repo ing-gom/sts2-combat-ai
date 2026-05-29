@@ -2344,6 +2344,7 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         ["COSMIC_INDIFFERENCE"] = 1,
+        ["HEADBUTT"] = 1,   // FromSimpleGrid over Discard → Add PileType.Draw (top)
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT
