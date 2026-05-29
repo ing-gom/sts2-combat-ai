@@ -57,7 +57,7 @@ internal static class SmartSelectorLogic
         var catalogInfo = Data.CardCatalog.Lookup(id);
         var axes = catalogInfo?.Axes ?? System.Array.Empty<string>();
         int costSpent = CardReflection.GetCost(card);
-        var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes);
+        var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes, Reflection.CardReflection.IsPower(card));
         var effect = summary with {
             EvokeCount = orbMeta.EvokeCount,
             ChannelCount = orbMeta.ChannelCount,

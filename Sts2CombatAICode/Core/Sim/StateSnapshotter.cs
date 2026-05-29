@@ -713,7 +713,7 @@ internal static class StateSnapshotter
         var axes = catalogInfo?.Axes ?? System.Array.Empty<string>();
         var baseEffect = CardReflection.GetEffectSummary(card);
         int costSpent = CardReflection.GetCost(card);
-        var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes);
+        var orbMeta = Reflection.OrbCardCatalog.Lookup(id, costSpent, axes, CardReflection.IsPower(card));
         var effect = baseEffect with {
             EvokeCount = orbMeta.EvokeCount,
             ChannelCount = orbMeta.ChannelCount,

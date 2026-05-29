@@ -19,7 +19,8 @@ internal static class OrbCardCatalog
 {
     public readonly record struct OrbMeta(int EvokeCount, int ChannelCount, OrbKind ChannelKind);
 
-    public static OrbMeta Lookup(string cardId, int costSpent, System.Collections.Generic.IReadOnlyList<string> axes)
+    public static OrbMeta Lookup(string cardId, int costSpent, System.Collections.Generic.IReadOnlyList<string> axes,
+        bool isPower = false)
     {
         int evokeCount = 0;
         int channelCount = 0;
@@ -74,7 +75,14 @@ internal static class OrbCardCatalog
         }
 
         // ---- Single-evoke / single-channel inference from axes ----
-        if (evokeCount == 0 && (axes.Contains("ORB_EVOKE") || axes.Contains("LIGHTNING_EVOKE")))
+        // 2026-05-29 — Power cards never evoke on play. THUNDER (applies
+        // ThunderPower) and similar evoke-BOOST powers carry ORB_EVOKE /
+        // LIGHTNING_EVOKE axes because their *power* fires on Lightning evoke,
+        // but the card itself doesn't consume the front orb. Without this guard
+        // the sim evoked the front orb when THUNDER was played (Frost→block 5+focus,
+        // Lightning→8+focus dmg) — pure phantom damage/block (THUNDER enemy_hp
+        // and player_block divergences on Defect). Evoke is an Attack/Skill action.
+        if (evokeCount == 0 && !isPower && (axes.Contains("ORB_EVOKE") || axes.Contains("LIGHTNING_EVOKE")))
             evokeCount = 1;
 
         // ORB_PRODUCER axis means at least 1 channel — but for X-cost cases we've already
