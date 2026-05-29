@@ -156,6 +156,12 @@ internal static class AnalyticalSimulator
         // built. Decompile: MonologuePower.AfterCardPlayed applies
         // StrengthPower(Strength.IntValue) per played card.
         int newPlayerMonologue = next.PlayerMonologue;
+        // 2026-05-29 — TenderPower (Defect debuff): AfterCardPlayed applies
+        // StrengthPower(-1) AND DexterityPower(-1) per card played (flat, stack-
+        // independent; this-turn-only, restored AfterTurnEnd). Like MonologuePower
+        // but negative and on both stats. Fires after the card resolves, so the
+        // current card is unaffected — the decay hits subsequent plays.
+        int newPlayerTender = next.PlayerTender;
         // v0.7.95 — Next Skill ×2 (single-shot per stack).
         int newPlayerBurst = next.PlayerBurst;
         // v0.7.96 — Player Thorns (reflect damage on hit).
@@ -1442,6 +1448,15 @@ internal static class AnalyticalSimulator
         // depth-N chain sees the accumulated Strength. Fires for every card type.
         if (newPlayerMonologue > 0)
             newPlayerStr += newPlayerMonologue;
+
+        // 2026-05-29 — TenderPower per-card Strength+Dex decay (flat -1 each,
+        // stack-independent). Same late placement as Monologue: post-damage, so
+        // only subsequent plays in the depth-N chain see the reduced stats.
+        if (newPlayerTender > 0)
+        {
+            newPlayerStr -= 1;
+            newPlayerDex -= 1;
+        }
 
         return next with
         {
