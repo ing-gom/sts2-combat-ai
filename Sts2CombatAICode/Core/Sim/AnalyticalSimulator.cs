@@ -1151,6 +1151,16 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-29 — card-generators that add a generated card to HAND
+        // (sts2.dll: AddGeneratedCardToCombat(card, PileType.Hand)). Regent
+        // COLLISION_COURSE (Debris→hand), MANIFEST_AUTHORITY. Mod sim didn't
+        // model → hand_count = -N divergence. Add N hand placeholders.
+        if (CardGenToHandCount.TryGetValue(card.Id, out int handN) && handN > 0)
+        {
+            for (int h = 0; h < handN; h++)
+                newHand.Add(MakeStatusPlaceholderCard());
+        }
+
         // v0.7.85 — AfterimagePower: gain N block on every card played (including
         // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
         if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
@@ -2178,6 +2188,15 @@ internal static class AnalyticalSimulator
         ["OVERCLOCK"] = 1,      // Burn → discard
         ["BOOST_AWAY"] = 1,     // Dazed → discard
         ["FIGHT_THROUGH"] = 2,  // 2× Wound → discard (OnPlay loop i<2)
+    };
+
+    // 2026-05-29 — card-generator card → number of cards added to HAND on play
+    // (sts2.dll: AddGeneratedCardToCombat(card, PileType.Hand)).
+    private static readonly System.Collections.Generic.Dictionary<string, int> CardGenToHandCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["COLLISION_COURSE"] = 1,    // Debris → hand
+        ["MANIFEST_AUTHORITY"] = 1,  // generated card → hand
     };
 
     // Minimal unplayable status placeholder — only the discard-pile COUNT
