@@ -612,6 +612,11 @@ internal static class CardReflection
                 if (typeName == "DynamicVar")
                 {
                     if (v.Name == "StrengthLoss" || v.Name == "EnemyStrengthLoss") strengthDown += amount;
+                    // 2026-05-29 — "Shivs" var = number of Shiv cards created in
+                    // hand (LEADING_STRIKE, HIDDEN_DAGGERS, ...). Route to
+                    // drawCount; AnalyticalSimulator's ShivGenCards set then
+                    // creates them in hand instead of drawing from the pile.
+                    else if (v.Name == "Shivs") drawCount += amount;
                     else if (v.Name == "Heal") heal += amount;
                     else if (v.Name == "MaxHp") maxHp += amount;     // v0.6.9 — BRIGHTEST_FLAME, FEED
                     else if (v.Name == "HpLoss") hpLoss += amount;   // v0.7.8 — BLOODLETTING, OFFERING, HEMOKINESIS

@@ -2200,6 +2200,7 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         "CLOAK_AND_DAGGER", "BLADE_DANCE", "HIDDEN_DAGGERS",
+        "LEADING_STRIKE",  // Damage + Shivs-var shivs created in hand
     };
 
     // Shiv: 0-cost 4-damage attack created in hand. Damage matters if the
