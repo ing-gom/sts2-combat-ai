@@ -83,6 +83,10 @@ internal sealed record SimState
     // v0.7.94 — EnragePower (Ironclad reactive): each Skill played grants
     // Strength +N. Stack persists across turns until removed.
     public int PlayerEnrage { get; init; }
+    // 2026-05-29 — MonologuePower (Regent): +stack Strength after EVERY card
+    // play (this-turn-only). Carried so depth-N lookahead accumulates the
+    // per-play Strength ramp that drives later attacks' damage.
+    public int PlayerMonologue { get; init; }
     // v0.7.94 — CorruptionPower: all Skill cards cost 0 (combat-wide). Tracked
     // here in addition to PlayerPowers so depth-N lookahead can see the cost-0
     // effect after a Power card grants Corruption mid-turn.

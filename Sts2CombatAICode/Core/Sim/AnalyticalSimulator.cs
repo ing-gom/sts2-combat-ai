@@ -148,6 +148,14 @@ internal static class AnalyticalSimulator
         // v0.7.94 — Reactive Strength on Skill play + Skill cost-0 enabler.
         int newPlayerEnrage = next.PlayerEnrage;
         int newPlayerCorruption = next.PlayerCorruption;
+        // 2026-05-29 — MonologuePower (Regent): AfterCardPlayed grants +stack
+        // Strength on EVERY card play (this-turn-only; removed AfterTurnEnd).
+        // The gain fires AFTER the card resolves, so it does NOT boost the
+        // current card's damage — only subsequent plays in the depth-N chain.
+        // Modeled as a late strength bump just before the returned state is
+        // built. Decompile: MonologuePower.AfterCardPlayed applies
+        // StrengthPower(Strength.IntValue) per played card.
+        int newPlayerMonologue = next.PlayerMonologue;
         // v0.7.95 — Next Skill ×2 (single-shot per stack).
         int newPlayerBurst = next.PlayerBurst;
         // v0.7.96 — Player Thorns (reflect damage on hit).
@@ -1409,6 +1417,13 @@ internal static class AnalyticalSimulator
             }
             if (updated != null) newPlayerRelics = updated;
         }
+
+        // 2026-05-29 — MonologuePower post-play Strength gain. Applied here, after
+        // all damage for THIS card is computed (dmgState snapshotted newPlayerStr
+        // earlier), so the current card is unaffected but the next card in a
+        // depth-N chain sees the accumulated Strength. Fires for every card type.
+        if (newPlayerMonologue > 0)
+            newPlayerStr += newPlayerMonologue;
 
         return next with
         {

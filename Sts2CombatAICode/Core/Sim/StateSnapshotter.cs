@@ -74,6 +74,9 @@ internal static class StateSnapshotter
             int playerAccuracy = CombatReflection.GetPowerAmount(creature, "AccuracyPower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
+            // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
+            // stack = Strength granted after each card play this turn.
+            int playerMonologue = CombatReflection.GetPowerAmount(creature, "MonologuePower");
             int playerCorruption = CombatReflection.GetPowerAmount(creature, "CorruptionPower");
             // v0.7.95 — Next Skill ×2.
             int playerBurst = CombatReflection.GetPowerAmount(creature, "BurstPower");
@@ -608,6 +611,7 @@ internal static class StateSnapshotter
                 PlayerUnmovable = playerUnmovable,
                 PlayerAccuracy = playerAccuracy,
                 PlayerEnrage = playerEnrage,
+                PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,
                 PlayerBurst = playerBurst,
                 PlayerThorns = playerThorns,
