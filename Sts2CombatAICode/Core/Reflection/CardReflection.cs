@@ -345,6 +345,14 @@ internal static class CardReflection
         ["UPROAR"] = 2,
     };
 
+    /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
+    /// (orb channel etc.) while the attack itself is single-hit. RepeatVar must
+    /// NOT be read as the hit count for these (would multiply the one-shot
+    /// damage). Decompile-verified:
+    ///   ICE_LANCE: Deal 19 once, then Channel&lt;FrostOrb&gt; ×Repeat(3).
+    private static readonly System.Collections.Generic.HashSet<string> RepeatDrivesNonDamage =
+        new(System.StringComparer.OrdinalIgnoreCase) { "ICE_LANCE" };
+
     /// <summary>
     /// v0.7.81 — Catalog star_cost fallback. SafeStarCost reflection returned
     /// 0 for verified star-cost cards (FALLING_STAR diagnostic). Mirror of
@@ -466,7 +474,20 @@ internal static class CardReflection
                 // PreviewValue and modifier registry can't replicate them.
                 if (v is DamageVar) { if (!hasCalcDamage) damage += (int)v.BaseValue; continue; }
                 if (v is BlockVar) { if (!hasCalcBlock) block += (int)v.BaseValue; continue; }
-                if (v is RepeatVar) { if (amount > 0) hits = amount; continue; }
+                // RepeatVar normally = attack hit count (SWORD_BOOMERANG,
+                // CELESTIAL_MIGHT, ...). But some cards use RepeatVar to drive a
+                // NON-damage effect N times while dealing their damage ONCE:
+                //   • ICE_LANCE: Deal 19 once, then Channel<FrostOrb> ×Repeat(3).
+                // For these the attack is single-hit; treating Repeat as the hit
+                // count over-predicts damage massively (ICE_LANCE sim 19×3=57 vs
+                // real 19 → enemy_hp_sum up to -54 in probe). Skip the hit-count
+                // assignment for the orb-channel-Repeat family.
+                if (v is RepeatVar)
+                {
+                    if (amount > 0 && !RepeatDrivesNonDamage.Contains(card.Id.Entry))
+                        hits = amount;
+                    continue;
+                }
                 // HpLossVar — typed subclass for cards that lose HP on play
                 // (BLOOD_WALL, HEMOKINESIS, BRAND, BREAKTHROUGH, BLOODLETTING,
                 // OFFERING, ...). The DynamicVar-by-Name branch below catches
