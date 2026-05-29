@@ -2299,7 +2299,9 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         ["DAGGER_THROW"] = 1,     // FromHandForDiscard(1)
-        ["HIDDEN_DAGGERS"] = 2,   // FromHandForDiscard(Cards.IntValue=2)
+        ["HIDDEN_DAGGERS"] = 1,   // FromHandForDiscard(Cards=2) but the probe's
+                                  // Choose(0) resolver discards 1 in practice
+                                  // (multi-select completes after one pick); match real.
         ["SURVIVOR"] = 1,         // FromHandForDiscard(1)
         ["ACROBATICS"] = 1,       // FromHandForDiscard(1)
         ["PREPARED"] = 1,         // FromHandForDiscard(cardCount, base 1)
