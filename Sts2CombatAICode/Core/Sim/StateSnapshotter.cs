@@ -117,10 +117,12 @@ internal static class StateSnapshotter
             int playerConfused     = CombatReflection.GetPowerAmount(creature, "ConfusedPower");
             int playerTender       = CombatReflection.GetPowerAmount(creature, "TenderPower");
             // v0.9 — ShrinkPower (Tier B): outgoing damage × (100-N)/100.
-            // Read the DamageDecrease DynamicVar — defaults to 30 if absent.
-            // Most uses apply at 30; we use Amount > 0 as proxy for active
-            // and treat as 30% reduction.
-            int playerShrinkPct = CombatReflection.GetPowerAmount(creature, "ShrinkPower") > 0 ? 30 : 0;
+            // 2026-05-29 — ShrinkPower.Amount is -1 when INFINITE (IsInfinite =>
+            // Amount < 0), so the old `> 0` check missed the common infinite
+            // case → shrink never applied (SOVEREIGN_BLADE 15=>10.5 diverged).
+            // The reduction is a fixed 30% (DamageDecrease=30) whenever the
+            // power is present; use != 0 to catch both infinite(-1) and stacked.
+            int playerShrinkPct = CombatReflection.GetPowerAmount(creature, "ShrinkPower") != 0 ? 30 : 0;
             int playerDebilitate = CombatReflection.GetPowerAmount(creature, "DebilitatePower");
             // SmoggyPower (LivingFog) — when active, first Skill played
             // each turn afflicts all OTHER skills with Smog, locking them

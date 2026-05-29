@@ -186,6 +186,9 @@ internal static class DamageModifierRegistry
                 case "StrengthPower":  return ctx.State.PlayerStrength;
                 case "VigorPower":     return ctx.State.PlayerVigor;
                 case "WeakPower":      return ctx.State.PlayerWeak;
+                // 2026-05-29 — ShrinkPower: stack = the percent (30) captured by
+                // StateSnapshotter; >0 means the player's powered attacks ×0.7.
+                case "ShrinkPower":    return ctx.State.PlayerShrinkPercent;
                 case "LethalityPower": return ctx.State.PlayerLethality;
                 case "TrackingPower":  return ctx.State.PlayerTracking;
                 case "CrueltyPower":   return ctx.State.PlayerCruelty;
@@ -270,6 +273,20 @@ internal sealed class WeakMultModifier : DamageModifierBase
         => damage * StatusMath.WeakMult;
 }
 
+// 2026-05-29 — player ShrinkPower reduces outgoing powered-attack damage by
+// DamageDecrease% (sts2.dll: (100 - 30)/100 = ×0.7). Found via the 3rd
+// diagnostic layer (HP-application trace): SOVEREIGN_BLADE 15=>10.5,
+// HEAVENLY_DRILL 8=>5.6 with player ShrinkPower, sim dealt full. stack =
+// the percent captured by StateSnapshotter (30); 0 = no shrink.
+internal sealed class ShrinkMultModifier : DamageModifierBase
+{
+    public override string PowerName => "ShrinkPower";
+    public override DamageStage Stage => DamageStage.Multiplicative;
+    public override bool AttackerSide => true;  // attacker (player) is shrunk
+    public override double ApplyMultiplicative(double damage, int stack, in DamageContext ctx)
+        => stack > 0 ? damage * (100 - stack) / 100.0 : damage;
+}
+
 internal sealed class TrackingVsWeakModifier : DamageModifierBase
 {
     public override string PowerName => "TrackingPower";
@@ -338,6 +355,7 @@ internal static class BaselineDamageModifiers
         //     conditional Tracking / Cruelty / Lethality) ---
         DamageModifierRegistry.Register(new VulnerableMultModifier());
         DamageModifierRegistry.Register(new WeakMultModifier());
+        DamageModifierRegistry.Register(new ShrinkMultModifier());
         DamageModifierRegistry.Register(new TrackingVsWeakModifier());
         DamageModifierRegistry.Register(new CrueltyVsVulnerableModifier());
         DamageModifierRegistry.Register(new LethalityFirstAttackModifier());
