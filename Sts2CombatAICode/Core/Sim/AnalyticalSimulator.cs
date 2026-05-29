@@ -1011,14 +1011,26 @@ internal static class AnalyticalSimulator
         // Redirect: add N shiv placeholders to hand, leave the draw pile alone.
         if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id))
         {
+            // Hand caps at 10 (Shiv.CreateInHand respects the same limit as Draw).
             for (int i = 0; i < card.DrawCount; i++)
+            {
+                if (newHand.Count >= 10) break;
                 newHand.Add(MakeShivPlaceholderCard());
+            }
         }
         else if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0)
         {
             var avgDraw = MakeAverageDrawCard(next);
             for (int i = 0; i < card.DrawCount; i++)
             {
+                // 2026-05-29 — hand is capped at 10 (CardPileCmd.Draw: num =
+                // max(0, 10 - hand.Count); breaks when hand.Count >= 10). The
+                // played card is already removed from newHand (line ~105), so
+                // newHand.Count here equals the real hand size at draw resolution.
+                // Without this the sim over-drew whenever the (headless-inflated)
+                // hand was >=10 while real drew nothing — the systematic cause of
+                // SLIMED / CHARGE / SCRAPE / draw-card {hand +1, draw -1} rows.
+                if (newHand.Count >= 10) break;
                 if (drawPileAfter <= 0)
                 {
                     if (discardAfter <= 0) break;
