@@ -556,6 +556,15 @@ internal static class AnalyticalSimulator
                 {
                     hitsForDmg = newHand.Count + 1;
                 }
+                // 2026-05-30 — FOLLOW_THROUGH: WithHitCount(IsPlayedAnAdditionalTime
+                // ? 2 : 1) where the condition is hand.Cards.Count(c != this) >=
+                // CardCount(5). newHand has this card already removed, so its Count
+                // equals the decompile's "cards != this". Single-hit sim under-dealt
+                // 7 (one full hit) whenever the hand held >=5 other cards (9 rows).
+                if (card.Id == "FOLLOW_THROUGH")
+                {
+                    hitsForDmg = newHand.Count >= 5 ? 2 : 1;
+                }
                 // Random AOE: this enemy gets only its share of the
                 // round-robin distribution computed above.
                 if (isRandomAoe && hitsByEnemyIdx != null)
@@ -2553,6 +2562,13 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         ["HOLOGRAM"] = 1,
+        // 2026-05-30 — GRAVEBLAST: after the attack, FromSimpleGrid over the
+        // discard pile → CardPileCmd.Add(card, PileType.Hand). Retrieves 1 from
+        // discard to hand (the card itself exhausts via the base Exhaust keyword,
+        // handled by IsExhaust). Sim missed the retrieval → discard +1 / hand -1
+        // (6 rows). Upgraded GRAVEBLAST removes Exhaust (goes to discard) — the
+        // single exhaust-pile row is that variant, left as residual.
+        ["GRAVEBLAST"] = 1,
     };
 
     // 2026-05-30 — retain-on-play cards: GetResultPileType() returns Hand instead
