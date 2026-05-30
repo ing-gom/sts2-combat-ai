@@ -63,6 +63,16 @@ internal static class AnalyticalSimulator
             else if (card.IsSkill) newFreeSkills--;
             else if (card.IsPower) newFreePowers--;
         }
+        // 2026-05-30 — SubroutinePower (Defect): AfterCardPlayed refunds Amount
+        // energy for every POWER card played (BeforeCardPlayed records the amount
+        // only when card.Type == Power). The sim ignored it → player_energy = −Sub
+        // on every Power play with Subroutine active. Confirmed: diff == −Subroutine
+        // (−1 ↔ Subroutine 1, 8 rows).
+        if (card.IsPower && next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("SubroutinePower", out var subAmt) && subAmt > 0)
+        {
+            energy += subAmt;
+        }
         if (card.EnergyGain > 0)
         {
             // 2026-05-28 S6-4: FORGOTTEN_RITUAL conditional energy gain.
