@@ -2476,6 +2476,10 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         ["UNDEATH"] = 1,        // AddGeneratedCardToCombat(card, PileType.Discard)
+        // NOTE: GUNK_UP also generates a Slimed to discard, but modeling it
+        // REGRESSED parity (0/35) — in the headless harness its
+        // AddGeneratedCardToCombat is a no-op (NCard VFX path, like ANGER), so
+        // real never adds the Slimed. Do NOT add it.
     };
 
     // 2026-05-29 — draw-then-FromHandForDiscard cards: after drawing, the player
