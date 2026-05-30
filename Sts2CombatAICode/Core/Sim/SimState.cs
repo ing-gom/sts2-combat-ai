@@ -382,6 +382,14 @@ internal sealed record SimState
     public int PlayerInferno { get; init; }
 
     /// <summary>
+    /// 2026-05-31 — HauntPower (Necrobinder, on the player): AfterCardPlayed, when
+    /// the played card is a Soul, deals Amount UNBLOCKABLE damage to one random
+    /// hittable enemy. Surfaces cleanly on SOUL (a 0-damage draw token) as a flat
+    /// enemy_hp under-deal of +Amount. Applied per SOUL play in AnalyticalSimulator.
+    /// </summary>
+    public int PlayerHaunt { get; init; }
+
+    /// <summary>
     /// 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies whenever
     /// the player gains stars (AfterStarsGained) or spends stars (AfterCardPlayed
     /// StarsSpent>0). Applied once per star-gain and once per star-spend play.

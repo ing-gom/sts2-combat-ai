@@ -82,6 +82,9 @@ internal static class StateSnapshotter
             // damage on its own turn) deals Amount to ALL hittable enemies. Fires
             // on self-HP-loss cards (HpLoss). Applied in the HP_LOSS path.
             int playerInferno = CombatReflection.GetPowerAmount(creature, "InfernoPower");
+            // 2026-05-31 — HauntPower (Necrobinder): SOUL play deals Amount unblockable
+            // to a random enemy (reactive). Applied in the SOUL path.
+            int playerHaunt = CombatReflection.GetPowerAmount(creature, "HauntPower");
             // 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies when
             // the player GAINS or SPENDS stars (AfterStarsGained / AfterCardPlayed
             // StarsSpent>0). Applied on star-gain/star-cost plays.
@@ -677,6 +680,7 @@ internal static class StateSnapshotter
                 PlayerChildOfTheStars = playerChildOfTheStars,
                 PlayerParry = playerParry,
                 PlayerInferno = playerInferno,
+                PlayerHaunt = playerHaunt,
                 PlayerBlackHole = playerBlackHole,
                 PlayerSleightOfFlesh = playerSleightOfFlesh,
                 PlayerOrbit = playerOrbit,

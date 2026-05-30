@@ -1899,6 +1899,29 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — HauntPower (player, Necrobinder): AfterCardPlayed, when the
+        // played card is a Soul, deals Amount UNBLOCKABLE damage to ONE random
+        // hittable enemy. SOUL itself is a 0-damage draw token, so the sim under-
+        // dealt enemy_hp by exactly Haunt on every SOUL play (4/4 rows, all +6).
+        // Random target but enemy_hp_SUM is target-invariant (flat unblockable, no
+        // overkill in practice) — apply to the first alive enemy.
+        if (card.Id == "SOUL" && next.PlayerHaunt > 0)
+        {
+            int hauntDmg = next.PlayerHaunt;
+            var hauntList = new List<SimEnemy>(next.Enemies.Count);
+            bool applied = false;
+            foreach (var e in next.Enemies)
+            {
+                if (!applied && e.IsAlive && e.Hp > 0)
+                {
+                    hauntList.Add(e with { Hp = System.Math.Max(0, e.Hp - hauntDmg) });
+                    applied = true;
+                }
+                else hauntList.Add(e);
+            }
+            if (applied) next = next with { Enemies = hauntList };
+        }
+
         // 2026-05-30 — SleightOfFleshPower: when the player applies a (non-temporary)
         // enemy DEBUFF, deal Amount to that enemy, once PER debuff power applied
         // (AfterPowerAmountChanged). FEAR applies Vulnerable → +SleightOfFlesh damage
