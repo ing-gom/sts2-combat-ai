@@ -710,7 +710,13 @@ internal static class CardReflection
                     //
                     // Attacks/Skills with EnergyVar (Storm Of Spears /
                     // Cleaver / Adrenaline-style) still gain immediate energy.
-                    if (card.Type == CardType.Power) continue;
+                    // 2026-05-31 — NEUROSURGE (Power) is an EXCEPTION: its OnPlay
+                    // calls PlayerCmd.GainEnergy(Energy.BaseValue=3) immediately
+                    // (decompile-verified), so the power-skip wrongly dropped its
+                    // +3 → consistent player_energy −3 (4/4 rows). Let it fall
+                    // through to the immediate-gain path.
+                    if (card.Type == CardType.Power
+                        && card.Id.Entry != "NEUROSURGE") continue;
                     // v0.10 — Some Skill cards (CHARGE_BATTERY, CONVERGENCE,
                     // DELAY, HEGEMONY, INVOKE, OUTMANEUVER, REFINE_BLADE, RELAX,
                     // SCAVENGE) declare EnergyVar but in OnPlay apply
@@ -749,6 +755,11 @@ internal static class CardReflection
                     //                     dies, not on play)
                     if (card.Id.Entry == "RIGHT_HAND_HAND"
                         || card.Id.Entry == "MELANCHOLY") continue;
+                    // 2026-05-31 — HEAVENLY_DRILL (X-cost): its EnergyVar(4) is the
+                    // DOUBLING THRESHOLD (OnPlay: if X >= Energy.IntValue, hits *= 2),
+                    // NOT an energy gain. Summing it re-added 4 after the X-cost full
+                    // spend → player_energy stuck at +4 (3 rows). Skip it.
+                    if (card.Id.Entry == "HEAVENLY_DRILL") continue;
                     energyGain += amount;
                     continue;
                 }

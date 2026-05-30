@@ -53,9 +53,15 @@ internal static class AnalyticalSimulator
             (card.IsSkill && newFreeSkills > 0) ||
             (card.IsPower && newFreePowers > 0) ||
             corruptionFreeSkill;
+        // 2026-05-31 — X-cost cards (HEAVENLY_DRILL, TEMPEST, …) spend ALL energy
+        // (HasEnergyCostX); base Cost is 0 so the plain subtraction left energy
+        // untouched → consistent player_energy +preSpend (HEAVENLY_DRILL +4, 3 rows).
+        bool isXCost = card.Axes != null && card.Axes.Contains("X_COST");
         int energy = freeApplied
             ? next.PlayerEnergy
-            : System.Math.Max(0, next.PlayerEnergy - card.Cost);
+            : isXCost
+                ? 0
+                : System.Math.Max(0, next.PlayerEnergy - card.Cost);
         if (freeApplied && !corruptionFreeSkill)
         {
             // Per-card counters decrement; persistent CorruptionPower doesn't.
@@ -83,7 +89,9 @@ internal static class AnalyticalSimulator
         {
             // energy actually SPENT by this card (the cost; 0 if played free) —
             // independent of any refund added above.
-            int orbitSpent = freeApplied ? 0 : System.Math.Max(0, System.Math.Min(card.Cost, preSpendEnergy));
+            int orbitSpent = freeApplied ? 0
+                : isXCost ? preSpendEnergy
+                : System.Math.Max(0, System.Math.Min(card.Cost, preSpendEnergy));
             if (orbitSpent > 0)
             {
                 int crossings = (next.PlayerOrbitSpentMod + orbitSpent) / 4;
