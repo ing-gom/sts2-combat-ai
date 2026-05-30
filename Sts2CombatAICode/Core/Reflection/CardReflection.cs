@@ -658,6 +658,11 @@ internal static class CardReflection
                         || v.Name == "EnergyThreshold"
                         || v.Name == "energyPrefix") continue;
                     if (v.Name == "LoseEnergy") { energyGain -= amount; continue; }
+                    // 2026-05-30 — RIGHT_HAND_HAND's EnergyVar(2) is a THRESHOLD
+                    // (AfterCardPlayedLate: if Resources.Energy >= 2, return this
+                    // card from discard to hand), NOT an energy gain. The default
+                    // var name is "Energy", so gate by card id.
+                    if (card.Id.Entry == "RIGHT_HAND_HAND") continue;
                     energyGain += amount;
                     continue;
                 }
