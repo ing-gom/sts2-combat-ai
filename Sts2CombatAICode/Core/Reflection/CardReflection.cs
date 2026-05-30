@@ -541,8 +541,8 @@ internal static class CardReflection
                     hasCalcBlock = true;
                     continue;
                 }
-                // 2026-05-28 100%-parity push: plain DamageVar/BlockVar use
-                // BaseValue (raw upgrade-aware value) so modifier registry's
+                // 2026-05-28 100%-parity push: plain DamageVar/BlockVar use the
+                // raw value (NOT PreviewValue) so the modifier registry's
                 // Strength/Vuln/Weak application doesn't double-count what
                 // PreviewValue already folded in. Parity sample: STRIKE +Str 2
                 // = card.Damage 8 (PreviewValue 6+2) → modifier adds +2 again
@@ -550,7 +550,15 @@ internal static class CardReflection
                 // CalculatedDamageVar above keeps PreviewValue since the
                 // scaling extras (PerfectedStrike per-Strike etc.) ARE the
                 // PreviewValue and modifier registry can't replicate them.
-                if (v is DamageVar) { if (!hasCalcDamage) damage += (int)v.BaseValue; continue; }
+                // 2026-05-30 — read EnchantedValue, not BaseValue. sts2.dll's
+                // Hook.ModifyDamage applies card.Enchantment.EnchantDamageAdditive
+                // (e.g. Sharp +2) BEFORE the power-modifier loop and OUTSIDE the
+                // returned modifier list, and DamageVar.UpdateCardPreview folds it
+                // into EnchantedValue (= BaseValue + enchant, WITHOUT runtime
+                // Str/Weak/Vuln). For un-enchanted cards EnchantedValue==BaseValue
+                // (ResetToBase), so this is a no-op there. Fixes the Silent SHIV
+                // base-6 class: enchanted Shiv (Sharp +2) read as 4 → −2 under-deal.
+                if (v is DamageVar) { if (!hasCalcDamage) damage += (int)v.EnchantedValue; continue; }
                 // 2026-05-29 — a BlockVar named "BlockNextTurn" is deferred block:
                 // OnPlay routes it to BlockNextTurnPower (gained at next turn
                 // start), NOT to the current turn's Block. GLITTERSTREAM has
@@ -558,7 +566,10 @@ internal static class CardReflection
                 // summing both over-credited current block by 5 (player_block +5
                 // on every play). Exclude it from the current-turn block sum.
                 if (v is BlockVar && v.Name == "BlockNextTurn") continue;
-                if (v is BlockVar) { if (!hasCalcBlock) block += (int)v.BaseValue; continue; }
+                // 2026-05-30 — EnchantedValue (not BaseValue): block enchantments
+                // (EnchantBlockMultiplicative etc.) fold into EnchantedValue the
+                // same way Sharp folds into damage. No-op for un-enchanted cards.
+                if (v is BlockVar) { if (!hasCalcBlock) block += (int)v.EnchantedValue; continue; }
                 // RepeatVar normally = attack hit count (SWORD_BOOMERANG,
                 // CELESTIAL_MIGHT, ...). But some cards use RepeatVar to drive a
                 // NON-damage effect N times while dealing their damage ONCE:
