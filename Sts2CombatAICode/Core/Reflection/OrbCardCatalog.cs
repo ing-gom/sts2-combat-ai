@@ -45,6 +45,12 @@ internal static class OrbCardCatalog
         int evokeCount = 0;
         int channelCount = 0;
         var kind = OrbKind.Unknown;
+        // 2026-05-30 — true when the switch below set evokeCount EXPLICITLY (even to
+        // 0). MULTI_CAST is X-cost: at 0 energy it evokes 0 times, but the
+        // ORB_EVOKE-axis default-1 (below) wrongly bumped it to 1 → phantom evoke
+        // (energy=0 yet sim_evoke=1, over-dealt one full evoke). Don't let the
+        // default override an explicit X-cost count of 0.
+        bool explicitEvoke = false;
 
         // ---- Multi-evoke front-orb cards (orb amplifiers) ----
         switch (cardId)
@@ -62,6 +68,7 @@ internal static class OrbCardCatalog
                 // the live spend (ResolveEnergyXValue at play time). We treat it as base
                 // count — upgrade bump is handled in CardReflection by reading the card.
                 evokeCount = System.Math.Max(0, costSpent);
+                explicitEvoke = true;
                 break;
         }
 
@@ -110,7 +117,7 @@ internal static class OrbCardCatalog
         //   TESLA_COIL    — triggers each Lightning orb's Passive (handled in sim)
         //   LIGHTNING_ROD — GainBlock + applies LightningRodPower (turn-start channel)
         //   COLD_SNAP     — Attack + channels a Frost orb (not evoke)
-        if (evokeCount == 0 && !isPower && !NoAxisEvoke.Contains(cardId)
+        if (evokeCount == 0 && !explicitEvoke && !isPower && !NoAxisEvoke.Contains(cardId)
             && (axes.Contains("ORB_EVOKE") || axes.Contains("LIGHTNING_EVOKE")))
             evokeCount = 1;
 
