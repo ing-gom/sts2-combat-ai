@@ -1851,6 +1851,18 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-30 — EXPOSE: LoseBlock(target, target.Block) strips the target's
+        // ENTIRE block (then applies Vulnerable / removes Artifact). The sim left
+        // the enemy block intact → enemy_block_sum = +target.Block (8/15/32). Zero
+        // the target's block.
+        if (card.Id == "EXPOSE" && targetIdx >= 0 && targetIdx < next.Enemies.Count
+            && next.Enemies[targetIdx].IsAlive && next.Enemies[targetIdx].Block > 0)
+        {
+            var exposed = new List<SimEnemy>(next.Enemies);
+            exposed[targetIdx] = exposed[targetIdx] with { Block = 0 };
+            next = next with { Enemies = exposed };
+        }
+
         return next with
         {
             PlayerHp = newPlayerHp,
