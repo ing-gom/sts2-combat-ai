@@ -73,13 +73,13 @@ internal static class OrbCardCatalog
         }
 
         // ---- X-cost channelers ----
-        if (cardId == "CAPACITOR")
-        {
-            // Upgrade variant tracked via Enchantment, not Id suffix —
-            // base check covers both forms.
-            channelCount = System.Math.Max(0, costSpent);
-            kind = OrbKind.Lightning; // Capacitor channels Lightning orbs
-        }
+        // 2026-05-30 — CAPACITOR does NOT channel/evoke. Decompile: it's a Power
+        // card whose OnPlay is `OrbCmd.AddSlots(Repeat)` — it raises orb CAPACITY by
+        // Repeat(2), nothing else. The sim modeled it as an X-cost Lightning channeler
+        // → phantom channel auto-evoked the head orb (enemy_hp −6/−12, stray block).
+        // No on-play orb damage/block; leave channelCount/evokeCount at 0. (The slot
+        // increase has no immediate combat-state effect for the single-play probe.)
+        // (CAPACITOR intentionally has NO orb-effect entry here.)
 
         // ---- Multi-channel hardcoded cases (OnPlay loops the channel call) ----
         // Glacier: for (int i = 0; i < 2; i++) Channel<FrostOrb>  → 2 Frost orbs.
