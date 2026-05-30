@@ -229,7 +229,10 @@ internal static class AnalyticalSimulator
         // (BLOODLETTING 3, OFFERING 6, HEMOKINESIS 2 etc.). Subtract before any
         // turn-resolution math so subsequent depth-N candidates see the lower HP
         // and the HpLoss penalty band in EstimateCardPower fires correctly.
-        if (card.HpLossAmount > 0)
+        // 2026-05-30 — HAUNT's HpLossVar(6) does NOT lose HP on play: OnPlay is
+        // Apply<HauntPower>(HpLoss), a DEFERRED per-turn HP drain. The sim applied
+        // the 6 immediately (player_hp −6, 3 rows). Exclude it from on-play HP loss.
+        if (card.HpLossAmount > 0 && card.Id != "HAUNT")
         {
             newPlayerHp = System.Math.Max(0, newPlayerHp - card.HpLossAmount);
             // 2026-05-28 S6-3c: RupturePower trigger on HP loss.
@@ -271,6 +274,13 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-30 — SHARED_FATE (Skill): Apply<StrengthPower>(self,
+        // -PlayerStrengthLoss(2)) AND enemy -EnemyStrengthLoss. The enemy debuff is
+        // handled via PowerApps/StrengthDown, but the SELF strength loss (a named
+        // "PlayerStrengthLoss" DynamicVar, not a PowerVar) was missed → player_strength
+        // diff +2 (3 rows). Apply the self −2.
+        if (card.Id == "SHARED_FATE") newPlayerStr -= 2;
+
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
         if (card.IsPower)
         {
@@ -294,6 +304,11 @@ internal static class AnalyticalSimulator
                     // not raw StrengthPower → 3 SETUP_STRIKE diverging with
                     // player_strength +2 (mod credited immediate Str gain).
                     else if (card.Id == "SETUP_STRIKE") effectivePowerName = "SetupStrikePower";
+                    // 2026-05-30 — FRIENDSHIP applies StrengthPower NEGATIVELY:
+                    // Apply<StrengthPower>(self, -StrengthPower.BaseValue). The
+                    // PowerVar base is +2 but the self-strength is REDUCED by 2.
+                    // The sim credited +2 → player_strength diff +4 (3 rows).
+                    else if (card.Id == "FRIENDSHIP") amount = -amount;
                 }
                 // v0.8.2 — Generic dict propagation. Writes EVERY power granted,
                 // including those without an explicit case below.
