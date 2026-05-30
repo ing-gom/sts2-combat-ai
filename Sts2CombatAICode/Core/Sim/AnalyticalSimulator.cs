@@ -1138,7 +1138,15 @@ internal static class AnalyticalSimulator
 
             // Channel: push N orbs of ChannelKind. Each push past capacity kicks the head
             // (auto-evoke) before adding the new orb.
-            for (int i = 0; i < card.ChannelCount; i++)
+            // 2026-05-31 — TEMPEST is X-cost: it channels X (= energy spent) Lightning,
+            // not the catalog's ORB_PRODUCER default of 1. costSpent at snapshot time is
+            // the base cost (0), so card.ChannelCount can't carry X — resolve it here
+            // from preSpendEnergy. X=0 → 0 channels (no phantom evoke, was +5); X≥2 →
+            // multiple overflow-evokes (was −5 under).
+            int effChannelCount = (card.Id == "TEMPEST" && isXCost)
+                ? preSpendEnergy
+                : card.ChannelCount;
+            for (int i = 0; i < effChannelCount; i++)
             {
                 if (card.ChannelKind == OrbKind.Unknown) break;
                 if (queue.Count >= next.PlayerOrbCapacity && queue.Count > 0)

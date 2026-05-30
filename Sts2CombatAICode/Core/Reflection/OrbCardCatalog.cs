@@ -142,8 +142,15 @@ internal static class OrbCardCatalog
         // TESLA_COIL triggers passives. An on-play channelCount made the sim push
         // an orb that, at a full queue, auto-evoked the head (Frost→phantom block
         // +5). Suppress. (COLD_SNAP DOES channel a Frost orb on play — kept.)
+        // 2026-05-31 — POWER cards never channel on their OWN play. A Defect orb
+        // power (STORM→StormPower, HAILSTORM→HailstormPower, …) GRANTS a triggered
+        // channel ability; the channel fires on LATER events, not when the power is
+        // played. The ORB_PRODUCER-axis default-1 made the sim push a phantom orb
+        // that, at a full queue, auto-evoked the head (Frost→phantom block: STORM
+        // +10, q=[Frost×3], real GainBlockInternal absent). Mirror the isPower guard
+        // already used for evoke above.
         if (channelCount == 0 && evokeCount == 0 && axes.Contains("ORB_PRODUCER")
-            && !NoAxisChannel.Contains(cardId))
+            && !isPower && !NoAxisChannel.Contains(cardId))
             channelCount = 1;
 
         if (kind == OrbKind.Unknown)
