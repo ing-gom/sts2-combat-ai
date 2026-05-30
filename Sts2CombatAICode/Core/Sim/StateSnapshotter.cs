@@ -802,7 +802,10 @@ internal static class StateSnapshotter
             IsRetain = catalogInfo?.Retain ?? false,
             IsEthereal = catalogInfo?.Ethereal ?? false,
             IsInnate = catalogInfo?.Innate ?? false,
-            IsExhaust = catalogInfo?.Exhaust ?? false,
+            // 2026-05-30 — prefer the LIVE card's runtime Exhaust keyword
+            // (upgrade-aware: GRAVEBLAST/etc. RemoveKeyword(Exhaust) on upgrade);
+            // fall back to the static catalog when reflection is unavailable.
+            IsExhaust = CardReflection.HasExhaustKeyword(card) ?? catalogInfo?.Exhaust ?? false,
             IsFetchTrigger = catalogInfo?.FetchTrigger ?? false,
             IsSly = isSly,
             // v0.9 — Bound affliction (ChainsOfBindingPower restriction).

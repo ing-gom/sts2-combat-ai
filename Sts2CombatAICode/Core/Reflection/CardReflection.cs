@@ -241,6 +241,32 @@ internal static class CardReflection
         return false;
     }
 
+    /// <summary>
+    /// 2026-05-30 — runtime Exhaust state from the LIVE card's Keywords, which
+    /// reflect OnUpgrade keyword changes the static catalog misses. GRAVEBLAST's
+    /// OnUpgrade does RemoveKeyword(Exhaust) → upgraded copies discard, but the
+    /// catalog (base) says Exhaust=true so the sim wrongly exhausted them
+    /// (discard −1 / exhaust +1 divergence, THE_SCYTHE/GRAVEBLAST bucket).
+    /// Returns null when the Keywords reflection is unavailable so the caller
+    /// falls back to the static catalog (the correct value for un-upgraded cards).
+    /// </summary>
+    public static bool? HasExhaustKeyword(CardModel card)
+    {
+        if (_keywordsProp == null) return null;
+        try
+        {
+            var keywords = _keywordsProp.GetValue(card) as IEnumerable;
+            if (keywords == null) return null;
+            foreach (var kw in keywords)
+            {
+                if (kw == null) continue;
+                if (kw.ToString() == "Exhaust") return true;
+            }
+            return false;
+        }
+        catch { return null; }
+    }
+
     public static string? GetEnchantmentId(CardModel card)
     {
         var ench = _enchantmentProp?.GetValue(card);
