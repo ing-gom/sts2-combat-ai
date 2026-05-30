@@ -869,8 +869,13 @@ internal static class AnalyticalSimulator
             // next.Enemies already reflects post-attack HP here.
             bool anyEnemyAliveAfter = false;
             foreach (var e in next.Enemies) if (e.IsAlive) { anyEnemyAliveAfter = true; break; }
+            // 2026-05-31 — RagePower block is GainBlock(Amount, ValueProp.Unpowered):
+            // FLAT, NOT modified by Dexterity or Frail (decompile + block-trace:
+            // ModifyBlock(3)=>3 with Frail 1 present). The sim ran it through
+            // EffectiveBlock → under-blocked by the Frail 25% (STRIKE_IRONCLAD −1,
+            // 3 rows) and would over-add Dex. Same flat-block class as AfterImage.
             if (newPlayerRage > 0 && anyEnemyAliveAfter)
-                newPlayerBlock += StatusMath.EffectiveBlock(newPlayerRage, newPlayerDex, playerFrail);
+                newPlayerBlock += newPlayerRage;
         }
 
         // 3c. Skill: self block (only when self-targeted) + apply powers to target if any
