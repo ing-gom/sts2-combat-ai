@@ -2792,6 +2792,11 @@ internal static class AnalyticalSimulator
     {
         ["COLLISION_COURSE"] = 1,    // Debris → hand
         ["MANIFEST_AUTHORITY"] = 1,  // generated card → hand
+        // 2026-05-31 — generate-a-random-card-to-hand (free this turn). Real keeps
+        // it (hand_count −1 in probe, headless retains hand-adds), sim didn't model.
+        ["WHITE_NOISE"] = 1,    // random Power card → hand (SetToFreeThisTurn)
+        ["INFERNAL_BLADE"] = 1, // random Attack card → hand (free)
+        ["QUASAR"] = 1,         // choose 1 of 3 colorless → hand (resolver picks, no skip)
     };
 
     // 2026-05-30 — generators that add to the DRAW pile (Necrobinder Souls).
