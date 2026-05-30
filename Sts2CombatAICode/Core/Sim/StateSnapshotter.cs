@@ -86,6 +86,10 @@ internal static class StateSnapshotter
             // the player GAINS or SPENDS stars (AfterStarsGained / AfterCardPlayed
             // StarsSpent>0). Applied on star-gain/star-cost plays.
             int playerBlackHole = CombatReflection.GetPowerAmount(creature, "BlackHolePower");
+            // 2026-05-30 — SleightOfFleshPower (Necrobinder): when the player applies a
+            // (non-temporary) DEBUFF to an enemy, deal Amount to that enemy
+            // (AfterPowerAmountChanged). Fires once per debuff power applied.
+            int playerSleightOfFlesh = CombatReflection.GetPowerAmount(creature, "SleightOfFleshPower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -648,6 +652,7 @@ internal static class StateSnapshotter
                 PlayerParry = playerParry,
                 PlayerInferno = playerInferno,
                 PlayerBlackHole = playerBlackHole,
+                PlayerSleightOfFlesh = playerSleightOfFlesh,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,

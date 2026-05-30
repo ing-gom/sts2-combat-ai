@@ -1817,6 +1817,40 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-30 — SleightOfFleshPower: when the player applies a (non-temporary)
+        // enemy DEBUFF, deal Amount to that enemy, once PER debuff power applied
+        // (AfterPowerAmountChanged). FEAR applies Vulnerable → +SleightOfFlesh damage
+        // to the target (enemy_hp +9 == SleightOfFlesh 9). Single-target debuffs hit
+        // the target; AOE debuffs hit every alive enemy.
+        if (next.PlayerSleightOfFlesh > 0 && card.PowerApps != null && card.PowerApps.Count > 0)
+        {
+            int debuffCount = 0;
+            foreach (var (pn, amt) in card.PowerApps)
+                if (amt != 0 && IsEnemyDebuff(pn)) debuffCount++;
+            if (debuffCount > 0)
+            {
+                int sofDmg = next.PlayerSleightOfFlesh * debuffCount;
+                bool aoeDebuff = card.Target == TargetType.AllEnemies;
+                var sofEnemies = new List<SimEnemy>(next.Enemies.Count);
+                for (int i = 0; i < next.Enemies.Count; i++)
+                {
+                    var e = next.Enemies[i];
+                    bool hit = e.IsAlive && (aoeDebuff || i == targetIdx);
+                    if (hit)
+                    {
+                        int past = System.Math.Max(0, sofDmg - e.Block);
+                        sofEnemies.Add(e with
+                        {
+                            Block = System.Math.Max(0, e.Block - sofDmg),
+                            Hp = System.Math.Max(0, e.Hp - past),
+                        });
+                    }
+                    else sofEnemies.Add(e);
+                }
+                next = next with { Enemies = sofEnemies };
+            }
+        }
+
         return next with
         {
             PlayerHp = newPlayerHp,

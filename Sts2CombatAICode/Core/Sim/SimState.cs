@@ -389,6 +389,13 @@ internal sealed record SimState
     public int PlayerBlackHole { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — SleightOfFleshPower (Necrobinder): deals Amount to an enemy each
+    /// time the player applies a non-temporary DEBUFF (Vulnerable/Weak/Frail/…) to it.
+    /// Applied once per enemy-debuff PowerApp on the affected enemy(ies).
+    /// </summary>
+    public int PlayerSleightOfFlesh { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
