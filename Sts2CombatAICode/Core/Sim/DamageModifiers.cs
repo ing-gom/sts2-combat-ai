@@ -296,13 +296,22 @@ internal sealed class TrackingVsWeakModifier : DamageModifierBase
         => ctx.Target.WeakAmount > 0 ? damage * StatusMath.TrackingMult : damage;
 }
 
+// 2026-05-31 — Cruelty is ADDITIVE to the Vulnerable multiplier, not a separate
+// ×1.25 chain. Decompile (CrueltyPower.ModifyVulnerableMultiplier): the vuln
+// multiplier becomes 1.5 + Amount/100 (Amount=25 → 1.75), NOT 1.5 × 1.25 (=1.875).
+// VulnerableMultModifier already applied ×1.5, so fold cruelty in as
+// ×(1 + Amount/(100·VulnerableMult)) → combined = base × (1.5 + Amount/100).
+// stack = the live Cruelty Amount (StateSnapshotter PlayerCruelty). Verified vs
+// 3 ANGER rows: 6 × 1.75 = 10.5 (was 6 × 1.875 = 11.25, consistent −1 over-deal).
 internal sealed class CrueltyVsVulnerableModifier : DamageModifierBase
 {
     public override string PowerName => "CrueltyPower";
     public override DamageStage Stage => DamageStage.Multiplicative;
     public override bool AttackerSide => true;
     public override double ApplyMultiplicative(double damage, int stack, in DamageContext ctx)
-        => ctx.Target.VulnerableAmount > 0 ? damage * StatusMath.CrueltyMult : damage;
+        => ctx.Target.VulnerableAmount > 0 && stack > 0
+            ? damage * (1.0 + stack / (100.0 * StatusMath.VulnerableMult))
+            : damage;
 }
 
 internal sealed class LethalityFirstAttackModifier : DamageModifierBase

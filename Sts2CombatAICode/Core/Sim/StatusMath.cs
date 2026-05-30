@@ -24,7 +24,10 @@ internal static class StatusMath
     // v0.7.84 — Damage multiplier powers (Silent Volatile / passive).
     public const double LethalityMult = 1.5;   // first attack/turn (single-shot)
     public const double TrackingMult  = 2.0;   // vs Weak target (passive)
-    public const double CrueltyMult   = 1.25;  // vs Vulnerable target (passive)
+    // Cruelty is NOT a flat multiplier — it ADDS Amount/100 to the Vulnerable
+    // multiplier (real CrueltyPower.ModifyVulnerableMultiplier). Kept for ref only;
+    // the live math reads the actual Cruelty Amount. Do not multiply by this.
+    public const double CrueltyMult   = 1.25;  // DEPRECATED ref (Amount=25 → +0.25)
 
     /// <summary>
     /// v0.7.84 — Apply per-target conditional damage multipliers (Tracking,
@@ -38,7 +41,11 @@ internal static class StatusMath
         if (damage <= 0) return 0;
         double v = damage;
         if (state.PlayerTracking > 0 && defenderWeak) v *= TrackingMult;
-        if (state.PlayerCruelty > 0 && defenderVulnerable) v *= CrueltyMult;
+        // Cruelty ADDS Amount/100 to the Vulnerable multiplier (1.5 → 1.5+Amt/100),
+        // it is NOT a separate ×1.25 chain. v already carries ×VulnerableMult, so
+        // apply ×(1 + Amt/(100·VulnerableMult)). See CrueltyVsVulnerableModifier.
+        if (state.PlayerCruelty > 0 && defenderVulnerable)
+            v *= 1.0 + state.PlayerCruelty / (100.0 * VulnerableMult);
         if (state.PlayerLethality > 0 && lethalityActive) v *= LethalityMult;
         return Math.Max(0, (int)Math.Floor(v));
     }
