@@ -385,6 +385,11 @@ internal static class CardReflection
         // (PileType.Discard...TakeRandom(Cards).Upgrade). Routing it to draw
         // phantom-drew 2 (hand +2 / draw_pile -2, 10 rows).
         "DRAIN_POWER",
+        // 2026-05-30 — MAKE_IT_SO's CardsVar(3) is a MODULO threshold, not a
+        // draw: AfterCardPlayedLate returns the card to hand when the count of
+        // skills played this turn % 3 == 0. Routing it to draw phantom-drew 3
+        // (hand +3 / draw_pile -3, 4 rows).
+        "MAKE_IT_SO",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
