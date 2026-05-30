@@ -1713,6 +1713,36 @@ internal static class AnalyticalSimulator
             newPlayerDex -= 1;
         }
 
+        // 2026-05-30 — StranglePower (enemy debuff): AfterCardPlayed deals Amount
+        // UNBLOCKABLE damage to the Strangled enemy on EVERY card the player plays
+        // (any type — BeforeCardPlayed/AfterCardPlayed, not gated on attack). The
+        // sim ignored it → enemy_hp_sum = +Strangle under-deal on every play vs a
+        // Strangled enemy (Silent SHIV +2 residual, but applies to all cards).
+        // Fire one unblockable pulse per card play here, on the final enemy state.
+        {
+            bool anyStrangle = false;
+            for (int i = 0; i < next.Enemies.Count; i++)
+            {
+                var e = next.Enemies[i];
+                if (e.IsAlive && e.Powers != null
+                    && e.Powers.TryGetValue("StranglePower", out var sv) && sv > 0)
+                { anyStrangle = true; break; }
+            }
+            if (anyStrangle)
+            {
+                var strangled = new List<SimEnemy>(next.Enemies.Count);
+                foreach (var e in next.Enemies)
+                {
+                    if (e.IsAlive && e.Powers != null
+                        && e.Powers.TryGetValue("StranglePower", out var sv) && sv > 0)
+                        strangled.Add(e with { Hp = System.Math.Max(0, e.Hp - sv) });
+                    else
+                        strangled.Add(e);
+                }
+                next = next with { Enemies = strangled };
+            }
+        }
+
         return next with
         {
             PlayerHp = newPlayerHp,
