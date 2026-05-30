@@ -1305,7 +1305,13 @@ internal static class AnalyticalSimulator
         // 2026-05-30 — SCAVENGE also exhausts 1 hand card: CardSelectCmd.FromHand
         // (ExhaustSelectionPrompt, 1) → CardCmd.Exhaust. Player-choice but count is
         // fixed at 1; identity is irrelevant for the exhaust/hand counts.
-        if (card.Id == "CINDER" || card.Id == "TRUE_GRIT" || card.Id == "SCAVENGE")
+        // 2026-05-30 — THRASH (Ironclad): after its 2-hit attack it picks a random
+        // ATTACK card from hand and exhausts it (Rng.NextItem over hand Attacks).
+        // Same exhaust-1-from-hand pile/FeelNoPain shape as CINDER/TRUE_GRIT (the
+        // attack-only filter is irrelevant for the pile counts). Was exhaust −1 /
+        // hand +1 (sim missed the hand-card exhaust, 3 rows).
+        if (card.Id == "CINDER" || card.Id == "TRUE_GRIT" || card.Id == "SCAVENGE"
+            || card.Id == "THRASH")
         {
             if (newHand.Count > 0)
             {
