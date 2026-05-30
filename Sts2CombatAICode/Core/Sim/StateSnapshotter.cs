@@ -90,6 +90,13 @@ internal static class StateSnapshotter
             // (non-temporary) DEBUFF to an enemy, deal Amount to that enemy
             // (AfterPowerAmountChanged). Fires once per debuff power applied.
             int playerSleightOfFlesh = CombatReflection.GetPowerAmount(creature, "SleightOfFleshPower");
+            // 2026-05-30 — OrbitPower (Regent): refunds Amount energy each time the
+            // cumulative energy-spent crosses a multiple of 4. The /4 counter is
+            // internal, but DisplayAmount = 4 − (energySpent % 4) exposes it, so we
+            // can compute the exact spent-mod-4 and model the refund precisely.
+            int playerOrbit = CombatReflection.GetPowerAmount(creature, "OrbitPower");
+            int orbitDisplay = CombatReflection.GetPowerDisplayAmount(creature, "OrbitPower");
+            int playerOrbitSpentMod = orbitDisplay >= 0 ? ((4 - orbitDisplay) % 4 + 4) % 4 : 0;
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -672,6 +679,8 @@ internal static class StateSnapshotter
                 PlayerInferno = playerInferno,
                 PlayerBlackHole = playerBlackHole,
                 PlayerSleightOfFlesh = playerSleightOfFlesh,
+                PlayerOrbit = playerOrbit,
+                PlayerOrbitSpentMod = playerOrbitSpentMod,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,

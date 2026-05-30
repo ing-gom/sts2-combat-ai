@@ -73,6 +73,23 @@ internal static class AnalyticalSimulator
         {
             energy += subAmt;
         }
+        // 2026-05-30 — OrbitPower (Regent): refunds PlayerOrbit energy each time the
+        // cumulative energy-spent crosses a /4 boundary. PlayerOrbitSpentMod (=
+        // energySpent % 4, from DisplayAmount) makes the boundary count exact — the
+        // earlier TurnEnergySpent attempt was wrong because the Orbit counter is
+        // relative to when Orbit was GAINED, not turn start. Refund = Orbit ×
+        // ⌊(mod + spent) / 4⌋.
+        if (next.PlayerOrbit > 0)
+        {
+            // energy actually SPENT by this card (the cost; 0 if played free) —
+            // independent of any refund added above.
+            int orbitSpent = freeApplied ? 0 : System.Math.Max(0, System.Math.Min(card.Cost, preSpendEnergy));
+            if (orbitSpent > 0)
+            {
+                int crossings = (next.PlayerOrbitSpentMod + orbitSpent) / 4;
+                if (crossings > 0) energy += next.PlayerOrbit * crossings;
+            }
+        }
         if (card.EnergyGain > 0)
         {
             // 2026-05-28 S6-4: FORGOTTEN_RITUAL conditional energy gain.

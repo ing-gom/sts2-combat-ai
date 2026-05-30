@@ -63,6 +63,32 @@ internal static class CombatReflection
     }
 
     /// <summary>
+    /// 2026-05-30 — read a power's public DisplayAmount (the in-game counter shown
+    /// on the power icon), which for some powers exposes INTERNAL state the Amount
+    /// field hides. OrbitPower.DisplayAmount = 4 − (energySpent % 4) reveals its
+    /// internal /4 energy counter; MonologuePower.DisplayAmount = StrengthApplied.
+    /// Returns -1 when the power is absent or DisplayAmount throws.
+    /// </summary>
+    public static int GetPowerDisplayAmount(Creature creature, string powerTypeName)
+    {
+        try
+        {
+            foreach (var power in creature.Powers)
+            {
+                if (power == null) continue;
+                if (!string.Equals(power.GetType().Name, powerTypeName, System.StringComparison.Ordinal))
+                    continue;
+                var prop = power.GetType().GetProperty("DisplayAmount");
+                if (prop == null) return -1;
+                var v = prop.GetValue(power);
+                return v switch { int i => i, decimal d => (int)d, null => -1, _ => System.Convert.ToInt32(v) };
+            }
+        }
+        catch { }
+        return -1;
+    }
+
+    /// <summary>
     /// Dump every active power on the creature as a (class-name → amount) map.
     /// Lets SimEnemy carry a generic snapshot of all enemy powers (Thorns / Intangible /
     /// Weak / Buffer / Regen / ...) without us having to enumerate each one up-front.

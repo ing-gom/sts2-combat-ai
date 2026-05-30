@@ -410,6 +410,15 @@ internal sealed record SimState
     public int PlayerOstyHp { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — OrbitPower (Regent) refund amount (energy per /4 boundary) and
+    /// the current cumulative-energy-spent mod 4 (from DisplayAmount = 4 − mod).
+    /// On a play that spends `cost`, refund = PlayerOrbit × ⌊(PlayerOrbitSpentMod +
+    /// cost) / 4⌋. 0 when Orbit absent.
+    /// </summary>
+    public int PlayerOrbit { get; init; }
+    public int PlayerOrbitSpentMod { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
