@@ -482,6 +482,18 @@ internal static class AnalyticalSimulator
                     int otherInHand = System.Math.Max(0, next.Hand.Count - 1);
                     adjustedBase = System.Math.Max(0, adjustedBase - 2 * otherInHand);
                 }
+                else if (card.Id == "TESLA_COIL")
+                {
+                    // 2026-05-30 — TESLA_COIL: Attack(3) then triggers each Lightning
+                    // orb's Passive (OrbCmd.Passive) at the same target.
+                    // LightningOrb.PassiveVal = ModifyOrbValue(3) = 3 + Focus. Add
+                    // (lightning-orb count) × (3 + Focus) to the single-target damage.
+                    // (The phantom evoke is suppressed in OrbCardCatalog.)
+                    int lightning = 0;
+                    foreach (var k in next.OrbQueue) if (k == OrbKind.Lightning) lightning++;
+                    if (lightning > 0)
+                        adjustedBase += lightning * System.Math.Max(0, 3 + next.PlayerFocus);
+                }
                 // 2026-05-28 MCTS-P0 A — X-cost cards (WHIRLWIND, etc.) use
                 // pre-spend energy as their hit count, not the catalog
                 // card.Hits value. SimCard.EffectiveDamage applies the same

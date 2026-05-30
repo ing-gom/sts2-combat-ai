@@ -82,7 +82,16 @@ internal static class OrbCardCatalog
         // the sim evoked the front orb when THUNDER was played (Frost→block 5+focus,
         // Lightning→8+focus dmg) — pure phantom damage/block (THUNDER enemy_hp
         // and player_block divergences on Defect). Evoke is an Attack/Skill action.
-        if (evokeCount == 0 && !isPower && (axes.Contains("ORB_EVOKE") || axes.Contains("LIGHTNING_EVOKE")))
+        // 2026-05-30 — TESLA_COIL triggers each Lightning orb's PASSIVE
+        // (OrbCmd.Passive), it does NOT evoke/consume the front orb. It carries
+        // ORB_EVOKE/LIGHTNING_EVOKE axes (FromOrb<Lightning> hover) but the
+        // axis-inferred evoke is wrong: it made the sim evoke the front orb
+        // (Frost→phantom block, Lightning→phantom evoke damage) AND miss the
+        // passive damage. Exclude it; the passive damage is added in
+        // AnalyticalSimulator's per-card path.
+        bool passiveTrigger = string.Equals(cardId, "TESLA_COIL", System.StringComparison.OrdinalIgnoreCase);
+        if (evokeCount == 0 && !isPower && !passiveTrigger
+            && (axes.Contains("ORB_EVOKE") || axes.Contains("LIGHTNING_EVOKE")))
             evokeCount = 1;
 
         // ORB_PRODUCER axis means at least 1 channel — but for X-cost cases we've already
