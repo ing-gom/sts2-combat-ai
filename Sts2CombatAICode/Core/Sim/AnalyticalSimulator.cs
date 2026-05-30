@@ -1270,6 +1270,12 @@ internal static class AnalyticalSimulator
             {
                 newHand.RemoveAt(newHand.Count - 1);
                 newExhaustPileCount++;
+                // 2026-05-30 — FeelNoPainPower triggers on the EXHAUSTED HAND CARD,
+                // not just the played card's own exhaust (line ~1490 covers that).
+                // TRUE_GRIT/CINDER/SCAVENGE exhaust 1 hand card → +FeelNoPain block.
+                // Confirmed: TRUE_GRIT player_block diff == −FeelNoPain (−3↔3, −6↔6).
+                if (newPlayerFeelNoPain > 0)
+                    newPlayerBlock += StatusMath.EffectiveBlock(newPlayerFeelNoPain, newPlayerDex, playerFrail);
             }
         }
 
