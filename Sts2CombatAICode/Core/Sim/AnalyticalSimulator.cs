@@ -1349,6 +1349,29 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-30 — card generators that add to the DRAW pile (not hand).
+        // Necrobinder Soul makers: GRAVE_WARDEN/REAVE call Soul.Create(Cards) →
+        // AddGeneratedCardsToCombat(PileType.Draw). Add N to the draw pile.
+        if (CardGenToDrawCount.TryGetValue(card.Id, out int drawGenN) && drawGenN > 0)
+        {
+            for (int g = 0; g < drawGenN; g++)
+            {
+                newDrawPile.Add(MakeStatusPlaceholderCard());
+                drawPileAfter += 1;
+            }
+        }
+
+        // 2026-05-30 — card generators that add to the DISCARD pile. UNDEATH:
+        // GainBlock + AddGeneratedCardToCombat(card, PileType.Discard).
+        if (CardGenToDiscardCount.TryGetValue(card.Id, out int discGenN) && discGenN > 0)
+        {
+            for (int g = 0; g < discGenN; g++)
+            {
+                newDiscardPile.Add(MakeStatusPlaceholderCard());
+                discardAfter += 1;
+            }
+        }
+
         // v0.7.85 — AfterimagePower: gain N block on every card played (including
         // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
         // 2026-05-29 — decompile: AfterimagePower.AfterCardPlayed calls
@@ -2423,6 +2446,21 @@ internal static class AnalyticalSimulator
     {
         ["COLLISION_COURSE"] = 1,    // Debris → hand
         ["MANIFEST_AUTHORITY"] = 1,  // generated card → hand
+    };
+
+    // 2026-05-30 — generators that add to the DRAW pile (Necrobinder Souls).
+    private static readonly System.Collections.Generic.Dictionary<string, int> CardGenToDrawCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["GRAVE_WARDEN"] = 1,   // Soul.Create(1) → PileType.Draw
+        ["REAVE"] = 1,          // Soul.Create(1) → draw
+    };
+
+    // 2026-05-30 — generators that add to the DISCARD pile.
+    private static readonly System.Collections.Generic.Dictionary<string, int> CardGenToDiscardCount =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["UNDEATH"] = 1,        // AddGeneratedCardToCombat(card, PileType.Discard)
     };
 
     // 2026-05-29 — draw-then-FromHandForDiscard cards: after drawing, the player

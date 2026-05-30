@@ -376,6 +376,10 @@ internal static class CardReflection
         // PHOTON_CUT/GLIMMER draw normally then put N back — handled by
         // AnalyticalSimulator.PutBackToDrawCount (draw, then move N hand→draw),
         // which also models the hand-cap edge (draw caps, put-back still fires).
+        // 2026-05-30 — Necrobinder Soul generators: CardsVar = Soul.Create count,
+        // added to the DRAW pile (not a hand draw). Handled by CardGenToDrawCount.
+        "GRAVE_WARDEN",
+        "REAVE",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
