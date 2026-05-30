@@ -1602,15 +1602,19 @@ internal static class AnalyticalSimulator
             }
         }
 
-        // v0.7.85 — AfterimagePower: gain N block on every card played (including
-        // this one). Applies after Rage/Unmovable, so total block stacks cleanly.
+        // v0.7.85 — AfterimagePower: gain N block on every card played.
         // 2026-05-29 — decompile: AfterimagePower.AfterCardPlayed calls
         // GainBlock(value, ValueProp.Unpowered) — the block is FLAT, NOT modified
         // by Dexterity or Frail. The sim wrongly ran it through EffectiveBlock,
         // so whenever Frail was on the player it under-credited afterimage block
         // by 25% (player_block divergence correlated with FrailPower in 58 rows).
-        if (newPlayerAfterimage > 0 && !card.IsCurseOrStatus)
-            newPlayerBlock += newPlayerAfterimage;
+        // 2026-05-31 — use the PRE-PLAY amount (next.PlayerAfterimage), NOT the
+        // post-increment newPlayerAfterimage. The block equals base.Amount recorded
+        // at BeforeCardPlayed, which fires BEFORE OnPlay. So when the AFTERIMAGE card
+        // itself is played, the power isn't on the player yet → its own play gets 0
+        // (sim over-credited +1 on every AFTERIMAGE self-play: 3 rows, all +1).
+        if (next.PlayerAfterimage > 0 && !card.IsCurseOrStatus)
+            newPlayerBlock += next.PlayerAfterimage;
 
         // 2026-05-30 — ChildOfTheStarsPower: AfterStarsSpent(N) gains Amount×N
         // block (flat, Unpowered). A star-cost card spends StarCost stars on play.
