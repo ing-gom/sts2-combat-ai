@@ -760,6 +760,10 @@ internal static class CardReflection
                     // NOT an energy gain. Summing it re-added 4 after the X-cost full
                     // spend → player_energy stuck at +4 (3 rows). Skip it.
                     if (card.Id.Entry == "HEAVENLY_DRILL") continue;
+                    // 2026-05-31 — TRANSFIGURE: EnergyVar(1) is the cost INCREASE it
+                    // applies to a chosen hand card (item.EnergyCost.AddThisCombat(1)),
+                    // not energy gained on play → player_energy +1 (2 rows). Skip it.
+                    if (card.Id.Entry == "TRANSFIGURE") continue;
                     energyGain += amount;
                     continue;
                 }
