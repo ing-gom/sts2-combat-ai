@@ -1214,7 +1214,10 @@ internal static class AnalyticalSimulator
         else if (card.DrawCount > 0
                  && (!card.IsPower || PowerCardsThatDraw.Contains(card.Id))
                  && drawPileAfter + discardAfter > 0
-                 && !ostyAttackWhiff)
+                 && !ostyAttackWhiff
+                 // SCRAPE draws then conditionally discards the non-0-cost draws —
+                 // handled by its own draw-and-split block below (needs per-card cost).
+                 && card.Id != "SCRAPE")
         {
             // 2026-05-30 — ostyAttackWhiff gates the DRAW too: FETCH wraps its
             // CardPileCmd.Draw inside `if (!Osty.CheckMissingWithAnim)` (same
@@ -1263,6 +1266,48 @@ internal static class AnalyticalSimulator
                 // per-card (e.g. PILLAGE has its own real-top-draw block).
                 if (newDrawPile.Count > 0)
                     newDrawPile.RemoveAt(newDrawPile.Count - 1);
+            }
+        }
+
+        // 2026-05-31 — SCRAPE: Draw Cards(4), then DISCARD every drawn card whose
+        // cost is non-zero (Scrape.OnPlay keeps only 0-cost, non-X, non-star cards;
+        // discards the rest). The generic DrawCount path uses identity-neutral
+        // avgDraw and never discards → consistent {hand +N, discard -N} (7/7 rows,
+        // mostly Defect). Peek each REAL top card's cost to decide keep vs discard,
+        // but place KEPT cards in hand as avgDraw placeholders (real card identity in
+        // hand regressed Silent 90.5->87.4 — see generic path note). Discarded cards
+        // keep their identity (discard pile isn't hand-scanned). Counts match real.
+        if (card.Id == "SCRAPE")
+        {
+            var avgDraw = MakeAverageDrawCard(next);
+            for (int i = 0; i < card.DrawCount; i++)
+            {
+                if (newHand.Count >= 10) break;
+                if (drawPileAfter <= 0)
+                {
+                    if (discardAfter <= 0) break;
+                    drawPileAfter = discardAfter;
+                    discardAfter = 0;
+                    newDrawPile.AddRange(newDiscardPile);
+                    newDiscardPile.Clear();
+                }
+                if (newDrawPile.Count == 0) break;
+                var drawn = newDrawPile[0];        // real next-to-draw (carries Cost)
+                newDrawPile.RemoveAt(0);
+                drawPileAfter--;
+                // Keep only truly-free cards: cost 0, no star cost, not X-cost.
+                bool keep = drawn.Cost == 0
+                            && drawn.StarCost <= 0
+                            && (drawn.Axes == null || !drawn.Axes.Contains("X_COST"));
+                if (keep)
+                {
+                    newHand.Add(avgDraw);          // neutral placeholder in hand
+                }
+                else
+                {
+                    newDiscardPile.Add(drawn);
+                    discardAfter++;
+                }
             }
         }
 
