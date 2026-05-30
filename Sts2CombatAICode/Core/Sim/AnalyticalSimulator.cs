@@ -785,7 +785,14 @@ internal static class AnalyticalSimulator
             // first attack, drop to 0. (Tracking/Cruelty are passive — keep.)
             newPlayerLethality = 0;
             // v0.7.85 — RagePower: gain N block per attack played.
-            if (newPlayerRage > 0)
+            // 2026-05-30 — but NOT when this attack kills the last enemy: combat
+            // ends, so the real engine's AfterCardPlayed Rage-block doesn't apply
+            // (or is moot). The sim over-blocked by exactly RagePower whenever a
+            // lethal attack cleared the board (6 rows, all real-enemies-alive=0).
+            // next.Enemies already reflects post-attack HP here.
+            bool anyEnemyAliveAfter = false;
+            foreach (var e in next.Enemies) if (e.IsAlive) { anyEnemyAliveAfter = true; break; }
+            if (newPlayerRage > 0 && anyEnemyAliveAfter)
                 newPlayerBlock += StatusMath.EffectiveBlock(newPlayerRage, newPlayerDex, playerFrail);
         }
 
