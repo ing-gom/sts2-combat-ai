@@ -662,11 +662,14 @@ internal static class CardReflection
                         || v.Name == "EnergyThreshold"
                         || v.Name == "energyPrefix") continue;
                     if (v.Name == "LoseEnergy") { energyGain -= amount; continue; }
-                    // 2026-05-30 — RIGHT_HAND_HAND's EnergyVar(2) is a THRESHOLD
-                    // (AfterCardPlayedLate: if Resources.Energy >= 2, return this
-                    // card from discard to hand), NOT an energy gain. The default
-                    // var name is "Energy", so gate by card id.
-                    if (card.Id.Entry == "RIGHT_HAND_HAND") continue;
+                    // 2026-05-30 — some cards' default-named EnergyVar is NOT an
+                    // on-play gain — it parameterizes a conditional/triggered effect:
+                    //   RIGHT_HAND_HAND — AfterCardPlayedLate threshold (Energy>=2 →
+                    //                     return from discard to hand)
+                    //   MELANCHOLY      — AfterDeath energy (gained when a creature
+                    //                     dies, not on play)
+                    if (card.Id.Entry == "RIGHT_HAND_HAND"
+                        || card.Id.Entry == "MELANCHOLY") continue;
                     energyGain += amount;
                     continue;
                 }
