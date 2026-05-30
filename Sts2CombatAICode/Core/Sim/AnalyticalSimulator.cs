@@ -761,11 +761,21 @@ internal static class AnalyticalSimulator
             // the debuff it also applies (TAUNT→Vuln, DEFY→Weak, NEGATIVE_PULSE→
             // Doom, …). The previous id whitelist (TAUNT/DEFY) dropped every other
             // such card's self-block (player_block -N).
-            bool enemyTargetSkillGainsBlock = card.IsSkill && !selfTarget && card.Block > 0;
-            if ((selfTarget && card.Block > 0 && card.Id != "SECOND_WIND")
+            // 2026-05-30 — MIRAGE: CalculatedBlock = CalcBase(0) + CalcExtra(1) ×
+            // (sum of alive-enemy Poison). CardReflection reads CalculationBase (0),
+            // so override the effective card block with the live poison total.
+            int effCardBlock = card.Block;
+            if (card.Id == "MIRAGE")
+            {
+                int totalPoison = 0;
+                foreach (var e in next.Enemies) if (e.IsAlive) totalPoison += e.PoisonAmount;
+                effCardBlock = totalPoison;
+            }
+            bool enemyTargetSkillGainsBlock = card.IsSkill && !selfTarget && effCardBlock > 0;
+            if ((selfTarget && effCardBlock > 0 && card.Id != "SECOND_WIND")
                 || enemyTargetSkillGainsBlock)
             {
-                int perPlayBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
+                int perPlayBlock = StatusMath.EffectiveBlock(effCardBlock, newPlayerDex, playerFrail);
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
                 // multiple times. Each resolution is a separate "block card play".
                 int plays = burstMul * echoMul;
