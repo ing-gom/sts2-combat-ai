@@ -1142,7 +1142,9 @@ internal static class AnalyticalSimulator
                 }
             }
         }
-        else if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0
+        else if (card.DrawCount > 0
+                 && (!card.IsPower || PowerCardsThatDraw.Contains(card.Id))
+                 && drawPileAfter + discardAfter > 0
                  && !ostyAttackWhiff)
         {
             // 2026-05-30 — ostyAttackWhiff gates the DRAW too: FETCH wraps its
@@ -2698,6 +2700,13 @@ internal static class AnalyticalSimulator
     // has N), not a fixed draw count. sts2.dll: Draw(Cards - Hand.Cards.Count).
     private static readonly System.Collections.Generic.HashSet<string> DrawToHandSize =
         new(System.StringComparer.OrdinalIgnoreCase) { "EXPERTISE" };
+
+    // 2026-05-30 — Power-type cards that ALSO draw (CardPileCmd.Draw in OnPlay).
+    // The generic draw loop gates on !card.IsPower (so VICIOUS-style power-amount
+    // CardsVars don't phantom-draw); these genuinely draw their Cards var and were
+    // under-drawn. DRUM_OF_BATTLE Draw(2)+DrumOfBattlePower, NEUROSURGE Draw(2).
+    private static readonly System.Collections.Generic.HashSet<string> PowerCardsThatDraw =
+        new(System.StringComparer.OrdinalIgnoreCase) { "DRUM_OF_BATTLE", "NEUROSURGE" };
 
     // Shiv: 0-cost 4-damage attack created in hand. Damage matters if the
     // planner later "plays" it in lookahead; count matters for hand parity.
