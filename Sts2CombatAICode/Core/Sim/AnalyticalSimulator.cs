@@ -755,11 +755,13 @@ internal static class AnalyticalSimulator
             // TAUNT — TargetType.AnyEnemy + 7 block to self + Vuln to target)
             // still grant block to self. Mod sim's selfTarget check missed
             // these → TAUNT 0/5 agree with player_block -7 diff per play.
-            // 2026-05-30 — DEFY (Necrobinder): TargetType.AnyEnemy (applies Weak to
-            // target) + GainBlock 6 to self. Same enemy-target-skill-grants-self-
-            // block shape as TAUNT; without it DEFY showed player_block -6.
-            bool enemyTargetSkillGainsBlock = card.IsSkill && !selfTarget && card.Block > 0
-                && (card.Id == "TAUNT" || card.Id == "DEFY");
+            // 2026-05-30 — generalized: ANY enemy/AOE-target Skill with a BlockVar
+            // grants that block to SELF (CreatureCmd.GainBlock(Owner)). In STS2 a
+            // skill's BlockVar is always self-block; the enemy target is only for
+            // the debuff it also applies (TAUNT→Vuln, DEFY→Weak, NEGATIVE_PULSE→
+            // Doom, …). The previous id whitelist (TAUNT/DEFY) dropped every other
+            // such card's self-block (player_block -N).
+            bool enemyTargetSkillGainsBlock = card.IsSkill && !selfTarget && card.Block > 0;
             if ((selfTarget && card.Block > 0 && card.Id != "SECOND_WIND")
                 || enemyTargetSkillGainsBlock)
             {
