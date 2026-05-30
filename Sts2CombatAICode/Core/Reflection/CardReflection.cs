@@ -380,6 +380,11 @@ internal static class CardReflection
         // added to the DRAW pile (not a hand draw). Handled by CardGenToDrawCount.
         "GRAVE_WARDEN",
         "REAVE",
+        // 2026-05-30 — DRAIN_POWER's CardsVar(2) is NOT a draw: sts2.dll
+        // upgrades 2 random upgradable cards in the DISCARD pile
+        // (PileType.Discard...TakeRandom(Cards).Upgrade). Routing it to draw
+        // phantom-drew 2 (hand +2 / draw_pile -2, 10 rows).
+        "DRAIN_POWER",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
@@ -686,6 +691,19 @@ internal static class CardReflection
                 //                     real hand addition, NOT Cards.
                 if (v is CardsVar && CardsVarNotDraw.Contains(card.Id.Entry)) continue;
                 if (v is CardsVar) { drawCount += amount; continue; }
+
+                // 2026-05-30 — a CalculatedVar named "CalculatedCards" is a
+                // CONDITIONAL draw count (e.g. COMPILE_DRIVER: draw 1 per orb-
+                // variety condition). It's already excluded from the damage sum
+                // (calcFeedsNonDamage), but the draw itself was never applied →
+                // the sim under-drew (hand -1 / draw_pile +1, 7 COMPILE_DRIVER
+                // rows). PreviewValue is the evaluated count for the captured
+                // state; route it to drawCount.
+                if (v.GetType().Name == "CalculatedVar" && v.Name == "CalculatedCards")
+                {
+                    drawCount += amount;
+                    continue;
+                }
 
                 // Standalone OstyDamage (Necrobinder summon attack) treated like Damage.
                 if (typeName.StartsWith("OstyDamageVar"))

@@ -356,7 +356,16 @@ internal static class AnalyticalSimulator
         // before damage. The skill branch already covers block-bearing skills
         // (DEFEND), but attack cards with a Block field fell through with no
         // block applied → IRON_WAVE 13/13 disagree player_block=-5 in probe.
-        if (card.IsAttack && card.Block > 0)
+        // 2026-05-30 — OSTY attack-with-block (BONE_SHARDS): sts2.dll wraps the
+        // ENTIRE OnPlay (both DamageCmd AND GainBlock) in
+        // `if (!Osty.CheckMissingWithAnim(Owner))`, so when the Osty is
+        // missing the card gains NO block either. The damage gate
+        // (ostyAttackWhiff, below) didn't cover this block path → player_block
+        // = +9 over-credit on every Osty-missing BONE_SHARDS (9 rows).
+        bool ostyBlockWhiff = card.Axes != null
+            && card.Axes.Contains("OSTY")
+            && state.SkeletonCount <= 0;
+        if (card.IsAttack && card.Block > 0 && !ostyBlockWhiff)
         {
             int attackBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
             newPlayerBlock += attackBlock;
@@ -1085,8 +1094,13 @@ internal static class AnalyticalSimulator
                 }
             }
         }
-        else if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0)
+        else if (card.DrawCount > 0 && !card.IsPower && drawPileAfter + discardAfter > 0
+                 && !ostyAttackWhiff)
         {
+            // 2026-05-30 — ostyAttackWhiff gates the DRAW too: FETCH wraps its
+            // CardPileCmd.Draw inside `if (!Osty.CheckMissingWithAnim)` (same
+            // block as the Osty attack), so an Osty-missing FETCH draws nothing.
+            // The sim drew 1 unconditionally → hand +1 / draw_pile -1 (5 rows).
             var avgDraw = MakeAverageDrawCard(next);
             for (int i = 0; i < card.DrawCount; i++)
             {
