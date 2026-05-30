@@ -1150,7 +1150,14 @@ internal static class AnalyticalSimulator
             // block as the Osty attack), so an Osty-missing FETCH draws nothing.
             // The sim drew 1 unconditionally → hand +1 / draw_pile -1 (5 rows).
             var avgDraw = MakeAverageDrawCard(next);
-            for (int i = 0; i < card.DrawCount; i++)
+            // 2026-05-30 — draw-to-hand-size cards (EXPERTISE): the Cards var is
+            // the TARGET hand size, not a fixed count. sts2.dll draws
+            // (Cards - Hand.Count). The sim drew the full Cards value → over-drew
+            // by the pre-play hand size (EXPERTISE draw_pile +N/hand -N, 4 rows).
+            int drawTimes = DrawToHandSize.Contains(card.Id)
+                ? System.Math.Max(0, card.DrawCount - newHand.Count)
+                : card.DrawCount;
+            for (int i = 0; i < drawTimes; i++)
             {
                 // 2026-05-29 — hand is capped at 10 (CardPileCmd.Draw: num =
                 // max(0, 10 - hand.Count); breaks when hand.Count >= 10). The
@@ -2675,6 +2682,10 @@ internal static class AnalyticalSimulator
     {
         "CLOAK_AND_DAGGER", "BLADE_DANCE", "HIDDEN_DAGGERS",
         "LEADING_STRIKE",  // Damage + Shivs-var shivs created in hand
+        // 2026-05-30 — BLADE_OF_INK: Shiv.CreateInHand(Cards=2). Its CardsVar
+        // routes to DrawCount; redirect to 2 shiv placeholders in hand (no pile
+        // draw). Was draw_pile −2 (sim drew from pile, real created shivs).
+        "BLADE_OF_INK",
     };
 
     // 2026-05-29 — cards that recycle THEMSELVES to the draw pile (top) on
@@ -2682,6 +2693,11 @@ internal static class AnalyticalSimulator
     // PileType.Draw, Top)). SHINING_STRIKE (Regent).
     private static readonly System.Collections.Generic.HashSet<string> SelfRecycleToDraw =
         new(System.StringComparer.OrdinalIgnoreCase) { "SHINING_STRIKE" };
+
+    // 2026-05-30 — cards whose Cards var is the TARGET hand size (draw until hand
+    // has N), not a fixed draw count. sts2.dll: Draw(Cards - Hand.Cards.Count).
+    private static readonly System.Collections.Generic.HashSet<string> DrawToHandSize =
+        new(System.StringComparer.OrdinalIgnoreCase) { "EXPERTISE" };
 
     // Shiv: 0-cost 4-damage attack created in hand. Damage matters if the
     // planner later "plays" it in lookahead; count matters for hand parity.
