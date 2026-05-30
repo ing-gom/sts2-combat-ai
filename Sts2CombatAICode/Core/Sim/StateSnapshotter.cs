@@ -82,6 +82,10 @@ internal static class StateSnapshotter
             // damage on its own turn) deals Amount to ALL hittable enemies. Fires
             // on self-HP-loss cards (HpLoss). Applied in the HP_LOSS path.
             int playerInferno = CombatReflection.GetPowerAmount(creature, "InfernoPower");
+            // 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies when
+            // the player GAINS or SPENDS stars (AfterStarsGained / AfterCardPlayed
+            // StarsSpent>0). Applied on star-gain/star-cost plays.
+            int playerBlackHole = CombatReflection.GetPowerAmount(creature, "BlackHolePower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -643,6 +647,7 @@ internal static class StateSnapshotter
                 PlayerChildOfTheStars = playerChildOfTheStars,
                 PlayerParry = playerParry,
                 PlayerInferno = playerInferno,
+                PlayerBlackHole = playerBlackHole,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,

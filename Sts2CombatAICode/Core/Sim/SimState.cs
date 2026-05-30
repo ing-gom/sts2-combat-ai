@@ -382,6 +382,13 @@ internal sealed record SimState
     public int PlayerInferno { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies whenever
+    /// the player gains stars (AfterStarsGained) or spends stars (AfterCardPlayed
+    /// StarsSpent>0). Applied once per star-gain and once per star-spend play.
+    /// </summary>
+    public int PlayerBlackHole { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;

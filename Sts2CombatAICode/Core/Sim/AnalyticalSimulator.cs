@@ -201,6 +201,27 @@ internal static class AnalyticalSimulator
         // to unlock properly in the simulator's filter pass.
         int newPlayerStars = next.PlayerStars + card.StarsGain - card.StarCost;
         if (newPlayerStars < 0) newPlayerStars = 0;
+        // 2026-05-30 — BlackHolePower: AOE Amount to all enemies when the player
+        // GAINS stars (AfterStarsGained, unconditional). The star-SPEND trigger
+        // (AfterCardPlayed) is gated on IsLastInSeries — only the last card of a
+        // combo — which the single-play sim can't determine, so modeling it
+        // over-applied (Regent 89.1→88.7). Keep only the clean star-GAIN trigger.
+        if (next.PlayerBlackHole > 0 && card.StarsGain > 0)
+        {
+            int bhDmg = next.PlayerBlackHole;
+            var bhEnemies = new List<SimEnemy>(next.Enemies.Count);
+            foreach (var e in next.Enemies)
+            {
+                if (!e.IsAlive) { bhEnemies.Add(e); continue; }
+                int past = System.Math.Max(0, bhDmg - e.Block);
+                bhEnemies.Add(e with
+                {
+                    Block = System.Math.Max(0, e.Block - bhDmg),
+                    Hp = System.Math.Max(0, e.Hp - past),
+                });
+            }
+            next = next with { Enemies = bhEnemies };
+        }
         bool isAoe = card.Target == TargetType.AllEnemies;
         bool playerWeak = next.PlayerWeak > 0;
         bool playerFrail = next.PlayerFrail > 0;
