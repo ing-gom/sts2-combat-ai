@@ -263,6 +263,10 @@ internal static class StateSnapshotter
             CountTokenCards(discardPileRaw,  ref soulInPiles, ref shivInPiles, ref sovereignBladeCount);
             CountTokenCards(exhaustPileRaw,  ref soulInPiles, ref shivInPiles, ref sovereignBladeCount);
 
+            // 2026-05-30 — deck-wide star-card count (CRESCENT_SPEAR scaling).
+            int starCardsInDeck = CountStarCards(handPile?.Cards) + CountStarCards(drawPileRaw)
+                + CountStarCards(discardPileRaw) + CountStarCards(exhaustPileRaw);
+
             // Skeleton (Osty) ally count — alive monsters of class Osty owned by player.
             int skeletonCount = 0;
             var allies = new List<SimAlly>();
@@ -679,6 +683,7 @@ internal static class StateSnapshotter
                 PlayerPowers = playerPowerDict,
                 SoulInPiles = soulInPiles,
                 ShivInPiles = shivInPiles,
+                StarCardsInDeck = starCardsInDeck,
                 SkeletonCount = skeletonCount,
                 Allies = allies,
                 ExhaustPileSize = exhaustPileSize,
@@ -829,6 +834,23 @@ internal static class StateSnapshotter
                 case "SovereignBlade": sovereign++; break;
             }
         }
+    }
+
+    // 2026-05-30 — count cards with a star cost (CanonicalStarCost >= 0, i.e. a
+    // real star card; -1 means no star cost) OR an X star cost. CRESCENT_SPEAR's
+    // CalculatedDamage scales by this deck-wide count. Cheap: just reads two
+    // public ints per card, no SimCard build.
+    private static int CountStarCards(System.Collections.Generic.IReadOnlyList<CardModel>? pile)
+    {
+        if (pile == null) return 0;
+        int n = 0;
+        foreach (var card in pile)
+        {
+            if (card == null) continue;
+            try { if (card.CanonicalStarCost >= 0 || card.HasStarCostX) n++; }
+            catch { }
+        }
+        return n;
     }
 
     /// <summary>

@@ -482,6 +482,14 @@ internal static class AnalyticalSimulator
                     int otherInHand = System.Math.Max(0, next.Hand.Count - 1);
                     adjustedBase = System.Math.Max(0, adjustedBase - 2 * otherInHand);
                 }
+                else if (card.Id == "CRESCENT_SPEAR")
+                {
+                    // 2026-05-30 — CalculatedDamage = CalculationBase(6) +
+                    // ExtraDamage(2) × (# star-cost cards in deck). CardReflection
+                    // reads CalculationBase (6); re-add the multiplier from the
+                    // deck-wide star-card count captured in StateSnapshotter.
+                    adjustedBase += 2 * next.StarCardsInDeck;
+                }
                 else if (card.Id == "TESLA_COIL")
                 {
                     // 2026-05-30 — TESLA_COIL: Attack(3) then triggers each Lightning

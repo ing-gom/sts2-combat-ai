@@ -272,6 +272,12 @@ internal sealed record SimState
     public int ShivInPiles { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — count of star-cost cards across all piles (CanonicalStarCost
+    /// >= 0 or HasStarCostX). CRESCENT_SPEAR's CalculatedDamage = 6 + 2 × this.
+    /// </summary>
+    public int StarCardsInDeck { get; init; }
+
+    /// <summary>
     /// Alive Osty (skeleton) ally creatures owned by the player. SKELETON_CONSUMER
     /// cards (BONE_SHARDS, PROTECTOR, SQUEEZE) are gated by skeleton presence —
     /// they typically read "if Osty is alive" and scale with skeleton stats.
