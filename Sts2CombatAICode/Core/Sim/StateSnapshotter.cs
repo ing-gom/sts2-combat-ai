@@ -281,6 +281,9 @@ internal static class StateSnapshotter
 
             // Skeleton (Osty) ally count — alive monsters of class Osty owned by player.
             int skeletonCount = 0;
+            // 2026-05-30 — the Osty's current HP (UNLEASH's CalculatedDamage =
+            // CalculationBase + ExtraDamage × osty.CurrentHp). 0 when no Osty.
+            int playerOstyHp = 0;
             var allies = new List<SimAlly>();
             try
             {
@@ -295,6 +298,7 @@ internal static class StateSnapshotter
                     // v0.7.11 — capture ally combat stats for damage contribution
                     int allyHp = (int)(CombatReflection.CreatureHpField?.GetValue(ally) ?? 0);
                     int allyBlock = (int)(CombatReflection.CreatureBlockField?.GetValue(ally) ?? 0);
+                    if (cls == "Osty") playerOstyHp = allyHp;  // 2026-05-30 UNLEASH scaling
                     int allyIntentDmg = 0, allyIntentRepeats = 1;
                     bool allyHasAttack = false;
                     try
@@ -722,6 +726,7 @@ internal static class StateSnapshotter
                 TurnSkillsPlayed = turnSkillsPlayed,
                 TurnShivsPlayed = turnShivsPlayed,
                 CombatCardsGenerated = combatCardsGenerated,
+                PlayerOstyHp = playerOstyHp,
                 TurnEnergySpent = turnEnergySpent,
                 TurnStarsGained = turnStarsGained,
                 CombatEtherealPlayed = combatEtherealPlayed,

@@ -575,6 +575,14 @@ internal static class AnalyticalSimulator
                     // combat-wide generated-card count captured in StateSnapshotter.
                     adjustedBase += 3 * next.CombatCardsGenerated;
                 }
+                else if (card.Id == "UNLEASH")
+                {
+                    // 2026-05-30 — CalculatedDamage = CalculationBase(6) +
+                    // ExtraDamage(1) × osty.CurrentHp. The attack is Osty-gated
+                    // (ostyAttackWhiff) so it only reaches here when an Osty is alive;
+                    // add the captured Osty HP multiplier. CardReflection read base 6.
+                    adjustedBase += 1 * next.PlayerOstyHp;
+                }
                 else if (card.Id == "TESLA_COIL")
                 {
                     // 2026-05-30 — TESLA_COIL: Attack(3) then triggers each Lightning

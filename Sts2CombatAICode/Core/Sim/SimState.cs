@@ -403,6 +403,13 @@ internal sealed record SimState
     public int CombatCardsGenerated { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — the player's Osty (skeleton) current HP. UNLEASH's
+    /// CalculatedDamage = CalculationBase + ExtraDamage × osty.CurrentHp. 0 when
+    /// no Osty is summoned.
+    /// </summary>
+    public int PlayerOstyHp { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;
