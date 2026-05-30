@@ -374,6 +374,14 @@ internal sealed record SimState
     public int PlayerParry { get; init; }
 
     /// <summary>
+    /// 2026-05-30 — InfernoPower (Ironclad): AfterDamageReceived deals Amount to
+    /// ALL hittable enemies whenever the player takes unblocked damage on its own
+    /// turn. In the card-play window this fires on self-HP-loss cards (HpLoss),
+    /// so an HP_LOSS play with Inferno>0 adds Amount unblockable damage per enemy.
+    /// </summary>
+    public int PlayerInferno { get; init; }
+
+    /// <summary>
     /// v0.9.2 — Total energy spent by this player this turn, summed from
     /// CombatHistory's EnergySpentEntry entries. HELIX_DRILL's CalculatedHits
     /// multiplier is (energy-spent-this-turn − self.EnergyCost) at OnPlay;

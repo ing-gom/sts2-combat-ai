@@ -78,6 +78,10 @@ internal static class StateSnapshotter
             int playerChildOfTheStars = CombatReflection.GetPowerAmount(creature, "ChildOfTheStarsPower");
             // 2026-05-30 — Parry: +Amount block when SOVEREIGN_BLADE is played.
             int playerParry = CombatReflection.GetPowerAmount(creature, "ParryPower");
+            // 2026-05-30 — Inferno: AfterDamageReceived (player takes unblocked
+            // damage on its own turn) deals Amount to ALL hittable enemies. Fires
+            // on self-HP-loss cards (HpLoss). Applied in the HP_LOSS path.
+            int playerInferno = CombatReflection.GetPowerAmount(creature, "InfernoPower");
             // v0.7.94 — Reactive Strength + Skill-cost reduction.
             int playerEnrage = CombatReflection.GetPowerAmount(creature, "EnragePower");
             // 2026-05-29 — MonologuePower per-play Strength (Regent). _amount =
@@ -638,6 +642,7 @@ internal static class StateSnapshotter
                 PlayerPhantomBlades = playerPhantomBlades,
                 PlayerChildOfTheStars = playerChildOfTheStars,
                 PlayerParry = playerParry,
+                PlayerInferno = playerInferno,
                 PlayerEnrage = playerEnrage,
                 PlayerMonologue = playerMonologue,
                 PlayerCorruption = playerCorruption,

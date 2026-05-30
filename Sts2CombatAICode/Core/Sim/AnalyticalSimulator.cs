@@ -237,6 +237,28 @@ internal static class AnalyticalSimulator
                 newPlayerStr += ruptureStacks;
                 AddPlayerPower("StrengthPower", ruptureStacks);
             }
+            // 2026-05-30 — InfernoPower.AfterDamageReceived: the player taking
+            // unblocked HP loss on its own turn deals Amount to ALL hittable
+            // enemies (ValueProp.Unpowered, block-first). The self-HP-loss above
+            // is that unblocked-damage event, so fire one AOE pulse here. Sim
+            // ignored it → enemy_hp_sum = +Inferno on every HP_LOSS play with
+            // Inferno active (BLOOD_WALL / BRAND / BREAKTHROUGH / HEMOKINESIS).
+            if (next.PlayerInferno > 0 && newPlayerHp > 0)
+            {
+                int infernoDmg = next.PlayerInferno;
+                var infernoEnemies = new List<SimEnemy>(next.Enemies.Count);
+                foreach (var e in next.Enemies)
+                {
+                    if (!e.IsAlive) { infernoEnemies.Add(e); continue; }
+                    int past = System.Math.Max(0, infernoDmg - e.Block);
+                    infernoEnemies.Add(e with
+                    {
+                        Block = System.Math.Max(0, e.Block - infernoDmg),
+                        Hp = System.Math.Max(0, e.Hp - past),
+                    });
+                }
+                next = next with { Enemies = infernoEnemies };
+            }
         }
 
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
