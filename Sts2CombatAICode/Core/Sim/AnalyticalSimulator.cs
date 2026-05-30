@@ -2195,32 +2195,35 @@ internal static class AnalyticalSimulator
     /// v0.5 — Focus adds to every damage / block evoke (Plasma untouched).
     /// </summary>
     private static void ApplyEvokeEffect(
-        OrbKind kind, int darkAccumulated, int focus,
+        OrbKind kind, int evokeVal, int focus,
         ref SimState state, ref int playerBlock, ref int energy, int aliveCount)
     {
-        // Each per-evoke damage/block clamped at 0 — Focus can be negative
-        // (rare debuff scenarios) and the game floors damage at 0.
+        // 2026-05-30 — evokeVal is the orb's CAPTURED EvokeVal (OrbModel.EvokeVal =
+        // ModifyOrbValue(base) = base + Focus, per orb). Use it directly rather than
+        // recomputing base+Focus: the orb-queue probe diagnostic showed the captured
+        // value is authoritative and the recompute was wrong for orbs whose base
+        // differs (Glass evoke captured 12 vs recomputed 8+Focus=10 → DUALCAST
+        // under-dealt). Fall back to base+Focus only when the capture is 0/missing.
+        // Each per-evoke damage/block clamped at 0 (Focus can be negative).
         switch (kind)
         {
             case OrbKind.Frost:
-                playerBlock += System.Math.Max(0, 5 + focus);
+                playerBlock += System.Math.Max(0, evokeVal > 0 ? evokeVal : 5 + focus);
                 break;
             case OrbKind.Plasma:
                 energy += 2;
                 break;
             case OrbKind.Lightning:
-                // 2026-05-29 — ThunderPower adds +Amount (Unpowered/flat, focus-
-                // independent) per lightning evoke (AfterOrbEvoked). Same target
-                // as the evoke, so fold it into the single weakest-enemy hit.
-                state = DamageWeakest(state, System.Math.Max(0, 8 + focus) + state.PlayerThunder);
+                // ThunderPower adds +Amount (flat, AfterOrbEvoked) per lightning
+                // evoke, on top of the captured base+Focus value.
+                state = DamageWeakest(state,
+                    System.Math.Max(0, evokeVal > 0 ? evokeVal : 8 + focus) + state.PlayerThunder);
                 break;
             case OrbKind.Dark:
-                // Dark accumulator already absorbs Focus per tick from the game; the stored
-                // value is the actual per-evoke damage. Don't double-apply Focus here.
-                state = DamageWeakest(state, System.Math.Max(6, darkAccumulated));
+                state = DamageWeakest(state, System.Math.Max(0, evokeVal > 0 ? evokeVal : 6));
                 break;
             case OrbKind.Glass:
-                state = DamageAll(state, System.Math.Max(0, 8 + focus));
+                state = DamageAll(state, System.Math.Max(0, evokeVal > 0 ? evokeVal : 8 + focus));
                 break;
         }
     }
