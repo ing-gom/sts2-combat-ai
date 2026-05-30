@@ -96,6 +96,19 @@ internal sealed record CardEffectSummary
     public int DelayedAoeDamage { get; init; }
     public int DelayTurns { get; init; }
 
+    /// <summary>
+    /// 2026-05-30 — card enchantment identity (e.g. "Sharp", "Momentum", "Inky").
+    /// The enchant's numeric damage/block effect is ALREADY folded into
+    /// <see cref="Damage"/>/<see cref="Block"/> (via DamageVar.EnchantedValue —
+    /// sts2.dll applies card.Enchantment.EnchantDamageAdditive/Multiplicative in
+    /// Hook.ModifyDamage, outside the power-modifier list). This field surfaces the
+    /// enchant TYPE so future combat-algorithm / scoring logic can branch on it
+    /// without re-reflecting. Null for the un-enchanted majority.
+    /// </summary>
+    public string? EnchantId { get; init; }
+    /// <summary>Enchant Amount stack (e.g. Sharp +N damage). 0 when un-enchanted.</summary>
+    public int EnchantAmount { get; init; }
+
     public int TotalDamage => Damage * Hits;
 
     /// <summary>True if playing this card eventually grants energy (now or next turn).</summary>

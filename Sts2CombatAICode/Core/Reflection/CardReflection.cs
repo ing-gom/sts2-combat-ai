@@ -96,6 +96,32 @@ internal static class CardReflection
     public static bool IsEnchanted(CardModel card) =>
         _enchantmentProp?.GetValue(card) != null;
 
+    /// <summary>
+    /// 2026-05-30 — enchant metadata for downstream/future combat-algorithm use.
+    /// `id` is the enchant's class name (e.g. "Sharp"), `amount` its Amount stack.
+    /// Damage/block enchants (Sharp/Momentum/Inky …) are already folded into the
+    /// CardEffectSummary Damage/Block via DamageVar.EnchantedValue; this surfaces
+    /// the enchant identity so scorers/AI can branch on it without re-reflecting.
+    /// Returns (null, 0) when the card is un-enchanted.
+    /// </summary>
+    public static (string? id, int amount) GetEnchantInfo(CardModel card)
+    {
+        var ench = _enchantmentProp?.GetValue(card);
+        if (ench == null) return (null, 0);
+        var idObj = _enchantIdProp?.GetValue(ench);
+        string? id = idObj?.ToString();
+        // Id is dotted (namespace.Class) — keep the last segment.
+        if (!string.IsNullOrEmpty(id))
+        {
+            int dot = id.LastIndexOf('.');
+            if (dot >= 0 && dot + 1 < id.Length) id = id.Substring(dot + 1);
+        }
+        int amount = _enchantAmountProp != null
+            ? (int)System.Convert.ToDecimal(_enchantAmountProp.GetValue(ench) ?? 0)
+            : 0;
+        return (id, amount);
+    }
+
     // v0.9 — Affliction reflection. CardModel has an Affliction property
     // (AfflictionModel? — Bound / Devoured / etc.). Used to detect Bound
     // cards (ChainsOfBindingPower) for candidate filtering.
@@ -506,6 +532,12 @@ internal static class CardReflection
                 }
             }
 
+            // 2026-05-30 — fetch the enchantment once for the var loop so plain
+            // DamageVar/BlockVar reads can fold in EnchantDamageAdditive/Multiplicative
+            // directly (robust vs the cached EnchantedValue). null for the
+            // un-enchanted majority. Reused by the enchant pass below.
+            var enchObj = _enchantmentProp?.GetValue(card);
+
             foreach (var obj in vars)
             {
                 if (obj is not DynamicVar v) continue;
@@ -815,11 +847,12 @@ internal static class CardReflection
                 }
             }
 
-            // Layer enchantment effects on top. The card's DynamicVars already include the
-            // numeric upgrades the enchant applies to base vars (PreviewValue is enchant-aware),
-            // so we only pull *additive* effects from the enchant — PowerVar applications
-            // (e.g. "on play: gain 2 Dexterity"), bonus EnergyVar/CardsVar, bonus damage hits.
-            var enchObj = _enchantmentProp?.GetValue(card);
+            // Layer enchantment effects on top. The DamageVar/BlockVar damage/block
+            // modifiers (Sharp +N, Momentum/Inky ×N) are folded into the damage/block
+            // sums above via EnchantAdjustedBase; here we pull the SEPARATE additive
+            // effects the enchant adds as its own DynamicVars — PowerVar applications
+            // (e.g. "on play: gain 2 Dexterity"), bonus EnergyVar/CardsVar.
+            // enchObj fetched once above the var loop.
             if (enchObj != null && _enchantDynamicVarsProp != null)
             {
                 var enchDvs = _enchantDynamicVarsProp.GetValue(enchObj);
@@ -898,6 +931,7 @@ internal static class CardReflection
                 drawCount += drDraw;
             }
 
+            var enchantInfo = GetEnchantInfo(card);
             return new CardEffectSummary
             {
                 Damage = damage,
@@ -926,6 +960,11 @@ internal static class CardReflection
                 // v0.10 — Delayed-AOE detonation (THE_BOMB family).
                 DelayedAoeDamage = delayedAoeDamage,
                 DelayTurns = delayTurns,
+                // 2026-05-30 — enchant identity (Damage/Block already include the
+                // enchant's numeric effect via EnchantedValue). Exposed for future
+                // combat-algorithm use; (null,0) for un-enchanted cards.
+                EnchantId = enchantInfo.id,
+                EnchantAmount = enchantInfo.amount,
             };
         }
         catch (Exception ex)
