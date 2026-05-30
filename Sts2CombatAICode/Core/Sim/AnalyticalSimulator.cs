@@ -1115,6 +1115,12 @@ internal static class AnalyticalSimulator
                 // Pop one card off the (now non-empty) drawPile list to keep
                 // DrawPile.Count in sync with DrawPileSize. Order doesn't
                 // matter for the probe; pop from end (O(1)).
+                // 2026-05-30 — tried drawing the REAL top card here (index 0) to
+                // give drawn cards true identity, but it regressed Silent 90.5->
+                // 87.4 (real cards added to hand perturb downstream hand-scan
+                // logic: discard-from-hand / retain / star-count). avgDraw keeps
+                // the hand neutral. Order-sensitive draw cards stay modeled
+                // per-card (e.g. PILLAGE has its own real-top-draw block).
                 if (newDrawPile.Count > 0)
                     newDrawPile.RemoveAt(newDrawPile.Count - 1);
             }
