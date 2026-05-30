@@ -100,6 +100,15 @@ internal static class OrbCardCatalog
             channelCount = 2;
             kind = OrbKind.Glass;
         }
+        else if (cardId == "ICE_LANCE")
+        {
+            // 2026-05-30 — ICE_LANCE: Attack(19) then `for i in Repeat(3):
+            // Channel<FrostOrb>` → 3 Frost orbs. The sim defaulted to channelCount=1
+            // (ORB_PRODUCER) and missed 2 channels worth of Frost block/overflow-evoke
+            // (player_block −20..−30 over multi-Frost queues).
+            channelCount = 3;
+            kind = OrbKind.Frost;
+        }
 
         // ---- Single-evoke / single-channel inference from axes ----
         // 2026-05-29 — Power cards never evoke on play. THUNDER (applies
