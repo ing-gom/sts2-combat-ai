@@ -19,6 +19,26 @@ internal static class OrbCardCatalog
 {
     public readonly record struct OrbMeta(int EvokeCount, int ChannelCount, OrbKind ChannelKind);
 
+    // 2026-05-30 — cards with orb-evoke axes that do NOT evoke the front orb on
+    // play (see Lookup for the per-card rationale). Excluded from axis-inferred evoke.
+    private static readonly System.Collections.Generic.HashSet<string> NoAxisEvoke =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "TESLA_COIL",     // triggers each Lightning orb's Passive instead
+        "LIGHTNING_ROD",  // GainBlock + LightningRodPower (turn-start channel)
+        "COLD_SNAP",      // Attack + channels a Frost orb
+    };
+
+    // 2026-05-30 — cards that also don't CHANNEL on play (no on-play orb push).
+    // LIGHTNING_ROD channels via its turn-start power; TESLA_COIL only passives.
+    // COLD_SNAP is intentionally NOT here — it channels a Frost orb on play.
+    private static readonly System.Collections.Generic.HashSet<string> NoAxisChannel =
+        new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "TESLA_COIL",
+        "LIGHTNING_ROD",
+    };
+
     public static OrbMeta Lookup(string cardId, int costSpent, System.Collections.Generic.IReadOnlyList<string> axes,
         bool isPower = false)
     {
@@ -82,15 +102,15 @@ internal static class OrbCardCatalog
         // the sim evoked the front orb when THUNDER was played (Frost→block 5+focus,
         // Lightning→8+focus dmg) — pure phantom damage/block (THUNDER enemy_hp
         // and player_block divergences on Defect). Evoke is an Attack/Skill action.
-        // 2026-05-30 — TESLA_COIL triggers each Lightning orb's PASSIVE
-        // (OrbCmd.Passive), it does NOT evoke/consume the front orb. It carries
-        // ORB_EVOKE/LIGHTNING_EVOKE axes (FromOrb<Lightning> hover) but the
-        // axis-inferred evoke is wrong: it made the sim evoke the front orb
-        // (Frost→phantom block, Lightning→phantom evoke damage) AND miss the
-        // passive damage. Exclude it; the passive damage is added in
-        // AnalyticalSimulator's per-card path.
-        bool passiveTrigger = string.Equals(cardId, "TESLA_COIL", System.StringComparison.OrdinalIgnoreCase);
-        if (evokeCount == 0 && !isPower && !passiveTrigger
+        // 2026-05-30 — cards that carry ORB_EVOKE/LIGHTNING_EVOKE axes (from an
+        // orb hover-tip or an orb-related power) but do NOT actually evoke the
+        // front orb on play. The axis-inferred evoke phantom-evoked the front orb
+        // (Frost→phantom block, Lightning/Dark→phantom damage), corrupting both
+        // block and enemy_hp. Verified via the orb-queue probe diagnostic:
+        //   TESLA_COIL    — triggers each Lightning orb's Passive (handled in sim)
+        //   LIGHTNING_ROD — GainBlock + applies LightningRodPower (turn-start channel)
+        //   COLD_SNAP     — Attack + channels a Frost orb (not evoke)
+        if (evokeCount == 0 && !isPower && !NoAxisEvoke.Contains(cardId)
             && (axes.Contains("ORB_EVOKE") || axes.Contains("LIGHTNING_EVOKE")))
             evokeCount = 1;
 
@@ -101,7 +121,13 @@ internal static class OrbCardCatalog
         // the catalog but only evoke the front orb (no channel). Without this guard,
         // OrbCardCatalog would set channelCount=1, BuildSynergy would treat them as
         // channelers and apply the wrong full-slots penalty.
-        if (channelCount == 0 && evokeCount == 0 && axes.Contains("ORB_PRODUCER"))
+        // 2026-05-30 — LIGHTNING_ROD/TESLA_COIL don't channel on PLAY either:
+        // LIGHTNING_ROD's channel is its turn-start power (AfterEnergyReset);
+        // TESLA_COIL triggers passives. An on-play channelCount made the sim push
+        // an orb that, at a full queue, auto-evoked the head (Frost→phantom block
+        // +5). Suppress. (COLD_SNAP DOES channel a Frost orb on play — kept.)
+        if (channelCount == 0 && evokeCount == 0 && axes.Contains("ORB_PRODUCER")
+            && !NoAxisChannel.Contains(cardId))
             channelCount = 1;
 
         if (kind == OrbKind.Unknown)
