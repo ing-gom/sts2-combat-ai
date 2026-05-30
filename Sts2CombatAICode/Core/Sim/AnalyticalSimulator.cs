@@ -1253,8 +1253,12 @@ internal static class AnalyticalSimulator
                     newDiscardPile.Clear();
                 }
                 if (newDrawPile.Count == 0) break;
-                var drawn = newDrawPile[newDrawPile.Count - 1];
-                newDrawPile.RemoveAt(newDrawPile.Count - 1);
+                // 2026-05-30 — draw from the TOP (index 0) of the captured draw
+                // pile, which is the real game's next-to-draw order. PILLAGE's
+                // draw COUNT (draw-while-Attack) depends on the actual attack/
+                // non-attack sequence, so the order direction matters.
+                var drawn = newDrawPile[0];
+                newDrawPile.RemoveAt(0);
                 drawPileAfter--;
                 newHand.Add(drawn);
                 if (!drawn.IsAttack) break;  // stops at first non-Attack
