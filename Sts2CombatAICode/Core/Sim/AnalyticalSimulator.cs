@@ -741,6 +741,14 @@ internal static class AnalyticalSimulator
                 if (enemy.Powers != null
                     && (enemy.Powers.ContainsKey("SoarPower") || enemy.Powers.ContainsKey("FlutterPower")))
                     totalDmg /= 2;
+                // 2026-06-01 — SlowPower: the enemy takes (1 + 0.1×SlowAmount) damage from
+                // card attacks, where SlowAmount = cards played this turn. DisplayAmount =
+                // SlowAmount×10 is captured into SlowDamagePct, so the multiplier is
+                // (100 + SlowDamagePct)/100. The sim missed the amp → under-predicted hits
+                // on Slow enemies (the ×1.1/×1.2/×1.3 boost cluster). Snapshot SlowAmount
+                // is the pre-play count (this card's own increment is AfterCardPlayed).
+                if (enemy.SlowDamagePct > 0)
+                    totalDmg = totalDmg * (100 + enemy.SlowDamagePct) / 100;
                 attackDmgForFisticuffs += totalDmg;
 
                 // Block-first absorption

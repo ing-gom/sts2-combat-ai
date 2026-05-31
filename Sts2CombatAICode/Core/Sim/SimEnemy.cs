@@ -103,6 +103,15 @@ internal sealed record SimEnemy
     public bool SkittishFiredThisTurn { get; init; }
 
     /// <summary>
+    /// 2026-06-01 — SlowPower's DisplayAmount (= SlowAmount × 10, a percent). A Slow
+    /// enemy takes 1 + 0.1×SlowAmount = 1 + DisplayAmount/100 times damage from card
+    /// attacks (SlowAmount grows by 1 per card played this turn). Read live via
+    /// GetPowerDisplayAmount; 0 when absent. The sim applies (1 + SlowDamagePct/100)
+    /// to the per-enemy attack damage.
+    /// </summary>
+    public int SlowDamagePct { get; init; }
+
+    /// <summary>
     /// v0.9 — SkittishPower (Phantasmal Gardener and similar). When this enemy
     /// takes unblocked damage from a CARD attack for the FIRST time each turn,
     /// it gains Amount block. Multi-hit cards trigger only on the first hit;

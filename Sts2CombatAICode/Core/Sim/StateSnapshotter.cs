@@ -1154,6 +1154,9 @@ internal static class StateSnapshotter
             // block gain — the bool persists across the snapshot so it can't be inferred.
             SkittishFiredThisTurn = powerDict != null && powerDict.ContainsKey("SkittishPower")
                 && CombatReflection.GetPowerInternalCounter(enemy, "SkittishPower", "hasGainedBlockThisTurn") == 1,
+            SlowDamagePct = (powerDict != null && powerDict.ContainsKey("SlowPower"))
+                ? System.Math.Max(0, CombatReflection.GetPowerDisplayAmount(enemy, "SlowPower"))
+                : 0,
             // Encoder-parity (2026-05-27): SimEnemy now carries MaxHp so
             // SimStateAdapter can emit it instead of duplicating Hp.
             MaxHp = (int)(CombatReflection.CreatureMaxHpField?.GetValue(enemy) ?? hp),
