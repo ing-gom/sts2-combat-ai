@@ -442,6 +442,11 @@ internal static class CardReflection
         // skills played this turn % 3 == 0. Routing it to draw phantom-drew 3
         // (hand +3 / draw_pile -3, 4 rows).
         "MAKE_IT_SO",
+        // 2026-05-31 — DREDGE's CardsVar(3) pulls cards from the DISCARD pile to
+        // hand (FromSimpleGrid over Discard → Add to Hand), NOT a draw-pile draw.
+        // Routing it to drawCount phantom-drew 3 from the draw pile (hand +2,
+        // draw -3, discard +1 — 5 rows). Handled by DiscardToHandCount instead.
+        "DREDGE",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times

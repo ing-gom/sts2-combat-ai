@@ -2791,6 +2791,11 @@ internal static class AnalyticalSimulator
         ["OVERCLOCK"] = 1,      // Burn → discard
         ["BOOST_AWAY"] = 1,     // Dazed → discard
         ["FIGHT_THROUGH"] = 2,  // 2× Wound → discard (OnPlay loop i<2)
+        // 2026-05-31 — ADAPTIVE_STRIKE: after the attack, creates a cost-0 CLONE
+        // and AddGeneratedCardToCombat(PileType.Discard). Real keeps it (discard
+        // +2: the card itself + clone); sim only added the card → discard −1
+        // (6 rows). Add the clone as a discard placeholder.
+        ["ADAPTIVE_STRIKE"] = 1,
     };
 
     // 2026-05-29 — card-generator card → number of cards added to HAND on play
@@ -2865,6 +2870,10 @@ internal static class AnalyticalSimulator
         new(System.StringComparer.OrdinalIgnoreCase)
     {
         ["HOLOGRAM"] = 1,
+        // 2026-05-31 — DREDGE (Skill, Exhaust): pulls min(Cards(3), 10−hand) cards
+        // from the DISCARD pile to hand (FromSimpleGrid over Discard). The handler
+        // caps by discard-available + hand-room, matching the decompile's Min().
+        ["DREDGE"] = 3,
         // 2026-05-30 — GRAVEBLAST: after the attack, FromSimpleGrid over the
         // discard pile → CardPileCmd.Add(card, PileType.Hand). Retrieves 1 from
         // discard to hand (the card itself exhausts via the base Exhaust keyword,
