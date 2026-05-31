@@ -1608,6 +1608,8 @@ internal static class AnalyticalSimulator
             }
             // 2026-05-31 — PillarOfCreationPower: +Amount block (flat) per generated card.
             if (next.PlayerPillar > 0) newPlayerBlock += next.PlayerPillar * statusN;
+            // 2026-05-31 — ArsenalPower: +Amount Strength per generated card.
+            if (next.PlayerArsenal > 0) newPlayerStr += next.PlayerArsenal * statusN;
         }
 
         // 2026-05-29 — card-generators that add a generated card to HAND
@@ -1635,6 +1637,9 @@ internal static class AnalyticalSimulator
             // COLLISION_COURSE→Debris with Pillar gives Pillar block; sim missed it
             // (player_block −Pillar, 3 rows). Block grant is Unpowered (no Dex/Frail).
             if (next.PlayerPillar > 0) newPlayerBlock += next.PlayerPillar * handN;
+            // 2026-05-31 — ArsenalPower: +Amount Strength per generated card
+            // (MANIFEST_AUTHORITY/CONQUEROR gen → +str; sim missed it, str −Arsenal).
+            if (next.PlayerArsenal > 0) newPlayerStr += next.PlayerArsenal * handN;
         }
 
         // 2026-05-31 — CLEANSE: after summoning Osties, selects 1 card from the DRAW

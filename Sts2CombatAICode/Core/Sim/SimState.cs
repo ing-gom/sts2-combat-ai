@@ -401,6 +401,10 @@ internal sealed record SimState
     /// player generates (AfterCardGeneratedForCombat, any pile, Unpowered/flat).
     public int PlayerPillar { get; init; }
 
+    /// 2026-05-31 — ArsenalPower (Regent): gain Amount Strength per card the player
+    /// generates (AfterCardGeneratedForCombat). Strength sibling of PillarOfCreation.
+    public int PlayerArsenal { get; init; }
+
     /// 2026-05-31 — PanachePower (Regent): Amount AOE to all enemies every 5th card
     /// played. PanacheCardsLeft is the live DisplayAmount (5→0 countdown); a play that
     /// takes it to 0 (CardsLeft==1 pre-play) fires the pulse, then it resets to 5.

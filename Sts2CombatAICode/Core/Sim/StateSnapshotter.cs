@@ -95,6 +95,9 @@ internal static class StateSnapshotter
             // pile). Card-gen cards (COLLISION_COURSE→Debris, BUNDLE_OF_JOY, status gen)
             // thus add Pillar block. Applied per generated card in the gen blocks.
             int playerPillar = CombatReflection.GetPowerAmount(creature, "PillarOfCreationPower");
+            // 2026-05-31 — ArsenalPower (Regent): gain Amount Strength per generated
+            // card (AfterCardGeneratedForCombat). Strength sibling of PillarOfCreation.
+            int playerArsenal = CombatReflection.GetPowerAmount(creature, "ArsenalPower");
             // 2026-05-31 — PanachePower (Regent): deals Amount to ALL enemies every 5th
             // card played. DisplayAmount = CardsLeft (remaining toward the next pulse,
             // 5→0), so a play with CardsLeft==1 triggers the AOE. Exact via DisplayAmount.
@@ -700,6 +703,7 @@ internal static class StateSnapshotter
                 PlayerHaunt = playerHaunt,
                 PlayerSmokestack = playerSmokestack,
                 PlayerPillar = playerPillar,
+                PlayerArsenal = playerArsenal,
                 PlayerPanache = playerPanache,
                 PanacheCardsLeft = panacheCardsLeft,
                 PlayerBlackHole = playerBlackHole,
