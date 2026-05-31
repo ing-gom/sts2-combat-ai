@@ -464,6 +464,11 @@ internal static class CardReflection
         // 2026-05-31 — CAPTURE_SPIRIT's CardsVar(3) creates 3 Souls into the DRAW pile
         // (draw_ids diag: +SOUL to draw), not a hand draw. Handled by CardGenToDrawCount.
         "CAPTURE_SPIRIT",
+        // 2026-05-31 — PACTS_END's CardsVar(3) is a PLAYABILITY threshold, not a draw:
+        // IsPlayable => Exhaust.Count >= Cards(3). OnPlay only attacks for 17 — it
+        // draws nothing. The draw route phantom-drew 3 (hand +3 / draw -3, 2 rows,
+        // Ironclad's largest consistent eff-disagree cluster).
+        "PACTS_END",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
