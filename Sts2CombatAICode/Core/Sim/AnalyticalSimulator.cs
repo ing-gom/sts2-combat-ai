@@ -1914,6 +1914,14 @@ internal static class AnalyticalSimulator
                 _                  => 5,   // unknown FORGE_AMPLIFIER → conservative 5
             };
         }
+        // 2026-05-31 — FURNACE forges via FurnacePower.AfterSideTurnStart (it applies
+        // a counter Power and forges at the START of each following turn), NOT on play.
+        // Its ForgeVar(4) is the power amount, not an immediate forge — every other
+        // Forge card (REFINE_BLADE/CONQUEROR/SEEKING_EDGE included) calls ForgeCmd.Forge
+        // in OnPlay, but FURNACE does not. The sim treated ForgeGen=4 as an on-play
+        // forge and auto-created a SovereignBlade in hand → {hand +1} on every FURNACE
+        // play with no SB yet (6 rows). Zero it so the on-play forge/SB-creation skips.
+        if (card.Id == "FURNACE") forgeAmount = 0;
         // v0.9 — Dynamic per-target attack bonus. BEAT_INTO_SHAPE's text:
         // "단조 5. 이번 턴에 대상 적을 공격한 다른 횟수마다 추가로 단조 5."
         // The +5 multiplier mirrors the base Forge amount (CalculationExtra=5).
