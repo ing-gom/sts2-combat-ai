@@ -1257,7 +1257,10 @@ internal static class AnalyticalSimulator
                  // drew unconditionally → {hand +2, draw −2} when an attack was in hand.
                  && (card.Id != "IMPATIENCE" || !newHand.Exists(hc => hc.IsAttack))
                  // REBOOT is a full reshuffle-then-draw — handled by its own block below.
-                 && card.Id != "REBOOT")
+                 && card.Id != "REBOOT"
+                 // 2026-05-31 — NoDrawPower blocks all in-combat card-effect draws this
+                 // turn (DRUM_OF_BATTLE drew 0 in real, sim drew 2 → {hand +2, draw −2}).
+                 && next.PlayerNoDraw == 0)
         {
             // 2026-05-30 — ostyAttackWhiff gates the DRAW too: FETCH wraps its
             // CardPileCmd.Draw inside `if (!Osty.CheckMissingWithAnim)` (same
