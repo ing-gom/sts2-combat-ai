@@ -1025,7 +1025,13 @@ internal static class AnalyticalSimulator
                 // Canonical STS: when a card plays multiple times via Burst/Echo,
                 // ONLY the first of those plays gets the Unmovable doubling — not
                 // every multiplied copy. So add ONE more perPlayBlock (not totalBlock).
-                if (newPlayerUnmovable > 0 && !newUnmovableUsedThisTurn)
+                // 2026-06-01 — Unmovable doubles only the FIRST block-gain card of the
+                // turn. The per-play newUnmovableUsedThisTurn can't see PRIOR plays, so
+                // gate on the history flag too: if the player already gained card block
+                // this turn, this play is not the first and gets no ×2 (DEFEND_IRONCLAD
+                // +5 when block_pre=10 already came from an earlier block card).
+                if (newPlayerUnmovable > 0 && !newUnmovableUsedThisTurn
+                    && !next.PlayerBlockGainedFromCardThisTurn)
                 {
                     totalBlock += perPlayBlock;
                     newUnmovableUsedThisTurn = true;

@@ -368,6 +368,14 @@ internal sealed record SimState
     public bool PlayerDoomAppliedThisTurn { get; init; }
 
     /// <summary>
+    /// 2026-06-01 — did the player already gain block from a CARD this turn (combat
+    /// History BlockGainedEntry with a CardPlay, Actor == player)? UnmovablePower
+    /// doubles only the FIRST block-gain card of the turn; when this is true the sim
+    /// must NOT apply the Unmovable ×2 to a later block card.
+    /// </summary>
+    public bool PlayerBlockGainedFromCardThisTurn { get; init; }
+
+    /// <summary>
     /// 2026-05-31 — JugglingPower's internal attacksPlayedThisTurn counter (the
     /// engine's own field, read via reflection). Juggling adds Amount clones of the
     /// played attack to hand when this counter, incremented on each attack, hits 3.

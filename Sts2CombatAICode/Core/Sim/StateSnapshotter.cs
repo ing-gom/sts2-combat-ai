@@ -454,6 +454,7 @@ internal static class StateSnapshotter
             // cards may be played until next turn.
             bool boundCardPlayedThisTurn = false;
             bool playerDoomAppliedThisTurn = false;
+            bool playerBlockGainedFromCardThisTurn = false;
             // SmoggyPower per-turn flag — true once any Skill was played
             // this turn while SmoggyPower was active. Walks history same as
             // boundCardPlayedThisTurn; gated on playerSmoggy>0 so the check
@@ -483,6 +484,15 @@ internal static class StateSnapshotter
                             && pre.Power?.GetType().Name == "DoomPower")
                         {
                             playerDoomAppliedThisTurn = true;
+                        }
+                        // 2026-06-01 — UnmovablePower doubles only the first block-gain
+                        // CARD of the turn; track whether the player already gained card
+                        // block this turn (BlockGainedEntry with a CardPlay, this side).
+                        if (!playerBlockGainedFromCardThisTurn && entry is BlockGainedEntry bge
+                            && bge.RoundNumber == cs.RoundNumber && bge.CurrentSide == cs.CurrentSide
+                            && bge.Actor == creature && bge.CardPlay != null)
+                        {
+                            playerBlockGainedFromCardThisTurn = true;
                         }
                         if (entry is CardPlayFinishedEntry cpe)
                         {
@@ -796,6 +806,7 @@ internal static class StateSnapshotter
                 MakeItSoInDraw = makeItSoInDraw,
                 MakeItSoInDiscard = makeItSoInDiscard,
                 PlayerDoomAppliedThisTurn = playerDoomAppliedThisTurn,
+                PlayerBlockGainedFromCardThisTurn = playerBlockGainedFromCardThisTurn,
                 PlayerJugglingCounter = (playerPowerDict != null && playerPowerDict.ContainsKey("JugglingPower"))
                     ? CombatReflection.GetPowerInternalCounter(creature, "JugglingPower", "attacksPlayedThisTurn")
                     : -1,
