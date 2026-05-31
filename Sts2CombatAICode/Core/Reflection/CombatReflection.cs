@@ -89,6 +89,42 @@ internal static class CombatReflection
     }
 
     /// <summary>
+    /// 2026-05-31 — read a named int field from a power's private _internalData object
+    /// (PowerModel._internalData holds the per-power Data instance). Some powers keep
+    /// their real trigger counter ONLY there, with no Amount / DisplayAmount accessor —
+    /// e.g. JugglingPower.Data.attacksPlayedThisTurn (fires on the 3rd attack of the
+    /// turn). The game seeds/increments it itself, so reading it directly is the only
+    /// way to align the sim's trigger with the engine. Returns -1 when absent/unreadable.
+    /// </summary>
+    public static int GetPowerInternalCounter(Creature creature, string powerTypeName, string fieldName)
+    {
+        try
+        {
+            foreach (var power in creature.Powers)
+            {
+                if (power == null) continue;
+                if (!string.Equals(power.GetType().Name, powerTypeName, System.StringComparison.Ordinal))
+                    continue;
+                // _internalData is a private field on the PowerModel base — walk up.
+                System.Reflection.FieldInfo? dataField = null;
+                for (var t = power.GetType(); t != null && dataField == null; t = t.BaseType)
+                    dataField = t.GetField("_internalData",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var data = dataField?.GetValue(power);
+                if (data == null) return -1;
+                var fld = data.GetType().GetField(fieldName,
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (fld == null) return -1;
+                var v = fld.GetValue(data);
+                return v switch { int i => i, decimal d => (int)d, null => -1, _ => System.Convert.ToInt32(v) };
+            }
+        }
+        catch { }
+        return -1;
+    }
+
+    /// <summary>
     /// Dump every active power on the creature as a (class-name → amount) map.
     /// Lets SimEnemy carry a generic snapshot of all enemy powers (Thorns / Intangible /
     /// Weak / Buffer / Regen / ...) without us having to enumerate each one up-front.

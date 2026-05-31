@@ -784,6 +784,9 @@ internal static class StateSnapshotter
                 TurnSkillsPlayed = turnSkillsPlayed,
                 MakeItSoInDraw = makeItSoInDraw,
                 MakeItSoInDiscard = makeItSoInDiscard,
+                PlayerJugglingCounter = (playerPowerDict != null && playerPowerDict.ContainsKey("JugglingPower"))
+                    ? CombatReflection.GetPowerInternalCounter(creature, "JugglingPower", "attacksPlayedThisTurn")
+                    : -1,
                 TurnShivsPlayed = turnShivsPlayed,
                 CombatCardsGenerated = combatCardsGenerated,
                 PlayerOstyHp = playerOstyHp,

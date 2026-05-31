@@ -361,6 +361,16 @@ internal sealed record SimState
     public int MakeItSoInDiscard { get; init; }
 
     /// <summary>
+    /// 2026-05-31 — JugglingPower's internal attacksPlayedThisTurn counter (the
+    /// engine's own field, read via reflection). Juggling adds Amount clones of the
+    /// played attack to hand when this counter, incremented on each attack, hits 3.
+    /// -1 when Juggling is absent. The sim's turn-start TurnAttacksPlayed does NOT
+    /// align (the counter can be seeded at mid-turn application), so the real field
+    /// is captured directly.
+    /// </summary>
+    public int PlayerJugglingCounter { get; init; } = -1;
+
+    /// <summary>
     /// 2026-05-30 — Shivs finished this turn (subset of TurnAttacksPlayed).
     /// PhantomBladesPower adds +Amount only to the FIRST shiv each turn, i.e.
     /// when this count is 0 at the moment the shiv resolves.

@@ -1821,6 +1821,22 @@ internal static class AnalyticalSimulator
             newHand.Add(MakeAverageDrawCard(next));
         }
 
+        // 2026-05-31 — JugglingPower (player): AfterCardPlayed increments an internal
+        // attacksPlayedThisTurn counter on each attack and, when it hits 3, adds Amount
+        // clones of the played attack to hand. The counter is engine-internal (seeded at
+        // mid-turn application) so turn-start TurnAttacksPlayed does NOT align — the real
+        // counter is captured into PlayerJugglingCounter via reflection. Fire when this
+        // attack pushes the counter from 2 to 3. Hand-cap overflow goes to discard.
+        if (card.IsAttack && next.PlayerJugglingCounter == 2 && next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("JugglingPower", out int jugglingAmt) && jugglingAmt > 0)
+        {
+            for (int i = 0; i < jugglingAmt; i++)
+            {
+                if (newHand.Count < 10) newHand.Add(MakeAverageDrawCard(next));
+                else { newDiscardPile.Add(MakeAverageDrawCard(next)); discardAfter += 1; }
+            }
+        }
+
         // 2026-05-31 — PersonalHivePower (ENEMY): AfterDamageReceived from a powered
         // attack, the enemy adds Amount Dazed to the PLAYER's DRAW pile (random pos).
         // A powered attack hitting a PersonalHive enemy pads the draw pile per hit; the
