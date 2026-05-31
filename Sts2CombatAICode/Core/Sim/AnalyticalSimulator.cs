@@ -602,6 +602,22 @@ internal static class AnalyticalSimulator
                     // Verified: real base 9 = 6+3×1, 15 = 6+3×3 (2 rows).
                     adjustedBase += 3 * next.ExhaustPileSize;
                 }
+                else if (card.Id == "SQUEEZE")
+                {
+                    // 2026-05-31 — CalculatedDamage = CalculationBase(25) +
+                    // ExtraDamage(5) × (# OstyAttack-tag cards in deck EXCEPT itself).
+                    // CardReflection reads CalculationBase (25); re-add the multiplier
+                    // by counting OSTY-axis cards across hand+draw+discard (pile
+                    // SimCards carry Axes via BuildSimCard), minus 1 for SQUEEZE itself
+                    // (still in next.Hand pre-play). Verified real 35 = 25+5×2.
+                    int ostyCount = 0;
+                    foreach (var c in next.Hand) if (c.Axes != null && c.Axes.Contains("OSTY")) ostyCount++;
+                    foreach (var c in next.DrawPile) if (c.Axes != null && c.Axes.Contains("OSTY")) ostyCount++;
+                    foreach (var c in next.DiscardPile) if (c.Axes != null && c.Axes.Contains("OSTY")) ostyCount++;
+                    if (card.Axes != null && card.Axes.Contains("OSTY"))
+                        ostyCount = System.Math.Max(0, ostyCount - 1);
+                    adjustedBase += 5 * ostyCount;
+                }
                 else if (card.Id == "SUPERMASSIVE")
                 {
                     // 2026-05-30 — CalculatedDamage = CalculationBase(5) +
