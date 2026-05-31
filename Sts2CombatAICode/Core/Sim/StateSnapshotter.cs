@@ -379,6 +379,7 @@ internal static class StateSnapshotter
             var playerRelics = CombatReflection.GetPlayerRelics(player);
 
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            int turnCardsPlayed = 0;  // total this-turn plays (any type) — FTL PlayMax gate
             // 2026-05-30 — shivs played this turn (PhantomBlades adds its bonus only
             // to the FIRST shiv each turn, i.e. when this count is 0). Shivs are
             // Attack-type, so counted within the attack branch by CardTag.Shiv.
@@ -449,6 +450,7 @@ internal static class StateSnapshotter
                             if (cpe.CurrentSide != cs.CurrentSide) continue;
                             // Owner check — only count this player's plays in multiplayer.
                             if (cpe.CardPlay?.Card?.Owner != player) continue;
+                            turnCardsPlayed++;  // any-type this-turn play (FTL PlayMax)
                             var type = cpe.CardPlay.Card.Type;
                             // v0.9 — Detect if a Bound card was played this
                             // turn (ChainsOfBindingPower mechanic). Affliction
@@ -736,6 +738,7 @@ internal static class StateSnapshotter
                 ExhaustPileSize = exhaustPileSize,
                 SovereignBladeCount = sovereignBladeCount,
                 TurnAttacksPlayed = turnAttacksPlayed,
+                TurnCardsPlayed = turnCardsPlayed,
                 TurnSkillsPlayed = turnSkillsPlayed,
                 TurnShivsPlayed = turnShivsPlayed,
                 CombatCardsGenerated = combatCardsGenerated,

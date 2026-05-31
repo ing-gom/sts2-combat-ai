@@ -340,6 +340,10 @@ internal sealed record SimState
     /// </summary>
     public int TurnAttacksPlayed { get; init; }
 
+    /// 2026-05-31 — total cards played this turn (any type), for FTL's PlayMax gate
+    /// (FTL draws 1 only if cards-played-this-turn &lt; PlayMax(3)).
+    public int TurnCardsPlayed { get; init; }
+
     /// <summary>
     /// Number of Skill cards the player has finished playing this turn. Used
     /// by PINPOINT-equivalent gates and any "play after N skills" payoff.
