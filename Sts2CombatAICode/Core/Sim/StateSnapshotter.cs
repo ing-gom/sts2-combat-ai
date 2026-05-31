@@ -98,6 +98,10 @@ internal static class StateSnapshotter
             // 2026-05-31 — ArsenalPower (Regent): gain Amount Strength per generated
             // card (AfterCardGeneratedForCombat). Strength sibling of PillarOfCreation.
             int playerArsenal = CombatReflection.GetPowerAmount(creature, "ArsenalPower");
+            // 2026-05-31 — ShroudPower (Necro): gain Amount block when the player applies
+            // DoomPower (AfterPowerAmountChanged on DoomPower). Doom-applying cards
+            // (BLIGHT_STRIKE) with Shroud add Shroud block per Doom applied.
+            int playerShroud = CombatReflection.GetPowerAmount(creature, "ShroudPower");
             // 2026-05-31 — PanachePower (Regent): deals Amount to ALL enemies every 5th
             // card played. DisplayAmount = CardsLeft (remaining toward the next pulse,
             // 5→0), so a play with CardsLeft==1 triggers the AOE. Exact via DisplayAmount.
@@ -704,6 +708,7 @@ internal static class StateSnapshotter
                 PlayerSmokestack = playerSmokestack,
                 PlayerPillar = playerPillar,
                 PlayerArsenal = playerArsenal,
+                PlayerShroud = playerShroud,
                 PlayerPanache = playerPanache,
                 PanacheCardsLeft = panacheCardsLeft,
                 PlayerBlackHole = playerBlackHole,

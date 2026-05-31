@@ -2055,6 +2055,18 @@ internal static class AnalyticalSimulator
         // (AfterPowerAmountChanged). FEAR applies Vulnerable → +SleightOfFlesh damage
         // to the target (enemy_hp +9 == SleightOfFlesh 9). Single-target debuffs hit
         // the target; AOE debuffs hit every alive enemy.
+        // 2026-05-31 — ShroudPower (Necro): gain Amount block (Unpowered) whenever the
+        // player APPLIES DoomPower (AfterPowerAmountChanged on DoomPower). A Doom-applying
+        // card (BLIGHT_STRIKE) with Shroud active adds Shroud block per Doom applied; the
+        // sim missed it → player_block −Shroud (BLIGHT_STRIKE −2, 4 rows). Flat block.
+        if (next.PlayerShroud > 0
+            && ((card.Axes != null && card.Axes.Contains("DOOM_PRODUCER"))
+                || (card.PowerApps != null
+                    && card.PowerApps.TryGetValue("DoomPower", out var doomAmt) && doomAmt != 0)))
+        {
+            newPlayerBlock += next.PlayerShroud;
+        }
+
         if (next.PlayerSleightOfFlesh > 0 && card.PowerApps != null && card.PowerApps.Count > 0)
         {
             int debuffCount = 0;

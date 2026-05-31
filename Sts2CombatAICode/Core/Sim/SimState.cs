@@ -405,6 +405,10 @@ internal sealed record SimState
     /// generates (AfterCardGeneratedForCombat). Strength sibling of PillarOfCreation.
     public int PlayerArsenal { get; init; }
 
+    /// 2026-05-31 — ShroudPower (Necro): gain Amount block whenever the player applies
+    /// DoomPower. Doom-applying cards with Shroud add Shroud block per Doom applied.
+    public int PlayerShroud { get; init; }
+
     /// 2026-05-31 — PanachePower (Regent): Amount AOE to all enemies every 5th card
     /// played. PanacheCardsLeft is the live DisplayAmount (5→0 countdown); a play that
     /// takes it to 0 (CardsLeft==1 pre-play) fires the pulse, then it resets to 5.
