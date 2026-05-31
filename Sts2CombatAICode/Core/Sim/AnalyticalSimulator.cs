@@ -732,6 +732,15 @@ internal static class AnalyticalSimulator
                 // twice). Applied after damage-multiplier chain so the doubled
                 // damage benefits from Tracking / Cruelty / Lethality once.
                 totalDmg *= echoMul;
+                // 2026-06-01 — flying enemies (SoarPower / FlutterPower) take HALF damage
+                // from card attacks: ModifyDamageMultiplicative returns DamageDecrease/100
+                // = 50/100 = 0.5 on any powered attack. The sim dealt full damage → ~2x
+                // over-prediction (decimal traces 15→7.5, 4→2.0, 6→3.0 across PINPOINT/
+                // SHIV/NEUTRALIZE/MAKE_IT_SO/RIGHT_HAND_HAND/FLATTEN). Halve here (floor;
+                // real applies a 0.5 multiplier in the decimal chain).
+                if (enemy.Powers != null
+                    && (enemy.Powers.ContainsKey("SoarPower") || enemy.Powers.ContainsKey("FlutterPower")))
+                    totalDmg /= 2;
                 attackDmgForFisticuffs += totalDmg;
 
                 // Block-first absorption
