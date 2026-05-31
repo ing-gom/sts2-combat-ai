@@ -1694,6 +1694,20 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — DIRGE (Necrobinder, X-cost): summons X Ostys AND creates X
+        // Souls via Soul.Create(X) → AddGeneratedCardsToCombat(PileType.Draw). Soul
+        // count == energy spent (X), not a fixed var, so CardGenToDrawCount can't
+        // model it. Add preSpendEnergy Souls to the draw pile. (draw_ids diag:
+        // +SOUL to draw; observed draw_pile −1 at X=1.)
+        if (card.Id == "DIRGE")
+        {
+            for (int g = 0; g < preSpendEnergy; g++)
+            {
+                newDrawPile.Add(MakeStatusPlaceholderCard());
+                drawPileAfter += 1;
+            }
+        }
+
         // 2026-05-31 — PersonalHivePower (ENEMY): AfterDamageReceived from a powered
         // attack, the enemy adds Amount Dazed to the PLAYER's DRAW pile (random pos).
         // A powered attack hitting a PersonalHive enemy pads the draw pile per hit; the
