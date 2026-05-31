@@ -3007,6 +3007,10 @@ internal static class AnalyticalSimulator
         // routes to DrawCount; redirect to 2 shiv placeholders in hand (no pile
         // draw). Was draw_pile −2 (sim drew from pile, real created shivs).
         "BLADE_OF_INK",
+        // 2026-05-31 — FAN_OF_KNIVES (Power): CardsVar("Shivs",4) → Shiv.CreateInHand
+        // ×4 (cap-aware overflow to discard). Sim missed the 4 shivs → hand −4 (or
+        // hand/discard split at a full hand). DrawCount carries the 4 ("Shivs" var).
+        "FAN_OF_KNIVES",
     };
 
     // 2026-05-29 — cards that recycle THEMSELVES to the draw pile (top) on
