@@ -1816,7 +1816,18 @@ internal static class AnalyticalSimulator
                     PrimaryBuildTags = new[] { "압축덱" },
                     IsRetain = true,
                 };
-                newHand.Add(sbCard);
+                // 2026-05-31 — respect the 10-card hand cap: AddGeneratedCardToCombat
+                // overflows a full hand to the DISCARD pile. A first-Forge from a full
+                // hand (REFINE_BLADE/SPOILS at hand≥10) sent the new SB to discard in
+                // real, but the sim added it to hand unconditionally → hand +1 /
+                // discard −1 (6 rows). Mirror the overflow.
+                if (newHand.Count < 10)
+                    newHand.Add(sbCard);
+                else
+                {
+                    newDiscardPile.Add(sbCard);
+                    discardAfter += 1;
+                }
                 newSovereignBladeCount = 1;
             }
 
