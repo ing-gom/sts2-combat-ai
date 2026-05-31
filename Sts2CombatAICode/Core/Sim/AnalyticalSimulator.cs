@@ -1972,6 +1972,24 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — PanachePower (Regent): every 5th card played deals Amount to
+        // ALL enemies (Unpowered AOE). DisplayAmount = CardsLeft counts 5→0; a play
+        // that takes CardsLeft to 0 (i.e. pre-play CardsLeft == 1) fires the pulse.
+        // The sim missed it → enemy_hp +Panache on the 5th-card plays. Apply flat AOE.
+        if (next.PlayerPanache > 0 && next.PanacheCardsLeft == 1)
+        {
+            int pan = next.PlayerPanache;
+            var panList = new List<SimEnemy>(next.Enemies.Count);
+            foreach (var e in next.Enemies)
+            {
+                if (e.IsAlive && e.Hp > 0)
+                    panList.Add(e with { Hp = System.Math.Max(0, e.Hp - pan) });
+                else
+                    panList.Add(e);
+            }
+            next = next with { Enemies = panList };
+        }
+
         // 2026-05-31 — HauntPower (player, Necrobinder): AfterCardPlayed, when the
         // played card is a Soul, deals Amount UNBLOCKABLE damage to ONE random
         // hittable enemy. SOUL itself is a 0-damage draw token, so the sim under-

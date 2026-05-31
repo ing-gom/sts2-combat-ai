@@ -90,6 +90,11 @@ internal static class StateSnapshotter
             // Status-producer cards (BOOST_AWAY→Dazed, GUNK_UP→Slimed, OVERCLOCK→Burn)
             // thus pulse Smokestack AOE. Applied in the StatusToDiscardCount block.
             int playerSmokestack = CombatReflection.GetPowerAmount(creature, "SmokestackPower");
+            // 2026-05-31 — PanachePower (Regent): deals Amount to ALL enemies every 5th
+            // card played. DisplayAmount = CardsLeft (remaining toward the next pulse,
+            // 5→0), so a play with CardsLeft==1 triggers the AOE. Exact via DisplayAmount.
+            int playerPanache = CombatReflection.GetPowerAmount(creature, "PanachePower");
+            int panacheCardsLeft = CombatReflection.GetPowerDisplayAmount(creature, "PanachePower");
             // 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies when
             // the player GAINS or SPENDS stars (AfterStarsGained / AfterCardPlayed
             // StarsSpent>0). Applied on star-gain/star-cost plays.
@@ -689,6 +694,8 @@ internal static class StateSnapshotter
                 PlayerInferno = playerInferno,
                 PlayerHaunt = playerHaunt,
                 PlayerSmokestack = playerSmokestack,
+                PlayerPanache = playerPanache,
+                PanacheCardsLeft = panacheCardsLeft,
                 PlayerBlackHole = playerBlackHole,
                 PlayerSleightOfFlesh = playerSleightOfFlesh,
                 PlayerOrbit = playerOrbit,
