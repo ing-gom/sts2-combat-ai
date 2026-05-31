@@ -1664,6 +1664,26 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — PersonalHivePower (ENEMY): AfterDamageReceived from a powered
+        // attack, the enemy adds Amount Dazed to the PLAYER's DRAW pile (random pos).
+        // A powered attack hitting a PersonalHive enemy pads the draw pile per hit; the
+        // sim missed it → draw_pile −Amount (DAZED, 14 rows, root-caused by the
+        // draw_ids diagnostic). Add Amount × hits Dazed placeholders to draw.
+        if (card.IsAttack && !freeApplied && targetIdx >= 0 && targetIdx < next.Enemies.Count)
+        {
+            var hiveTgt = next.Enemies[targetIdx];
+            if (hiveTgt.Powers != null
+                && hiveTgt.Powers.TryGetValue("PersonalHivePower", out int hive) && hive > 0)
+            {
+                int hiveAdds = hive * System.Math.Max(1, card.Hits);
+                for (int i = 0; i < hiveAdds; i++)
+                {
+                    newDrawPile.Add(MakeStatusPlaceholderCard());
+                    drawPileAfter += 1;
+                }
+            }
+        }
+
         // 2026-05-30 — card generators that add to the DISCARD pile. UNDEATH:
         // GainBlock + AddGeneratedCardToCombat(card, PileType.Discard).
         if (CardGenToDiscardCount.TryGetValue(card.Id, out int discGenN) && discGenN > 0)
