@@ -919,8 +919,16 @@ internal static class AnalyticalSimulator
                 effCardBlock = totalPoison;
             }
             bool enemyTargetSkillGainsBlock = card.IsSkill && !selfTarget && effCardBlock > 0;
-            if ((selfTarget && effCardBlock > 0 && card.Id != "SECOND_WIND")
-                || enemyTargetSkillGainsBlock)
+            // 2026-05-31 — ESCAPE_PLAN: draws 1, gains Block ONLY if the drawn card is
+            // a Skill (decompile: `if (drawn.Type == Skill) GainBlock`). The sim gave
+            // the block unconditionally → player_block +3/+5 whenever the next draw was
+            // a non-skill (4 rows). Peek the real next-to-draw (newDrawPile top, index
+            // 0 = what real draws) and gate the block on its type. (Empty pile = rare
+            // reshuffle edge; default to no block.)
+            bool escapePlanBlocks = card.Id != "ESCAPE_PLAN"
+                || (newDrawPile.Count > 0 && newDrawPile[0].IsSkill);
+            if (((selfTarget && effCardBlock > 0 && card.Id != "SECOND_WIND")
+                || enemyTargetSkillGainsBlock) && escapePlanBlocks)
             {
                 int perPlayBlock = StatusMath.EffectiveBlock(effCardBlock, newPlayerDex, playerFrail);
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
