@@ -1848,6 +1848,31 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — DarkEmbracePower (player): AfterCardExhausted draws Amount cards
+        // every time a card is exhausted. exhaustDelta = cards exhausted THIS play (the
+        // played card's own exhaust + any effect-exhausts like FIEND_FIRE/STOKE). Draw
+        // DarkEmbrace × exhaustDelta from the draw pile (reshuffle when empty, hand-cap).
+        // The sim missed it → {hand −N, draw +N} on exhaust-card plays with DarkEmbrace
+        // (MOLTEN_FIST/FORGOTTEN_RITUAL clean at 1 exhaust → 1 draw).
+        if (next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("DarkEmbracePower", out int darkEmbrace) && darkEmbrace > 0)
+        {
+            int exhaustedThisPlay = newExhaustPileCount - next.ExhaustPileCount;
+            int deDraw = darkEmbrace * System.Math.Max(0, exhaustedThisPlay);
+            for (int i = 0; i < deDraw && newHand.Count < 10; i++)
+            {
+                if (drawPileAfter <= 0)
+                {
+                    if (discardAfter <= 0) break;
+                    drawPileAfter = discardAfter; discardAfter = 0;
+                    newDrawPile.AddRange(newDiscardPile); newDiscardPile.Clear();
+                }
+                if (newDrawPile.Count > 0) newDrawPile.RemoveAt(0);
+                drawPileAfter--;
+                newHand.Add(MakeAverageDrawCard(next));
+            }
+        }
+
         // 2026-05-31 — PersonalHivePower (ENEMY): AfterDamageReceived from a powered
         // attack, the enemy adds Amount Dazed to the PLAYER's DRAW pile (random pos).
         // A powered attack hitting a PersonalHive enemy pads the draw pile per hit; the
