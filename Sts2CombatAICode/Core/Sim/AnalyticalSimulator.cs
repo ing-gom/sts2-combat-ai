@@ -849,13 +849,24 @@ internal static class AnalyticalSimulator
                 // by the CurlUp amount (14 ×4 cards: PILLAGE/NEUTRALIZE/BLIGHT_STRIKE/
                 // GO_FOR_THE_EYES). Reliable: CurlUp is consumed after firing, so a
                 // snapshot that still carries the power means it hasn't fired yet.
-                // (SkittishPower is the once/TURN sibling but its power PERSISTS after
-                // firing — the snapshot can't tell if it already fired this turn, so
-                // modeling it over-predicts on a 2nd same-turn attack; left unmodeled.)
+                // SkittishPower is the once/TURN sibling: AfterAttack, on a card attack
+                // dealing UNBLOCKED damage, gain Amount block — but only if it hasn't
+                // already fired this turn. Its power persists after firing, so the turn
+                // gate (Data.hasGainedBlockThisTurn) is read directly into
+                // SkittishFiredThisTurn (2026-05-31 internal-counter reflection, same tool
+                // as JugglingPower). Without the flag an earlier-this-turn fire whose
+                // block was since destroyed would re-trigger and over-predict
+                // (MOMENTUM_STRIKE). With it, the gate is exact.
+                // Both gate on hpAfter > 0: a dead creature's powers don't trigger, so
+                // an attack that KILLS the enemy grants no reactive block (REAP killing a
+                // Skittish enemy showed sim +6 / real 0 without this).
                 int reactiveEnemyBlock = 0;
-                if (totalDmg > 0 && enemy.Powers != null
+                if (hpAfter > 0 && totalDmg > 0 && enemy.Powers != null
                     && enemy.Powers.TryGetValue("CurlUpPower", out int curlUp) && curlUp > 0)
                     reactiveEnemyBlock += curlUp;
+                if (hpAfter > 0 && dmgPastBlock > 0 && !enemy.SkittishFiredThisTurn && enemy.Powers != null
+                    && enemy.Powers.TryGetValue("SkittishPower", out int skittish) && skittish > 0)
+                    reactiveEnemyBlock += skittish;
 
                 newEnemies.Add(enemy with
                 {

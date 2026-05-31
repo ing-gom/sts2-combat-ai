@@ -1149,6 +1149,11 @@ internal static class StateSnapshotter
         {
             Hp = hp,
             Block = block,
+            // 2026-05-31 — SkittishPower's once/turn gate (Data.hasGainedBlockThisTurn).
+            // Read directly so the sim knows whether the next attack still triggers the
+            // block gain — the bool persists across the snapshot so it can't be inferred.
+            SkittishFiredThisTurn = powerDict != null && powerDict.ContainsKey("SkittishPower")
+                && CombatReflection.GetPowerInternalCounter(enemy, "SkittishPower", "hasGainedBlockThisTurn") == 1,
             // Encoder-parity (2026-05-27): SimEnemy now carries MaxHp so
             // SimStateAdapter can emit it instead of duplicating Hp.
             MaxHp = (int)(CombatReflection.CreatureMaxHpField?.GetValue(enemy) ?? hp),

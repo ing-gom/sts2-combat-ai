@@ -95,6 +95,14 @@ internal sealed record SimEnemy
     public int HardenedShellRemaining { get; init; }
 
     /// <summary>
+    /// 2026-05-31 — SkittishPower has already granted its once/turn block this turn
+    /// (its internal Data.HasGainedBlockThisTurn, read via reflection). When false and
+    /// the enemy carries SkittishPower, the next card attack dealing unblocked damage
+    /// makes it gain Amount block — the sim must add that to the post-attack block.
+    /// </summary>
+    public bool SkittishFiredThisTurn { get; init; }
+
+    /// <summary>
     /// v0.9 — SkittishPower (Phantasmal Gardener and similar). When this enemy
     /// takes unblocked damage from a CARD attack for the FIRST time each turn,
     /// it gains Amount block. Multi-hit cards trigger only on the first hit;
