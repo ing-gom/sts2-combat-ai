@@ -1722,6 +1722,51 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — MAKE_IT_SO (Regent) pile-reactive return. Each copy in a
+        // non-hand pile has AfterCardPlayedLate: when the owner plays a SKILL and
+        // (skills-played-this-turn % 3 == 0), it returns ITSELF to hand. Cards is
+        // always 3 (OnUpgrade bumps Damage only). All non-hand copies fire on the
+        // same boundary skill (shared `num`), so move every copy (draw first, then
+        // discard), each gated on the 10-card hand cap. draw_ids diagnostic cracked
+        // this: basic Regent skills showed MAKE_IT_SO leaving draw → draw +1 / hand
+        // −1 (4 rows: DEFEND_REGENT/TAUNT/KNOW_THY_PLACE/MONOLOGUE).
+        int misRetDraw = 0, misRetDiscard = 0;
+        if (card.IsSkill
+            && (next.MakeItSoInDraw > 0 || next.MakeItSoInDiscard > 0)
+            && (next.TurnSkillsPlayed + 1) % 3 == 0)
+        {
+            for (int i = 0; i < next.MakeItSoInDraw && newHand.Count < 10; i++)
+            {
+                if (drawPileAfter <= 0) break;
+                if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
+                drawPileAfter -= 1;
+                newHand.Add(MakeAverageDrawCard(next));
+                misRetDraw++;
+            }
+            for (int i = 0; i < next.MakeItSoInDiscard && newHand.Count < 10; i++)
+            {
+                if (discardAfter <= 0) break;
+                if (newDiscardPile.Count > 0) newDiscardPile.RemoveAt(newDiscardPile.Count - 1);
+                discardAfter -= 1;
+                newHand.Add(MakeAverageDrawCard(next));
+                misRetDiscard++;
+            }
+        }
+
+        // 2026-05-31 — SECRET_WEAPON (Regent): the player SELECTS an Attack from the
+        // DRAW pile and moves it to hand (CardSelectCmd.FromSimpleGrid → CardPileCmd
+        // .Add(Hand)). Count effect: draw −1, hand +1 when an attack exists in draw
+        // and the hand has room. The count-only sim can't see card types, so it
+        // assumes a draw-pile card is fetchable when draw is non-empty — SECRET_WEAPON
+        // is only played to grab an attack, so this holds in practice. (draw_ids:
+        // attack leaves draw → hand; observed hand −1 / draw +1.)
+        if (card.Id == "SECRET_WEAPON" && drawPileAfter > 0 && newHand.Count < 10)
+        {
+            if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
+            drawPileAfter -= 1;
+            newHand.Add(MakeAverageDrawCard(next));
+        }
+
         // 2026-05-31 — PersonalHivePower (ENEMY): AfterDamageReceived from a powered
         // attack, the enemy adds Amount Dazed to the PLAYER's DRAW pile (random pos).
         // A powered attack hitting a PersonalHive enemy pads the draw pile per hit; the
@@ -2243,6 +2288,12 @@ internal static class AnalyticalSimulator
             // simulated reorder score the payoff card with stale hits.
             TurnAttacksPlayed = next.TurnAttacksPlayed + (card.IsAttack ? 1 : 0),
             TurnSkillsPlayed  = next.TurnSkillsPlayed  + (card.IsSkill  ? 1 : 0),
+            // MAKE_IT_SO pile-reactive return: decrement when a copy left draw/
+            // discard for hand this play; a played MAKE_IT_SO (Attack) lands in
+            // discard (no Exhaust keyword) so it re-enters the discard pool.
+            MakeItSoInDraw    = System.Math.Max(0, next.MakeItSoInDraw - misRetDraw),
+            MakeItSoInDiscard = System.Math.Max(0, next.MakeItSoInDiscard - misRetDiscard)
+                                + (card.Id == "MAKE_IT_SO" ? 1 : 0),
             // Energy spent this card: 0 when a Free*Power covered it, else
             // min(card.Cost, available). X-cost cards keep their static Cost
             // proxy here — close enough for HELIX_DRILL ordering since X cards

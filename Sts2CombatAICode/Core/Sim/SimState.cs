@@ -351,6 +351,16 @@ internal sealed record SimState
     public int TurnSkillsPlayed { get; init; }
 
     /// <summary>
+    /// 2026-05-31 — copies of MAKE_IT_SO (Regent) currently sitting in the draw /
+    /// discard pile (NOT hand). MAKE_IT_SO.AfterCardPlayedLate returns itself to
+    /// hand when the owner plays a Skill and (skills-played-this-turn % 3 == 0),
+    /// but only while it is outside the hand. The pile-reactive return is a
+    /// count-only mechanic the sim models from these snapshot counts.
+    /// </summary>
+    public int MakeItSoInDraw { get; init; }
+    public int MakeItSoInDiscard { get; init; }
+
+    /// <summary>
     /// 2026-05-30 — Shivs finished this turn (subset of TurnAttacksPlayed).
     /// PhantomBladesPower adds +Amount only to the FIRST shiv each turn, i.e.
     /// when this count is 0 at the moment the shiv resolves.

@@ -277,6 +277,20 @@ internal static class StateSnapshotter
             int discardPileSize = (discardPileRaw?.Count ?? 0) + (playPileRaw?.Count ?? 0);
             int exhaustPileSize = exhaustPileRaw?.Count ?? 0;
 
+            // 2026-05-31 — count MAKE_IT_SO copies in draw / discard for the
+            // pile-reactive return (AfterCardPlayedLate moves it to hand on the
+            // 3rd/6th/... skill of the turn). PileType.Play cards count as discard.
+            int makeItSoInDraw = 0, makeItSoInDiscard = 0;
+            if (drawPileRaw != null)
+                foreach (var c in drawPileRaw)
+                    if (CardReflection.GetIdEntry(c) == "MAKE_IT_SO") makeItSoInDraw++;
+            if (discardPileRaw != null)
+                foreach (var c in discardPileRaw)
+                    if (CardReflection.GetIdEntry(c) == "MAKE_IT_SO") makeItSoInDiscard++;
+            if (playPileRaw != null)
+                foreach (var c in playPileRaw)
+                    if (CardReflection.GetIdEntry(c) == "MAKE_IT_SO") makeItSoInDiscard++;
+
             var hand = new List<SimCard>();
             var handPile = PileType.Hand.GetPile(player);
             if (handPile != null)
@@ -768,6 +782,8 @@ internal static class StateSnapshotter
                 TurnAttacksPlayed = turnAttacksPlayed,
                 TurnCardsPlayed = turnCardsPlayed,
                 TurnSkillsPlayed = turnSkillsPlayed,
+                MakeItSoInDraw = makeItSoInDraw,
+                MakeItSoInDiscard = makeItSoInDiscard,
                 TurnShivsPlayed = turnShivsPlayed,
                 CombatCardsGenerated = combatCardsGenerated,
                 PlayerOstyHp = playerOstyHp,
