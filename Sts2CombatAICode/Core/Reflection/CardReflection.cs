@@ -447,6 +447,12 @@ internal static class CardReflection
         // Routing it to drawCount phantom-drew 3 from the draw pile (hand +2,
         // draw -3, discard +1 — 5 rows). Handled by DiscardToHandCount instead.
         "DREDGE",
+        // 2026-05-31 — FOREGONE_CONCLUSION's CardsVar(2) feeds a DEFERRED power
+        // (ForegoneConclusionPower.BeforeHandDraw fetches 2 from draw→hand at the
+        // START OF NEXT TURN), not an on-play draw. Sim drew 2 immediately (hand +2,
+        // draw -2 — 4 rows). The next-turn fetch is out of the single-play probe's
+        // scope, so just suppress the phantom on-play draw.
+        "FOREGONE_CONCLUSION",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
