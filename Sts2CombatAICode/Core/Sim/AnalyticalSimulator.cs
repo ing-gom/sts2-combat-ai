@@ -1288,7 +1288,11 @@ internal static class AnalyticalSimulator
                 if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
             }
         }
-        else if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id))
+        else if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id)
+                 // 2026-05-31 — same combat-end gate as the generic draw: LEADING_STRIKE
+                 // attacks THEN creates Shivs; if the attack killed the last enemy the
+                 // Shiv creation never runs (combat over) → sim over-added {hand +2}.
+                 && (!card.IsAttack || next.Enemies.Any(e => e.IsAlive)))
         {
             // 2026-05-30 — Shiv.CreateInHand respects the hand-10 cap; at a full
             // hand the created shiv OVERFLOWS to the discard pile (not lost). Same
