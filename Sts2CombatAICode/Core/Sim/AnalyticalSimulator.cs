@@ -1858,6 +1858,12 @@ internal static class AnalyticalSimulator
                     discardAfter += 1;
                 }
                 newSovereignBladeCount = 1;
+                // 2026-05-31 — the SovereignBlade creation IS a card generation, so
+                // PillarOfCreation (block) and Arsenal (str) fire once. CONQUEROR
+                // forges → first SB → +Pillar/+Arsenal that the sim otherwise missed
+                // (player_block −Pillar, player_strength −Arsenal).
+                if (next.PlayerPillar > 0) newPlayerBlock += next.PlayerPillar;
+                if (next.PlayerArsenal > 0) newPlayerStr += next.PlayerArsenal;
             }
 
             for (int i = 0; i < newHand.Count; i++)
