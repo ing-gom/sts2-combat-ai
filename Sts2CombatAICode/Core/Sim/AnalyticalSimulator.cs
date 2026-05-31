@@ -515,6 +515,12 @@ internal static class AnalyticalSimulator
             }
 
             var newEnemies = new List<SimEnemy>(next.Enemies.Count);
+            // 2026-05-31 — FISTICUFFS gains block == total damage its attack deals
+            // (GainBlock(sum of TotalDamage+OverkillDamage)). card.Block is 0 (no
+            // BlockVar) so the L463 attack-block path adds nothing → player_block
+            // under-predicted by the full damage. Accumulate the pre-absorption
+            // attack damage here and convert to block after the loop.
+            int attackDmgForFisticuffs = 0;
             for (int i = 0; i < next.Enemies.Count; i++)
             {
                 var enemy = next.Enemies[i];
@@ -726,6 +732,7 @@ internal static class AnalyticalSimulator
                 // twice). Applied after damage-multiplier chain so the doubled
                 // damage benefits from Tracking / Cruelty / Lethality once.
                 totalDmg *= echoMul;
+                attackDmgForFisticuffs += totalDmg;
 
                 // Block-first absorption
                 int blockAfter = System.Math.Max(0, enemy.Block - totalDmg);
@@ -867,6 +874,12 @@ internal static class AnalyticalSimulator
                 });
             }
             next = next with { Enemies = newEnemies };
+
+            // 2026-05-31 — FISTICUFFS: gain block equal to the damage dealt (Move →
+            // scaled by Dex/Frail like any block). card.Block was 0 so nothing was
+            // added above; convert the accumulated attack damage to block here.
+            if (card.Id == "FISTICUFFS" && attackDmgForFisticuffs > 0)
+                newPlayerBlock += StatusMath.EffectiveBlock(attackDmgForFisticuffs, newPlayerDex, playerFrail);
 
             // 2026-05-29 — SETUP_STRIKE-class self-power-on-attack. The attack
             // PowerApps loop above only applies enemy-debuff entries
