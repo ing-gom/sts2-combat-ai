@@ -1251,7 +1251,9 @@ internal static class AnalyticalSimulator
                  // < PlayMax(3) (CanDrawCard). The sim drew unconditionally → hand +1 /
                  // draw −1 once ≥3 cards had been played (4 rows). next.TurnCardsPlayed
                  // is the pre-FTL count (snapshot is pre-play).
-                 && (card.Id != "FTL" || next.TurnCardsPlayed < 3))
+                 && (card.Id != "FTL" || next.TurnCardsPlayed < 3)
+                 // REBOOT is a full reshuffle-then-draw — handled by its own block below.
+                 && card.Id != "REBOOT")
         {
             // 2026-05-30 — ostyAttackWhiff gates the DRAW too: FETCH wraps its
             // CardPileCmd.Draw inside `if (!Osty.CheckMissingWithAnim)` (same
@@ -1300,6 +1302,27 @@ internal static class AnalyticalSimulator
                 // per-card (e.g. PILLAGE has its own real-top-draw block).
                 if (newDrawPile.Count > 0)
                     newDrawPile.RemoveAt(newDrawPile.Count - 1);
+            }
+        }
+
+        // 2026-05-31 — REBOOT: move ALL hand + ALL discard into the draw pile, shuffle,
+        // then draw Cards(4). The COUNT is deterministic (only the order is RNG): real
+        // ends hand=4, discard=0, draw=old_draw+(hand−REBOOT)+old_discard−4. The sim
+        // treated it as a plain draw-4 → massively wrong (draw −17, hand +4, discard
+        // +13). REBOOT is already removed from newHand and exhausts via the keyword.
+        if (card.Id == "REBOOT")
+        {
+            drawPileAfter += newHand.Count + discardAfter;
+            newDrawPile.AddRange(newHand); newHand.Clear();
+            newDrawPile.AddRange(newDiscardPile); newDiscardPile.Clear();
+            discardAfter = 0;
+            int rebootDraw = System.Math.Min(card.DrawCount > 0 ? card.DrawCount : 4, drawPileAfter);
+            var avgReboot = MakeAverageDrawCard(next);
+            for (int i = 0; i < rebootDraw && newHand.Count < 10; i++)
+            {
+                newHand.Add(avgReboot);
+                drawPileAfter--;
+                if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
             }
         }
 
