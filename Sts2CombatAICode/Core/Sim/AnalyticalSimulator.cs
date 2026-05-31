@@ -1500,6 +1500,20 @@ internal static class AnalyticalSimulator
             newHand.Clear();
         }
 
+        // 2026-05-31 — STOKE: exhausts the ENTIRE remaining hand, then generates
+        // exhaustCount random cards back to hand (CardFactory → PileType.Hand).
+        // Net: exhaust += handCount, hand COUNT unchanged (identities differ but
+        // count parity holds). Sim missed it entirely → exhaust_pile under-counted
+        // by the hand size (observed exhaust_pile −2 at a 2-card hand).
+        if (card.Id == "STOKE")
+        {
+            int stokeN = newHand.Count;
+            newExhaustPileCount += stokeN;
+            newHand.Clear();
+            for (int i = 0; i < stokeN; i++)
+                newHand.Add(MakeAverageDrawCard(next));
+        }
+
         // 2026-05-28 S6-4: PILLAGE draw-until-non-attack approximation.
         // Pillage.OnPlay: do { card = Draw(); } while (card.Type == Attack &&
         // hand.Count < 10). Mod sim has no native modeling — DrawCount=0 left
