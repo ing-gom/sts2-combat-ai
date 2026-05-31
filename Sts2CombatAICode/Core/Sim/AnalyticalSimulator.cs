@@ -2878,6 +2878,7 @@ internal static class AnalyticalSimulator
         ["OVERCLOCK"] = 1,      // Burn → discard
         ["BOOST_AWAY"] = 1,     // Dazed → discard
         ["FIGHT_THROUGH"] = 2,  // 2× Wound → discard (OnPlay loop i<2)
+        ["SEVERANCE"] = 1,      // Soul → discard (1 of 3 Souls; +draw +hand below)
         // 2026-05-31 — ADAPTIVE_STRIKE: after the attack, creates a cost-0 CLONE
         // and AddGeneratedCardToCombat(PileType.Discard). Real keeps it (discard
         // +2: the card itself + clone); sim only added the card → discard −1
@@ -2898,6 +2899,7 @@ internal static class AnalyticalSimulator
         ["INFERNAL_BLADE"] = 1, // random Attack card → hand (free)
         ["QUASAR"] = 1,         // choose 1 of 3 colorless → hand (resolver picks, no skip)
         ["BUNDLE_OF_JOY"] = 3,  // 3 distinct colorless cards → hand (CardFactory gen)
+        ["SEVERANCE"] = 1,      // Soul → hand (1 of 3 Souls)
     };
 
     // 2026-05-30 — generators that add to the DRAW pile (Necrobinder Souls).
@@ -2906,6 +2908,7 @@ internal static class AnalyticalSimulator
     {
         ["GRAVE_WARDEN"] = 1,   // Soul.Create(1) → PileType.Draw
         ["REAVE"] = 1,          // Soul.Create(1) → draw
+        ["SEVERANCE"] = 1,      // Soul → draw (1 of 3 Souls; +discard +hand elsewhere)
     };
 
     // 2026-05-30 — generators that add to the DISCARD pile.
