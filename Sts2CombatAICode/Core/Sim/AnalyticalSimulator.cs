@@ -835,10 +835,25 @@ internal static class AnalyticalSimulator
                     }
                 }
 
+                // 2026-05-31 — CurlUpPower (enemy): AfterDamageReceived from a card
+                // attack, the enemy gains Amount block ONCE PER COMBAT. The block is
+                // granted AFTER the hit (it does NOT absorb this attack), so it adds to
+                // the post-attack block. The sim missed it → enemy_block under-predicted
+                // by the CurlUp amount (14 ×4 cards: PILLAGE/NEUTRALIZE/BLIGHT_STRIKE/
+                // GO_FOR_THE_EYES). Reliable: CurlUp is consumed after firing, so a
+                // snapshot that still carries the power means it hasn't fired yet.
+                // (SkittishPower is the once/TURN sibling but its power PERSISTS after
+                // firing — the snapshot can't tell if it already fired this turn, so
+                // modeling it over-predicts on a 2nd same-turn attack; left unmodeled.)
+                int reactiveEnemyBlock = 0;
+                if (totalDmg > 0 && enemy.Powers != null
+                    && enemy.Powers.TryGetValue("CurlUpPower", out int curlUp) && curlUp > 0)
+                    reactiveEnemyBlock += curlUp;
+
                 newEnemies.Add(enemy with
                 {
                     Hp = hpAfter,
-                    Block = blockAfter,
+                    Block = blockAfter + reactiveEnemyBlock,
                     VulnerableAmount = newVuln,
                     WeakAmount = newWeak,
                     FrailAmount = newFrail,
