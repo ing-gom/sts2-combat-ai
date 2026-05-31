@@ -85,6 +85,11 @@ internal static class StateSnapshotter
             // 2026-05-31 — HauntPower (Necrobinder): SOUL play deals Amount unblockable
             // to a random enemy (reactive). Applied in the SOUL path.
             int playerHaunt = CombatReflection.GetPowerAmount(creature, "HauntPower");
+            // 2026-05-31 — SmokestackPower (Defect): deals Amount to ALL enemies each
+            // time the player GENERATES a Status card (AfterCardGeneratedForCombat).
+            // Status-producer cards (BOOST_AWAY→Dazed, GUNK_UP→Slimed, OVERCLOCK→Burn)
+            // thus pulse Smokestack AOE. Applied in the StatusToDiscardCount block.
+            int playerSmokestack = CombatReflection.GetPowerAmount(creature, "SmokestackPower");
             // 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies when
             // the player GAINS or SPENDS stars (AfterStarsGained / AfterCardPlayed
             // StarsSpent>0). Applied on star-gain/star-cost plays.
@@ -683,6 +688,7 @@ internal static class StateSnapshotter
                 PlayerParry = playerParry,
                 PlayerInferno = playerInferno,
                 PlayerHaunt = playerHaunt,
+                PlayerSmokestack = playerSmokestack,
                 PlayerBlackHole = playerBlackHole,
                 PlayerSleightOfFlesh = playerSleightOfFlesh,
                 PlayerOrbit = playerOrbit,

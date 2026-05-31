@@ -1588,6 +1588,24 @@ internal static class AnalyticalSimulator
                 discardAfter += 1;
                 newDiscardPile.Add(MakeStatusPlaceholderCard());
             }
+            // 2026-05-31 — SmokestackPower: each Status card the player generates deals
+            // Amount to ALL enemies (AfterCardGeneratedForCombat, Unpowered). So a
+            // status-producer (BOOST_AWAY→Dazed, GUNK_UP→Slimed, OVERCLOCK→Burn) with
+            // Smokestack active pulses statusN × Amount AOE. Sim missed it → enemy_hp
+            // +Smokestack (BOOST_AWAY +5/+7). Apply flat (unblockable-style, clamped).
+            if (next.PlayerSmokestack > 0)
+            {
+                int smoke = next.PlayerSmokestack;
+                var smokeList = new List<SimEnemy>(next.Enemies.Count);
+                foreach (var e in next.Enemies)
+                {
+                    if (e.IsAlive && e.Hp > 0)
+                        smokeList.Add(e with { Hp = System.Math.Max(0, e.Hp - smoke * statusN) });
+                    else
+                        smokeList.Add(e);
+                }
+                next = next with { Enemies = smokeList };
+            }
         }
 
         // 2026-05-29 — card-generators that add a generated card to HAND

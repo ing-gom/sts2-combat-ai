@@ -393,6 +393,10 @@ internal sealed record SimState
     /// </summary>
     public int PlayerHaunt { get; init; }
 
+    /// 2026-05-31 — SmokestackPower (Defect): deals Amount to ALL enemies whenever the
+    /// player generates a Status card. Pulsed per status produced in the status-gen path.
+    public int PlayerSmokestack { get; init; }
+
     /// <summary>
     /// 2026-05-30 — BlackHolePower (Regent): deals Amount to ALL enemies whenever
     /// the player gains stars (AfterStarsGained) or spends stars (AfterCardPlayed
