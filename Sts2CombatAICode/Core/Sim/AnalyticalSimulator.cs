@@ -592,6 +592,16 @@ internal static class AnalyticalSimulator
                     // deck-wide star-card count captured in StateSnapshotter.
                     adjustedBase += 2 * next.StarCardsInDeck;
                 }
+                else if (card.Id == "ASHEN_STRIKE")
+                {
+                    // 2026-05-31 — CalculatedDamage = CalculationBase(6) +
+                    // ExtraDamage(3) × Exhaust-pile card count. CardReflection reads
+                    // CalculationBase (6); re-add the multiplier from the snapshot
+                    // exhaust count (ASHEN_STRIKE is a plain attack — it doesn't
+                    // exhaust anything itself, so the pre-play count is exact).
+                    // Verified: real base 9 = 6+3×1, 15 = 6+3×3 (2 rows).
+                    adjustedBase += 3 * next.ExhaustPileSize;
+                }
                 else if (card.Id == "SUPERMASSIVE")
                 {
                     // 2026-05-30 — CalculatedDamage = CalculationBase(5) +
