@@ -1252,6 +1252,10 @@ internal static class AnalyticalSimulator
                  // draw −1 once ≥3 cards had been played (4 rows). next.TurnCardsPlayed
                  // is the pre-FTL count (snapshot is pre-play).
                  && (card.Id != "FTL" || next.TurnCardsPlayed < 3)
+                 // 2026-05-31 — IMPATIENCE draws Cards(2) ONLY if the hand holds NO
+                 // attack card (Impatience.OnPlay: if !Hand.Any(Attack) Draw). The sim
+                 // drew unconditionally → {hand +2, draw −2} when an attack was in hand.
+                 && (card.Id != "IMPATIENCE" || !newHand.Exists(hc => hc.IsAttack))
                  // REBOOT is a full reshuffle-then-draw — handled by its own block below.
                  && card.Id != "REBOOT")
         {
