@@ -1325,7 +1325,13 @@ internal static class AnalyticalSimulator
                  && card.Id != "REBOOT"
                  // 2026-05-31 — NoDrawPower blocks all in-combat card-effect draws this
                  // turn (DRUM_OF_BATTLE drew 0 in real, sim drew 2 → {hand +2, draw −2}).
-                 && next.PlayerNoDraw == 0)
+                 && next.PlayerNoDraw == 0
+                 // 2026-05-31 — an ATTACK that draws AFTER dealing damage (ROCKET_PUNCH/
+                 // POMMEL_STRIKE: Attack then Draw) doesn't draw when it KILLED the last
+                 // enemy — combat ends before the draw resolves. next.Enemies is the
+                 // post-attack state here; if none are alive, skip the draw. Confirmed:
+                 // pred_alive==real_alive==0 on the {hand +1, draw −1} rows.
+                 && (!card.IsAttack || next.Enemies.Any(e => e.IsAlive)))
         {
             // 2026-05-30 — ostyAttackWhiff gates the DRAW too: FETCH wraps its
             // CardPileCmd.Draw inside `if (!Osty.CheckMissingWithAnim)` (same
