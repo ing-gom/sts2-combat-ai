@@ -1613,6 +1613,16 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-05-31 — CLEANSE: after summoning Osties, selects 1 card from the DRAW
+        // pile to EXHAUST (FromSimpleGrid over Draw → Exhaust). Sim missed it →
+        // draw +1 / exhaust −1 (3 rows). Move 1 from draw to exhaust.
+        if (card.Id == "CLEANSE" && drawPileAfter > 0)
+        {
+            drawPileAfter -= 1;
+            if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
+            newExhaustPileCount += 1;
+        }
+
         // 2026-05-30 — card generators that add to the DRAW pile (not hand).
         // Necrobinder Soul makers: GRAVE_WARDEN/REAVE call Soul.Create(Cards) →
         // AddGeneratedCardsToCombat(PileType.Draw). Add N to the draw pile.
@@ -2823,6 +2833,7 @@ internal static class AnalyticalSimulator
         ["WHITE_NOISE"] = 1,    // random Power card → hand (SetToFreeThisTurn)
         ["INFERNAL_BLADE"] = 1, // random Attack card → hand (free)
         ["QUASAR"] = 1,         // choose 1 of 3 colorless → hand (resolver picks, no skip)
+        ["BUNDLE_OF_JOY"] = 3,  // 3 distinct colorless cards → hand (CardFactory gen)
     };
 
     // 2026-05-30 — generators that add to the DRAW pile (Necrobinder Souls).

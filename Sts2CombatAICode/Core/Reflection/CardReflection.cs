@@ -453,6 +453,14 @@ internal static class CardReflection
         // draw -2 — 4 rows). The next-turn fetch is out of the single-play probe's
         // scope, so just suppress the phantom on-play draw.
         "FOREGONE_CONCLUSION",
+        // 2026-05-31 — SEANCE's CardsVar(1) is a TRANSFORM-select count over the
+        // DRAW pile (FromSimpleGrid → TransformTo<Soul>), not a draw. Routing it to
+        // drawCount phantom-drew 1 (hand +1, draw −1, 4 rows). Pile sizes unchanged.
+        "SEANCE",
+        // 2026-05-31 — BUNDLE_OF_JOY's CardsVar(3) GENERATES 3 colorless cards to
+        // HAND (CardFactory → AddGeneratedCardToCombat), not a draw-pile draw. The
+        // draw route phantom-drew 3 from draw (draw −3). Handled by CardGenToHandCount.
+        "BUNDLE_OF_JOY",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times
