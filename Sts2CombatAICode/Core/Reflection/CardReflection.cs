@@ -461,6 +461,9 @@ internal static class CardReflection
         // HAND (CardFactory → AddGeneratedCardToCombat), not a draw-pile draw. The
         // draw route phantom-drew 3 from draw (draw −3). Handled by CardGenToHandCount.
         "BUNDLE_OF_JOY",
+        // 2026-05-31 — CAPTURE_SPIRIT's CardsVar(3) creates 3 Souls into the DRAW pile
+        // (draw_ids diag: +SOUL to draw), not a hand draw. Handled by CardGenToDrawCount.
+        "CAPTURE_SPIRIT",
     };
 
     /// 2026-05-29 — cards whose RepeatVar drives a NON-damage effect N times

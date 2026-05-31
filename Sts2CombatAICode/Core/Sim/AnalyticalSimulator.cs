@@ -2929,6 +2929,7 @@ internal static class AnalyticalSimulator
         ["GRAVE_WARDEN"] = 1,   // Soul.Create(1) → PileType.Draw
         ["REAVE"] = 1,          // Soul.Create(1) → draw
         ["SEVERANCE"] = 1,      // Soul → draw (1 of 3 Souls; +discard +hand elsewhere)
+        ["CAPTURE_SPIRIT"] = 3, // CardsVar(3) Souls → draw pile
     };
 
     // 2026-05-30 — generators that add to the DISCARD pile.
