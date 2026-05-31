@@ -1606,6 +1606,8 @@ internal static class AnalyticalSimulator
                 }
                 next = next with { Enemies = smokeList };
             }
+            // 2026-05-31 — PillarOfCreationPower: +Amount block (flat) per generated card.
+            if (next.PlayerPillar > 0) newPlayerBlock += next.PlayerPillar * statusN;
         }
 
         // 2026-05-29 — card-generators that add a generated card to HAND
@@ -1629,6 +1631,10 @@ internal static class AnalyticalSimulator
                     discardAfter += 1;
                 }
             }
+            // 2026-05-31 — PillarOfCreationPower: +Amount block (flat) per generated card.
+            // COLLISION_COURSE→Debris with Pillar gives Pillar block; sim missed it
+            // (player_block −Pillar, 3 rows). Block grant is Unpowered (no Dex/Frail).
+            if (next.PlayerPillar > 0) newPlayerBlock += next.PlayerPillar * handN;
         }
 
         // 2026-05-31 — CLEANSE: after summoning Osties, selects 1 card from the DRAW

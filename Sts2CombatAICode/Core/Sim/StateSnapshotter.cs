@@ -90,6 +90,11 @@ internal static class StateSnapshotter
             // Status-producer cards (BOOST_AWAY→Dazed, GUNK_UP→Slimed, OVERCLOCK→Burn)
             // thus pulse Smokestack AOE. Applied in the StatusToDiscardCount block.
             int playerSmokestack = CombatReflection.GetPowerAmount(creature, "SmokestackPower");
+            // 2026-05-31 — PillarOfCreationPower (Regent): gain Amount block (Unpowered)
+            // each time the player GENERATES a card (AfterCardGeneratedForCombat, any
+            // pile). Card-gen cards (COLLISION_COURSE→Debris, BUNDLE_OF_JOY, status gen)
+            // thus add Pillar block. Applied per generated card in the gen blocks.
+            int playerPillar = CombatReflection.GetPowerAmount(creature, "PillarOfCreationPower");
             // 2026-05-31 — PanachePower (Regent): deals Amount to ALL enemies every 5th
             // card played. DisplayAmount = CardsLeft (remaining toward the next pulse,
             // 5→0), so a play with CardsLeft==1 triggers the AOE. Exact via DisplayAmount.
@@ -694,6 +699,7 @@ internal static class StateSnapshotter
                 PlayerInferno = playerInferno,
                 PlayerHaunt = playerHaunt,
                 PlayerSmokestack = playerSmokestack,
+                PlayerPillar = playerPillar,
                 PlayerPanache = playerPanache,
                 PanacheCardsLeft = panacheCardsLeft,
                 PlayerBlackHole = playerBlackHole,
