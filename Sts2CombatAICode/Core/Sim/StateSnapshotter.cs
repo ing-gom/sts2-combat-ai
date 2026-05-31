@@ -453,6 +453,7 @@ internal static class StateSnapshotter
             // (ChainsOfBindingPower mechanic). When true, no further Bound
             // cards may be played until next turn.
             bool boundCardPlayedThisTurn = false;
+            bool playerDoomAppliedThisTurn = false;
             // SmoggyPower per-turn flag — true once any Skill was played
             // this turn while SmoggyPower was active. Walks history same as
             // boundCardPlayedThisTurn; gated on playerSmoggy>0 so the check
@@ -473,6 +474,16 @@ internal static class StateSnapshotter
                 {
                     foreach (var entry in history.Entries)
                     {
+                        // 2026-06-01 — DEATHS_DOOR's WasDoomAppliedThisTurn: a
+                        // PowerReceivedEntry this turn whose Power is DoomPower and
+                        // Applier is this player (matches the card's own history query).
+                        if (!playerDoomAppliedThisTurn && entry is PowerReceivedEntry pre
+                            && pre.RoundNumber == cs.RoundNumber && pre.CurrentSide == cs.CurrentSide
+                            && pre.Applier == creature
+                            && pre.Power?.GetType().Name == "DoomPower")
+                        {
+                            playerDoomAppliedThisTurn = true;
+                        }
                         if (entry is CardPlayFinishedEntry cpe)
                         {
                             // v0.9.2 — Combat-wide ethereal play count for
@@ -784,6 +795,7 @@ internal static class StateSnapshotter
                 TurnSkillsPlayed = turnSkillsPlayed,
                 MakeItSoInDraw = makeItSoInDraw,
                 MakeItSoInDiscard = makeItSoInDiscard,
+                PlayerDoomAppliedThisTurn = playerDoomAppliedThisTurn,
                 PlayerJugglingCounter = (playerPowerDict != null && playerPowerDict.ContainsKey("JugglingPower"))
                     ? CombatReflection.GetPowerInternalCounter(creature, "JugglingPower", "attacksPlayedThisTurn")
                     : -1,

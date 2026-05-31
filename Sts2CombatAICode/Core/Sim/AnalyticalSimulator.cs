@@ -1015,7 +1015,11 @@ internal static class AnalyticalSimulator
                 int perPlayBlock = StatusMath.EffectiveBlock(effCardBlock, newPlayerDex, playerFrail);
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
                 // multiple times. Each resolution is a separate "block card play".
-                int plays = burstMul * echoMul;
+                // 2026-06-01 — DEATHS_DOOR gains block (1 + Repeat) times instead of
+                // once when the player applied Doom this turn (blockGains = 1 + 2 = 3).
+                // The sim gave 1× → player_block under by ~2× the block (DEATHS_DOOR −8).
+                int deathsDoorGains = (card.Id == "DEATHS_DOOR" && next.PlayerDoomAppliedThisTurn) ? 3 : 1;
+                int plays = burstMul * echoMul * deathsDoorGains;
                 int totalBlock = perPlayBlock * plays;
                 // v0.7.85 + v0.8.4 — UnmovablePower: first block card play/turn ×2.
                 // Canonical STS: when a card plays multiple times via Burst/Echo,

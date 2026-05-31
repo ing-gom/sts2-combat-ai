@@ -361,6 +361,13 @@ internal sealed record SimState
     public int MakeItSoInDiscard { get; init; }
 
     /// <summary>
+    /// 2026-06-01 — did the player apply DoomPower to anything this turn (combat
+    /// History PowerReceivedEntry, DoomPower, Applier == player)? DEATHS_DOOR gains
+    /// block (1 + Repeat) times instead of once when this is true.
+    /// </summary>
+    public bool PlayerDoomAppliedThisTurn { get; init; }
+
+    /// <summary>
     /// 2026-05-31 — JugglingPower's internal attacksPlayedThisTurn counter (the
     /// engine's own field, read via reflection). Juggling adds Amount clones of the
     /// played attack to hand when this counter, incremented on each attack, hits 3.
