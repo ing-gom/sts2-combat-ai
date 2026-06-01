@@ -133,6 +133,19 @@ internal static class AnalyticalSimulator
         // `energy` here is the post-cost value GainEnergy reads. §112.
         if (card.Id == "DOUBLE_ENERGY")
             energy += energy;
+        // 2026-06-01 — EXPECT_A_FIGHT (Ironclad): GainEnergy(CalculationExtra(1) × attacks in
+        // hand), then applies NoEnergyGainPower. EnergyVar(0) base so card.EnergyGain=0 and the
+        // sim missed the calculated gain → player_energy −(attacks in hand). Count attack cards
+        // in the pre-play hand (EXPECT_A_FIGHT itself is a Skill, doesn't count). The gain is
+        // NEGATED when NoEnergyGainPower is already active (a SECOND EXPECT_A_FIGHT this turn
+        // sees the first's NoEnergyGainPower → real gains 0; without this gate the sim over-
+        // credited +attacks, regressing 74s15). §113.
+        if (card.Id == "EXPECT_A_FIGHT" && next.Hand != null && next.PlayerNoEnergyGain == 0)
+        {
+            int atksInHand = 0;
+            foreach (var hc in next.Hand) if (hc.IsAttack) atksInHand++;
+            energy += atksInHand;
+        }
         // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
         // energy here. The exact semantics (immediate vs next-turn) varies between
         // STS variants and we don't have a test harness to verify either way.
