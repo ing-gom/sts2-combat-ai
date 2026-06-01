@@ -57,11 +57,21 @@ internal static class AnalyticalSimulator
         // (HasEnergyCostX); base Cost is 0 so the plain subtraction left energy
         // untouched → consistent player_energy +preSpend (HEAVENLY_DRILL +4, 3 rows).
         bool isXCost = card.Axes != null && card.Axes.Contains("X_COST");
+        // 2026-06-01 — GraspPower (enemy): AfterApplied + AfterCardEnteredCombat Afflict EVERY
+        // player card (existing AND generated) with a Weighted affliction that raises its energy
+        // cost by the power's Amount (HoverTipFactory.ForEnergy). So the played card costs
+        // +graspCost; the sim read the base cost → under-charged → player_energy +graspCost
+        // (CHARGE_BATTERY / CINDER / GATHER_LIGHT / MINION_DIVE_BOMB). §121.
+        int graspCost = 0;
+        foreach (var ge in next.Enemies)
+            if (ge.IsAlive && ge.Powers != null
+                && ge.Powers.TryGetValue("GraspPower", out var gp) && gp > graspCost)
+                graspCost = gp;
         int energy = freeApplied
             ? next.PlayerEnergy
             : isXCost
                 ? 0
-                : System.Math.Max(0, next.PlayerEnergy - card.Cost);
+                : System.Math.Max(0, next.PlayerEnergy - card.Cost - graspCost);
         if (freeApplied && !corruptionFreeSkill)
         {
             // Per-card counters decrement; persistent CorruptionPower doesn't.
