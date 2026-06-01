@@ -1252,11 +1252,27 @@ internal static class AnalyticalSimulator
             var evokeVals = new List<int>(next.OrbEvokeValues);
             int aliveCount = next.Enemies.Count(e => e.IsAlive);
 
+            // 2026-06-01 — SHATTER (OrbEvokeType.All): its OnPlay loops orbCount times calling
+            // EvokeNext with dequeue=TRUE each iteration, so it evokes EACH distinct orb ONCE
+            // and consumes the whole queue — NOT the re-evoke-head-N pattern below. SimCard
+            // captured EvokeCount=1, so the sim evoked only the head once (Glass×1=8) and left
+            // the rest → under-dealt by the remaining orbs (real evoked both Glass = 16). §104.
+            if (card.Id == "SHATTER" && queue.Count > 0)
+            {
+                for (int qi = 0; qi < queue.Count; qi++)
+                {
+                    int ev = qi < evokeVals.Count ? evokeVals[qi] : 0;
+                    ApplyEvokeEffect(queue[qi], ev, newPlayerFocus,
+                        ref next, ref newPlayerBlock, ref energy, aliveCount);
+                }
+                queue.Clear();
+                evokeVals.Clear();
+            }
             // Evoke: front orb is consumed once per evoke. Dualcast/Quadcast/MultiCast all
             // re-evoke the same front orb until the *last* call dequeues. We model the
             // dequeue at the end of the evoke loop; intermediate values still come from
             // the same head.
-            if (card.EvokeCount > 0 && queue.Count > 0)
+            else if (card.EvokeCount > 0 && queue.Count > 0)
             {
                 var head = queue[0];
                 int headEvokeVal = evokeVals.Count > 0 ? evokeVals[0] : 0;
