@@ -1244,9 +1244,17 @@ internal static class AnalyticalSimulator
                 newPlayerBurst--;
         }
 
+        // 2026-06-01 — StormPower (Defect): channels Amount Lightning AFTER each POWER card
+        // play (StormPower.AfterCardPlayed → OrbCmd.Channel<LightningOrb> × Amount). Unmodeled
+        // → a power played under Storm missed the channel and, when the queue was full, the
+        // overflow auto-evoke of the head Lightning (8 dmg). SMOKESTACK (a Power, queue 3/3,
+        // single enemy) under-dealt that 8. The channel runs after the card's own orb effects.
+        int stormLightning = (card.IsPower && next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("StormPower", out var stormAmt) && stormAmt > 0)
+            ? stormAmt : 0;
         // v0.4 — Orb channel / evoke simulation. Mutates orb queue + may damage / block player.
         // Order: evoke first (consumes head N times), then channel (may bump head out if full).
-        if (card.EvokeCount > 0 || card.ChannelCount > 0)
+        if (card.EvokeCount > 0 || card.ChannelCount > 0 || stormLightning > 0)
         {
             var queue = new List<OrbKind>(next.OrbQueue);
             var evokeVals = new List<int>(next.OrbEvokeValues);
@@ -1311,6 +1319,8 @@ internal static class AnalyticalSimulator
                 if (card.ChannelKind != OrbKind.Unknown)
                     for (int i = 0; i < effChannelCount; i++) channelKinds.Add(card.ChannelKind);
             }
+            // StormPower's Lightning channels fire AFTER the card's own orb effects.
+            for (int i = 0; i < stormLightning; i++) channelKinds.Add(OrbKind.Lightning);
             foreach (var kind in channelKinds)
             {
                 if (queue.Count >= next.PlayerOrbCapacity && queue.Count > 0)
