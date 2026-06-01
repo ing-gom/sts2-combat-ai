@@ -177,7 +177,8 @@ internal static class StatusMath
     }
 
     public static int EffectivePerEnemyTotalV2(int baseDamage, int hits,
-        SimEnemy target, SimCard card, SimState state, bool isFirstAttackThisTurn)
+        SimEnemy target, SimCard card, SimState state, bool isFirstAttackThisTurn,
+        bool applyShellCap = true)
     {
         if (baseDamage <= 0) return 0;
         // hits=0 is valid for X-cost cards at 0 energy → no damage.
@@ -198,17 +199,24 @@ internal static class StatusMath
         // HardenedShell — post-total cap. Stays outside the registry since
         // it acts on the sum, not per-hit. (Could be promoted to a
         // "PostTotalCap" stage if other powers want the same shape.)
-        if (target.HardenedShellRemaining > 0)
+        // 2026-06-01 — applyShellCap=false lets the AnalyticalSimulator caller take the
+        // UNCAPPED total and apply the shell cap AFTER block absorption (real caps the
+        // post-block HP damage, not the pre-block total) — see §120. Other estimators
+        // keep the default pre-total cap (a safe approximation when they don't model block).
+        if (applyShellCap)
         {
-            if (total > target.HardenedShellRemaining)
-                total = target.HardenedShellRemaining;
-        }
-        else if (total > 0 && target.Powers != null
-            && target.Powers.ContainsKey("HardenedShellPower"))
-        {
-            // Shell power present but Remaining counter not snapshotted —
-            // matches V1 conservative "treat as fully spent" branch.
-            total = 0;
+            if (target.HardenedShellRemaining > 0)
+            {
+                if (total > target.HardenedShellRemaining)
+                    total = target.HardenedShellRemaining;
+            }
+            else if (total > 0 && target.Powers != null
+                && target.Powers.ContainsKey("HardenedShellPower"))
+            {
+                // Shell power present but Remaining counter not snapshotted —
+                // matches V1 conservative "treat as fully spent" branch.
+                total = 0;
+            }
         }
         return total;
     }

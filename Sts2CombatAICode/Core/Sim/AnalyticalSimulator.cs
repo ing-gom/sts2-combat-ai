@@ -772,9 +772,11 @@ internal static class AnalyticalSimulator
                     PlayerTracking = newPlayerTracking,
                     PlayerCruelty = newPlayerCruelty,
                 };
+                // 2026-06-01 §120 — take the UNCAPPED total; HardenedShell is applied to the
+                // POST-block HP damage below (real absorbs block first, then caps the HP loss).
                 int totalDmg = StatusMath.EffectivePerEnemyTotalV2(
                     adjustedBase, hitsForDmg, enemy, card, dmgState,
-                    isFirstAttackThisTurn: newPlayerLethality > 0);
+                    isFirstAttackThisTurn: newPlayerLethality > 0, applyShellCap: false);
                 // v0.7.98 — EchoForm doubles the entire attack (each hit lands
                 // twice). Applied after damage-multiplier chain so the doubled
                 // damage benefits from Tracking / Cruelty / Lethality once.
@@ -819,19 +821,37 @@ internal static class AnalyticalSimulator
                 // correctly, matching real's two independent resolutions).
                 if (oneTwoPunchActive)
                     totalDmg *= 2;
-                attackDmgForFisticuffs += totalDmg;
+                // §120 — totalDmg is now the UNCAPPED post-multiplier damage. FISTICUFFS gains
+                // block == the shell-CAPPED pre-block damage (its prior semantics; preserved so
+                // non-shell cases are byte-identical). Compute that capped value separately.
+                int fisticuffsDmg = totalDmg;
+                if (enemy.HardenedShellRemaining > 0)
+                    fisticuffsDmg = System.Math.Min(totalDmg, enemy.HardenedShellRemaining);
+                else if (totalDmg > 0 && enemy.Powers != null
+                    && enemy.Powers.ContainsKey("HardenedShellPower"))
+                    fisticuffsDmg = 0;
+                attackDmgForFisticuffs += fisticuffsDmg;
 
-                // Block-first absorption
+                // Block-first absorption, THEN HardenedShell caps the post-block HP damage
+                // (real order: block absorbs first, then the shell budget limits HP loss).
+                // Only diverges from the old pre-block cap when an enemy has BOTH block and
+                // shell (rare); cap-free / no-block cases are unchanged. DEVASTATE 30 vs block
+                // 10 + shell 15: old sim 5 (cap→15 then −block), real/now 15 (−block then cap).
                 int blockAfter = System.Math.Max(0, enemy.Block - totalDmg);
                 int dmgPastBlock = System.Math.Max(0, totalDmg - enemy.Block);
+                if (enemy.HardenedShellRemaining > 0)
+                    dmgPastBlock = System.Math.Min(dmgPastBlock, enemy.HardenedShellRemaining);
+                else if (dmgPastBlock > 0 && enemy.Powers != null
+                    && enemy.Powers.ContainsKey("HardenedShellPower"))
+                    dmgPastBlock = 0;
                 int hpAfter = System.Math.Max(0, enemy.Hp - dmgPastBlock);
 
-                // Decrement HardenedShell budget by the actual capped damage dealt.
-                // Successive attacks against the same shell enemy in depth-2 then see
-                // the reduced remaining instead of re-paying from the full budget.
+                // Decrement HardenedShell budget by the actual HP damage dealt (post-block).
+                // Successive attacks against the same shell enemy in depth-2 then see the
+                // reduced remaining instead of re-paying from the full budget.
                 int shellLeft = enemy.HardenedShellRemaining;
                 if (shellLeft > 0)
-                    shellLeft = System.Math.Max(0, shellLeft - totalDmg);
+                    shellLeft = System.Math.Max(0, shellLeft - dmgPastBlock);
 
                 // v0.5 — thorns reflect: each hit we deal to a thorny enemy costs
                 // us ThornsAmount damage per hit. Multi-hit cards trigger per hit.
@@ -841,7 +861,7 @@ internal static class AnalyticalSimulator
                 // (Turn 2 STRIKE killed a Thorns:2 enemy with player_block 5→3,
                 // hp 60→60) and against the STS2 decompile. Block soaks reflect
                 // per-hit until depleted.
-                if (enemy.ThornsAmount > 0 && totalDmg > 0)
+                if (enemy.ThornsAmount > 0 && fisticuffsDmg > 0)
                 {
                     int hits = System.Math.Max(1, card.Hits);
                     for (int r = 0; r < hits; r++)
@@ -948,7 +968,7 @@ internal static class AnalyticalSimulator
                 // an attack that KILLS the enemy grants no reactive block (REAP killing a
                 // Skittish enemy showed sim +6 / real 0 without this).
                 int reactiveEnemyBlock = 0;
-                if (hpAfter > 0 && totalDmg > 0 && enemy.Powers != null
+                if (hpAfter > 0 && fisticuffsDmg > 0 && enemy.Powers != null
                     && enemy.Powers.TryGetValue("CurlUpPower", out int curlUp) && curlUp > 0)
                     reactiveEnemyBlock += curlUp;
                 if (hpAfter > 0 && dmgPastBlock > 0 && !enemy.SkittishFiredThisTurn && enemy.Powers != null
