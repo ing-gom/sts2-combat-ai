@@ -1276,12 +1276,27 @@ internal static class AnalyticalSimulator
             // the base cost (0), so card.ChannelCount can't carry X — resolve it here
             // from preSpendEnergy. X=0 → 0 channels (no phantom evoke, was +5); X≥2 →
             // multiple overflow-evokes (was −5 under).
-            int effChannelCount = (card.Id == "TEMPEST" && isXCost)
-                ? preSpendEnergy
-                : card.ChannelCount;
-            for (int i = 0; i < effChannelCount; i++)
+            // 2026-06-01 — RAINBOW channels ONE of EACH kind (Lightning+Frost+Dark, §104).
+            // SimCard's single ChannelKind/ChannelCount can't express the 3-kind mix, so it
+            // was captured as "1 Dark" → the missed L/F channels never overflowed the cap to
+            // auto-evoke the head. Build the explicit ordered kind list per card; the overflow
+            // auto-evoke logic below is unchanged.
+            List<OrbKind> channelKinds;
+            if (card.Id == "RAINBOW")
             {
-                if (card.ChannelKind == OrbKind.Unknown) break;
+                channelKinds = new List<OrbKind> { OrbKind.Lightning, OrbKind.Frost, OrbKind.Dark };
+            }
+            else
+            {
+                int effChannelCount = (card.Id == "TEMPEST" && isXCost)
+                    ? preSpendEnergy
+                    : card.ChannelCount;
+                channelKinds = new List<OrbKind>();
+                if (card.ChannelKind != OrbKind.Unknown)
+                    for (int i = 0; i < effChannelCount; i++) channelKinds.Add(card.ChannelKind);
+            }
+            foreach (var kind in channelKinds)
+            {
                 if (queue.Count >= next.PlayerOrbCapacity && queue.Count > 0)
                 {
                     // Auto-evoke the head before the channel pushes the new orb.
@@ -1292,8 +1307,8 @@ internal static class AnalyticalSimulator
                     queue.RemoveAt(0);
                     if (evokeVals.Count > 0) evokeVals.RemoveAt(0);
                 }
-                queue.Add(card.ChannelKind);
-                evokeVals.Add(card.ChannelKind == OrbKind.Dark ? 6 : 0);
+                queue.Add(kind);
+                evokeVals.Add(kind == OrbKind.Dark ? 6 : 0);
             }
 
             next = next with {
