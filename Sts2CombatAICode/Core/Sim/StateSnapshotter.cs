@@ -757,7 +757,15 @@ internal static class StateSnapshotter
                 PlayerThorns = playerThorns,
                 PlayerFeelNoPain = playerFeelNoPain,
                 // v0.7.98 — remaining echoes this turn.
-                PlayerEchoForm = System.Math.Max(0, echoStack - (turnAttacksPlayed + turnSkillsPlayed)),
+                // 2026-06-01 — EchoFormPower.ModifyCardPlayCount counts CardPlaysStarted
+                // (IsFirstInSeries, this turn) of ANY card type — it doubles the first
+                // `Amount` cards regardless of type, POWERS included. Subtracting only
+                // attacks+skills missed a power played first this turn, so the sim kept echo
+                // active and double-dealt a card the engine no longer echoed (BEAM_CELL 3→6
+                // vs real 3, §106). Use the any-type turnCardsPlayed (which already counts
+                // every this-turn play). For the common Amount=1 the first play deactivates
+                // echo whether or not it was a power.
+                PlayerEchoForm = System.Math.Max(0, echoStack - turnCardsPlayed),
                 PlayerJuggernaut = playerJuggernaut,
                 PlayerHunger = playerHunger,
                 PlayerFlameBarrier = playerFlameBarrier,
