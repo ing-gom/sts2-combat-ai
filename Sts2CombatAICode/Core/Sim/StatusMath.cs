@@ -180,7 +180,11 @@ internal static class StatusMath
         SimEnemy target, SimCard card, SimState state, bool isFirstAttackThisTurn,
         bool applyShellCap = true)
     {
-        if (baseDamage <= 0) return 0;
+        // 2026-06-01 §122 — BODY_SLAM's base = player block, which can be 0 while Strength
+        // still adds (real: block 0 + Str 2 = 2, ×Vuln). The early return dropped the Strength
+        // bonus → BODY_SLAM dealt 0 vs real 2/7 (simD=0 rows). Let BODY_SLAM through at base 0
+        // so EffectiveAttackDmg applies Strength/Vuln; other 0-base attacks still short-circuit.
+        if (baseDamage <= 0 && card.Id != "BODY_SLAM") return 0;
         // hits=0 is valid for X-cost cards at 0 energy → no damage.
         if (hits <= 0) return 0;
         int hitsClamped = hits;
