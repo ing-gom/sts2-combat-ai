@@ -786,7 +786,13 @@ internal static class AnalyticalSimulator
                 // POST-block HP damage below (real absorbs block first, then caps the HP loss).
                 int totalDmg = StatusMath.EffectivePerEnemyTotalV2(
                     adjustedBase, hitsForDmg, enemy, card, dmgState,
-                    isFirstAttackThisTurn: newPlayerLethality > 0, applyShellCap: false);
+                    // 2026-06-01 §122 — LethalityPower's ModifyDamageMultiplicative gives its
+                    // +Amount% ONLY to the FIRST attack of the turn (num>num2 → 1m). The flag was
+                    // just `Lethality>0`, so the sim applied the bonus to EVERY attack while
+                    // Lethality was active → over-dealt on 2nd+ attacks (Necro STRIKE/GRAVEBLAST
+                    // −2/−3). Gate on the genuine first attack too (TurnAttacksPlayed==0).
+                    isFirstAttackThisTurn: newPlayerLethality > 0 && next.TurnAttacksPlayed == 0,
+                    applyShellCap: false);
                 // v0.7.98 — EchoForm doubles the entire attack (each hit lands
                 // twice). Applied after damage-multiplier chain so the doubled
                 // damage benefits from Tracking / Cruelty / Lethality once.
