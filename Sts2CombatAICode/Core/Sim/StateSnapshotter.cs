@@ -1025,10 +1025,16 @@ internal static class StateSnapshotter
         // (sts2.dll SlipperyPower.ModifyDamageCap returns 1m). Found via the
         // damage-pipeline trace: Hook.ModifyDamage(17)=>1 on Slippery enemies,
         // sim dealt full → big enemy_hp over-prediction (SOVEREIGN_BLADE class).
-        // FlutterPower also reduces to 1 (ModifyDamageMultiplicative→1m) on its
-        // active condition; treat as a 1-cap when present.
+        // 2026-06-01 — FlutterPower was ALSO mapped here to a 1-cap, but that
+        // misread its ModifyDamageMultiplicative: the `return 1m` is the no-op
+        // multiplier (1.0 = no change), NOT a cap-to-1. Flutter's real reduction
+        // is DamageDecrease/100 = 0.5 (HALVE), modeled in AnalyticalSimulator's
+        // flying-halving (totalDmg/=2). Keeping the 1-cap here double-applied
+        // with the /2 → 1/2 = 0 (integer), so attacks vs flying ThievingHopper
+        // (FlutterPower+EscapeArtist) whiffed to 0 in the sim while real dealt
+        // card×0.5 (PINPOINT/SHIV/GIANT_ROCK/COLLISION_COURSE/MAKE_IT_SO/NEUTRALIZE).
+        // Removed — the halving is the sole correct Flutter model.
         if (powerDict.TryGetValue("SlipperyPower", out var slip) && slip > 0) damageCap = 1;
-        if (powerDict.TryGetValue("FlutterPower", out var flut) && flut > 0) damageCap = 1;
         if (powerDict.TryGetValue("HardToKillPower", out var hard) && hard > 0)
             damageCap = damageCap == 0 ? hard : System.Math.Min(damageCap, hard);
         int thorns = powerDict.TryGetValue("ThornsPower", out var t) ? t : 0;

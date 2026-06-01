@@ -736,11 +736,19 @@ internal static class AnalyticalSimulator
                 // from card attacks: ModifyDamageMultiplicative returns DamageDecrease/100
                 // = 50/100 = 0.5 on any powered attack. The sim dealt full damage → ~2x
                 // over-prediction (decimal traces 15→7.5, 4→2.0, 6→3.0 across PINPOINT/
-                // SHIV/NEUTRALIZE/MAKE_IT_SO/RIGHT_HAND_HAND/FLATTEN). Halve here (floor;
-                // real applies a 0.5 multiplier in the decimal chain).
+                // SHIV/NEUTRALIZE/MAKE_IT_SO/RIGHT_HAND_HAND/FLATTEN).
+                // The ×0.5 hits EACH attack instance and floors at HP application, so
+                // multi-hit cards lose to per-hit rounding: 2-hit SPITE is 2×floor(5×0.5)
+                // = 2×2 = 4, NOT floor(10/2) = 5. Reconstruct the per-hit value (damage is
+                // uniform per hit once the flutter cap is gone) and halve+floor each, then
+                // re-sum. Single-hit cards are unchanged (floor(total/2)).
                 if (enemy.Powers != null
                     && (enemy.Powers.ContainsKey("SoarPower") || enemy.Powers.ContainsKey("FlutterPower")))
-                    totalDmg /= 2;
+                {
+                    int flyHits = System.Math.Max(1, hitsForDmg) * System.Math.Max(1, echoMul);
+                    int perHit = totalDmg / flyHits;
+                    totalDmg = flyHits * (perHit / 2);
+                }
                 // 2026-06-01 — SlowPower: the enemy takes (1 + 0.1×SlowAmount) damage from
                 // card attacks, where SlowAmount = cards played this turn. DisplayAmount =
                 // SlowAmount×10 is captured into SlowDamagePct, so the multiplier is
