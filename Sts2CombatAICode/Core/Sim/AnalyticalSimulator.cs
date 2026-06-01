@@ -1310,6 +1310,14 @@ internal static class AnalyticalSimulator
             {
                 channelKinds = new List<OrbKind> { OrbKind.Lightning, OrbKind.Frost, OrbKind.Dark };
             }
+            else if (card.Id == "COOLHEADED")
+            {
+                // 2026-06-01 — COOLHEADED channels 1 Frost via OrbCmd.Channel<FrostOrb> in OnPlay
+                // (no orb DynamicVar), so SimCard captured ChannelCount=1 but Kind=Unknown → the
+                // channel was skipped. On a full queue the channel overflow-evokes the head Frost
+                // (block) — the sim missed that 5 block (player_block −5). §110.
+                channelKinds = new List<OrbKind> { OrbKind.Frost };
+            }
             else
             {
                 int effChannelCount = (card.Id == "TEMPEST" && isXCost)
