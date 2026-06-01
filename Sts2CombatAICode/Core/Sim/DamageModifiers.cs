@@ -314,6 +314,30 @@ internal sealed class CrueltyVsVulnerableModifier : DamageModifierBase
             : damage;
 }
 
+// 2026-06-01 §130 — DebilitatePower (enemy debuff, card Debilitate: "Vulnerable and Weak
+// are twice as effective against this enemy for N turns"). The stack is a turn COUNTER
+// (3/2/1 — decrements each turn), magnitude-INDEPENDENT: any stack > 0 doubles the
+// Vulnerable damage BONUS, so vuln goes 1.5× → 2.0× (the 0.5 bonus becomes 1.0). The sim's
+// hardcoded VulnerableMult=1.5 ignored it → STRIKE_NECROBINDER 6×1.5=9 vs real 6×2.0=12,
+// FEAR 7×1.5=10 vs 14 (enemy_hp +3/+4 on every Debilitate-marked target). Derive the live
+// vuln factor f = 1.5 + Cruelty/100 from STATE (not the running damage, so this composes
+// order-independently with VulnerableMult + Cruelty) and rescale by (2f−1)/f so the bonus
+// doubles. Trace evidence: "x VulnerablePower(in=6) => x2.0". (Weak-doubling lives in the
+// enemy-turn sim, a separate path; this modifier only governs player card damage.)
+internal sealed class DebilitateVsVulnerableModifier : DamageModifierBase
+{
+    public override string PowerName => "DebilitatePower";
+    public override DamageStage Stage => DamageStage.Multiplicative;
+    public override bool AttackerSide => false;  // reads enemy.Powers["DebilitatePower"]
+    public override double ApplyMultiplicative(double damage, int stack, in DamageContext ctx)
+    {
+        if (stack <= 0 || ctx.Target.VulnerableAmount <= 0) return damage;
+        double f = StatusMath.VulnerableMult
+                 + (ctx.State.PlayerCruelty > 0 ? ctx.State.PlayerCruelty / 100.0 : 0.0);
+        return damage * (2.0 * f - 1.0) / f;
+    }
+}
+
 internal sealed class LethalityFirstAttackModifier : DamageModifierBase
 {
     public override string PowerName => "LethalityPower";
@@ -373,6 +397,7 @@ internal static class BaselineDamageModifiers
         DamageModifierRegistry.Register(new ShrinkMultModifier());
         DamageModifierRegistry.Register(new TrackingVsWeakModifier());
         DamageModifierRegistry.Register(new CrueltyVsVulnerableModifier());
+        DamageModifierRegistry.Register(new DebilitateVsVulnerableModifier());
         DamageModifierRegistry.Register(new LethalityFirstAttackModifier());
 
         // --- Cap (Intangible / HardToKill via DamageCapPerHit) ---
