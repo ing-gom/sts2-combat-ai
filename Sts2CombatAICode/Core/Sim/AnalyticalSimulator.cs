@@ -2488,7 +2488,12 @@ internal static class AnalyticalSimulator
         {
             int debuffCount = 0;
             foreach (var (pn, amt) in card.PowerApps)
-                if (amt != 0 && IsEnemyDebuff(pn)) debuffCount++;
+                // 2026-06-01 §123 — DoomPower is a permanent (non-temporary) enemy debuff, so
+                // applying it triggers SleightOfFleshPower (AfterPowerAmountChanged). It's absent
+                // from IsEnemyDebuff (kept narrow for the other debuff-apply paths), so count it
+                // explicitly here: SCOURGE (single Doom) / NEGATIVE_PULSE (AOE Doom) dealt 0 vs
+                // real +SleightOfFlesh (9) per Doom-applied enemy.
+                if (amt != 0 && (IsEnemyDebuff(pn) || pn == "DoomPower")) debuffCount++;
             if (debuffCount > 0)
             {
                 int sofDmg = next.PlayerSleightOfFlesh * debuffCount;
