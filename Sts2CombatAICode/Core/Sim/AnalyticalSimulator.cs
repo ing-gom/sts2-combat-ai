@@ -209,6 +209,16 @@ internal static class AnalyticalSimulator
         int newPlayerEchoForm = next.PlayerEchoForm;
         bool echoActive = newPlayerEchoForm > 0;
         int echoMul = echoActive ? 2 : 1;
+        // 2026-06-01 — OneTwoPunchPower (Ironclad): its ModifyCardPlayCount returns
+        // playCount+1 for the owner's next ATTACK, so the whole attack card is PLAYED
+        // TWICE (then the power decrements). EchoForm/Burst are modeled (echoMul/burstMul)
+        // but this play-count power was not → sim under-dealt 2× on attacks vs flyers'
+        // mirror (TWIN_STRIKE 10→20, HEMOKINESIS 30→60). Model as a damage ×2 on attacks
+        // (the dominant divergence is enemy_hp; the card's non-damage replay — e.g.
+        // HEMOKINESIS self-HP-loss — is a small residual). Same play-count CLASS as
+        // TagTeam/SignalBoost/Duplication, still unmodeled (rare).
+        bool oneTwoPunchActive = card.IsAttack && next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("OneTwoPunchPower", out var otpAmt) && otpAmt > 0;
         // v0.7.99 — Juggernaut + Hunger reactive trigger sources.
         int newPlayerJuggernaut = next.PlayerJuggernaut;
         int newPlayerHunger = next.PlayerHunger;
@@ -749,6 +759,16 @@ internal static class AnalyticalSimulator
                     int perHit = totalDmg / flyHits;
                     totalDmg = flyHits * (perHit / 2);
                 }
+                // 2026-06-01 — ConquerorPower (enemy debuff applied by SovereignBlade):
+                // its ModifyDamageMultiplicative returns 2m, but ONLY when cardSource is
+                // SovereignBlade + powered attack + target is the bearer. §98 enumerated the
+                // enemy ModifyDamageMultiplicative powers (flying/Slow) but missed this
+                // card-gated one → SOVEREIGN_BLADE under-dealt 2× vs Conqueror-marked
+                // enemies (13→26). Double when the card is SOVEREIGN_BLADE and the enemy
+                // bears ConquerorPower.
+                if (card.Id == "SOVEREIGN_BLADE" && enemy.Powers != null
+                    && enemy.Powers.ContainsKey("ConquerorPower"))
+                    totalDmg *= 2;
                 // 2026-06-01 — SlowPower: the enemy takes (1 + 0.1×SlowAmount) damage from
                 // card attacks, where SlowAmount = cards played this turn. DisplayAmount =
                 // SlowAmount×10 is captured into SlowDamagePct, so the multiplier is
@@ -757,6 +777,11 @@ internal static class AnalyticalSimulator
                 // is the pre-play count (this card's own increment is AfterCardPlayed).
                 if (enemy.SlowDamagePct > 0)
                     totalDmg = totalDmg * (100 + enemy.SlowDamagePct) / 100;
+                // OneTwoPunch: the attack is played twice — double the resolved per-enemy
+                // damage (outermost, after flying/slow so each modeled play is halved/amped
+                // correctly, matching real's two independent resolutions).
+                if (oneTwoPunchActive)
+                    totalDmg *= 2;
                 attackDmgForFisticuffs += totalDmg;
 
                 // Block-first absorption
