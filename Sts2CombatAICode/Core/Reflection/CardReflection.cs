@@ -378,6 +378,13 @@ internal static class CardReflection
         ["SOLAR_STRIKE"] = 1,
         ["KNOCKOUT_BLOW"] = 5,
         ["ROYAL_GAMBLE"] = 9,
+        // 2026-06-01 — BIG_BANG / HIDDEN_CACHE expose "Stars" as type StarsVar (not
+        // DynamicVar), so the v.Name=="Stars" var-name extraction (gated on typeName==
+        // "DynamicVar") missed them → StarsGain=0 → BlackHolePower's star-gain AOE was not
+        // modeled (sim dealt 0 vs real Amount per enemy). Both call GainStars(1) immediately
+        // in OnPlay (NOT a next-turn StarNextTurnPower like CONVERGENCE, which must stay 0).
+        ["BIG_BANG"] = 1,
+        ["HIDDEN_CACHE"] = 1,
     };
 
     /// <summary>
