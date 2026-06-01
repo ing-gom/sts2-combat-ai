@@ -407,6 +407,11 @@ internal static class AnalyticalSimulator
                     // not raw StrengthPower → 3 SETUP_STRIKE diverging with
                     // player_strength +2 (mod credited immediate Str gain).
                     else if (card.Id == "SETUP_STRIKE") effectivePowerName = "SetupStrikePower";
+                    // 2026-06-01 §126 — DEMON_FORM's PowerVar<StrengthPower> is applied as
+                    // DemonFormPower, which grants Strength at the START of NEXT turn
+                    // (AfterSideTurnStart), NOT immediately. The sim credited +Str this turn →
+                    // player_strength +2. Redirect so it's recorded but not added to newPlayerStr.
+                    else if (card.Id == "DEMON_FORM") effectivePowerName = "DemonFormPower";
                     // 2026-05-30 — FRIENDSHIP applies StrengthPower NEGATIVELY:
                     // Apply<StrengthPower>(self, -StrengthPower.BaseValue). The
                     // PowerVar base is +2 but the self-strength is REDUCED by 2.
