@@ -256,6 +256,16 @@ internal static class AnalyticalSimulator
         int newPlayerEchoForm = next.PlayerEchoForm;
         bool echoActive = newPlayerEchoForm > 0;
         int echoMul = echoActive ? 2 : 1;
+        // 2026-06-01 §128 — Burst also multiplies a Skill's PILE effects (draw,
+        // shiv/card-gen), not just damage/block/buffs. A Skill played under Burst
+        // resolves TWICE → it draws/generates twice. The skill-resolve block below
+        // doubles block/buffs via burstMul, but the draw + shiv-gen sections run
+        // outside that scope and after burst is consumed, so capture the pre-play
+        // state here. CLOAK_AND_DAGGER +1 shiv, ESCAPE_PLAN +1 draw (both BurstPower:1).
+        // Echo deliberately excluded: the sim's echoMul over-approximates EchoForm
+        // (it doubles every card while charged, not just the turn's first), which is
+        // tolerable for damage but would double pile counts on non-first cards.
+        int pilePlayMul = (card.IsSkill && next.PlayerBurst > 0) ? 2 : 1;
         // 2026-06-01 — OneTwoPunchPower (Ironclad): its ModifyCardPlayCount returns
         // playCount+1 for the owner's next ATTACK, so the whole attack card is PLAYED
         // TWICE (then the power decrements). EchoForm/Burst are modeled (echoMul/burstMul)
@@ -1522,7 +1532,8 @@ internal static class AnalyticalSimulator
             // hand the created shiv OVERFLOWS to the discard pile (not lost). Same
             // as card-gen overflow. Earlier this broke (shivs dropped), which
             // under-counted discard for CLOAK_AND_DAGGER/HIDDEN_DAGGERS at hand>=10.
-            for (int i = 0; i < card.DrawCount; i++)
+            // §128 — Burst doubles the shiv count (the skill resolves twice).
+            for (int i = 0; i < card.DrawCount * pilePlayMul; i++)
             {
                 if (newHand.Count < 10)
                     newHand.Add(MakeShivPlaceholderCard());
@@ -1570,9 +1581,12 @@ internal static class AnalyticalSimulator
             // the TARGET hand size, not a fixed count. sts2.dll draws
             // (Cards - Hand.Count). The sim drew the full Cards value → over-drew
             // by the pre-play hand size (EXPERTISE draw_pile +N/hand -N, 4 rows).
+            // §128 — Burst doubles a draw-skill's draw count (the skill resolves
+            // twice). DrawToHandSize cards (EXPERTISE) are exempt: drawing to a target
+            // hand size twice is a no-op the second time, so leave them at 1× play.
             int drawTimes = DrawToHandSize.Contains(card.Id)
                 ? System.Math.Max(0, card.DrawCount - newHand.Count)
-                : card.DrawCount;
+                : card.DrawCount * pilePlayMul;
             for (int i = 0; i < drawTimes; i++)
             {
                 // 2026-05-29 — hand is capped at 10 (CardPileCmd.Draw: num =
