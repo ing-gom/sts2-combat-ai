@@ -600,6 +600,7 @@ internal static class AnalyticalSimulator
                 // sees the same Vigor amount, matching STS canonical behavior.
                 // v0.7.86 — AccuracyPower → +N damage for Shiv. Folded into base.
                 int adjustedBase = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, next);
+                int teslaPassiveDmg = 0;  // §125 — TESLA_COIL Lightning-passive portion (Skittish-soaked)
                 // 2026-05-28 S6-3d: CalculatedDamageVar per-card multiplier add-on.
                 // CardReflection now reads CalculationBaseVar.BaseValue (e.g. 4
                 // for BULLY, 6 for PERFECTED_STRIKE), but loses the extra ×
@@ -707,7 +708,14 @@ internal static class AnalyticalSimulator
                     int lightning = 0;
                     foreach (var k in next.OrbQueue) if (k == OrbKind.Lightning) lightning++;
                     if (lightning > 0)
-                        adjustedBase += lightning * System.Math.Max(0, 3 + next.PlayerFocus);
+                    {
+                        // 2026-06-01 §125 — the passive hits come AFTER the attack hit (which
+                        // triggers a Skittish enemy's reactive block), so a fresh Skittish block
+                        // SOAKS the passives. Track the passive portion so the Skittish code can
+                        // absorb it (real: passive 6 soaked by Skittish 6 → block 0, hp restored).
+                        teslaPassiveDmg = lightning * System.Math.Max(0, 3 + next.PlayerFocus);
+                        adjustedBase += teslaPassiveDmg;
+                    }
                 }
                 // 2026-05-28 MCTS-P0 A — X-cost cards (WHIRLWIND, etc.) use
                 // pre-spend energy as their hit count, not the catalog
@@ -997,7 +1005,20 @@ internal static class AnalyticalSimulator
                     reactiveEnemyBlock += curlUp;
                 if (hpAfter > 0 && dmgPastBlock > 0 && !enemy.SkittishFiredThisTurn && enemy.Powers != null
                     && enemy.Powers.TryGetValue("SkittishPower", out int skittish) && skittish > 0)
-                    reactiveEnemyBlock += skittish;
+                {
+                    // §125 — TESLA_COIL folds its Lightning passives into this attack's hp damage,
+                    // but in real they land AFTER the attack triggers Skittish, so the fresh block
+                    // SOAKS them. Absorb min(passive, skittish): restore that much hp and leave only
+                    // the unsoaked block. (TESLA_COIL hp 21→27, block 6→0 for passive 6 / skittish 6.)
+                    if (card.Id == "TESLA_COIL" && teslaPassiveDmg > 0)
+                    {
+                        int absorbed = System.Math.Min(teslaPassiveDmg, skittish);
+                        hpAfter = System.Math.Min(enemy.Hp, hpAfter + absorbed);
+                        reactiveEnemyBlock += skittish - absorbed;
+                    }
+                    else
+                        reactiveEnemyBlock += skittish;
+                }
 
                 newEnemies.Add(enemy with
                 {
