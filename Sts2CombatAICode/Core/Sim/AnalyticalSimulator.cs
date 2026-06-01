@@ -773,11 +773,19 @@ internal static class AnalyticalSimulator
                 // only baseline modifiers are registered (verified by 13
                 // V1↔V2 parity unit tests); enables un-modeled active powers
                 // to plug in without further StatusMath edits.
+                // 2026-06-01 §124 — OSTY-axis cards (POKE/UNLEASH) attack FROM the Osty pet, which
+                // uses its OWN stats, so the player's Strength/Weak/Vigor do NOT apply (trace: POKE
+                // 6 gets StrengthPower +0 while the player's own STRIKE gets the −2). The sim
+                // applied the player's Strength → under-dealt (POKE simD 4 vs real 6, player_str
+                // −2). Zero the player attack modifiers for Osty attacks (the Osty's own strength
+                // is ~0 in the common case and isn't separately snapshotted; Vulnerable is enemy-
+                // side so it still applies).
+                bool isOstyAttack = card.Axes != null && card.Axes.Contains("OSTY");
                 var dmgState = next with
                 {
-                    PlayerStrength = newPlayerStr,
-                    PlayerVigor = newPlayerVigor,
-                    PlayerWeak = playerWeak ? next.PlayerWeak : 0,
+                    PlayerStrength = isOstyAttack ? 0 : newPlayerStr,
+                    PlayerVigor = isOstyAttack ? 0 : newPlayerVigor,
+                    PlayerWeak = (!isOstyAttack && playerWeak) ? next.PlayerWeak : 0,
                     PlayerLethality = newPlayerLethality,
                     PlayerTracking = newPlayerTracking,
                     PlayerCruelty = newPlayerCruelty,
