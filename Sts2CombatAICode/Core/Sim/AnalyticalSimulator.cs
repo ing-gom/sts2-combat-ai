@@ -285,12 +285,12 @@ internal static class AnalyticalSimulator
             foreach (var e in next.Enemies)
             {
                 if (!e.IsAlive) { bhEnemies.Add(e); continue; }
-                int past = System.Math.Max(0, bhDmg - e.Block);
-                bhEnemies.Add(e with
-                {
-                    Block = System.Math.Max(0, e.Block - bhDmg),
-                    Hp = System.Math.Max(0, e.Hp - past),
-                });
+                // 2026-06-01 — route through ApplyCappedHit so the AOE respects the enemy's
+                // per-hit DamageCapPerHit (Slippery/Intangible) and HardenedShell, not just
+                // block. VENERATE gaining stars → BlackHole 3 vs a SlipperyPower enemy was
+                // capped to 1 in real (Hook.ModifyDamage 3=>1) but the manual block-only loop
+                // dealt the full 3 (enemy_hp −2). Cap-free no-block enemies are unchanged.
+                bhEnemies.Add(ApplyCappedHit(e, bhDmg));
             }
             next = next with { Enemies = bhEnemies };
         }
