@@ -1625,6 +1625,44 @@ internal static class AnalyticalSimulator
             }
         }
 
+        // 2026-06-01 §129 — ViciousPower: "Whenever you apply Vulnerable, draw 1 card"
+        // (Vicious+ draws 2 → the power's Amount is the cards-per-application). The sim
+        // applied the Vulnerable (newVuln) but never fired the draw → real drew 1 the sim
+        // missed ({hand -1, draw +1} on every Ironclad TREMBLE/TAUNT carrying ViciousPower:1).
+        // Burst (pilePlayMul) replays the skill → the vuln lands again → another draw.
+        // SINGLE-TARGET ONLY: the one observed AOE-vuln+Vicious row (THUNDERCLAP, hand
+        // already at the 10 cap) drew 0 in real — a full-hand / attack-timing edge where
+        // the triggered draw was a no-op — so a per-alive-enemy AOE model over-drew it.
+        // AOE-vuln Vicious is deferred (no room-in-hand AOE row exists to validate the
+        // per-enemy count); not firing matches the lone AOE row exactly.
+        if (!isAoe
+            && next.PlayerPowers != null
+            && next.PlayerPowers.TryGetValue("ViciousPower", out var viciousAmt) && viciousAmt > 0
+            && card.PowerApps != null
+            && card.PowerApps.TryGetValue("VulnerablePower", out var vulnApp) && vulnApp > 0)
+        {
+            int vulnTargets = (targetIdx >= 0 && targetIdx < next.Enemies.Count
+                               && next.Enemies[targetIdx].IsAlive) ? 1 : 0;
+            int viciousDraws = viciousAmt * vulnTargets * pilePlayMul;
+            var avgVicious = MakeAverageDrawCard(next);
+            for (int i = 0; i < viciousDraws; i++)
+            {
+                if (newHand.Count >= 10) break;
+                if (drawPileAfter <= 0)
+                {
+                    if (discardAfter <= 0) break;
+                    drawPileAfter = discardAfter;
+                    discardAfter = 0;
+                    newDrawPile.AddRange(newDiscardPile);
+                    newDiscardPile.Clear();
+                }
+                newHand.Add(avgVicious);
+                drawPileAfter--;
+                if (newDrawPile.Count > 0)
+                    newDrawPile.RemoveAt(newDrawPile.Count - 1);
+            }
+        }
+
         // 2026-05-31 — REBOOT: move ALL hand + ALL discard into the draw pile, shuffle,
         // then draw Cards(4). The COUNT is deterministic (only the order is RNG): real
         // ends hand=4, discard=0, draw=old_draw+(hand−REBOOT)+old_discard−4. The sim
