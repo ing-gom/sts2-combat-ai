@@ -126,6 +126,13 @@ internal static class AnalyticalSimulator
 
             if (!gateEnergy) energy += card.EnergyGain;
         }
+        // 2026-06-01 — DOUBLE_ENERGY (Defect): OnPlay GainEnergy(PlayerCombatState.Energy)
+        // DOUBLES the post-cost energy. No fixed EnergyVar, so card.EnergyGain=0 and the sim
+        // missed it → player_energy −(post-cost energy) on each play (e_pre 2, cost 1 → 1, real
+        // doubled to 2 → diff −1). It's a Skill so Subroutine doesn't refund into `energy`;
+        // `energy` here is the post-cost value GainEnergy reads. §111.
+        if (card.Id == "DOUBLE_ENERGY")
+            energy += energy;
         // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
         // energy here. The exact semantics (immediate vs next-turn) varies between
         // STS variants and we don't have a test harness to verify either way.
