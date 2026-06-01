@@ -3406,6 +3406,11 @@ internal static class AnalyticalSimulator
         // ×4 (cap-aware overflow to discard). Sim missed the 4 shivs → hand −4 (or
         // hand/discard split at a full hand). DrawCount carries the 4 ("Shivs" var).
         "FAN_OF_KNIVES",
+        // 2026-06-01 — UP_MY_SLEEVE: OnPlay loops Cards.IntValue(3) × Shiv.CreateInHand
+        // (TimesPlayedThisCombat only reduces cost, NOT the shiv count). CardsVar(3) routes
+        // to DrawCount → the sim drew 3 from the draw pile instead of creating shivs in hand
+        // (draw_pile −3). Redirect like the others. §115.
+        "UP_MY_SLEEVE",
     };
 
     // 2026-05-29 — cards that recycle THEMSELVES to the draw pile (top) on
