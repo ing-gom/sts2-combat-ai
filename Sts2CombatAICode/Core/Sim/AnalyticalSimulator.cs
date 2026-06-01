@@ -146,6 +146,23 @@ internal static class AnalyticalSimulator
             foreach (var hc in next.Hand) if (hc.IsAttack) atksInHand++;
             energy += atksInHand;
         }
+        // 2026-06-01 — VitalSparkPower (enemy, Ironclad/Regent): AfterDamageReceived grants the
+        // attacking PLAYER Amount energy the FIRST powered-attack hit on it each turn (internal
+        // playersTriggeredThisTurn set). The sim ignored it → player_energy −Amount (BASH /
+        // HEMOKINESIS / STRIKE_IRONCLAD / FALLING_STAR / STRIKE_REGENT). The once-per-turn-per-
+        // enemy gate is approximated by "first attack of the turn" (TurnAttacksPlayed==0): SAFE —
+        // it never over-fires (a later attack adds nothing) and the rare first-hit-on-a-2nd-attack
+        // case just stays unmodeled (no regression). Gated on the attack actually out-damaging the
+        // target's block (not fully blocked, as the real trigger requires).
+        if (card.IsAttack && next.TurnAttacksPlayed == 0
+            && targetIdx >= 0 && targetIdx < next.Enemies.Count)
+        {
+            var vsTarget = next.Enemies[targetIdx];
+            if (vsTarget.IsAlive && vsTarget.Powers != null
+                && vsTarget.Powers.TryGetValue("VitalSparkPower", out var vsAmt) && vsAmt > 0
+                && card.Damage > vsTarget.Block)
+                energy += vsAmt;
+        }
         // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
         // energy here. The exact semantics (immediate vs next-turn) varies between
         // STS variants and we don't have a test harness to verify either way.
