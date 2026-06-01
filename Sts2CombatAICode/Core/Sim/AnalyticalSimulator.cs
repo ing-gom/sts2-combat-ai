@@ -24,6 +24,20 @@ namespace Sts2CombatAI.Sim;
 internal static class AnalyticalSimulator
 {
     /// <summary>
+    /// 2026-06-01 (ceiling-breaking track step 2) — when set, generic draws pull the
+    /// REAL top-of-pile card (front, true identity) instead of a deck-average placeholder
+    /// (MakeAverageDrawCard). Identity matters for TRAJECTORY fidelity (surrogate-env /
+    /// deep search): a drawn card persists and gets played next, so its identity must be
+    /// right. The placeholder was kept because real-identity draws perturbed the one-step
+    /// hand-scan logic (Silent 90.5→87.4, discard-from-hand / retain / star-count). Gated
+    /// by STS2_SIM_REAL_DRAW so the trajectory metric can A/B the two and the one-step
+    /// regression can be re-audited rather than assumed. Only applies BEFORE a reshuffle
+    /// (post-reshuffle order is RNG the sim can't know → still placeholder).
+    /// </summary>
+    public static readonly bool UseRealTopDraw =
+        System.Environment.GetEnvironmentVariable("STS2_SIM_REAL_DRAW") == "1";
+
+    /// <summary>
     /// Apply a card play to a state, returning a new state. Original is untouched.
     /// </summary>
     public static SimState ApplyCardPlay(SimState state, SimCard card, int targetIdx)
@@ -1597,6 +1611,7 @@ internal static class AnalyticalSimulator
                 // hand was >=10 while real drew nothing — the systematic cause of
                 // SLIMED / CHARGE / SCRAPE / draw-card {hand +1, draw -1} rows.
                 if (newHand.Count >= 10) break;
+                bool reshuffledThisDraw = false;
                 if (drawPileAfter <= 0)
                 {
                     if (discardAfter <= 0) break;
@@ -1608,20 +1623,30 @@ internal static class AnalyticalSimulator
                     // order but for Count parity that doesn't matter.
                     newDrawPile.AddRange(newDiscardPile);
                     newDiscardPile.Clear();
+                    reshuffledThisDraw = true;
                 }
-                newHand.Add(avgDraw);
+                // 2026-06-01 §131 (ceiling step 2) — STS2 draws from the FRONT (index 0)
+                // of the draw pile (verified: ESCAPE_PLAN draw_pre[0] is the card that
+                // leaves draw_real). With UseRealTopDraw on, pull that real card by
+                // identity so trajectory fidelity holds (the drawn card persists and is
+                // played next turn). Post-reshuffle order is RNG the sim can't predict, so
+                // fall back to the neutral placeholder there. Default (flag off) keeps the
+                // historical avgDraw + pop-from-end that the one-step count metric prefers.
+                // 2026-05-30 note: real-identity draws regressed Silent one-step 90.5→87.4
+                // (perturbs downstream hand-scan: discard-from-hand / retain / star-count) —
+                // the gate lets us re-measure that against the trajectory gain.
+                if (UseRealTopDraw && !reshuffledThisDraw && newDrawPile.Count > 0)
+                {
+                    newHand.Add(newDrawPile[0]);     // real next-to-draw, true identity
+                    newDrawPile.RemoveAt(0);
+                }
+                else
+                {
+                    newHand.Add(avgDraw);            // neutral placeholder
+                    if (newDrawPile.Count > 0)
+                        newDrawPile.RemoveAt(newDrawPile.Count - 1);
+                }
                 drawPileAfter--;
-                // Pop one card off the (now non-empty) drawPile list to keep
-                // DrawPile.Count in sync with DrawPileSize. Order doesn't
-                // matter for the probe; pop from end (O(1)).
-                // 2026-05-30 — tried drawing the REAL top card here (index 0) to
-                // give drawn cards true identity, but it regressed Silent 90.5->
-                // 87.4 (real cards added to hand perturb downstream hand-scan
-                // logic: discard-from-hand / retain / star-count). avgDraw keeps
-                // the hand neutral. Order-sensitive draw cards stay modeled
-                // per-card (e.g. PILLAGE has its own real-top-draw block).
-                if (newDrawPile.Count > 0)
-                    newDrawPile.RemoveAt(newDrawPile.Count - 1);
             }
         }
 
