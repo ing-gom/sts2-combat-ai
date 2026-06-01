@@ -130,7 +130,7 @@ internal static class AnalyticalSimulator
         // DOUBLES the post-cost energy. No fixed EnergyVar, so card.EnergyGain=0 and the sim
         // missed it → player_energy −(post-cost energy) on each play (e_pre 2, cost 1 → 1, real
         // doubled to 2 → diff −1). It's a Skill so Subroutine doesn't refund into `energy`;
-        // `energy` here is the post-cost value GainEnergy reads. §111.
+        // `energy` here is the post-cost value GainEnergy reads. §112.
         if (card.Id == "DOUBLE_ENERGY")
             energy += energy;
         // EnergizedPower / EnergyNextTurnPower: deliberately NOT added to immediate
