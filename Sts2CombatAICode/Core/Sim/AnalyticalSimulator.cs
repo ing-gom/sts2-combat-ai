@@ -1319,6 +1319,14 @@ internal static class AnalyticalSimulator
         int stormLightning = (card.IsPower && next.PlayerPowers != null
             && next.PlayerPowers.TryGetValue("StormPower", out var stormAmt) && stormAmt > 0)
             ? stormAmt : 0;
+        // 2026-06-01 — THUNDER applies ThunderPower in OnPlay BEFORE StormPower's AfterCardPlayed
+        // channels its Lightning, so those overflow-evokes already get the +ThunderPower flat
+        // bonus (ApplyEvokeEffect adds state.PlayerThunder per Lightning evoke). The snapshot
+        // PlayerThunder is pre-play (0), so fold the card's own ThunderPower application into
+        // next here, before the orb block, so the same-play storm evokes see it. §122.
+        if (card.PowerApps != null
+            && card.PowerApps.TryGetValue("ThunderPower", out var thunderApp) && thunderApp > 0)
+            next = next with { PlayerThunder = next.PlayerThunder + thunderApp };
         // v0.4 — Orb channel / evoke simulation. Mutates orb queue + may damage / block player.
         // Order: evoke first (consumes head N times), then channel (may bump head out if full).
         if (card.EvokeCount > 0 || card.ChannelCount > 0 || stormLightning > 0)
