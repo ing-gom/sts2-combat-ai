@@ -3334,6 +3334,7 @@ internal static class AnalyticalSimulator
         or "HexPower" or "DarkShacklesPower" or "PiercingWailPower"
         or "DampenPower" or "EnfeeblingTouchPower" or "ShackedPotionPower"
         or "ShacklingPotionPower" or "ConfusedPower" or "RupturePower"
+        or "DebilitatePower"  // v0.11 — DEBILITATE card; stamped to enemy.Powers for DebilitateVsVulnerableModifier
         or "NoxiousFumesPower" => true,
         _ => false,
     };

@@ -261,13 +261,22 @@ internal sealed record SimCard
                 if (tgtVuln && tgtWeak) break;
             }
         }
-        if (tgtVuln) perHit = (int)(perHit * 1.5);
+        if (tgtVuln)
+        {
+            // v0.11 — Match the V2 damage registry (DamageModifiers): Vuln factor
+            // f = 1.5 + Cruelty/100 (ADDITIVE, not the deprecated ×1.25 chain); a
+            // Debilitated target doubles the bonus → 2f−1. Replaces the old flat ×1.5 + ×1.25.
+            double f = StatusMath.VulnerableMult + (state.PlayerCruelty > 0 ? state.PlayerCruelty / 100.0 : 0.0);
+            bool tgtDebil = tgt != null && tgt.Powers != null
+                && tgt.Powers.TryGetValue("DebilitatePower", out var td) && td > 0;
+            perHit = (int)(perHit * (tgtDebil ? (2.0 * f - 1.0) : f));
+        }
 
         // Silent passive multipliers — Tracking/Cruelty target-conditional;
         // Lethality global first-attack single-shot.
         bool lethalityActive = state.PlayerLethality > 0 && state.TurnAttacksPlayed == 0;
         if (state.PlayerTracking > 0 && tgtWeak) perHit = (int)(perHit * 2.0);
-        if (state.PlayerCruelty > 0 && tgtVuln)  perHit = (int)(perHit * 1.25);
+        // v0.11 — Cruelty folded into the additive Vuln factor above (registry-consistent); old ×1.25 removed.
         if (lethalityActive)                     perHit = (int)(perHit * 1.5);
 
         // v0.9 — Target-specific per-hit caps. Intangible clamps to 1

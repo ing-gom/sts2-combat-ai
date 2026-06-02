@@ -76,7 +76,12 @@ internal static class EnemyTurnSimulator
             if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
 
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
-            if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
+            // v0.11 — Debilitate on this enemy doubles Weak's effect (0.75→0.50).
+            if (e.WeakAmount > 0)
+            {
+                bool eDebil = e.Powers != null && e.Powers.TryGetValue("DebilitatePower", out var ed) && ed > 0;
+                perHit = (int)(perHit * (eDebil ? 0.50 : 0.75));
+            }
             int repeats = Math.Max(1, e.IntentRepeats);
             // v0.7.96 — Cap hits at enemy survival under player Thorns reflect.
             // Enemy HP after DoT pre-tick = e.Hp - preTurnDot (already filtered
@@ -236,7 +241,12 @@ internal static class EnemyTurnSimulator
             int preTurnDot = e.PoisonAmount + e.ConstrictAmount;
             if (preTurnDot > 0 && preTurnDot >= e.Hp) continue;
             int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
-            if (e.WeakAmount > 0) perHit = (int)(perHit * 0.75);
+            // v0.11 — Debilitate on this enemy doubles Weak's effect (0.75→0.50). Mirror of PredictPlayerDmg.
+            if (e.WeakAmount > 0)
+            {
+                bool eDebil = e.Powers != null && e.Powers.TryGetValue("DebilitatePower", out var ed) && ed > 0;
+                perHit = (int)(perHit * (eDebil ? 0.50 : 0.75));
+            }
             int repeats = Math.Max(1, e.IntentRepeats);
             int maxThornsHits = repeats;
             if (playerThornsAmt > 0)
@@ -247,7 +257,9 @@ internal static class EnemyTurnSimulator
             }
             for (int r = 0; r < maxThornsHits; r++)
             {
-                int dmg = playerVuln ? (int)(perHit * StatusMath.VulnerableMult) : perHit;
+                // v0.11 — Lockstep with PredictPlayerDmg: player Debilitate doubles incoming Vuln (1.5→2.0).
+                double vulnMult = s.PlayerDebilitate > 0 ? 2.0 : StatusMath.VulnerableMult;
+                int dmg = playerVuln ? (int)(perHit * vulnMult) : perHit;
                 if (dmg > 0) dmgInstances.Add(dmg);
             }
         }

@@ -332,15 +332,16 @@ public static class Program
         var enemy = Enemy(hp: 100, vulnerableAmount: 2);
         var card = Attack("STRIKE", cost: 1, damage: 6);
         var state = MakeState(playerHp: 50, energy: 3, hand: new() { card }, enemies: new() { enemy })
-            with { PlayerCruelty = 1 };
+            with { PlayerCruelty = 25 };
         int v1Base = StatusMath.EffectivePerEnemyTotal(6, 1, 0, 0, enemy, attackerWeak: false);
         int v1 = StatusMath.ApplyDamageMultipliers(v1Base, state, defenderVulnerable: true,
             defenderWeak: false, lethalityActive: false);
         int v2 = StatusMath.EffectivePerEnemyTotalV2(6, 1, enemy, card, state, isFirstAttackThisTurn: false);
         Assert(v1 == v2, $"Cruelty: V1={v1} V2={v2}");
-        // V1: base 6 → floor(6*1.5)=9 → floor(9*1.25)=11
-        // V2: base 6 → floor(6*1.5*1.25)=11
-        Assert(v2 == 11, $"expected 11, got {v2}");
+        // Cruelty is ADDITIVE on the Vuln multiplier (1.5 → 1.5+Amount/100), NOT a ×1.25 chain.
+        // base 6 → vuln floor(6*1.5)=9 → ×(1 + 25/150)=1.1667 → floor(10.5)=10
+        // (the old ×1.25 → 11 was the deprecated multiplicative form).
+        Assert(v2 == 10, $"expected 10, got {v2}");
     }
 
     private static void Test_V2Parity_HardenedShell()

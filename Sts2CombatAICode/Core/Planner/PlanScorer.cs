@@ -1618,7 +1618,26 @@ internal static class PlanScorer
             if (danseBlock > 0)  details.Add($"danse(+{danseBlock})");
             if (skillReactiveBlock > SkillReactiveBlockCap)
                 details.Add($"reactiveCap({skillReactiveBlock}→{SkillReactiveBlockCap})");
-            int effect = effectiveBlock * w.BlockPerPointBonus;
+            // v0.12 — Marginal block valuation (over-block fix). Credit only the block that
+            // reduces the incoming leak; block beyond it is overkill (penalized at the same
+            // rate). leakBefore is the leak AFTER currently-accumulated block, so in a depth-N
+            // sequence the 2nd block card sees the reduced leak — this stops "small Defend then
+            // big block" from each collecting full value (the DEFEND→BLOOD_WALL over-block).
+            int leakBefore = (card.Target == TargetType.Self && card.Block > 0 && !allInert)
+                ? EnemyTurnSimulator.PredictPlayerDmg(state) : 0;
+            int usefulBlock = effectiveBlock, overkillBlock = 0;
+            int effect;
+            if (leakBefore > 0)
+            {
+                usefulBlock = System.Math.Min(effectiveBlock, leakBefore);
+                overkillBlock = effectiveBlock - usefulBlock;
+                effect = (usefulBlock - overkillBlock) * w.BlockPerPointBonus;
+            }
+            else
+            {
+                // No leak after current block: the wasted-block / neutralize rules below handle it.
+                effect = effectiveBlock * w.BlockPerPointBonus;
+            }
             details.Add($"skillBase={w.SkillBaseBonus}");
             if (blockMultiplier > 1)
                 details.Add($"varBlock(×{blockMultiplier})");
@@ -1727,7 +1746,7 @@ internal static class PlanScorer
             }
             int threatBonus = 0;
             int residual = (card.Target == TargetType.Self && effectiveBlock > 0 && !allInert)
-                ? EnemyTurnSimulator.PredictPlayerDmg(state) : 0;
+                ? leakBefore : 0;   // v0.12 — reuse leakBefore (computed above) instead of a 2nd PredictPlayerDmg call
             bool neutralizes = residual > 0 && effectiveBlock >= residual;
 
             // v0.9 — ImbalancedPower bonus: when any alive enemy has Imbalanced
@@ -1763,8 +1782,16 @@ internal static class PlanScorer
             // observed pushing Turbo above Strike in lethal windows.
             if (card.Target == TargetType.Self && card.Block > 0 && threat > threshold && !allInert)
             {
-                threatBonus = w.BlockUnderThreatBonus;
-                details.Add($"threatBonus={threatBonus}");
+                // v0.12 — pro-rate the urgency bonus by the leak THIS card removes, bounded by
+                // rawThreat = currentBlock + leakBefore, so a turn's total block-urgency bonus
+                // can't exceed one BlockUnderThreatBonus (no double-collect across block cards —
+                // the root of the DEFEND→BLOOD_WALL over-block). A neutralizing single card still
+                // gets the full bonus (usefulBlock == leakBefore == rawThreat − currentBlock).
+                int rawThreat = state.PlayerBlock + leakBefore;
+                threatBonus = rawThreat > 0
+                    ? (int)((long)w.BlockUnderThreatBonus * usefulBlock / rawThreat)
+                    : w.BlockUnderThreatBonus;
+                details.Add($"threatBonus={threatBonus}(useful{usefulBlock}/raw{rawThreat})");
             }
 
             // v0.4 — "Block fully neutralises threat": if a self-block card brings the
@@ -2312,7 +2339,10 @@ internal static class PlanScorer
             // additively before any threshold-doubler (HEAVENLY_DRILL).
             int xBonus = (state.PlayerRelics != null
                 && state.PlayerRelics.ContainsKey("ChemicalX")) ? 2 : 0;
-            int x = System.Math.Max(1, state.PlayerEnergy + xBonus);
+            // 2026-06-02 — X = energy spent. At 0 energy X is 0 (the card does nothing), so do NOT
+            // floor at 1: the old Max(1,...) made 0-energy X-cost cards look like they deal damage,
+            // and the planner played them with no energy. Real X-cost with 0 energy = wasted.
+            int x = System.Math.Max(0, state.PlayerEnergy + xBonus);
             // v0.6.8 — HEAVENLY_DRILL: if X ≥ 4 (threshold stored as Energy:4 var),
             // X doubles. Per game source `if (num >= Energy) num *= 2`. Hardcoded
             // id-check is fine — this is the only card with the threshold-double
@@ -3580,16 +3610,25 @@ internal static class PlanScorer
             .ToList();
         if (otherPlayable.Count == 0) return -1500;
 
-        // The gain is only meaningful if it *unlocks* a card that couldn't have been played
-        // without it: cost > remainingEnergy (couldn't afford) AND cost ≤ remaining + gain
-        // (now affordable). Cards cheap enough to already play, or still too expensive after
-        // the gain, don't count toward valuation.
+        // 2026-06-02 — value energy gain by TEMPO (it lets you play more cards this turn), not only
+        // by "unlocking" one specific expensive card. The old logic penalised any energy card that
+        // didn't cross an exact affordability threshold, so the planner under-used energy cards.
+        //
+        // Energy-constrained = you can't already afford every playable card in hand. Only then does
+        // extra energy do anything; if you can already play everything, the gain overflows (wasted).
+        int totalOtherCost = otherPlayable.Sum(c => System.Math.Max(0, c.Cost));
+        int shortfall = totalOtherCost - remainingEnergy;
+        if (shortfall <= 0) return w.EnergyGainWastedPenalty;   // can already play it all → overflow
+
         int afterGain = remainingEnergy + immediateGain;
         int unlocked = otherPlayable.Count(c => c.Cost > remainingEnergy && c.Cost <= afterGain);
-        if (unlocked == 0) return w.EnergyGainWastedPenalty;
 
-        if (remainingEnergy <= 1) return w.EnergyGainUrgentBonus;
-        return 0;
+        // Energy that actually gets spent (capped by the shortfall) × a per-energy tempo value,
+        // plus the urgent-unlock bonus when nearly tapped out and the gain frees a stuck card.
+        int usable = System.Math.Min(immediateGain, shortfall);
+        int v = usable * 120;
+        if (unlocked > 0 && remainingEnergy <= 1) v += w.EnergyGainUrgentBonus;
+        return v;
     }
 
     /// <summary>Compact power-name suffix for log readability (StrengthPower → Str).</summary>
