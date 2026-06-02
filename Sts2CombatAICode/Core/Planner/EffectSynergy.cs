@@ -120,7 +120,7 @@ internal static class EffectSynergy
         // v0.7.1 — Level 3: pile-based auto-play. v0.7.93 prefix stripped.
         if (card.Id == "CASCADE" || card.Id == "CATASTROPHE"
             || card.Id == "UPROAR" || card.Id == "BEAT_DOWN"
-            || card.Id == "HAVOC")
+            || card.Id == "HAVOC" || card.Id == "BULLET_TIME")
             ApplyAutoPlayFromPile(card, state, ref b, parts);
 
         // v0.7.1 — Level 3: pile-based random modifier. v0.7.93 prefix stripped.
@@ -481,9 +481,13 @@ internal static class EffectSynergy
         // Cost-enabler: UNRELENTING (next Attack 0-cost), SYNTHESIS (next Power
         // 0-cost), POUNCE (next Skill 0-cost). Combat-wide enablers (CORRUPTION,
         // ENLIGHTENMENT, BULLET_TIME) are Powers/Skills covered elsewhere.
-        if (axes.Contains("ATTACK_COST_ENABLER")
+        if ((axes.Contains("ATTACK_COST_ENABLER")
             || axes.Contains("SKILL_COST_ENABLER")
             || axes.Contains("POWER_COST_ENABLER"))
+            && card.Id != "BULLET_TIME")   // BULLET_TIME = whole-hand-free-this-turn, not
+                                           // next-card-free → handled in ApplyAutoPlayFromPile.
+                                           // Routing it here mis-scored it as next-power-free
+                                           // (−150 when hand had no Power card) → never played.
             ApplyNextCardCostEnabler(card, state, ref b, parts);
 
         // v0.6.9 — Tier 3: CARD_GEN flat-per-generated bonus + EXHAUST_TARGET_RANDOM penalty.
@@ -1712,6 +1716,32 @@ internal static class EffectSynergy
                 int v = mean * n;
                 b += v;
                 parts.Add($"beatDown(mean{mean})×{n}=+{v}");
+                break;
+            }
+            case "BULLET_TIME":
+            {
+                // 2026-06-02 — combo enabler: all hand cards cost 0 this turn (+ NoDraw).
+                // Worth it ONLY when the hand holds more playable power than the current
+                // energy can afford — BULLET_TIME frees the rest. Value = the fraction of
+                // the hand's power that the freed energy unlocks. Without that lock-up
+                // (cheap/empty hand) it's a dead 3-energy NoDraw → penalize so the planner
+                // skips it (was a valuation gap: scored ~0, never played even when good).
+                int otherCost = 0, otherPower = 0, otherCnt = 0;
+                foreach (var c in state.Hand)
+                {
+                    if (c.Id == "BULLET_TIME" || c.IsCurseOrStatus || !c.IsPlayable || c.Cost <= 0) continue;
+                    otherCost += c.Cost;
+                    otherPower += EstimateCardPower(c, state, freeUse: true);
+                    otherCnt++;
+                }
+                // Without BULLET_TIME you'd still spend your full energy on the best of the
+                // hand; the genuine gain is only the cards energy CAN'T afford. Cheap hand
+                // (otherCost ≤ energy) → no gain → avoid (it'd be a wasted 3-energy NoDraw).
+                int lockedCost = System.Math.Max(0, otherCost - state.PlayerEnergy);
+                if (otherCnt == 0 || lockedCost <= 0) { b -= 50; parts.Add("bulletTimeNoCombo=-50"); return; }
+                int bv = (otherPower * lockedCost) / System.Math.Max(1, otherCost);
+                b += bv;
+                parts.Add($"bulletTime(unlock{lockedCost}/{otherCost}cost)=+{bv}");
                 break;
             }
             case "HAVOC":

@@ -58,15 +58,22 @@ internal static class AnalyticalSimulator
         int newFreeAttacks = next.PlayerFreeAttacks;
         int newFreeSkills = next.PlayerFreeSkills;
         int newFreePowers = next.PlayerFreePowers;
+        bool newFreeHand = next.PlayerFreeHandThisTurn;
         bool corruptionFreeSkill = card.IsSkill
             && next.PlayerPowers != null
             && next.PlayerPowers.TryGetValue("CorruptionPower", out var corStack)
             && corStack > 0;
+        // 2026-06-02 — BULLET_TIME free-hand: every non-X-cost card costs 0 for the
+        // rest of this turn. No counter to decrement (turn-scoped flag), so it's
+        // excluded from the free-counter decrement below.
+        bool freeHandActive = next.PlayerFreeHandThisTurn
+            && !(card.Axes != null && card.Axes.Contains("X_COST"));
         bool freeApplied =
             (card.IsAttack && newFreeAttacks > 0) ||
             (card.IsSkill && newFreeSkills > 0) ||
             (card.IsPower && newFreePowers > 0) ||
-            corruptionFreeSkill;
+            corruptionFreeSkill ||
+            freeHandActive;
         // 2026-05-31 — X-cost cards (HEAVENLY_DRILL, TEMPEST, …) spend ALL energy
         // (HasEnergyCostX); base Cost is 0 so the plain subtraction left energy
         // untouched → consistent player_energy +preSpend (HEAVENLY_DRILL +4, 3 rows).
@@ -86,13 +93,17 @@ internal static class AnalyticalSimulator
             : isXCost
                 ? 0
                 : System.Math.Max(0, next.PlayerEnergy - card.Cost - graspCost);
-        if (freeApplied && !corruptionFreeSkill)
+        if (freeApplied && !corruptionFreeSkill && !freeHandActive)
         {
-            // Per-card counters decrement; persistent CorruptionPower doesn't.
+            // Per-card counters decrement; persistent CorruptionPower / turn-scoped
+            // BULLET_TIME free-hand don't.
             if (card.IsAttack) newFreeAttacks--;
             else if (card.IsSkill) newFreeSkills--;
             else if (card.IsPower) newFreePowers--;
         }
+        // 2026-06-02 — BULLET_TIME OnPlay: arm the free-hand flag (this card itself
+        // pays its 3 cost above; the freed cards are every OTHER card in hand this turn).
+        if (card.Id == "BULLET_TIME") newFreeHand = true;
         // 2026-05-30 — SubroutinePower (Defect): AfterCardPlayed refunds Amount
         // energy for every POWER card played (BeforeCardPlayed records the amount
         // only when card.Type == Power). The sim ignored it → player_energy = −Sub
@@ -2674,6 +2685,7 @@ internal static class AnalyticalSimulator
             PlayerFreeAttacks = newFreeAttacks,
             PlayerFreeSkills = newFreeSkills,
             PlayerFreePowers = newFreePowers,
+            PlayerFreeHandThisTurn = newFreeHand,
             // v0.7.71 — propagate updated star count for depth-N lookahead
             PlayerStars = newPlayerStars,
             // v0.8.2 — Propagate updated PlayerPowers dict if any self-power
@@ -3198,6 +3210,8 @@ internal static class AnalyticalSimulator
             PlayerLethality = state.PlayerLethality,
             // v0.7.85 — Unmovable re-arms each turn (single-shot per turn).
             UnmovableUsedThisTurn = false,
+            // 2026-06-02 — BULLET_TIME free-hand is a single-turn effect; clear at boundary.
+            PlayerFreeHandThisTurn = false,
             // v0.8.0 — FlameBarrier expires at end of player turn (1-turn).
             PlayerFlameBarrier = 0,
             PlayerVulnerable = newPlayerVuln,

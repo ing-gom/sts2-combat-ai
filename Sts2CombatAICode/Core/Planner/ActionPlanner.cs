@@ -205,10 +205,14 @@ internal static class ActionPlanner
             && ((state.PlayerCorruption > 0)
                 || (state.PlayerPowers != null
                     && state.PlayerPowers.TryGetValue("CorruptionPower", out var cs) && cs > 0));
+        // 2026-06-02 — BULLET_TIME free-hand: all non-X-cost cards 0-cost this turn.
+        bool freeHandCovers = state.PlayerFreeHandThisTurn
+            && !(c.Axes != null && c.Axes.Contains("X_COST"));
         bool freeCovers = (c.IsAttack && state.PlayerFreeAttacks > 0)
                        || (c.IsSkill && state.PlayerFreeSkills > 0)
                        || (c.IsPower && state.PlayerFreePowers > 0)
-                       || corruptionFreeSkill;
+                       || corruptionFreeSkill
+                       || freeHandCovers;
         if (!freeCovers && c.Cost > state.PlayerEnergy)
             return $"cost{c.Cost}>energy{state.PlayerEnergy}";
         if (c.IsCurseOrStatus) return "curse/status";
@@ -672,11 +676,15 @@ internal static class ActionPlanner
                     || (state.PlayerPowers != null
                         && state.PlayerPowers.TryGetValue("CorruptionPower", out var corStack)
                         && corStack > 0));
+            // 2026-06-02 — BULLET_TIME free-hand: all non-X-cost cards 0-cost this turn.
+            bool freeHandCovers = state.PlayerFreeHandThisTurn
+                && !(card.Axes != null && card.Axes.Contains("X_COST"));
             bool freeCovers =
                 (card.IsAttack && state.PlayerFreeAttacks > 0) ||
                 (card.IsSkill && state.PlayerFreeSkills > 0) ||
                 (card.IsPower && state.PlayerFreePowers > 0) ||
-                corruptionFreeSkill;
+                corruptionFreeSkill ||
+                freeHandCovers;
             if (!freeCovers && card.Cost > state.PlayerEnergy) continue;
             // Note: star-cost cards are filtered by CanPlay() already if no stars; we trust it.
 

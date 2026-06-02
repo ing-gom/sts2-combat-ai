@@ -240,6 +240,15 @@ internal sealed record SimState
     public int PlayerFreePowers { get; init; }
 
     /// <summary>
+    /// 2026-06-02 — BULLET_TIME: all non-X-cost hand cards cost 0 for the REST of
+    /// this turn (game calls SetToFreeThisTurn on every hand card). Set true when
+    /// BULLET_TIME is played, consumed by ApplyCardPlay's freeApplied path so the
+    /// depth-N lookahead sees the freed hand (and the planner therefore values
+    /// BULLET_TIME by the whole hand it unlocks). Reset to false at turn boundary.
+    /// </summary>
+    public bool PlayerFreeHandThisTurn { get; init; }
+
+    /// <summary>
     /// v0.4 — Ordered orb queue. OrbQueue[0] is the head (oldest, evokes first / kicked first
     /// on overflow). Empty when not playing Defect. Count matches PlayerOrbCount.
     /// </summary>
