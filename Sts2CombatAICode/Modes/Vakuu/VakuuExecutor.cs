@@ -31,6 +31,15 @@ namespace Sts2CombatAI.Modes.Vakuu;
 internal static class VakuuExecutor
 {
     /// <summary>
+    /// Engine time-scale multiplier applied for the duration of a planned turn
+    /// (button-driven auto-play). Speeds up card-play tweens/animations so a
+    /// full turn resolves ~2x faster, then restored to the prior scale in the
+    /// finally block. Only in effect while the player's cards are being played;
+    /// the enemy turn (enqueued after this method returns) runs at normal speed.
+    /// </summary>
+    private const double AutoPlayTimeScale = 2.0;
+
+    /// <summary>
     /// SimState snapshot captured at the start of each planner step. Read by the
     /// SmartVakuuCardSelector Harmony patches so mid-card prompts can score against
     /// the current combat state. Null when no Vakuu turn is in flight.
@@ -102,6 +111,12 @@ internal static class VakuuExecutor
         MainFile.Logger.Info(
             $"[CombatAI] starting plan (style={PlaystyleState.Current}, " +
             $"maxSteps={maxSteps}{(isPartialTurn ? ", partial" : "")})");
+
+        // Speed up card-play animations for the auto-played turn. Captured so
+        // we restore the exact prior value (handles the Sts2GameSpeed sister
+        // mod or any other code that may have already adjusted it).
+        double prevTimeScale = Godot.Engine.TimeScale;
+        Godot.Engine.TimeScale = prevTimeScale * AutoPlayTimeScale;
 
         try
         {
@@ -553,6 +568,8 @@ internal static class VakuuExecutor
         }
         finally
         {
+            // Restore the original animation speed — exception path safe.
+            Godot.Engine.TimeScale = prevTimeScale;
             // Always clear static state — exception path safe.
             CurrentSnapshot = null;
             CurrentPlayingCardId = null;
