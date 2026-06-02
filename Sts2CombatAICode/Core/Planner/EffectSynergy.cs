@@ -5869,11 +5869,24 @@ internal static class EffectSynergy
         bool vulnInHand = state.Hand.Any(c =>
             !ReferenceEquals(c, self) && c.IsPlayable
             && (c.Axes.Contains("VULN") || c.PowerApps.ContainsKey("VulnerablePower")));
+        // 2026-06-02 — distinguish a REAL applier (actually grants VulnerablePower) from the
+        // VULN axis, which is unreliable: COLOSSUS/BULLY carry it but COLOSSUS only AMPLIFIES
+        // (applies the "Colossus" power, not Vulnerable). Use PowerApps for precision.
+        bool selfAppliesVuln = self.PowerApps.ContainsKey("VulnerablePower");
+        bool realApplierInHand = state.Hand.Any(c =>
+            !ReferenceEquals(c, self) && c.IsPlayable && c.PowerApps.ContainsKey("VulnerablePower"));
 
-        if (targetVuln)         { b += 450; parts.Add("vulnAmpTgt=+450"); }
-        else if (anyVuln)       { b += 300; parts.Add("vulnAmpAny=+300"); }
-        else if (vulnInHand)    { b += 250; parts.Add("vulnAmpInHand=+250"); }
-        else                    { b -= 300; parts.Add("vulnAmpNoSource=-300"); }
+        if (targetVuln)             { b += 450; parts.Add("vulnAmpTgt=+450"); }
+        else if (anyVuln)           { b += 300; parts.Add("vulnAmpAny=+300"); }
+        else if (selfAppliesVuln)   { b += 250; parts.Add("vulnAmpSelfApplies=+250"); }
+        // Pure amplifier, no enemy vuln yet, but a real Vuln-applier is still in hand → DEFER:
+        // drop to a small positive so the applier (higher-scored) plays FIRST, then the next
+        // re-plan sees anyVuln → +300 and the amp lands on a vuln target. Small (not negative)
+        // so the amp still plays if the applier turns out unaffordable. Fixes the ~5-8% Ironclad
+        // VULNAMP_LATE inversion (COLOSSUS/DISMANTLE played before the applier). [[feedback_axis_classification]]
+        else if (realApplierInHand) { b += 50;  parts.Add("vulnAmpDeferForApplier=+50"); }
+        else if (vulnInHand)        { b += 250; parts.Add("vulnAmpInHand=+250"); }
+        else                        { b -= 300; parts.Add("vulnAmpNoSource=-300"); }
     }
 
     private static void ApplyWeakAmplifier(SimCard self, SimState state, ref int b, List<string> parts)
