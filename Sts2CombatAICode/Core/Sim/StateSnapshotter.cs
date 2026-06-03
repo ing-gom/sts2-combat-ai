@@ -1079,6 +1079,10 @@ internal static class StateSnapshotter
         // fired yet this combat. Amount = block gained on first hit.
         int curlUp = powerDict.TryGetValue("CurlUpPower", out var cu) ? cu : 0;
 
+        // 2026-06-03 — SelfFormingClayPower: one-shot block regain when the enemy's block is
+        // fully cleared. Same reactive-block shape as CurlUp (see SimEnemy).
+        int selfFormingClay = powerDict.TryGetValue("SelfFormingClayPower", out var sfc) ? sfc : 0;
+
         // v0.9 — ImbalancedPower (BowlbugRock self-stun-on-fully-blocked).
         // Stack 1 by default (Single stack type). Captures presence.
         int imbalanced = powerDict.TryGetValue("ImbalancedPower", out var ib) ? ib : 0;
@@ -1092,6 +1096,7 @@ internal static class StateSnapshotter
         // unblocked damage event landed. Long-term value loss; informs
         // "kill this enemy first" prioritization.
         int paperCuts = powerDict.TryGetValue("PaperCutsPower", out var pc) ? pc : 0;
+        int painfulStabs = powerDict.TryGetValue("PainfulStabsPower", out var psb) ? psb : 0;
 
         // SandpitPower (The Insatiable): hard instakill counter. Decrements
         // each enemy turn; when it transitions to 0 the AfterRemoved hook
@@ -1231,9 +1236,11 @@ internal static class StateSnapshotter
             SkittishAmount = skittish,
             SkittishAlreadyTriggered = skittishUsed,
             CurlUpAmount = curlUp,
+            SelfFormingClayAmount = selfFormingClay,
             ImbalancedAmount = imbalanced,
             TerritorialAmount = territorial,
             PaperCutsAmount = paperCuts,
+            PainfulStabsAmount = painfulStabs,
             SandpitAmount = sandpit,
             OnDeathSpawnsCount = onDeathSpawns,
         };

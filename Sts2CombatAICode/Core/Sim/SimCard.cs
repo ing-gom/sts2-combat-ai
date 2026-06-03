@@ -381,6 +381,14 @@ internal sealed record SimCard
             total = System.Math.Max(0, total - tgt.CurlUpAmount);
         }
 
+        // 2026-06-03 — SelfFormingClayPower (one-shot reactive block when block fully
+        // cleared). Stripping its block triggers an immediate Amount block regain, so a
+        // portion of our damage is re-absorbed once. Same value-loss model as CurlUp.
+        if (tgt != null && tgt.SelfFormingClayAmount > 0)
+        {
+            total = System.Math.Max(0, total - tgt.SelfFormingClayAmount);
+        }
+
         return total / System.Math.Max(1.0, Cost);
     }
 

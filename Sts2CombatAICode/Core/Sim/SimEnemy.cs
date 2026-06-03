@@ -142,6 +142,14 @@ internal sealed record SimEnemy
     public int CurlUpAmount { get; init; }
 
     /// <summary>
+    /// 2026-06-03 — SelfFormingClayPower (decompile AfterBlockCleared): when this enemy's
+    /// block is fully cleared, it immediately gains Amount block AND removes the power
+    /// (one-shot). Same effective shape as CurlUp — our damage that strips its block is
+    /// partly re-absorbed once — so it subtracts from effective damage the same way.
+    /// </summary>
+    public int SelfFormingClayAmount { get; init; }
+
+    /// <summary>
     /// v0.9 — ImbalancedPower (BowlbugRock-style self-stun). When this enemy's
     /// attack is FULLY BLOCKED by the player, the enemy stuns itself the
     /// following turn (skip attack). For player DEFEND scoring this gives an
@@ -166,6 +174,14 @@ internal sealed record SimEnemy
     /// more (or kill this enemy faster). 0 = power absent.
     /// </summary>
     public int PaperCutsAmount { get; init; }
+
+    /// <summary>
+    /// 2026-06-03 — PainfulStabsPower (decompile AfterAttack): when this enemy lands an
+    /// unblocked powered attack on the player, it shuffles Amount × (unblocked hits) Wound
+    /// cards into the player's discard. Deck-pollution analog of PaperCuts — captured for
+    /// parity / future block-priority scoring (PaperCuts is likewise capture-only today).
+    /// </summary>
+    public int PainfulStabsAmount { get; init; }
 
     /// <summary>
     /// SandpitPower stack (The Insatiable). Decrements -1 at each enemy turn

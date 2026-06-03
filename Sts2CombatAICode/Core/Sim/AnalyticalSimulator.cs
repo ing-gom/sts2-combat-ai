@@ -893,6 +893,12 @@ internal static class AnalyticalSimulator
                 // correctly, matching real's two independent resolutions).
                 if (oneTwoPunchActive)
                     totalDmg *= 2;
+                // 2026-06-03 — GuardedPower (decompile: ModifyDamageMultiplicative → 0.5m on the
+                // owner for powered attacks). Another enemy damage-multiplier alongside Conqueror/
+                // Slow above: a guarded enemy takes HALF damage from card attacks. Apply last so it
+                // halves the fully-amped total. Was unmodeled → 2× over-damage vs guarded enemies.
+                if (enemy.Powers != null && enemy.Powers.ContainsKey("GuardedPower"))
+                    totalDmg /= 2;
                 // §120 — totalDmg is now the UNCAPPED post-multiplier damage. FISTICUFFS gains
                 // block == the shell-CAPPED pre-block damage (its prior semantics; preserved so
                 // non-shell cases are byte-identical). Compute that capped value separately.
@@ -942,6 +948,24 @@ internal static class AnalyticalSimulator
                         int absorbed = System.Math.Min(reflect, newPlayerBlock);
                         newPlayerBlock -= absorbed;
                         int leak = reflect - absorbed;
+                        if (leak > 0)
+                            newPlayerHp = System.Math.Max(0, newPlayerHp - leak);
+                    }
+                }
+
+                // 2026-06-03 — ReflectPower (decompile AfterDamageReceived): the BLOCKED portion
+                // of a powered attack is reflected to the attacker as Unpowered damage. Reflected
+                // = how much our damage sank into the enemy's block (min(totalDmg, enemy.Block));
+                // our own block soaks it first. Distinct from Thorns (fixed per-hit amount).
+                if (enemy.Powers != null && enemy.Powers.TryGetValue("ReflectPower", out var reflPow)
+                    && reflPow > 0)
+                {
+                    int blockedPortion = System.Math.Min(totalDmg, enemy.Block);
+                    if (blockedPortion > 0)
+                    {
+                        int absorbed = System.Math.Min(blockedPortion, newPlayerBlock);
+                        newPlayerBlock -= absorbed;
+                        int leak = blockedPortion - absorbed;
                         if (leak > 0)
                             newPlayerHp = System.Math.Max(0, newPlayerHp - leak);
                     }
@@ -2951,13 +2975,19 @@ internal static class AnalyticalSimulator
             // is already 0, so the burrowed branch collapses to the normal reset.
             bool burrowed = ne.Powers != null
                 && ne.Powers.TryGetValue("BurrowedPower", out var bp) && bp > 0;
+            // 2026-06-03 — RampartPower (decompile AfterSideTurnStart(Player): TurretOperator
+            // GainBlock Amount): the enemy gains Amount block at the start of each player turn.
+            // Net of the reset that's just Amount block, so the projection sees the re-armored
+            // turret instead of a clean 0-block target.
+            int rampart = (ne.Powers != null && ne.Powers.TryGetValue("RampartPower", out var rp))
+                ? rp : 0;
             ne = ne with
             {
                 VulnerableAmount = System.Math.Max(0, ne.VulnerableAmount - 1),
                 WeakAmount       = System.Math.Max(0, ne.WeakAmount - 1),
                 FrailAmount      = System.Math.Max(0, ne.FrailAmount - 1),
                 PoisonAmount     = System.Math.Max(0, ne.PoisonAmount - 1),
-                Block            = burrowed ? ne.Block : 0, // burrowed retains; others reset each turn
+                Block            = rampart > 0 ? rampart : (burrowed ? ne.Block : 0), // rampart re-arms; burrowed retains; others reset
                 // SandpitPower decrements at AfterSideTurnStartLate(Enemy)
                 // — for our turn-boundary model that's "end of player turn /
                 // start of next enemy phase". Transitioning to 0 here means

@@ -851,6 +851,16 @@ internal static class PlanScorer
                     details.Add($"SHELL(spent)→0");
                     effectiveTotal = 0;
                 }
+                // 2026-06-03 — GuardedPower (decompile: ModifyDamageMultiplicative → 0.5 on the
+                // owner for powered attacks): the targeted enemy takes HALF card-attack damage.
+                // Halve here so BOTH the primary damage score (dmgForScoring) and the threshold
+                // call below see the reduced total. Without it the planner over-credits damage and
+                // lethal ~2× vs guarded enemies. (AoE path halves separately in the enemy loop.)
+                if (shellTarget.Powers.ContainsKey("GuardedPower") && effectiveTotal > 0)
+                {
+                    details.Add($"GUARDED:{effectiveTotal}→{effectiveTotal / 2}");
+                    effectiveTotal /= 2;
+                }
             }
 
             // v0.7.0 — Random multi-hit detection. Cards with TargetType.RandomEnemy
@@ -1299,6 +1309,30 @@ internal static class PlanScorer
                     details.Add($"THORNS(raw{reflectTotal},leak{leakTotal})={thornsPenalty}");
                 }
             }
+            // 2026-06-03 — ReflectPower (decompile): the BLOCKED portion of our attack is
+            // reflected back as Unpowered self-damage (= min(our damage, enemy block); our
+            // remaining block soaks it first). Distinct from Thorns' fixed per-hit amount.
+            // Fold into the thorns self-damage cascade so it shares the HP-fraction / survival
+            // weighting and pushes the planner off suicidal swings into a reflecting wall.
+            if (!isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count)
+            {
+                var reflectTarget = state.Enemies[targetIdx];
+                if (reflectTarget.Powers != null && reflectTarget.Powers.ContainsKey("ReflectPower")
+                    && reflectTarget.Block > 0 && effectiveTotal > 0)
+                {
+                    int blocked = System.Math.Min(effectiveTotal, reflectTarget.Block);
+                    int absorbed = System.Math.Min(blocked, thornsBlockBudget);
+                    thornsBlockBudget -= absorbed;
+                    int leak = blocked - absorbed;
+                    if (leak > 0)
+                    {
+                        thornsPenalty += -leak * w.ThornsPenaltyPerLeakHp;
+                        thornsDamage += leak;
+                        details.Add($"REFLECT(blocked{blocked},leak{leak})");
+                    }
+                }
+            }
+
             // v0.7.40 — HP-fraction multiplier. Compounds with the flat penalty.
             // v0.10 — Cascade externalized to PlanScorerWeights.ThornsHpFractionMultipliers
             // (JSON-tunable). Pick the highest threshold satisfied.
@@ -2126,7 +2160,7 @@ internal static class PlanScorer
             bool hasThresholdState = (target.Powers != null && target.Powers.Count > 0)
                                   || target.OnDeathSpawnsCount > 0;
             if (!target.IsAlive || !hasThresholdState) return 0;
-            totalBonus = ScoreThresholdsForEnemy(target, effectiveTotal, w, details);
+            totalBonus = ScoreThresholdsForEnemy(target, effectiveTotal, state, w, details);
         }
         else
         {
@@ -2142,14 +2176,17 @@ internal static class PlanScorer
                 perHit = StatusMath.ApplyDamageMultipliers(perHit, state,
                     e.VulnerableAmount > 0, e.WeakAmount > 0, lethalityActive: false);
                 int effTotalForE = perHit * hits;
-                totalBonus += ScoreThresholdsForEnemy(e, effTotalForE, w, details);
+                // 2026-06-03 — GuardedPower halves card-attack damage to its owner (see single-
+                // target path). Mirror it here for the AoE threshold scoring.
+                if (e.Powers != null && e.Powers.ContainsKey("GuardedPower")) effTotalForE /= 2;
+                totalBonus += ScoreThresholdsForEnemy(e, effTotalForE, state, w, details);
             }
         }
         return totalBonus;
     }
 
     private static int ScoreThresholdsForEnemy(SimEnemy target, int effectiveTotal,
-        PlanScorerWeights w, List<string> details)
+        SimState state, PlanScorerWeights w, List<string> details)
     {
         int currentHp = target.Hp;
         int incomingDmg = System.Math.Max(0, effectiveTotal - target.Block);
@@ -2210,6 +2247,100 @@ internal static class PlanScorer
             if (spawnPenalty < SpawnPenaltyCap) spawnPenalty = SpawnPenaltyCap;
             bonus += spawnPenalty;
             details.Add($"infestedKill(spawns{target.OnDeathSpawnsCount})={spawnPenalty}");
+        }
+
+        // 2026-06-03 — IllusionPower (decompile AfterDeath): on death the enemy does NOT leave
+        // combat — it revives to FULL HP next turn (HealIntent revive move). Chip-killing it is
+        // wasted burst: it heals back to max and the kill must be re-paid. Penalize lethal-this-
+        // hit (like InfestedPower) so the planner spends damage elsewhere / on the leader —
+        // IllusionPower also self-applies MinionPower, so killing the leader is the real out.
+        if (target.Powers.TryGetValue("IllusionPower", out var illusion) && illusion > 0
+            && hpAfter <= 0 && currentHp > 0)
+        {
+            const int IllusionKillPenalty = -1500;
+            bonus += IllusionKillPenalty;
+            details.Add($"illusionKill(revivesFull)={IllusionKillPenalty}");
+        }
+
+        // 2026-06-03 — SteamEruptionPower (decompile: ShouldStopCombatFromEnding + owner not
+        // removed on death → killing it does NOT end the fight; it triggers an AboutToBlow that
+        // deals damage at the end of the next turn). Mild lethal nudge so the planner prefers to
+        // have block up when it lands the kill rather than chip it into an unguarded turn.
+        if (target.Powers.TryGetValue("SteamEruptionPower", out var steam) && steam > 0
+            && hpAfter <= 0 && currentHp > 0)
+        {
+            const int SteamEruptionKillPenalty = -500;
+            bonus += SteamEruptionKillPenalty;
+            details.Add($"steamEruptKill(blowsUp)={SteamEruptionKillPenalty}");
+        }
+
+        // 2026-06-03 — kill-order enemy powers that need sibling-enemy context.
+        bool killsTarget = hpAfter <= 0 && currentHp > 0;
+        int aliveEnemies = 0;
+        for (int i = 0; i < state.Enemies.Count; i++)
+            if (state.Enemies[i].IsAlive) aliveEnemies++;
+
+        // ReattachPower (Decimillipede segment): on death it REVIVES with Amount HP unless ALL
+        // other segments are already dead. Chip-killing a segment while siblings live is wasted —
+        // it comes back. Only penalize when other enemies remain (the final kill is genuine).
+        if (killsTarget && aliveEnemies > 1
+            && target.Powers.TryGetValue("ReattachPower", out var reattach) && reattach > 0)
+        {
+            const int ReattachKillPenalty = -1200;
+            bonus += ReattachKillPenalty;
+            details.Add($"reattachKill(revives)={ReattachKillPenalty}");
+        }
+
+        // MinionPower focus-leader: minions give up the fight when their leader dies. Killing a
+        // NON-minion enemy (the likely controller) while minions are present clears them for free.
+        // A bonus (never blocks a play), so misidentifying the leader is benign.
+        if (killsTarget && !target.Powers.ContainsKey("MinionPower"))
+        {
+            bool anyMinion = false;
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                var e = state.Enemies[i];
+                if (e.IsAlive && !ReferenceEquals(e, target)
+                    && e.Powers != null && e.Powers.ContainsKey("MinionPower")) { anyMinion = true; break; }
+            }
+            if (anyMinion)
+            {
+                const int LeaderKillBonus = 800;
+                bonus += LeaderKillBonus;
+                details.Add($"leaderKill(clearsMinions)=+{LeaderKillBonus}");
+            }
+        }
+
+        // CrabRagePower: when an ally dies, the crab gains +6 Strength and +99 Block. Killing
+        // OTHER enemies first super-buffs it. Mild penalty for a kill while a different crab-rage
+        // enemy is alive — small enough not to block a genuinely needed kill, just a nudge to
+        // burst the crab itself or not feed it.
+        if (killsTarget && !target.Powers.ContainsKey("CrabRagePower"))
+        {
+            bool crabAlive = false;
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                var e = state.Enemies[i];
+                if (e.IsAlive && !ReferenceEquals(e, target)
+                    && e.Powers != null && e.Powers.ContainsKey("CrabRagePower")) { crabAlive = true; break; }
+            }
+            if (crabAlive)
+            {
+                const int CrabRageFeedPenalty = -600;
+                bonus += CrabRageFeedPenalty;
+                details.Add($"crabRageFeed(buffsCrab)={CrabRageFeedPenalty}");
+            }
+        }
+
+        // HatchPower: counter ticks down each enemy turn; on expiry the egg hatches into a
+        // (typically worse) creature. A low counter = about to hatch → modest priority to remove
+        // it first while it's still a weak egg.
+        if (target.Powers.TryGetValue("HatchPower", out var hatch) && hatch > 0 && hatch <= 2
+            && incomingDmg > 0 && hpAfter > 0)
+        {
+            int hatchBonus = w.BlockUnderThreatBonus / 4;
+            bonus += hatchBonus;
+            details.Add($"hatchSoon(counter{hatch})=+{hatchBonus}");
         }
 
         // Stun threshold: ShriekPower (TerrorEel), PlowPower (CeremonialBeast).
