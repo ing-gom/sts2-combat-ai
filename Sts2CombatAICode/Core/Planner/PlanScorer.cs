@@ -64,6 +64,19 @@ internal static class PlanScorer
         return 0;
     }
 
+    /// <summary>
+    /// 2026-06-03 — Percent of the defensive threatBonus kept when the survival race
+    /// is Losing (can't win at current pace). 100 = current behavior; lower forces
+    /// all-in damage instead of futile blocking against high-HP bosses. STS2_LOSING_BLOCK.
+    /// </summary>
+    public static int LosingBlockPct = ResolveLosingBlock();
+    private static int ResolveLosingBlock()
+    {
+        var s = System.Environment.GetEnvironmentVariable("STS2_LOSING_BLOCK");
+        if (int.TryParse(s, out var v) && v >= 0 && v <= 100) return v;
+        return 100;
+    }
+
     public static int Score(SimCard card, int targetIdx, SimState state)
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current)).Total;
 
@@ -2092,6 +2105,22 @@ internal static class PlanScorer
                     details.Add($"delayedAOE({card.Effect.DelayedAoeDamage}×{aoeFactor}×{delayMult:F2})={delayedBombBonus}");
             }
 
+            // 2026-06-03 — Losing-race block suppression. When TurnsToDeath ≤ TurnsToKill
+            // (we can't win at the current pace — e.g. a 173-HP boss vs a ~15-DPT deck),
+            // blocking only delays the loss; the only chance is to race damage. But the
+            // threatBonus (~2000 for blocking any incoming) dwarfs the Losing RaceBonus
+            // (block −60) and keeps the planner over-blocking (observed boss R1: DEFEND
+            // 2178 ≫ STRIKE 838). Scale the defensive threatBonus down in a Losing race
+            // so attacks win and the deck deals maximum boss damage. STS2_LOSING_BLOCK =
+            // percent kept (100 = off/current, 0 = full suppression).
+            if (LosingBlockPct < 100 && threatBonus > 0
+                && raceProj.Race == SurvivalProjection.RaceOutcome.Losing)
+            {
+                int kept = threatBonus * LosingBlockPct / 100;
+                details.Add($"losingBlockSuppress({threatBonus}→{kept})");
+                threatBonus = kept;
+            }
+
             int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + imbalancedBonus + confusedPenalty + relicBonusSkill + delayedBombBonus + generatorRescueBonus;
             // v0.9 — Per-energy efficiency diagnostic (Skill: block/E).
             // Raw block/E (Dex/Frail-naïve) → Effective block/E with Frail/
@@ -3817,6 +3846,27 @@ internal static class PlanScorer
         // Captured as PlayerNoEnergyGain but was previously ignored here → energy cards stayed
         // over-valued under the debuff. Treat the gain as wasted.
         if (state.PlayerNoEnergyGain > 0) return w.EnergyGainWastedPenalty;
+
+        // 2026-06-03 — CONDITIONAL energy cards only grant energy when their in-combat condition
+        // holds. card.EnergyGain carries the amount unconditionally, and the sim already gates
+        // these in AnalyticalSimulator.ApplyCardPlay — but this recommendation path did not, so
+        // they were scored as energy gains even with the condition UNMET (e.g. FORGOTTEN_RITUAL
+        // recommended though no card was exhausted this turn). Mirror the sim's gate:
+        //   • FORGOTTEN_RITUAL — energy only if a card was exhausted THIS turn. If not, it's a
+        //     do-nothing play → wasted (the exhaust→ritual combo is still found via depth-2,
+        //     where the sim now sets PlayerCardExhaustedThisTurn after an exhaust).
+        //   • SUNDER — kill-conditional energy; EvaluateEnergyGain has no target so the kill
+        //     can't be confirmed here. Don't credit tempo (0); the attack's own kill scoring
+        //     and the sim's depth-2 gate carry the real value.
+        if (card.Id == "FORGOTTEN_RITUAL" && !state.PlayerCardExhaustedThisTurn)
+            return w.EnergyGainWastedPenalty;
+        if (card.Id == "SUNDER")
+            return 0;
+        // RESTLESSNESS — energy only triggers when the hand is empty, and it's already modeled
+        // conditionally (draw+energy bundle) in EffectSynergy.ApplyRestlessnessConditional.
+        // Defer to that handler here so the unconditional tempo path can't double-credit it.
+        if (card.Id == "RESTLESSNESS")
+            return 0;
 
         int immediateGain = card.EnergyGain;
 

@@ -2729,6 +2729,12 @@ internal static class AnalyticalSimulator
             // cards: POMMEL_STRIKE / SHRUG_IT_OFF / ANGER copy etc.).
             DrawPile = newDrawPile,
             ExhaustPileCount = newExhaustPileCount,
+            // 2026-06-03 — once ANY card is exhausted this play, set the this-turn flag so a
+            // following FORGOTTEN_RITUAL (gated above on PlayerCardExhaustedThisTurn) credits its
+            // conditional energy in depth-N lookahead. Without this the exhaust→ritual combo was
+            // never recognized (flag was read-only, only ever from the initial snapshot).
+            PlayerCardExhaustedThisTurn = next.PlayerCardExhaustedThisTurn
+                || newExhaustPileCount > next.ExhaustPileCount,
             // v0.9 — propagate per-target attack counter for depth-N forge math.
             TurnAttacksByTargetIdx = newTurnAttacksByTgt,
             // v0.9 — propagate updated SB count so a second Forge in the
