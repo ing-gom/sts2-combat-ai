@@ -455,6 +455,7 @@ internal static class StateSnapshotter
             // draw CardDrawnEntry this turn (real draws from draw pile, excluding
             // hand→pile→hand cycles).
             int turnCardsDrawn = 0;
+            int combatCardsDrawn = 0;   // MURDER: total draws this combat (all entries)
             // v0.9.2 — Osty reference captured before the history walk so
             // CreatureAttackedEntry can compare its Actor against this
             // player's skeleton (RATTLE's exact source pattern). Null when no
@@ -642,11 +643,12 @@ internal static class StateSnapshotter
                         // CardDrawnEntry by this player (decompile sts2.decompiled.cs:349298).
                         else if (entry is CardDrawnEntry cde)
                         {
+                            if (cde.Actor != creature) continue;
+                            combatCardsDrawn++;   // MURDER: all draws this combat (no turn/hand filter)
                             if (cde.RoundNumber != cs.RoundNumber) continue;
                             if (cde.CurrentSide != cs.CurrentSide) continue;
-                            if (cde.Actor != creature) continue;
                             if (cde.FromHandDraw) continue;
-                            turnCardsDrawn++;
+                            turnCardsDrawn++;     // DEATH_MARCH: this-turn non-hand draws
                         }
                     }
                 }
@@ -660,6 +662,7 @@ internal static class StateSnapshotter
             int playerStatusCardCount = 0;
             int playerStarCostCardCount = 0;
             int playerOstyAttackCardCount = 0;
+            int playerSoulsInExhaust = 0;   // SOUL_STORM
             try
             {
                 var allCards = player.PlayerCombatState?.AllCards;
@@ -670,6 +673,8 @@ internal static class StateSnapshotter
                         if (c == null) continue;
                         if (c.Type == CardType.Status && c.Pile?.Type != PileType.Exhaust)
                             playerStatusCardCount++;
+                        if (c.Pile?.Type == PileType.Exhaust && c.Id.Entry == "SOUL")
+                            playerSoulsInExhaust++;
                         try
                         {
                             if (c.CanonicalStarCost >= 0 || c.HasStarCostX)
@@ -845,6 +850,8 @@ internal static class StateSnapshotter
                 PlayerStatusCardCount = playerStatusCardCount,
                 PlayerHandTurnEndDamage = ComputeHandTurnEndDamage(hand),
                 TurnCardsDrawn = turnCardsDrawn,
+                CombatCardsDrawn = combatCardsDrawn,
+                PlayerSoulsInExhaust = playerSoulsInExhaust,
                 PlayerStarCostCardCount = playerStarCostCardCount,
                 PlayerOstyAttackCardCount = playerOstyAttackCardCount,
                 TurnAttacksByTargetIdx = (IReadOnlyDictionary<int, int>?)turnAttacksByTargetIdx

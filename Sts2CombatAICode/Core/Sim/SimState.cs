@@ -578,6 +578,18 @@ internal sealed record SimState
     public int TurnCardsDrawn { get; init; }
 
     /// <summary>
+    /// 2026-06-04 — MURDER: damage = base 1 + total cards DRAWN this COMBAT by the player
+    /// (decompile: CardDrawnEntry count, no turn/hand filter). Distinct from TurnCardsDrawn.
+    /// </summary>
+    public int CombatCardsDrawn { get; init; }
+
+    /// <summary>
+    /// 2026-06-04 — SOUL_STORM: damage = base 9 + 2 × Souls in the Exhaust pile (decompile:
+    /// ExhaustPile.Cards.Count(c is Soul)).
+    /// </summary>
+    public int PlayerSoulsInExhaust { get; init; }
+
+    /// <summary>
     /// v0.9.7 — Snapshot count of star-cost cards owned by the player across
     /// all piles (matches Regent's CRESCENT_SPEAR multiplier: cards where
     /// CanonicalStarCost >= 0 OR HasStarCostX, decompile :348904). Includes

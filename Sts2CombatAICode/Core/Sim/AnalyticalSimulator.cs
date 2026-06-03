@@ -939,6 +939,10 @@ internal static class AnalyticalSimulator
                     totalDmg += 5 * ((enemy.VulnerableAmount > 0 ? 1 : 0) + (enemy.WeakAmount > 0 ? 1 : 0)
                         + (enemy.FrailAmount > 0 ? 1 : 0) + (enemy.PoisonAmount > 0 ? 1 : 0)
                         + (enemy.ConstrictAmount > 0 ? 1 : 0));
+                else if (card.Id == "MURDER")
+                    totalDmg += next.CombatCardsDrawn;                    // 1 + draws this combat
+                else if (card.Id == "SOUL_STORM")
+                    totalDmg += 2 * next.PlayerSoulsInExhaust;            // 9 + 2×Souls in exhaust
                 // §120 — totalDmg is now the UNCAPPED post-multiplier damage. FISTICUFFS gains
                 // block == the shell-CAPPED pre-block damage (its prior semantics; preserved so
                 // non-shell cases are byte-identical). Compute that capped value separately.

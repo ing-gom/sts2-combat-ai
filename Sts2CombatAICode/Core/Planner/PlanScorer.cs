@@ -957,7 +957,7 @@ internal static class PlanScorer
             {
                 var st = state.Enemies[targetIdx];
                 int scaleBonus = 0;
-                if (card.Id == "BULLY") scaleBonus = 2 * st.VulnerableAmount;        // 4 + 2×Vuln
+                if (card.Id == "BULLY") scaleBonus = 2 * st.VulnerableAmount;        // 4 + 2×Vuln (target)
                 else if (card.Id == "REND")                                          // 15 + 5×(debuffs on target)
                 {
                     int debuffs = (st.VulnerableAmount > 0 ? 1 : 0) + (st.WeakAmount > 0 ? 1 : 0)
@@ -965,6 +965,9 @@ internal static class PlanScorer
                                 + (st.ConstrictAmount > 0 ? 1 : 0);
                     scaleBonus = 5 * debuffs;
                 }
+                // self-state scalers (base>0 captured, multiplier lost — see StateSnapshotter):
+                else if (card.Id == "MURDER") scaleBonus = state.CombatCardsDrawn;        // 1 + draws this combat
+                else if (card.Id == "SOUL_STORM") scaleBonus = 2 * state.PlayerSoulsInExhaust; // 9 + 2×Souls in exhaust
                 if (scaleBonus > 0)
                 {
                     effectiveTotal += scaleBonus;
