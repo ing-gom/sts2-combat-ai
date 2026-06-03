@@ -44,6 +44,26 @@ internal static class PlanScorer
         return 100;
     }
 
+    /// <summary>
+    /// 2026-06-03 — HP-preservation block bonus (per useful-block point), applied
+    /// ONLY when the fight is already won (race == Winning). HP is a cross-combat
+    /// resource: when victory is secure, blocking real incoming is "free" survived
+    /// HP — the forgone chip attack wouldn't change the kill turn (the enemy lives
+    /// either way). This is the user's distinction: push damage when killing sooner
+    /// removes a future enemy turn (handled by kill/burst bonuses); block to
+    /// preserve HP when it doesn't. Gated to Winning + usefulBlock>0 so it never
+    /// blocks when we must race (Losing) and never over-blocks (leak-capped). The
+    /// blind-block Fatal experiment failed precisely because it ignored this gate.
+    /// Default 0 (OFF) — A/B via STS2_HP_PRESERVE.
+    /// </summary>
+    public static int HpPreservePerPoint = ResolveHpPreserve();
+    private static int ResolveHpPreserve()
+    {
+        var s = System.Environment.GetEnvironmentVariable("STS2_HP_PRESERVE");
+        if (int.TryParse(s, out var v) && v >= 0) return v;
+        return 0;
+    }
+
     public static int Score(SimCard card, int targetIdx, SimState state)
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current)).Total;
 
@@ -1803,6 +1823,19 @@ internal static class PlanScorer
                 details.Add($"neutralize({residual}leak)+{w.BlockNeutralizeBonus}");
             }
 
+            // 2026-06-03 — HP preservation when the fight is already won. usefulBlock
+            // is leak-capped (only real, non-wasted block), and the Winning gate means
+            // the forgone chip attack wouldn't change the kill turn — so this block is
+            // pure cross-combat HP savings. Never fires when Losing/Tight (must race)
+            // or when there's no incoming (usefulBlock==0).
+            if (HpPreservePerPoint > 0 && usefulBlock > 0
+                && raceProj.Race == SurvivalProjection.RaceOutcome.Winning)
+            {
+                int preserve = usefulBlock * HpPreservePerPoint;
+                threatBonus += preserve;
+                details.Add($"hpPreserve(useful{usefulBlock})=+{preserve}");
+            }
+
             // Wasted-block penalty: only for blocks that genuinely accomplish nothing.
             // If neutralize fires (block fully absorbs an incoming hit), it's by definition
             // NOT wasted — these two rules used to fight each other.
@@ -2260,6 +2293,26 @@ internal static class PlanScorer
             if (stunBonus > AsleepCap) stunBonus = AsleepCap;
             bonus += stunBonus;
             details.Add($"asleepWake(hp{currentHp}→{hpAfter},est{est})=+{stunBonus}");
+        }
+
+        // 2026-06-03 — BurrowedPower (잠복, e.g. burrowing enemies): the enemy KEEPS its
+        // Block across turn starts, but if ALL of its Block is stripped it is Stunned and
+        // skips a turn. So unlike a normal blocked enemy (where attacking into block is
+        // wasted), breaking the LAST point of block here is a stun — worth an enemy
+        // attack-turn. Trigger when this play's raw damage clears the whole block bar
+        // (effectiveTotal ≥ Block) and the enemy survives (a kill makes the stun moot).
+        // Previously unmodeled: 'burrow' had zero references, so the planner treated a
+        // burrowed enemy's block as ordinary soak and never prioritized breaking it.
+        if (target.Powers.TryGetValue("BurrowedPower", out var burrowed) && burrowed > 0
+            && target.Block > 0 && effectiveTotal >= target.Block && hpAfter > 0)
+        {
+            int est = System.Math.Max(15,
+                target.IntentDamage * System.Math.Max(1, target.IntentRepeats));
+            int stunBonus = w.BlockUnderThreatBonus + est * w.BlockPerPointBonus;
+            const int BurrowedCap = 3500;
+            if (stunBonus > BurrowedCap) stunBonus = BurrowedCap;
+            bonus += stunBonus;
+            details.Add($"burrowedBreak(block{target.Block},raw{effectiveTotal},est{est})=+{stunBonus}");
         }
 
         // v0.9 — SlumberPower (Slumbering Beetle): counter starts at Amount,
@@ -3617,10 +3670,19 @@ internal static class PlanScorer
         int immediateGain = card.EnergyGain;
 
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);
+        int afterGain = remainingEnergy + immediateGain;
 
+        // 2026-06-03 — count cards playable NOW or only blocked by affordability that THIS
+        // card's energy gain resolves. IsPlayable folds in CanPlay()'s energy check, so the
+        // expensive payoff an energy card exists to unlock (e.g. THE_BOMB at 0 energy) reads
+        // !IsPlayable — exactly the card the gain enables. The old predicate counted only
+        // IsPlayable, so in that scenario otherPlayable was empty → returned -1500 and the
+        // planner never played the energy card even though gaining energy would let us use it.
+        // (Sibling of the EnumerateCandidates affordable-after-gain fix; the filter kept the
+        // energy card as a candidate but this value path still buried it at -1500.)
         var otherPlayable = state.Hand
-            .Where(c => !ReferenceEquals(c, card) && c.IsPlayable
-                       && c.Cost >= 0 && !c.IsCurseOrStatus)
+            .Where(c => !ReferenceEquals(c, card) && !c.IsCurseOrStatus && c.Cost >= 0
+                       && (c.IsPlayable || c.Cost <= afterGain))
             .ToList();
         if (otherPlayable.Count == 0) return -1500;
 
@@ -3634,7 +3696,6 @@ internal static class PlanScorer
         int shortfall = totalOtherCost - remainingEnergy;
         if (shortfall <= 0) return w.EnergyGainWastedPenalty;   // can already play it all → overflow
 
-        int afterGain = remainingEnergy + immediateGain;
         int unlocked = otherPlayable.Count(c => c.Cost > remainingEnergy && c.Cost <= afterGain);
 
         // Energy that actually gets spent (capped by the shortfall) × a per-energy tempo value,
