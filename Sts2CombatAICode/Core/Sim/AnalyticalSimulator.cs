@@ -926,6 +926,11 @@ internal static class AnalyticalSimulator
                 // halves the fully-amped total. Was unmodeled → 2× over-damage vs guarded enemies.
                 if (enemy.Powers != null && enemy.Powers.ContainsKey("GuardedPower"))
                     totalDmg /= 2;
+                // 2026-06-04 — DISMANTLE hits twice vs a Vulnerable target (decompile hitCount
+                // 2:1). Plain DamageVar so not in CalculatedDamage; double here so depth-2 (and
+                // post-play HP) match the scorer's ×2.
+                if (card.Id == "DISMANTLE" && enemy.VulnerableAmount > 0)
+                    totalDmg *= 2;
                 // §120 — totalDmg is now the UNCAPPED post-multiplier damage. FISTICUFFS gains
                 // block == the shell-CAPPED pre-block damage (its prior semantics; preserved so
                 // non-shell cases are byte-identical). Compute that capped value separately.

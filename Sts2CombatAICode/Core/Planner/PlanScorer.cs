@@ -934,6 +934,19 @@ internal static class PlanScorer
             if (state.PlayerNextAttackMult > 1)
                 effectiveTotal *= state.PlayerNextAttackMult;
 
+            // 2026-06-04 — DISMANTLE (decompile: hitCount = target.HasPower<Vulnerable> ? 2 : 1).
+            // It's a plain DamageVar — the doubling lives in OnPlay, NOT in CalculatedDamage — so
+            // the scorer saw only 1 hit and under-valued it 2× against a Vulnerable target (its
+            // whole point). Double the per-target effective total when the target is Vulnerable.
+            // (Each hit independently gets the ×1.5 Vuln, already folded into effectivePerHit.)
+            if (card.Id == "DISMANTLE" && !isAoe
+                && targetIdx >= 0 && targetIdx < state.Enemies.Count
+                && state.Enemies[targetIdx].VulnerableAmount > 0)
+            {
+                effectiveTotal *= 2;
+                details.Add("dismantleVuln×2");
+            }
+
             // v0.4 — HardenedShellPower turn-cap: enemy ignores damage past Remaining for this
             // turn. Clamp the card's effective total to the remaining budget; if remaining is 0,
             // the attack is fully wasted (handled by WastedAttackPenalty further down).
