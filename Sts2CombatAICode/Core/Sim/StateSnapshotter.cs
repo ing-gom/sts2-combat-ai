@@ -413,6 +413,8 @@ internal static class StateSnapshotter
             // CardsPlayed%4, VelvetChoker cards-played-this-turn) reflect live
             // state. Falls back to empty dict on reflection failure.
             var playerRelics = CombatReflection.GetPlayerRelics(player);
+            // 2026-06-04 — held potions as first-class lookahead actions.
+            var playerPotions = CombatReflection.GetPlayerPotions(player);
 
             int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
             int turnCardsPlayed = 0;  // total this-turn plays (any type) — FTL PlayMax gate
@@ -846,6 +848,7 @@ internal static class StateSnapshotter
                 PlayerSmoggy = playerSmoggy,
                 SmoggySkillPlayedThisTurn = smoggySkillPlayedThisTurn,
                 PlayerRelics = playerRelics,
+                PlayerPotions = playerPotions,
             };
         }
         catch (System.Exception ex)

@@ -629,6 +629,33 @@ internal static class ActionPlanner
                 firstCardId = card.Id;
             }
         }
+
+        // 2026-06-04 — potions as continuation actions. Try each held potion: its immediate
+        // value plus the best card continuation from the post-potion state. This lets the
+        // lookahead sequence "play setup card → use amplifier/finisher potion" or "drink
+        // amplifier → big attack" (the amplified attack scores higher via PlayerNextAttackMult).
+        // Only entered inside the lookahead (depth>0), so the top-level first-action choice in
+        // PlanNextStep is unchanged — the overlay's separate potion advisor still owns that.
+        for (int pi = 0; pi < state.PlayerPotions.Count; pi++)
+        {
+            var potion = state.PlayerPotions[pi];
+            int ptarget = PlanScorer.PickPotionTarget(potion, state);
+            int total = PlanScorer.PotionValue(potion, ptarget, state);
+            if (depth > 1)
+            {
+                try
+                {
+                    var nextState = Sim.AnalyticalSimulator.ApplyPotionUse(state, pi, ptarget);
+                    total += BestContinuation(nextState, depth - 1, w, beamK, out _);
+                }
+                catch { /* sim failure: use immediate potion value only */ }
+            }
+            if (total > best)
+            {
+                best = total;
+                firstCardId = potion.Id;
+            }
+        }
         return best < 0 ? 0 : best;
     }
 

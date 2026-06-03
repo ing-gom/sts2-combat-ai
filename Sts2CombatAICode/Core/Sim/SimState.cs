@@ -50,6 +50,11 @@ internal sealed record SimState
     // this turn, then consumed (reset to 0). Unlike Strength which persists,
     // Vigor is one-shot.
     public int PlayerVigor { get; init; }
+    // 2026-06-04 — multiplicative buff on the NEXT Attack card's damage (GIGANTIFICATION_POTION
+    // = ×3). Set by AnalyticalSimulator.ApplyPotionUse, consumed (reset to 1) by ApplyCardPlay
+    // when an Attack is played. Default 1 = no multiplier. Lets the potion lookahead value
+    // "drink amplifier potion → play big attack".
+    public int PlayerNextAttackMult { get; init; } = 1;
     // v0.7.83 — BufferPower stack. Each stack negates ONE incoming damage
     // instance (entire hit, regardless of size). Decremented per instance
     // negated. Critical for survival projection: a 30-damage enemy hit with
@@ -712,6 +717,15 @@ internal sealed record SimState
     /// </summary>
     public IReadOnlyDictionary<string, int> PlayerRelics { get; init; }
         = new Dictionary<string, int>();
+
+    /// <summary>
+    /// 2026-06-04 — Held potions, captured by <see cref="StateSnapshotter"/> from the live
+    /// <c>Player.Potions</c>. Potions are first-class lookahead actions:
+    /// <see cref="AnalyticalSimulator.ApplyPotionUse"/> applies one and removes it from this
+    /// list, so depth-N can evaluate card→potion sequences. Empty when none held / unreadable.
+    /// </summary>
+    public IReadOnlyList<SimPotion> PlayerPotions { get; init; }
+        = new List<SimPotion>();
 
     /// <summary>
     /// Deep clone for forward simulation. Records have an auto-generated Clone() that

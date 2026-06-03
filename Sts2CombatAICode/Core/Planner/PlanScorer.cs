@@ -187,6 +187,61 @@ internal static class PlanScorer
     }
 
     /// <summary>
+    /// 2026-06-04 — Heuristic value of USING a potion now, for the planner lookahead
+    /// (BestContinuation treats potions as actions). Additive effects are valued directly with
+    /// the same per-point weights cards use; AttackTriple (Gigantification) returns 0 because its
+    /// payoff materializes via the amplified attack the recursion scores next.
+    /// </summary>
+    internal static int PotionValue(Sim.SimPotion potion, int targetIdx, SimState state)
+    {
+        var w = PlanScorerWeights.For(PlaystyleState.Current);
+        switch (potion.Kind)
+        {
+            case Sim.PotionKind.Block:
+                return potion.Amount * w.BlockPerPointBonus;
+            case Sim.PotionKind.Heal:
+                return potion.Amount * 20;
+            case Sim.PotionKind.Energy:
+                return potion.Amount * 120;
+            case Sim.PotionKind.Strength:
+            case Sim.PotionKind.Dexterity:
+            case Sim.PotionKind.Focus:
+                return potion.Amount * 150;
+            case Sim.PotionKind.Damage:
+            {
+                if (potion.Amount <= 0) return 0;
+                int val = 0;
+                for (int i = 0; i < state.Enemies.Count; i++)
+                {
+                    var e = state.Enemies[i];
+                    if (!e.IsAlive) continue;
+                    if (!potion.TargetsAllEnemies && i != targetIdx) continue;
+                    int past = System.Math.Max(0, potion.Amount - e.Block);
+                    val += past * w.DamagePerPointBonus / 10;
+                    if (e.Hp <= past) val += 1500;   // kill
+                }
+                return val;
+            }
+            default:
+                return 0; // Other / AttackTriple (value via the amplified follow-up attack)
+        }
+    }
+
+    /// <summary>Pick the best target index for a single-target damage potion (lowest EffectiveHp alive enemy).</summary>
+    internal static int PickPotionTarget(Sim.SimPotion potion, SimState state)
+    {
+        int best = -1, bestEff = int.MaxValue;
+        for (int i = 0; i < state.Enemies.Count; i++)
+        {
+            var e = state.Enemies[i];
+            if (!e.IsAlive) continue;
+            int eff = e.Hp + e.Block;
+            if (eff < bestEff) { bestEff = eff; best = i; }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Wrap Breakdown's Total + Details with the enchantment adjustment so logs show
     /// e.g. "ench:×2[Glam]" and the planner actually compares enchanted vs plain cards
     /// using the adjusted score.
@@ -851,6 +906,11 @@ internal static class PlanScorer
                 }
             }
             int effectiveTotal = effectivePerHit * effHits;
+            // 2026-06-04 — next-attack multiplier (GIGANTIFICATION_POTION ×3), set in the
+            // post-potion lookahead state by ApplyPotionUse. Reflect it in the attack's score so
+            // "drink amplifier → big attack" surfaces in depth-2. Default mult 1 → no change.
+            if (state.PlayerNextAttackMult > 1)
+                effectiveTotal *= state.PlayerNextAttackMult;
 
             // v0.4 — HardenedShellPower turn-cap: enemy ignores damage past Remaining for this
             // turn. Clamp the card's effective total to the remaining budget; if remaining is 0,

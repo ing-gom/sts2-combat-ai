@@ -192,6 +192,49 @@ internal static class CombatReflection
         return dict;
     }
 
+    /// <summary>
+    /// 2026-06-04 — Snapshot the player's held potions into SimPotion so the planner can
+    /// evaluate using them in the lookahead. Reads Id + TargetType + the canonical effect var.
+    /// Only the impactful additive kinds are classified; anything else maps to PotionKind.Other
+    /// (a no-op in ApplyPotionUse — never invents value).
+    /// </summary>
+    public static System.Collections.Generic.List<SimPotion> GetPlayerPotions(Player player)
+    {
+        var list = new System.Collections.Generic.List<SimPotion>();
+        try
+        {
+            if (player?.Potions == null) return list;
+            foreach (var p in player.Potions)
+            {
+                if (p == null) continue;
+                try
+                {
+                    string id = p.Id.Entry;
+                    string target = p.TargetType.ToString();
+                    var vars = p.DynamicVars;   // IReadOnlyDictionary<string, DynamicVar>
+
+                    PotionKind kind = PotionKind.Other;
+                    int amount = 0;
+                    int V(string key) => vars.TryGetValue(key, out var dv) ? (int)dv.BaseValue : 0;
+
+                    if (id == "GIGANTIFICATION_POTION")          { kind = PotionKind.AttackTriple; amount = 3; }
+                    else if (vars.ContainsKey("Block"))          { kind = PotionKind.Block;     amount = V("Block"); }
+                    else if (vars.ContainsKey("Heal"))           { kind = PotionKind.Heal;      amount = V("Heal"); }
+                    else if (vars.ContainsKey("Damage"))         { kind = PotionKind.Damage;    amount = V("Damage"); }
+                    else if (vars.ContainsKey("StrengthPower"))  { kind = PotionKind.Strength;  amount = V("StrengthPower"); }
+                    else if (vars.ContainsKey("DexterityPower")) { kind = PotionKind.Dexterity; amount = V("DexterityPower"); }
+                    else if (vars.ContainsKey("FocusPower"))     { kind = PotionKind.Focus;     amount = V("FocusPower"); }
+                    else if (vars.ContainsKey("Energy"))         { kind = PotionKind.Energy;    amount = V("Energy"); }
+
+                    list.Add(new SimPotion { Id = id, Kind = kind, Amount = amount, Target = target });
+                }
+                catch { /* one bad potion shouldn't drop the rest */ }
+            }
+        }
+        catch (System.Exception ex) { LogReflectionFailureOnce("potions-dump", ex); }
+        return list;
+    }
+
     // v0.8.5 — One-shot logger to surface STS2 field-rename issues without
     // flooding godot.log every frame.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _loggedFailures = new();

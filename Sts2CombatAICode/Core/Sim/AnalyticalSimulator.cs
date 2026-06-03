@@ -853,6 +853,13 @@ internal static class AnalyticalSimulator
                 // twice). Applied after damage-multiplier chain so the doubled
                 // damage benefits from Tracking / Cruelty / Lethality once.
                 totalDmg *= echoMul;
+                // 2026-06-04 — GIGANTIFICATION_POTION (next attack ×3), modeled via
+                // PlayerNextAttackMult (set by ApplyPotionUse, reset to 1 in the returned state
+                // below). Multiplies the whole attack so the potion lookahead values
+                // "drink amplifier → big attack". Guarded by IsAttack + >1 so non-attacks and
+                // the default state are byte-identical.
+                if (card.IsAttack && next.PlayerNextAttackMult > 1)
+                    totalDmg *= next.PlayerNextAttackMult;
                 // 2026-06-01 — flying enemies (SoarPower / FlutterPower) take HALF damage
                 // from card attacks: ModifyDamageMultiplicative returns DamageDecrease/100
                 // = 50/100 = 0.5 on any powered attack. The sim dealt full damage → ~2x
@@ -2735,6 +2742,8 @@ internal static class AnalyticalSimulator
             // never recognized (flag was read-only, only ever from the initial snapshot).
             PlayerCardExhaustedThisTurn = next.PlayerCardExhaustedThisTurn
                 || newExhaustPileCount > next.ExhaustPileCount,
+            // 2026-06-04 — a played Attack consumes the next-attack multiplier (Gigantification).
+            PlayerNextAttackMult = card.IsAttack ? 1 : next.PlayerNextAttackMult,
             // v0.9 — propagate per-target attack counter for depth-N forge math.
             TurnAttacksByTargetIdx = newTurnAttacksByTgt,
             // v0.9 — propagate updated SB count so a second Forge in the
@@ -2809,6 +2818,77 @@ internal static class AnalyticalSimulator
     ///   • Hand draw uses one synthetic average card duplicated × 5
     ///     (matches AnalyticalSimulator's intra-turn draw model).
     /// </summary>
+    /// <summary>
+    /// 2026-06-04 — Apply a held potion as a forward-sim action and return the resulting state
+    /// with that potion consumed (removed from PlayerPotions). Lets the planner lookahead score
+    /// card→potion sequences (e.g. play a block card, then an amplifier potion). Only the
+    /// additive kinds are modeled; Other / AttackTriple are no-ops here (safe — they never
+    /// invent value, the multiplicative next-attack mult needs a SimState flag, deferred).
+    /// </summary>
+    public static SimState ApplyPotionUse(SimState state, int potionIdx, int targetIdx)
+    {
+        if (potionIdx < 0 || potionIdx >= state.PlayerPotions.Count) return state;
+        var potion = state.PlayerPotions[potionIdx];
+
+        var newPotions = new System.Collections.Generic.List<SimPotion>(state.PlayerPotions);
+        newPotions.RemoveAt(potionIdx);
+        var next = state with { PlayerPotions = newPotions };
+
+        switch (potion.Kind)
+        {
+            case PotionKind.Block:
+                next = next with { PlayerBlock = next.PlayerBlock + potion.Amount };
+                break;
+            case PotionKind.Heal:
+            {
+                int cap = next.PlayerMaxHp > 0 ? next.PlayerMaxHp : next.PlayerHp + potion.Amount;
+                next = next with { PlayerHp = System.Math.Min(cap, next.PlayerHp + potion.Amount) };
+                break;
+            }
+            case PotionKind.Energy:
+                next = next with { PlayerEnergy = next.PlayerEnergy + potion.Amount };
+                break;
+            case PotionKind.Strength:
+                next = next with { PlayerStrength = next.PlayerStrength + potion.Amount };
+                break;
+            case PotionKind.Dexterity:
+                next = next with { PlayerDexterity = next.PlayerDexterity + potion.Amount };
+                break;
+            case PotionKind.Focus:
+                next = next with { PlayerFocus = next.PlayerFocus + potion.Amount };
+                break;
+            case PotionKind.Damage:
+                next = ApplyPotionDamage(next, potion, targetIdx);
+                break;
+            case PotionKind.AttackTriple:
+                // GIGANTIFICATION: next Attack card deals ×3. Consumed by ApplyCardPlay.
+                next = next with { PlayerNextAttackMult = System.Math.Max(next.PlayerNextAttackMult, 3) };
+                break;
+            default:
+                break; // Other — no-op
+        }
+        return next;
+    }
+
+    private static SimState ApplyPotionDamage(SimState state, SimPotion potion, int targetIdx)
+    {
+        if (potion.Amount <= 0 || state.Enemies.Count == 0) return state;
+        var newEnemies = new System.Collections.Generic.List<SimEnemy>(state.Enemies.Count);
+        for (int i = 0; i < state.Enemies.Count; i++)
+        {
+            var e = state.Enemies[i];
+            bool hit = e.IsAlive && (potion.TargetsAllEnemies || (potion.TargetsSingleEnemy && i == targetIdx)
+                                     // some damage potions are untargeted-single: fall back to the picked idx
+                                     || (!potion.TargetsAllEnemies && !potion.TargetsSingleEnemy && i == targetIdx));
+            if (!hit) { newEnemies.Add(e); continue; }
+            int past = System.Math.Max(0, potion.Amount - e.Block);
+            int newBlock = System.Math.Max(0, e.Block - potion.Amount);
+            int newHp = System.Math.Max(0, e.Hp - past);
+            newEnemies.Add(e with { Block = newBlock, Hp = newHp });
+        }
+        return state with { Enemies = newEnemies };
+    }
+
     public static SimState AdvanceTurn(SimState state)
         => AdvanceTurnInternal(state, BuildSyntheticHand(state, ComputeNextTurnHandSize(state)));
 
