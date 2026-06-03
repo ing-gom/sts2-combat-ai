@@ -209,6 +209,19 @@ internal static class PlanScorer
                 return potion.Amount * 150;
             case Sim.PotionKind.Damage:
             {
+                // 2026-06-04 (full-run feedback) — attack/single-use potions (Fire/Explosive/
+                // Rock/Foul) are precious one-shot resources. The old value scored chip damage
+                // (~past × DamagePerPointBonus/10 ≈ 100 for a 20-dmg Fire) which let the planner
+                // BURN them early on trivial chip, costing boss finishers (a 252-HP boss left at
+                // 19 HP that the held Fire would have one-shot). Two-part rework:
+                //   • FINISHER premium — when the potion SECURES a kill, score it big, scaled by
+                //     the enemy's max HP (boss/elite get an extra bump). A high-HP enemy you
+                //     can't otherwise drop is exactly what these potions are for.
+                //   • HOLD discipline — non-kill chip earns a NEGLIGIBLE value (≪ the 250
+                //     PotionWinMargin) so it's never used for chip. The "potion brings the enemy
+                //     into CARD kill range" case is still found: ApplyPotionUse lowers enemy HP
+                //     and BestContinuation scores the follow-up card's lethal in the post-potion
+                //     state (same lookahead the GIGANTIFICATION amplifier uses).
                 if (potion.Amount <= 0) return 0;
                 int val = 0;
                 for (int i = 0; i < state.Enemies.Count; i++)
@@ -217,8 +230,17 @@ internal static class PlanScorer
                     if (!e.IsAlive) continue;
                     if (!potion.TargetsAllEnemies && i != targetIdx) continue;
                     int past = System.Math.Max(0, potion.Amount - e.Block);
-                    val += past * w.DamagePerPointBonus / 10;
-                    if (e.Hp <= past) val += 1500;   // kill
+                    if (past <= 0) continue;
+                    if (e.Hp <= past)
+                    {
+                        int killVal = 1500 + e.MaxHp * 4;             // finisher, scaled by enemy size
+                        if (e.IsBoss || e.IsElite) killVal += 1500;   // boss/elite finisher premium
+                        val += killVal;
+                    }
+                    else
+                    {
+                        val += past / 8;   // HOLD: chip ≈ 0 — save it for a finisher
+                    }
                 }
                 return val;
             }
