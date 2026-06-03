@@ -195,6 +195,11 @@ internal static class StateSnapshotter
             // AdvanceTurn can apply persistent passives (DemonForm, Regen,
             // Barricade, EchoForm etc.) without one field per power.
             var playerPowerDict = CombatReflection.GetAllPowers(creature);
+            // 2026-06-04 — ShadowmeldPower multiplies this-turn card block by 2^stacks (decompile
+            // ModifyBlockMultiplicative). Capture as a flat multiplier (cap 2^4=16 to bound). 1 = none.
+            int shadowmeldStacks = playerPowerDict != null
+                && playerPowerDict.TryGetValue("ShadowmeldPower", out var smAmt) ? smAmt : 0;
+            int playerBlockMult = shadowmeldStacks > 0 ? (1 << System.Math.Min(shadowmeldStacks, 4)) : 1;
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
             int playerDoom = CombatReflection.GetPowerAmount(creature, "DoomPower");
             // v0.7.35 — Player-side DoT stacks. Tick at turn end / start;
@@ -802,6 +807,7 @@ internal static class StateSnapshotter
                 PlayerFreeAttacks = playerFreeAttacks,
                 PlayerFreeSkills = playerFreeSkills,
                 PlayerFreePowers = playerFreePowers,
+                PlayerBlockMult = playerBlockMult,
                 PlayerPowers = playerPowerDict,
                 SoulInPiles = soulInPiles,
                 ShivInPiles = shivInPiles,

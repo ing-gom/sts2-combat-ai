@@ -558,6 +558,7 @@ internal static class AnalyticalSimulator
         if (card.IsAttack && card.Block > 0 && !ostyBlockWhiff)
         {
             int attackBlock = StatusMath.EffectiveBlock(card.Block, newPlayerDex, playerFrail);
+            if (next.PlayerBlockMult > 1) attackBlock *= next.PlayerBlockMult;   // ShadowmeldPower
             newPlayerBlock += attackBlock;
         }
 
@@ -1219,6 +1220,7 @@ internal static class AnalyticalSimulator
                 || enemyTargetSkillGainsBlock) && escapePlanBlocks)
             {
                 int perPlayBlock = StatusMath.EffectiveBlock(effCardBlock, newPlayerDex, playerFrail);
+                if (next.PlayerBlockMult > 1) perPlayBlock *= next.PlayerBlockMult;   // ShadowmeldPower ×2^stacks
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
                 // multiple times. Each resolution is a separate "block card play".
                 // 2026-06-01 — DEATHS_DOOR gains block (1 + Repeat) times instead of
@@ -3329,6 +3331,9 @@ internal static class AnalyticalSimulator
         {
             PlayerHp = newPlayerHpAfterPassives,
             PlayerBlock = newPlayerBlock,
+            // 2026-06-04 — ShadowmeldPower is removed at end of turn (AfterTurnEnd), so the
+            // next-turn projection drops the block multiplier.
+            PlayerBlockMult = 1,
             // v0.9 — Use newPlayerEnergy which folds in EnergyNextTurnPower
             // (+N) and BorrowedTimePower (debuff cost adder).
             PlayerEnergy = newPlayerEnergy,

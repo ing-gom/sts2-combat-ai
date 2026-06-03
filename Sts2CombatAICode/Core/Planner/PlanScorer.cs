@@ -1729,6 +1729,10 @@ internal static class PlanScorer
             int rawBlock = card.Block * System.Math.Max(1, blockMultiplier);
             int perPlayBlock = StatusMath.EffectiveBlock(rawBlock,
                 state.PlayerDexterity, state.PlayerFrail > 0);
+            // 2026-06-04 — ShadowmeldPower (decompile ModifyBlockMultiplicative → 2^Amount):
+            // this turn the player's card block is multiplied (×2 at 1 stack, ×4 at 2…). Captured
+            // as PlayerBlockMult so block cards are valued higher under Shadowmeld. Default 1.
+            if (state.PlayerBlockMult > 1) perPlayBlock *= state.PlayerBlockMult;
             // v0.8.4 — Canonical compound model. Burst + Echo make the card
             // RESOLVE multiple times; Unmovable doubles only the FIRST of those
             // plays. Previously each multiplier was applied as a pure ×2 on
