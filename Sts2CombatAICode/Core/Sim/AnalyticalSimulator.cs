@@ -931,6 +931,14 @@ internal static class AnalyticalSimulator
                 // post-play HP) match the scorer's ×2.
                 if (card.Id == "DISMANTLE" && enemy.VulnerableAmount > 0)
                     totalDmg *= 2;
+                // 2026-06-04 — BULLY/REND per-target damage scaling lost in capture (base-only);
+                // re-add ExtraDamage × target-stat so depth-2 / post-play HP match the scorer.
+                if (card.Id == "BULLY")
+                    totalDmg += 2 * enemy.VulnerableAmount;
+                else if (card.Id == "REND")
+                    totalDmg += 5 * ((enemy.VulnerableAmount > 0 ? 1 : 0) + (enemy.WeakAmount > 0 ? 1 : 0)
+                        + (enemy.FrailAmount > 0 ? 1 : 0) + (enemy.PoisonAmount > 0 ? 1 : 0)
+                        + (enemy.ConstrictAmount > 0 ? 1 : 0));
                 // §120 — totalDmg is now the UNCAPPED post-multiplier damage. FISTICUFFS gains
                 // block == the shell-CAPPED pre-block damage (its prior semantics; preserved so
                 // non-shell cases are byte-identical). Compute that capped value separately.

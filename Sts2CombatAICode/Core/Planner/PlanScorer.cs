@@ -947,6 +947,31 @@ internal static class PlanScorer
                 details.Add("dismantleVuln×2");
             }
 
+            // 2026-06-04 — multiplier-driven CalculatedDamage attacks whose per-TARGET scaling is
+            // LOST in capture: CardReflection takes the static base and drops the WithMultiplier
+            // lambda (its own comment flags BULLY/REND as needing per-card special-cases). The
+            // captured damage is base-only (BaseValue>0), so re-add ExtraDamage × target-stat.
+            // Only base>0 cards here (multiplier definitely lost); TIMES_UP base=0 is captured via
+            // PreviewValue so it's left alone to avoid double-counting.
+            if (!isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count)
+            {
+                var st = state.Enemies[targetIdx];
+                int scaleBonus = 0;
+                if (card.Id == "BULLY") scaleBonus = 2 * st.VulnerableAmount;        // 4 + 2×Vuln
+                else if (card.Id == "REND")                                          // 15 + 5×(debuffs on target)
+                {
+                    int debuffs = (st.VulnerableAmount > 0 ? 1 : 0) + (st.WeakAmount > 0 ? 1 : 0)
+                                + (st.FrailAmount > 0 ? 1 : 0) + (st.PoisonAmount > 0 ? 1 : 0)
+                                + (st.ConstrictAmount > 0 ? 1 : 0);
+                    scaleBonus = 5 * debuffs;
+                }
+                if (scaleBonus > 0)
+                {
+                    effectiveTotal += scaleBonus;
+                    details.Add($"scaleMult({card.Id})+{scaleBonus}");
+                }
+            }
+
             // v0.4 — HardenedShellPower turn-cap: enemy ignores damage past Remaining for this
             // turn. Clamp the card's effective total to the remaining budget; if remaining is 0,
             // the attack is fully wasted (handled by WastedAttackPenalty further down).
