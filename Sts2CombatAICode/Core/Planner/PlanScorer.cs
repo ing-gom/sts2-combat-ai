@@ -1206,8 +1206,14 @@ internal static class PlanScorer
                             wastedPenalty = w.WastedAttackPenalty;
                             details.Add($"WASTED_ATK_ZERO{wastedPenalty}");
                         }
-                        else if (effectiveTotal <= t.Block)
+                        else if (effectiveTotal <= t.Block
+                                 && !t.Powers.ContainsKey("BurrowedPower"))
                         {
+                            // 2026-06-03 — BurrowedPower keeps its block across turns and is
+                            // STUNNED the moment its block reaches 0 (AfterBlockBroken, may take
+                            // several hits/turns). So chipping a burrowed enemy's block is real
+                            // PROGRESS toward a stun, not a wasted attack — exempt it here. The
+                            // chip-progress bonus in ScoreThresholdsForEnemy rewards that damage.
                             wastedPenalty = w.WastedAttackPenalty;
                             details.Add($"WASTED_ATK{wastedPenalty}");
                         }
@@ -2426,24 +2432,38 @@ internal static class PlanScorer
             details.Add($"asleepWake(hp{currentHp}→{hpAfter},est{est})=+{stunBonus}");
         }
 
-        // 2026-06-03 — BurrowedPower (잠복, e.g. burrowing enemies): the enemy KEEPS its
-        // Block across turn starts, but if ALL of its Block is stripped it is Stunned and
-        // skips a turn. So unlike a normal blocked enemy (where attacking into block is
-        // wasted), breaking the LAST point of block here is a stun — worth an enemy
-        // attack-turn. Trigger when this play's raw damage clears the whole block bar
-        // (effectiveTotal ≥ Block) and the enemy survives (a kill makes the stun moot).
-        // Previously unmodeled: 'burrow' had zero references, so the planner treated a
-        // burrowed enemy's block as ordinary soak and never prioritized breaking it.
+        // 2026-06-03 — BurrowedPower (잠복). Decompile-verified mechanic:
+        //   • ShouldClearBlock(owner)=false  → block PERSISTS across turn starts.
+        //   • AfterBlockBroken(owner)         → the moment block reaches 0 the enemy is
+        //                                       STUNNED ("BITE_MOVE") and the power is removed.
+        // Crucially the break can take SEVERAL hits/turns — block stays chipped because it
+        // persists — so any damage into a burrowed enemy's block is PROGRESS toward the stun,
+        // not wasted soak. Reward like SlumberPower: full stun bonus for the breaking play,
+        // partial credit (proportional to the fraction of block removed) for a chip.
         if (target.Powers.TryGetValue("BurrowedPower", out var burrowed) && burrowed > 0
-            && target.Block > 0 && effectiveTotal >= target.Block && hpAfter > 0)
+            && target.Block > 0)
         {
             int est = System.Math.Max(15,
                 target.IntentDamage * System.Math.Max(1, target.IntentRepeats));
-            int stunBonus = w.BlockUnderThreatBonus + est * w.BlockPerPointBonus;
+            int fullStun = w.BlockUnderThreatBonus + est * w.BlockPerPointBonus;
             const int BurrowedCap = 3500;
-            if (stunBonus > BurrowedCap) stunBonus = BurrowedCap;
-            bonus += stunBonus;
-            details.Add($"burrowedBreak(block{target.Block},raw{effectiveTotal},est{est})=+{stunBonus}");
+            if (fullStun > BurrowedCap) fullStun = BurrowedCap;
+
+            if (effectiveTotal >= target.Block && hpAfter > 0)
+            {
+                // This play strips the whole bar → stun NOW.
+                bonus += fullStun;
+                details.Add($"burrowedBreak(block{target.Block},raw{effectiveTotal},est{est})=+{fullStun}");
+            }
+            else if (effectiveTotal > 0)
+            {
+                // Chip: persistent block means this advances the stun. Credit the fraction
+                // of the block bar this play removes.
+                int chip = System.Math.Min(effectiveTotal, target.Block);
+                int partial = fullStun * chip / target.Block;
+                bonus += partial;
+                details.Add($"burrowedChip(block{target.Block},chip{chip},est{est})=+{partial}");
+            }
         }
 
         // v0.9 — SlumberPower (Slumbering Beetle): counter starts at Amount,
