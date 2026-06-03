@@ -1681,7 +1681,25 @@ internal static class PlanScorer
                 details.Add($"burstChain[{targetIdx}]=+{burstChainBonus}");
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus + capWastePenalty;
+            // 2026-06-04 — FeralPower (FERAL): the first Amount 0-cost attacks each turn return
+            // to HAND (decompile ModifyCardPlayResultPileTypeAndPosition → PileType.Hand), i.e. a
+            // free replay. PowerCatalog only credited the FERAL card itself (flat) — this models
+            // the actual synergy so a 0-cost attack (shiv etc.) is valued higher while Feral is
+            // active, since its damage lands one more time. Gated on FeralPower in PlayerPowers
+            // (captured for the player); slight over-credit if the per-turn budget is already
+            // spent, acceptable — a Feral deck wants to fire its 0-cost attacks anyway.
+            int feralReplayBonus = 0;
+            if (card.Cost == 0 && card.TotalDamage > 0
+                && state.PlayerPowers != null
+                && state.PlayerPowers.TryGetValue("FeralPower", out var feralStacks) && feralStacks > 0)
+            {
+                feralReplayBonus = card.TotalDamage * w.DamagePerPointBonus / 10;
+                const int FeralReplayCap = 600;
+                if (feralReplayBonus > FeralReplayCap) feralReplayBonus = FeralReplayCap;
+                details.Add($"feralReplay(0cost,dmg{card.TotalDamage})=+{feralReplayBonus}");
+            }
+
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus + capWastePenalty + feralReplayBonus;
             // v0.9 — Per-energy efficiency diagnostic. Shows BOTH raw dmg/E
             // (Strength/Vigor/Enchant from PreviewValue) AND effective dmg/E
             // (with Vuln/Weak/Echo/X-cost folded in). When they differ
