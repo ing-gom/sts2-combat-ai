@@ -3467,8 +3467,11 @@ internal static class EffectSynergy
     }
 
     /// <summary>
-    /// v0.7.44 — DIRGE (Necrobinder, A, 0c, X-cost): summon 3 + add X+1 Souls
-    /// to discard. EXHAUST_SELF.
+    /// v0.7.44 — DIRGE (Necrobinder, A, 0c, X-cost). Per the game (OstyCmd.Summon
+    /// called X times, each GainMaxHp 3): it grows the SINGLE Osty's MaxHp by 3·X
+    /// (NOT 3 separate skeletons) and adds X+1 Souls to discard. EXHAUST_SELF.
+    /// 2026-06-03 — summon value is now X-scaled (was a flat 200 that ignored energy,
+    /// so high-X DIRGE was under-valued and 사혈→DIRGE never surfaced).
     /// </summary>
     private static void ApplyDirgeXSouls(SimCard self, SimState state, ref int b, List<string> parts)
     {
@@ -3488,12 +3491,14 @@ internal static class EffectSynergy
 
         // Per-Soul value: depends on consumer presence. With consumers, ~120 each.
         int perSoul = soulConsumers > 0 ? 120 : 30;
-        // 3 summon (Skeleton) base value too
-        const int SummonValue = 200;  // 3 skeletons
+        // Osty MaxHp growth = 3 per X spent. Value scales with X (feeds UNLEASH-type
+        // HP-scaling payoffs + DieForYou survivability). ~66·X keeps the prior ~200 at
+        // the typical X≈3 while finally scaling: 0 at 0 energy, 330 at X=5.
+        int summonValue = 66 * x;
         const int Cap = 1400;
-        int v = System.Math.Min(Cap, SummonValue + perSoul * souls);
+        int v = System.Math.Min(Cap, summonValue + perSoul * souls);
         b += v;
-        parts.Add($"dirge(Souls{souls}x{perSoul}+summon200,consumers={soulConsumers}={v})");
+        parts.Add($"dirge(Souls{souls}x{perSoul}+ostyHP{summonValue},consumers={soulConsumers}={v})");
     }
 
     /// <summary>

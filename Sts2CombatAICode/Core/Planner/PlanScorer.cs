@@ -2820,6 +2820,13 @@ internal static class PlanScorer
         return killable;
     }
 
+    /// <summary>
+    /// 2026-06-03 — Public wrapper over <see cref="IsLethalThisTurn"/> so external
+    /// drivers (sts2-cli full-run potion policy) can ask "can we clear the board
+    /// this turn?" before spending a survival potion on a turn we'd win anyway.
+    /// </summary>
+    public static bool CanKillThisTurn(SimState state) => IsLethalThisTurn(state);
+
     private static bool IsLethalThisTurn(SimState state)
     {
         int totalEnemyHp = 0;
@@ -3600,6 +3607,13 @@ internal static class PlanScorer
         // value PowerCatalog captures; folding them in here would double-credit
         // a card whose actual game effect is on subsequent turns.
         if (card.EnergyGain <= 0) return 0;
+
+        // Enemy NoEnergyGainPower (ModifyEnergyGain → 0) blocks energy-gain cards: Bloodletting/
+        // Adrenaline etc. produce no energy while it's active, so their tempo value evaporates.
+        // Captured as PlayerNoEnergyGain but was previously ignored here → energy cards stayed
+        // over-valued under the debuff. Treat the gain as wasted.
+        if (state.PlayerNoEnergyGain > 0) return w.EnergyGainWastedPenalty;
+
         int immediateGain = card.EnergyGain;
 
         int remainingEnergy = System.Math.Max(0, state.PlayerEnergy - card.Cost);

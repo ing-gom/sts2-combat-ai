@@ -65,6 +65,14 @@ internal static class ActionPlanner
     // v0.10 — Converted from const to static field for JSON-load via
     // PlannerConfig. PlannerConfig.LoadFromJson updates NextTurnDiscount,
     // MonteCarloSamples, BeamK, MaxDepth without recompile.
+    // 2026-06-03 — TESTED 0.45 (raise multi-turn output valuation, per loss-analysis showing
+    // 64% of losses = output insufficiency). Result: overall -0.9pp (Monster -1.4 from over-
+    // setup, Elite +0.8). eHp-at-death only -1pp. Reverted: valuing output MORE doesn't convert
+    // to wins → the planner already extracts ~max output from its deck; the win-rate lever is
+    // DECK QUALITY, not combat scoring. See docs/planscorer_loss_analysis.md.
+    // 2026-06-03 — 0.30 confirmed near-optimal even on the meaningful-cell bed (cells where
+    // PlanScorer decides, ~15% of all): 0.15 flat (+0.0pp), 0.45 worse (-4.1pp). Horizon lever
+    // exhausted. See docs/planscorer_loss_analysis.md.
     public static double NextTurnDiscount = 0.30;
 
     /// <summary>
@@ -229,8 +237,10 @@ internal static class ActionPlanner
             foreach (var oc in state.Hand)
             {
                 if (ReferenceEquals(oc, c)) continue;
-                if (!oc.IsPlayable || oc.IsCurseOrStatus || oc.Cost < 0) continue;
-                anyOther = true; break;
+                if (oc.IsCurseOrStatus) continue;
+                if (oc.Cost < 0 && !oc.IsPlayable) continue;   // playable X-cost = ideal energy sink
+                // Playable now, OR affordable after this card's energy gain (see EnumerateCandidates).
+                if (oc.IsPlayable || oc.Cost <= state.PlayerEnergy + c.EnergyGain) { anyOther = true; break; }
             }
             if (!anyOther) return "energyGain-noOtherCard";
         }
@@ -703,11 +713,21 @@ internal static class ActionPlanner
                 foreach (var c in state.Hand)
                 {
                     if (ReferenceEquals(c, card)) continue;
-                    if (!c.IsPlayable) continue;
                     if (c.IsCurseOrStatus) continue;
-                    if (c.Cost < 0) continue;
-                    anyOtherUseful = true;
-                    break;
+                    // X-cost cards carry Cost < 0 but ARE playable — they spend ALL energy,
+                    // so they're the ideal sink for an energy gain (3E + Bloodletting → X=5).
+                    // Only skip genuine unplayable signals (Cost < 0 AND not playable).
+                    if (c.Cost < 0 && !c.IsPlayable) continue;
+                    // Playable now, OR only blocked by affordability that THIS card's
+                    // energy gain would resolve. IsPlayable folds in CanPlay()'s energy
+                    // check, so at low energy an expensive payoff card (e.g. THE_BOMB at
+                    // 0 energy) reads !IsPlayable — exactly when the energy card is the
+                    // right play. Count it via affordable-after-gain so the enabler survives.
+                    if (c.IsPlayable || c.Cost <= state.PlayerEnergy + card.EnergyGain)
+                    {
+                        anyOtherUseful = true;
+                        break;
+                    }
                 }
                 if (!anyOtherUseful) continue;
             }

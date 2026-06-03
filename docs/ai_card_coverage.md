@@ -7,7 +7,7 @@ HandSynergy) explicitly handles vs falls back to generic defaults.
 
 - Master catalog: `../scripts/cards_catalog.json` (game v0.103.2)
 - Embedded triggers: `Sts2CombatAICode/Core/Data/card_triggers.json` (v0.103.2)
-- PowerCatalog: `Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (151 powers registered)
+- PowerCatalog: `Sts2CombatAICode/Core/Planner/PowerCatalog.cs` (165 powers registered)
 - PowerSequencingTier: `Sts2CombatAICode/Core/Planner/PowerSequencingTier.cs` (137 powers classified)
 - Override: `Sts2CombatAICode/Core/Planner/CardOverrideCatalog.cs` (13 cards)
 
@@ -17,10 +17,10 @@ HandSynergy) explicitly handles vs falls back to generic defaults.
 |---|---:|---:|
 | Catalog inclusion (in card_triggers.json) | 576 / 577 | 99.8% |
 | Axis coverage (`axes[]` non-empty) | 576 / 577 | 99.8% |
-| Build participation (`builds[]` non-empty) | 416 / 577 | 72.1% |
+| Build participation (`builds[]` non-empty) | 464 / 577 | 80.4% |
 | Override bonus applied | 13 / 577 | 2.3% |
 | Dropped (no axes/builds/keywords/trigger) | 1 / 577 | 0.2% |
-| Any synergy-rule participation (≥1 of 5 rules) | 461 / 577 | 79.9% |
+| Any synergy-rule participation (≥1 of 5 rules) | 464 / 577 | 80.4% |
 | Conditional-damage vars (`Calculated*` / `Extra*` / `Repeat`) | 66 / 577 | 11.4% |
 | Self-modifier axes (`EXHAUST/RETAIN/ETHEREAL/INNATE/UNPLAYABLE`) | 143 / 577 | 24.8% |
 | SelectorMode trigger (`upgrade_trigger` / `fetch_trigger`) | 64 / 577 | 11.1% |
@@ -118,7 +118,7 @@ runtime.
 | Rule | Source | Cards | % |
 |---|---|---:|---:|
 | BuildSynergy pair (Producer/Amplifier/Consumer) | `*_PRODUCER/_AMPLIFIER/_CONSUMER` axes | 264 | 45.8% |
-| BuildSynergy commitment | primary build tag | 370 | 64.1% |
+| BuildSynergy commitment | primary build tag | 418 | 72.4% |
 | AmplifierSynergy | `POWER_AMPLIFIER` / `REPLAY` / `ATTACK_REPLAY*` / `SKILL_REPLAY` | 17 | 2.9% |
 | EffectSynergy | `DAMAGE/BLOCK/VULN/WEAK_AMPLIFIER`, `BLOCK_PAYOFF`, `HP_LOSS_CONSUMER` | 28 | 4.9% |
 | HandSynergy (lower bound) | `vars` keys ∈ {Strength/Dex/Vuln/Weak Power…} | 40 | 6.9% |
@@ -171,10 +171,10 @@ Per-card count of synergy rules the card *can* feed (out of 5):
 
 | Degree | Cards | % | Interpretation |
 |---:|---:|---:|---|
-| 0 | 116 | 20.1% | no synergy hooks — evaluated as a standalone card |
-| 1 | 246 | 42.6% | single-rule (mostly build or pair) |
-| 2 | 174 | 30.2% | two-rule (build + pair, or pair + effect…) |
-| 3 | 39 | 6.8% | three-rule (high synergy density) |
+| 0 | 113 | 19.6% | no synergy hooks — evaluated as a standalone card |
+| 1 | 221 | 38.3% | single-rule (mostly build or pair) |
+| 2 | 185 | 32.1% | two-rule (build + pair, or pair + effect…) |
+| 3 | 56 | 9.7% | three-rule (high synergy density) |
 | 4 | 2 | 0.3% | four-rule (very dense) |
 | 5 | 0 | 0.0% | all five |
 
@@ -182,11 +182,11 @@ Per-card count of synergy rules the card *can* feed (out of 5):
 
 | Character | Cards | In triggers | Axes | Builds | Power hit | Dropped |
 |---|---:|---:|---:|---:|---:|---:|
-| DEFECT | 88 | 88 (100.0%) | 88 (100.0%) | 53 (60.2%) | 20/20 (100.0%) | 0 (0.0%) |
-| IRONCLAD | 87 | 87 (100.0%) | 87 (100.0%) | 65 (74.7%) | 21/21 (100.0%) | 0 (0.0%) |
-| NECROBINDER | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 18/18 (100.0%) | 0 (0.0%) |
-| REGENT | 88 | 88 (100.0%) | 88 (100.0%) | 73 (83.0%) | 19/19 (100.0%) | 0 (0.0%) |
-| SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 83 (60.1%) | 15/15 (100.0%) | 1 (0.7%) |
+| DEFECT | 88 | 88 (100.0%) | 88 (100.0%) | 76 (86.4%) | 20/20 (100.0%) | 0 (0.0%) |
+| IRONCLAD | 87 | 87 (100.0%) | 87 (100.0%) | 72 (82.8%) | 21/21 (100.0%) | 0 (0.0%) |
+| NECROBINDER | 88 | 88 (100.0%) | 88 (100.0%) | 82 (93.2%) | 18/18 (100.0%) | 0 (0.0%) |
+| REGENT | 88 | 88 (100.0%) | 88 (100.0%) | 75 (85.2%) | 19/19 (100.0%) | 0 (0.0%) |
+| SHARED | 138 | 137 (99.3%) | 137 (99.3%) | 90 (65.2%) | 15/15 (100.0%) | 1 (0.7%) |
 | SILENT | 88 | 88 (100.0%) | 88 (100.0%) | 69 (78.4%) | 19/19 (100.0%) | 0 (0.0%) |
 
 ## Tier × Coverage overlap  (impact-weighted)
@@ -250,6 +250,7 @@ real audit signal. D-tier gaps are usually safe to defer.
 | UNPLAYABLE | 25 |
 | STRIKE_TYPE | 23 |
 | STAR_PRODUCER | 23 |
+| CARD_GEN | 23 |
 | REPEAT | 23 |
 | VULN_PRODUCER | 21 |
 | WEAK | 21 |
@@ -259,7 +260,6 @@ real audit signal. D-tier gaps are usually safe to defer.
 | ETHEREAL_SELF | 18 |
 | EXHAUST_PRODUCER | 17 |
 | POISON | 16 |
-| CARD_GEN | 16 |
 | MINION | 14 |
 
 ## Dropped cards  (1 total, top 20)
