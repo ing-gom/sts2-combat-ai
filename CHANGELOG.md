@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.11.0 (2026-06-04)
+
+**Potions as first-class lookahead actions + a broad decompile-verified audit of
+enemy powers, conditional cards, and conditional relics.** Major modeling expansion.
+
+### Potions in the planner
+
+- **Potion action space.** `SimPotion` + `SimState.PlayerPotions` captured from the live
+  belt; `AnalyticalSimulator.ApplyPotionUse` applies & consumes a potion (Block/Heal/
+  Damage/Strength/Dexterity/Focus/Energy + GIGANTIFICATION next-attack ×3 via
+  `PlayerNextAttackMult`). `BestContinuation` evaluates potions as continuation actions, so
+  card↔potion sequences (e.g. amplifier → big attack) are valued.
+- **Recommend & auto-use.** `PlanNextStep(considerPotions:true)` can pick "use a potion" as
+  the next action (gated by `PotionWinMargin`); the overlay surfaces it (gold ▲) and Vakuu
+  auto-plays it via `EnqueueManualUse`. Default-false keeps all other callers card-only.
+- **Finisher discipline (full-run feedback).** Attack/single-use damage potions now hold for
+  kills — big finisher premium scaled by enemy MaxHp (+boss/elite bump), negligible value on
+  non-kill chip.
+
+### Enemy power modeling
+
+- **12 previously-unmodeled enemy powers**: Burrowed (block retention + break→stun chip
+  progress + WASTED-attack exemption), Guarded (½ card damage), Reflect (blocked-damage
+  self-hit), Illusion (revive-on-death kill suppression), SelfFormingClay, Rampart, Minion
+  (focus-leader), CrabRage, SteamEruption, Reattach, Hatch, PainfulStabs.
+- **Per-turn Strength projection** uses the real Amount (Ritual/Territorial/HighVoltage) in
+  AdvanceTurn instead of a flat +1.
+
+### Conditional cards & relics
+
+- **Conditional energy gated** in the recommendation score (FORGOTTEN_RITUAL exhaust-this-turn,
+  SUNDER kill, RESTLESSNESS empty-hand) + sim now sets `PlayerCardExhaustedThisTurn`.
+- **Power-conditional synergies** newly modeled: Feral (0-cost-attack replay), Shadowmeld
+  (block ×2^stacks), VoidForm (first N cards free), Veilpiercer (Ethereal 0-cost), Fasten
+  (+block on Defend cards).
+- **Capture-lost damage multipliers** (CalculatedDamageVar.WithMultiplier dropped on capture):
+  DISMANTLE (×2 vs Vulnerable), BULLY (+2×Vuln), REND (+5×debuffs), MURDER (+combat draws),
+  SOUL_STORM (+2×Souls in exhaust). Decompile-verified across a 195-attack sweep; block-side
+  swept clean (all base-0, captured via PreviewValue).
+- **ORICHALCUM** conditional end-of-turn block modeled in the survival projection.
+
+### Other
+
+- **RAGE play-order bias** (precede its attacks). **Energy-gain fixes**: play the gain that
+  unlocks an unaffordable card, X-cost energy sink, NoEnergyGain-debuff devaluation. **DIRGE**
+  summon value X-scaled.
+
 ## v0.10.0 (2026-05-20)
 
 **STS2-accurate thorns + Galvanic modeling, config externalization, training-data
