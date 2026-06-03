@@ -203,7 +203,7 @@ internal static class VakuuExecutor
                     }
                 }
 
-                var plan = ActionPlanner.PlanNextStep(snapshot);
+                var plan = ActionPlanner.PlanNextStep(snapshot, considerPotions: true);
                 if (plan == null)
                 {
                     // v0.7.75 — Show why filtered when this surfaces.
@@ -211,6 +211,43 @@ internal static class VakuuExecutor
                         MainFile.Logger.Info(ActionPlanner.LastEmptyReason);
                     MainFile.Logger.Info($"[CombatAI] step {step + 1} no playable card, stopping");
                     break;
+                }
+
+                // 2026-06-04 — the planner recommended USING a potion this step (sequencing value,
+                // e.g. amplifier → big attack). Use it via the UI path (EnqueueManualUse), then
+                // wait until it leaves the belt (consumed) so the next snapshot reflects the effect
+                // and we don't re-recommend the same potion. Fully guarded — failure never stalls
+                // the card loop. The PotionWinMargin guard in PlanNextStep keeps this from burning
+                // potions for trivial gains.
+                if (plan.Value.IsPotion)
+                {
+                    string potId = plan.Value.Potion!.Id;
+                    try
+                    {
+                        var live = player.Potions.FirstOrDefault(p => p != null && p.Id.Entry == potId);
+                        if (live == null)
+                        {
+                            MainFile.Logger.Warn($"[CombatAI] step {step + 1} planner potion {potId} not held, skipping");
+                            continue;
+                        }
+                        Creature? potTarget = ResolveTarget(plan.Value, snapshot, combatState, player);
+                        MainFile.Logger.Info(
+                            $"[CombatAI] step {step + 1} → USE POTION {potId}@{potTarget?.GetType().Name ?? "self"} " +
+                            $"(score={plan.Value.Score} reason={plan.Value.Reason})");
+                        live.EnqueueManualUse(potTarget);
+                        // Settle: poll until the potion instance leaves the belt (consumed) or timeout.
+                        for (int wsteps = 0; wsteps < 60; wsteps++)
+                        {
+                            if (!player.Potions.Any(p => ReferenceEquals(p, live))) break;
+                            await Cmd.Wait(0.05f, ignoreCombatEnd: true);
+                        }
+                        cardsPlayed++;   // counts as an action so the loop doesn't read as stalled
+                    }
+                    catch (Exception ex)
+                    {
+                        MainFile.Logger.Warn($"[CombatAI] step {step + 1} potion use failed ({potId}): {ex.Message}");
+                    }
+                    continue;
                 }
 
                 // Phase C — dual log: run the ONNX PPO advisor alongside the

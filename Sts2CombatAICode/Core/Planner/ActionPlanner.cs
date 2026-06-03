@@ -53,7 +53,15 @@ internal static class ActionPlanner
         ["SEVEN_STARS"] = 7,
     };
 
-    public readonly record struct PlanStep(SimCard Card, int TargetIdx, int Score, string Reason);
+    // 2026-06-04 — a PlanStep is normally a card play (Card != null). When PlanNextStep is
+    // called with considerPotions:true (the overlay), it may instead recommend USING a potion —
+    // then Potion != null and Card is null. PotionIdx indexes state.PlayerPotions; TargetIdx is
+    // the potion's enemy target for damage potions.
+    public readonly record struct PlanStep(SimCard? Card, int TargetIdx, int Score, string Reason,
+        Sim.SimPotion? Potion = null, int PotionIdx = -1)
+    {
+        public bool IsPotion => Potion != null;
+    }
 
     /// <summary>
     /// v0.7.10 — discount applied to the next-turn opening score when projecting
@@ -247,7 +255,7 @@ internal static class ActionPlanner
         return "OK?";
     }
 
-    public static PlanStep? PlanNextStep(SimState state)
+    public static PlanStep? PlanNextStep(SimState state, bool considerPotions = false)
     {
         var candidates = EnumerateCandidates(state).ToList();
         if (candidates.Count == 0)
@@ -493,6 +501,41 @@ internal static class ActionPlanner
                 // PlanStep.Score is the first-card score, not lookahead total (kept for log clarity).
                 bestPlan = new PlanStep(card, targetIdx, firstScore, Reason(card));
             }
+        }
+
+        // 2026-06-04 — opt-in: also consider USING a potion as the next action (overlay only;
+        // Vakuu auto-play keeps considerPotions=false so it never auto-drinks). A potion competes
+        // by the same lookahead total as cards: its immediate value + the best continuation from
+        // the post-potion state (which is where an amplifier like GIGANTIFICATION cashes out via
+        // the ×3 attack). Recommend it only when it beats the best card play by a real margin —
+        // potions are precious, so trivial additive gains shouldn't burn one.
+        if (considerPotions && state.PlayerPotions.Count > 0)
+        {
+            const int PotionWinMargin = 250;
+            int bestPotionTotal = int.MinValue, bestPotionFirst = 0, bestPotionIdx = -1, bestPotionTarget = -1;
+            Sim.SimPotion? bestPotion = null;
+            for (int pi = 0; pi < state.PlayerPotions.Count; pi++)
+            {
+                var potion = state.PlayerPotions[pi];
+                if (potion.Kind == Sim.PotionKind.Other) continue;   // unmodeled → never recommend
+                int ptarget = PlanScorer.PickPotionTarget(potion, state);
+                int pfirst = PlanScorer.PotionValue(potion, ptarget, state);
+                int ptotal = pfirst;
+                try
+                {
+                    var ns = Sim.AnalyticalSimulator.ApplyPotionUse(state, pi, ptarget);
+                    ptotal += BestContinuation(ns, ContinuationDepth, planWeights, BeamK, out _);
+                }
+                catch { /* sim failure: immediate value only */ }
+                if (ptotal > bestPotionTotal)
+                {
+                    bestPotionTotal = ptotal; bestPotionFirst = pfirst;
+                    bestPotionIdx = pi; bestPotionTarget = ptarget; bestPotion = potion;
+                }
+            }
+            if (bestPotion != null && bestPotionTotal > bestTotal + PotionWinMargin)
+                return new PlanStep(null, bestPotionTarget, bestPotionFirst,
+                    $"potion:{bestPotion.Id}", bestPotion, bestPotionIdx);
         }
 
         // "Stop playing" floor: judge on the *first-card score* (the actual card we'd play),
