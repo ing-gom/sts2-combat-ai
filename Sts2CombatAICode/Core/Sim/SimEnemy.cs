@@ -159,13 +159,14 @@ internal sealed record SimEnemy
     public int ImbalancedAmount { get; init; }
 
     /// <summary>
-    /// v0.9 — TerritorialPower (per-turn +N Strength). Causes monotone damage
-    /// scaling: every turn alive the enemy attack +N. Marks enemies that need
-    /// to be killed quickly. Captured for threat projection but currently
-    /// treated similar to HasTurnStartStrengthBuff (boolean flag) — explicit
-    /// amount enables per-turn projection in AdvanceTurn.
+    /// 2026-06-03 — Actual per-turn-end Strength gain (sum of the decompile-verified
+    /// +Amount/turn powers: RitualPower + TerritorialPower + HighVoltagePower). AdvanceTurn
+    /// adds THIS each projected turn instead of a flat +1, so Amount&gt;1 escalators (e.g.
+    /// Ritual:3) are no longer under-projected. 0 = no turn-end Strength power (the reactive
+    /// Enrage/Feral approximations still fall back to +1 via HasTurnStartStrengthBuff).
+    /// Replaces the previously dead TerritorialAmount field.
     /// </summary>
-    public int TerritorialAmount { get; init; }
+    public int TurnStartStrengthGain { get; init; }
 
     /// <summary>
     /// v0.9 — PaperCutsPower (Tier B). When this enemy deals unblocked damage

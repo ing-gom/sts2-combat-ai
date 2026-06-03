@@ -2958,7 +2958,13 @@ internal static class AnalyticalSimulator
                 ne = ne with { Block = newBlock, Hp = System.Math.Max(0, ne.Hp - leakToEnemy) };
             }
             if (e.HasTurnStartStrengthBuff)
-                ne = ne with { StrengthAmount = ne.StrengthAmount + 1 };
+            {
+                // 2026-06-03 — use the real per-turn-end Strength amount (Ritual/Territorial/
+                // HighVoltage Apply Amount, not 1). Reactive Enrage/Feral set the flag but no
+                // TurnStartStrengthGain → fall back to +1 as before.
+                int strGain = e.TurnStartStrengthGain > 0 ? e.TurnStartStrengthGain : 1;
+                ne = ne with { StrengthAmount = ne.StrengthAmount + strGain };
+            }
 
             // DoT ticks (Poison + Constrict + Doom). Burn timing varies — left out.
             // v0.7.13 — DoomPower from REAPER_FORM ticks alongside other DoT.

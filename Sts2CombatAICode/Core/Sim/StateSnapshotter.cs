@@ -1140,11 +1140,19 @@ internal static class StateSnapshotter
         // v0.9 — also TerritorialPower (per-turn-end +Strength).
         // v0.10 — also HighVoltagePower (per-turn-end +Strength, Fabricator
         // family). Doesn't decrement → permanent scaling, prioritize killing.
-        bool hasRitual = CombatReflection.GetPowerAmount(enemy, "RitualPower") > 0
+        int ritualAmt = CombatReflection.GetPowerAmount(enemy, "RitualPower");
+        int highVoltageAmt = CombatReflection.GetPowerAmount(enemy, "HighVoltagePower");
+        bool hasRitual = ritualAmt > 0
                       || CombatReflection.GetPowerAmount(enemy, "EnragePower") > 0
                       || CombatReflection.GetPowerAmount(enemy, "FeralPower") > 0
-                      || CombatReflection.GetPowerAmount(enemy, "HighVoltagePower") > 0
+                      || highVoltageAmt > 0
                       || territorial > 0;
+        // 2026-06-03 — actual per-turn-end Strength gain (decompile: Ritual/Territorial/
+        // HighVoltage each Apply<StrengthPower>(owner, Amount) at turn end). AdvanceTurn adds
+        // this instead of a flat +1, fixing Amount>1 under-projection. Enrage (reactive on
+        // player skills) and Feral (zero-cost-attack mechanic) are NOT per-turn → excluded;
+        // they keep the +1 approximation via HasTurnStartStrengthBuff.
+        int turnStartStrGain = ritualAmt + territorial + highVoltageAmt;
 
         int totalDmg = 0;
         bool hasAtk = false, hasDeathBlow = false, hasBuff = false, hasDebuff = false;
@@ -1238,7 +1246,7 @@ internal static class StateSnapshotter
             CurlUpAmount = curlUp,
             SelfFormingClayAmount = selfFormingClay,
             ImbalancedAmount = imbalanced,
-            TerritorialAmount = territorial,
+            TurnStartStrengthGain = turnStartStrGain,
             PaperCutsAmount = paperCuts,
             PainfulStabsAmount = painfulStabs,
             SandpitAmount = sandpit,
