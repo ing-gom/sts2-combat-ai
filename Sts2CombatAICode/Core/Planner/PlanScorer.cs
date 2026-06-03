@@ -64,18 +64,6 @@ internal static class PlanScorer
         return 0;
     }
 
-    /// <summary>
-    /// 2026-06-03 — Percent of the defensive threatBonus kept when the survival race
-    /// is Losing (can't win at current pace). 100 = current behavior; lower forces
-    /// all-in damage instead of futile blocking against high-HP bosses. STS2_LOSING_BLOCK.
-    /// </summary>
-    public static int LosingBlockPct = ResolveLosingBlock();
-    private static int ResolveLosingBlock()
-    {
-        var s = System.Environment.GetEnvironmentVariable("STS2_LOSING_BLOCK");
-        if (int.TryParse(s, out var v) && v >= 0 && v <= 100) return v;
-        return 100;
-    }
 
     public static int Score(SimCard card, int targetIdx, SimState state)
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current)).Total;
@@ -174,6 +162,26 @@ internal static class PlanScorer
             // get the higher bonus. Curses/Status cards are filtered out
             // earlier; the bonus on them is irrelevant.
             delta += card.IsPower ? w.EtherealPowerPlayNowBonus : w.EtherealPlayNowBonus;
+        }
+        // 2026-06-03 — "play before your attacks" setup. RagePower (RAGE 격노) grants block
+        // for each Attack played for the REST of this turn, so it must precede the attacks to
+        // pay off. The depth-2 lookahead credits the synergy value but doesn't bias the play
+        // ORDER, so the planner could fire an attack first and forfeit that attack's block.
+        // Add a play-now nudge proportional to the block the remaining affordable attacks would
+        // generate (half weight — the relic/other interactions stay the scorer's job, this only
+        // settles ORDER). With 0 remaining attacks RAGE earns nothing → no nudge.
+        if (card.PowerApps.TryGetValue("RagePower", out int rageAmt) && rageAmt > 0)
+        {
+            int remainingAttacks = 0;
+            foreach (var c in state.Hand)
+            {
+                if (ReferenceEquals(c, card)) continue;
+                if (c.IsCurseOrStatus || !c.IsAttack) continue;
+                if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;   // affordable now
+                remainingAttacks++;
+            }
+            if (remainingAttacks > 0)
+                delta += remainingAttacks * rageAmt * w.BlockPerPointBonus / 2;
         }
         return delta;
     }
@@ -2103,22 +2111,6 @@ internal static class PlanScorer
                     * aoeFactor * delayMult * w.DamagePerPointBonus);
                 if (delayedBombBonus > 0)
                     details.Add($"delayedAOE({card.Effect.DelayedAoeDamage}×{aoeFactor}×{delayMult:F2})={delayedBombBonus}");
-            }
-
-            // 2026-06-03 — Losing-race block suppression. When TurnsToDeath ≤ TurnsToKill
-            // (we can't win at the current pace — e.g. a 173-HP boss vs a ~15-DPT deck),
-            // blocking only delays the loss; the only chance is to race damage. But the
-            // threatBonus (~2000 for blocking any incoming) dwarfs the Losing RaceBonus
-            // (block −60) and keeps the planner over-blocking (observed boss R1: DEFEND
-            // 2178 ≫ STRIKE 838). Scale the defensive threatBonus down in a Losing race
-            // so attacks win and the deck deals maximum boss damage. STS2_LOSING_BLOCK =
-            // percent kept (100 = off/current, 0 = full suppression).
-            if (LosingBlockPct < 100 && threatBonus > 0
-                && raceProj.Race == SurvivalProjection.RaceOutcome.Losing)
-            {
-                int kept = threatBonus * LosingBlockPct / 100;
-                details.Add($"losingBlockSuppress({threatBonus}→{kept})");
-                threatBonus = kept;
             }
 
             int total = baseBonus + effect + powerEffect + threatBonus + wastedBlock + energyBonus + drawBonus + skillOrbBonus + enragePenalty + buildBonus + skillAmpBonus + skillEffBonus + survivalSkillPenalty + selfDmgSkillPenalty + skillTierOrdering + skillTierCond + lethalPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + imbalancedBonus + confusedPenalty + relicBonusSkill + delayedBombBonus + generatorRescueBonus;
