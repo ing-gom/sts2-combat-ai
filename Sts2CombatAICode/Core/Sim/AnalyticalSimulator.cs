@@ -2942,13 +2942,22 @@ internal static class AnalyticalSimulator
             if (dotTick > 0)
                 ne = ne with { Hp = System.Math.Max(0, ne.Hp - dotTick) };
 
+            // 2026-06-03 — BurrowedPower (잠복) keeps its Block across turn starts (stripping
+            // it all Stuns the enemy). Retain the post-player-turn block (ne.Block already
+            // reflects ally/player damage above) instead of resetting to 0, so the next-turn
+            // projection sees the still-armored enemy and doesn't assume a clean hit next turn.
+            // The single-turn "break it → stun" reward lives in PlanScorer; this keeps the
+            // depth-2 damage-leak projection honest. If we broke all block this turn ne.Block
+            // is already 0, so the burrowed branch collapses to the normal reset.
+            bool burrowed = ne.Powers != null
+                && ne.Powers.TryGetValue("BurrowedPower", out var bp) && bp > 0;
             ne = ne with
             {
                 VulnerableAmount = System.Math.Max(0, ne.VulnerableAmount - 1),
                 WeakAmount       = System.Math.Max(0, ne.WeakAmount - 1),
                 FrailAmount      = System.Math.Max(0, ne.FrailAmount - 1),
                 PoisonAmount     = System.Math.Max(0, ne.PoisonAmount - 1),
-                Block            = 0, // enemies' block also resets each turn
+                Block            = burrowed ? ne.Block : 0, // burrowed retains; others reset each turn
                 // SandpitPower decrements at AfterSideTurnStartLate(Enemy)
                 // — for our turn-boundary model that's "end of player turn /
                 // start of next enemy phase". Transitioning to 0 here means
