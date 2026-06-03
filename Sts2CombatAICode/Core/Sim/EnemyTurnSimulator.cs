@@ -42,7 +42,7 @@ internal static class EnemyTurnSimulator
             }
             // v0.7.83 — Buffer cancels hits before block applies.
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
-            int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+            int intangibleBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus + OrichalcumBonus(s);
             // v0.10 — In-hand turn-end self-damage (INFECTION etc.) lands as
             // a regular damage instance via CreatureCmd.Damage → goes through
             // block. Under Intangible each instance still caps to 1.
@@ -128,7 +128,7 @@ internal static class EnemyTurnSimulator
         // v0.5 — fold the end-of-turn block bonus (Metallicize + PlatedArmor) into the
         // effective block. Enemies attack AFTER our end-of-turn step adds these blocks,
         // so they cushion the leak before HP loss.
-        int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+        int effectivePlayerBlock = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus + OrichalcumBonus(s);
         int rawLeak = Math.Max(0, total - effectivePlayerBlock);
 
         // v0.10 — TungstenRod (`ModifyHpLostAfterOsty`): subtract 1 HP loss
@@ -162,6 +162,17 @@ internal static class EnemyTurnSimulator
     /// </summary>
     private static bool HasTungstenRod(SimState s) =>
         s.PlayerRelics != null && s.PlayerRelics.ContainsKey("TungstenRod");
+
+    // 2026-06-04 — ORICHALCUM (decompile: BeforeTurnEnd, BlockVar 6): at end of the player's
+    // turn, IF the player has no block, gain 6 block. It absorbs the enemy attack just like
+    // Metallicize/PlatedArmor's PlayerEndOfTurnBlockBonus, but CONDITIONALLY — only when
+    // PlayerBlock is 0. Folded into every effective-block site so the survival projection (and
+    // thus the planner) sees that a small block play which leaves block > 0 FORFEITS the free 6
+    // (the "RAGE 5 vs free 6 = net −1" trap). Block amount is the constant 6 (Unpowered).
+    private const int OrichalcumBlock = 6;
+    private static int OrichalcumBonus(SimState s) =>
+        (s.PlayerBlock == 0 && s.PlayerRelics != null && s.PlayerRelics.ContainsKey("Orichalcum"))
+            ? OrichalcumBlock : 0;
 
     /// <summary>
     /// v0.10 — Number of damage instances that contribute non-zero HP loss
@@ -216,7 +227,7 @@ internal static class EnemyTurnSimulator
                 hits += maxHits;
             }
             int hitsAfterBuffer = Math.Max(0, hits - s.PlayerBuffer);
-            int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+            int blkIntangible = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus + OrichalcumBonus(s);
             // v0.10 — Mirror PredictPlayerDmg: in-hand turn-end self-damage
             // (INFECTION) caps to 1 each under Intangible.
             int handTurnEndHits = s.PlayerHandTurnEndDamage > 0
@@ -277,7 +288,7 @@ internal static class EnemyTurnSimulator
         }
         int total = 0;
         foreach (var d in dmgInstances) total += d;
-        int blk = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus;
+        int blk = s.PlayerBlock + s.PlayerEndOfTurnBlockBonus + OrichalcumBonus(s);
         int rawLeak2 = Math.Max(0, total - blk);
         // v0.10 — TungstenRod (mirrors PredictPlayerDmg).
         if (rawLeak2 > 0 && HasTungstenRod(s))
