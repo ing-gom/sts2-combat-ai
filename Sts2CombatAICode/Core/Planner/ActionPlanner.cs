@@ -224,11 +224,17 @@ internal static class ActionPlanner
         // 2026-06-02 — BULLET_TIME free-hand: all non-X-cost cards 0-cost this turn.
         bool freeHandCovers = state.PlayerFreeHandThisTurn
             && !(c.Axes != null && c.Axes.Contains("X_COST"));
+        // 2026-06-04 — VoidForm (first N cards/turn free) + Veilpiercer (next Ethereal free).
+        bool voidFormFree = state.PlayerFreeCardBudget > 0
+            && !(c.Axes != null && c.Axes.Contains("X_COST"));
+        bool veilpiercerFree = c.IsEthereal && state.PlayerVeilpiercer > 0;
         bool freeCovers = (c.IsAttack && state.PlayerFreeAttacks > 0)
                        || (c.IsSkill && state.PlayerFreeSkills > 0)
                        || (c.IsPower && state.PlayerFreePowers > 0)
                        || corruptionFreeSkill
-                       || freeHandCovers;
+                       || freeHandCovers
+                       || voidFormFree
+                       || veilpiercerFree;
         if (!freeCovers && c.Cost > state.PlayerEnergy)
             return $"cost{c.Cost}>energy{state.PlayerEnergy}";
         if (c.IsCurseOrStatus) return "curse/status";
@@ -759,12 +765,18 @@ internal static class ActionPlanner
             // 2026-06-02 — BULLET_TIME free-hand: all non-X-cost cards 0-cost this turn.
             bool freeHandCovers = state.PlayerFreeHandThisTurn
                 && !(card.Axes != null && card.Axes.Contains("X_COST"));
+            // 2026-06-04 — VoidForm (first N cards/turn free) + Veilpiercer (next Ethereal free).
+            bool voidFormFree = state.PlayerFreeCardBudget > 0
+                && !(card.Axes != null && card.Axes.Contains("X_COST"));
+            bool veilpiercerFree = card.IsEthereal && state.PlayerVeilpiercer > 0;
             bool freeCovers =
                 (card.IsAttack && state.PlayerFreeAttacks > 0) ||
                 (card.IsSkill && state.PlayerFreeSkills > 0) ||
                 (card.IsPower && state.PlayerFreePowers > 0) ||
                 corruptionFreeSkill ||
-                freeHandCovers;
+                freeHandCovers ||
+                voidFormFree ||
+                veilpiercerFree;
             if (!freeCovers && card.Cost > state.PlayerEnergy) continue;
             // Note: star-cost cards are filtered by CanPlay() already if no stars; we trust it.
 

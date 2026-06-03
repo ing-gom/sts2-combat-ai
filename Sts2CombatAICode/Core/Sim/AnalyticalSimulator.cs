@@ -68,12 +68,26 @@ internal static class AnalyticalSimulator
         // excluded from the free-counter decrement below.
         bool freeHandActive = next.PlayerFreeHandThisTurn
             && !(card.Axes != null && card.Axes.Contains("X_COST"));
-        bool freeApplied =
+        // 2026-06-04 — VoidForm (first N cards/turn free, energy+stars) + Veilpiercer (next
+        // Ethereal card free). Only "pay" with these when no typed-free / corruption / free-hand
+        // source already covered the card, so budgets aren't spent needlessly.
+        int newFreeCardBudget = next.PlayerFreeCardBudget;
+        int newVeilpiercer = next.PlayerVeilpiercer;
+        bool typedFree =
             (card.IsAttack && newFreeAttacks > 0) ||
             (card.IsSkill && newFreeSkills > 0) ||
-            (card.IsPower && newFreePowers > 0) ||
+            (card.IsPower && newFreePowers > 0);
+        bool cardIsXCost = card.Axes != null && card.Axes.Contains("X_COST");
+        bool voidFormFree = !typedFree && !corruptionFreeSkill && !freeHandActive
+            && newFreeCardBudget > 0 && !cardIsXCost;
+        bool veilpiercerFree = !typedFree && !corruptionFreeSkill && !freeHandActive
+            && !voidFormFree && card.IsEthereal && newVeilpiercer > 0;
+        bool freeApplied =
+            typedFree ||
             corruptionFreeSkill ||
-            freeHandActive;
+            freeHandActive ||
+            voidFormFree ||
+            veilpiercerFree;
         // 2026-05-31 — X-cost cards (HEAVENLY_DRILL, TEMPEST, …) spend ALL energy
         // (HasEnergyCostX); base Cost is 0 so the plain subtraction left energy
         // untouched → consistent player_energy +preSpend (HEAVENLY_DRILL +4, 3 rows).
@@ -97,9 +111,14 @@ internal static class AnalyticalSimulator
         {
             // Per-card counters decrement; persistent CorruptionPower / turn-scoped
             // BULLET_TIME free-hand don't.
-            if (card.IsAttack) newFreeAttacks--;
-            else if (card.IsSkill) newFreeSkills--;
-            else if (card.IsPower) newFreePowers--;
+            if (typedFree)
+            {
+                if (card.IsAttack) newFreeAttacks--;
+                else if (card.IsSkill) newFreeSkills--;
+                else if (card.IsPower) newFreePowers--;
+            }
+            else if (voidFormFree) newFreeCardBudget--;     // VoidForm budget spent
+            else if (veilpiercerFree) newVeilpiercer--;      // Veilpiercer Ethereal-free spent
         }
         // 2026-06-02 — BULLET_TIME OnPlay: arm the free-hand flag (this card itself
         // pays its 3 cost above; the freed cards are every OTHER card in hand this turn).
@@ -1220,6 +1239,9 @@ internal static class AnalyticalSimulator
                 || enemyTargetSkillGainsBlock) && escapePlanBlocks)
             {
                 int perPlayBlock = StatusMath.EffectiveBlock(effCardBlock, newPlayerDex, playerFrail);
+                // FastenPower: +N block on Defend cards (approx pure block skill), before Shadowmeld.
+                if (next.PlayerFasten > 0 && card.IsSkill && card.Damage == 0 && card.Block > 0)
+                    perPlayBlock += next.PlayerFasten;
                 if (next.PlayerBlockMult > 1) perPlayBlock *= next.PlayerBlockMult;   // ShadowmeldPower ×2^stacks
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
                 // multiple times. Each resolution is a separate "block card play".
@@ -2719,6 +2741,9 @@ internal static class AnalyticalSimulator
             PlayerFreeSkills = newFreeSkills,
             PlayerFreePowers = newFreePowers,
             PlayerFreeHandThisTurn = newFreeHand,
+            PlayerFreeCardBudget = newFreeCardBudget,   // VoidForm
+            PlayerVeilpiercer = newVeilpiercer,          // Veilpiercer
+            // PlayerFasten carries forward unchanged (not consumed per-play)
             // v0.7.71 — propagate updated star count for depth-N lookahead
             PlayerStars = newPlayerStars,
             // v0.8.2 — Propagate updated PlayerPowers dict if any self-power

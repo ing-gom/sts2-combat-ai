@@ -200,6 +200,12 @@ internal static class StateSnapshotter
             int shadowmeldStacks = playerPowerDict != null
                 && playerPowerDict.TryGetValue("ShadowmeldPower", out var smAmt) ? smAmt : 0;
             int playerBlockMult = shadowmeldStacks > 0 ? (1 << System.Math.Min(shadowmeldStacks, 4)) : 1;
+            // 2026-06-04 — VoidForm (first Amount cards/turn free), Veilpiercer (next Ethereal
+            // card free), Fasten (+N block on Defend cards). turnCardsPlayed is computed below;
+            // VoidForm budget is finalized after it. Capture the raw power amounts here.
+            int voidFormAmt = CombatReflection.GetPowerAmount(creature, "VoidFormPower");
+            int playerVeilpiercer = CombatReflection.GetPowerAmount(creature, "VeilpiercerPower");
+            int playerFasten = CombatReflection.GetPowerAmount(creature, "FastenPower");
             int playerStars = (int)(CombatReflection.PcsStarsField?.GetValue(pcs) ?? 0);
             int playerDoom = CombatReflection.GetPowerAmount(creature, "DoomPower");
             // v0.7.35 — Player-side DoT stacks. Tick at turn end / start;
@@ -808,6 +814,9 @@ internal static class StateSnapshotter
                 PlayerFreeSkills = playerFreeSkills,
                 PlayerFreePowers = playerFreePowers,
                 PlayerBlockMult = playerBlockMult,
+                PlayerFreeCardBudget = System.Math.Max(0, voidFormAmt - turnCardsPlayed),
+                PlayerVeilpiercer = playerVeilpiercer,
+                PlayerFasten = playerFasten,
                 PlayerPowers = playerPowerDict,
                 SoulInPiles = soulInPiles,
                 ShivInPiles = shivInPiles,

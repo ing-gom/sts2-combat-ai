@@ -59,6 +59,15 @@ internal sealed record SimState
     // removed at turn end). Captured by StateSnapshotter (2^stacks), applied to card block in
     // ApplyCardPlay + valued in PlanScorer, reset to 1 in AdvanceTurn. Default 1 = no multiplier.
     public int PlayerBlockMult { get; init; } = 1;
+    // 2026-06-04 — VoidFormPower: the first Amount cards each turn cost 0 (energy AND stars).
+    // Captured as the remaining free-card budget (Amount − cards played this turn); a card is
+    // free while this is > 0. 0 = none.
+    public int PlayerFreeCardBudget { get; init; }
+    // 2026-06-04 — VeilpiercerPower stacks: each makes the next ETHEREAL card cost 0.
+    public int PlayerVeilpiercer { get; init; }
+    // 2026-06-04 — FastenPower amount: +N block to Defend-tagged cards' block (approximated as
+    // pure block skills — SimCard lacks the game's CardTag.Defend). 0 = none.
+    public int PlayerFasten { get; init; }
     // v0.7.83 — BufferPower stack. Each stack negates ONE incoming damage
     // instance (entire hit, regardless of size). Decremented per instance
     // negated. Critical for survival projection: a 30-damage enemy hit with

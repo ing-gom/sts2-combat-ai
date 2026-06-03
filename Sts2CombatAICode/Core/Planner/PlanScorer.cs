@@ -1729,6 +1729,11 @@ internal static class PlanScorer
             int rawBlock = card.Block * System.Math.Max(1, blockMultiplier);
             int perPlayBlock = StatusMath.EffectiveBlock(rawBlock,
                 state.PlayerDexterity, state.PlayerFrail > 0);
+            // 2026-06-04 — FastenPower (decompile ModifyBlockAdditive, CardTag.Defend only): +N
+            // block to Defend cards. SimCard lacks the game tag, so approximate Defend as a pure
+            // block skill (block>0, no damage). Additive, applied before the Shadowmeld multiply.
+            if (state.PlayerFasten > 0 && card.IsSkill && card.Damage == 0 && card.Block > 0)
+                perPlayBlock += state.PlayerFasten;
             // 2026-06-04 — ShadowmeldPower (decompile ModifyBlockMultiplicative → 2^Amount):
             // this turn the player's card block is multiplied (×2 at 1 stack, ×4 at 2…). Captured
             // as PlayerBlockMult so block cards are valued higher under Shadowmeld. Default 1.
