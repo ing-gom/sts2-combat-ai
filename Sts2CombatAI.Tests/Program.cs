@@ -21,6 +21,11 @@ public static class Program
 
     public static int Main()
     {
+        if (Environment.GetEnvironmentVariable("STS2_STRATEGY_DIAG") == "1")
+        {
+            RunStrategyDiagnostic();
+            return 0;
+        }
         Console.WriteLine("=== Sts2CombatAI unit tests ===");
 
         Run("DamageEfficiency: Bash(8) > Strike(6) at same cost", Test_DamageEfficiency);
@@ -643,6 +648,63 @@ public static class Program
         // 20 × 30 = 600 reactive credit; baseline attack ~150-300; total reasonable < 2000 in non-lethal.
         Assert(score < 2500,
             $"Capped reactive should keep attack score < 2500 (was {score})");
+    }
+
+    private static void RunStrategyDiagnostic()
+    {
+        Console.WriteLine("=== STRATEGY-LAYER DIAGNOSTIC (per-turn vs per-cycle race judgment) ===\n");
+
+        void Dump(string label, List<SimCard> deck, SimEnemy enemy, int playerHp = 70, int energy = 3)
+        {
+            // Put deck in DrawPile (realistic), draw 5 into hand for the snapshot view.
+            var hand = deck.Take(5).ToList();
+            var draw = deck.Skip(5).ToList();
+            var state = MakeState(playerHp: playerHp, energy: energy, hand: hand,
+                enemies: new() { enemy }) with { DrawPile = draw, PlayerMaxHp = playerHp };
+
+            var tp = DeckThroughput.Compute(state);
+            int perCycleDmg = tp.AvgDamagePerTurn * tp.TurnsPerCycle;   // ≈ TotalDeckDamage realized
+            var race = SurvivalProjection.Compute(state, tp);
+            double dmgCov = DeckThroughput.DamageCoverage(state, tp);
+            var phase = WinConditionInference.Classify(state);
+            CombatPlan.NotifyTurn(3);
+            var stage = CombatPlan.Classify(state, race);
+            int enemyHp = enemy.Hp + enemy.Block;
+
+            Console.WriteLine($"[{label}]  enemyHP={enemyHp}  deckSize={tp.DeckSize}");
+            Console.WriteLine($"   DPT={tp.AvgDamagePerTurn} BPT={tp.AvgBlockPerTurn} " +
+                $"totalDeckDmg={tp.TotalDeckDamage} turnsPerCycle={tp.TurnsPerCycle} → perCycleDmg≈{perCycleDmg}");
+            Console.WriteLine($"   per-turn: TurnsToKill={race.TurnsToKill} TurnsToDeath={race.TurnsToDeath} " +
+                $"RACE={race.Race}  dmgCoverage={dmgCov:F2}");
+            int cyclesToKill = perCycleDmg > 0 ? (enemyHp + perCycleDmg - 1) / perCycleDmg : 99;
+            Console.WriteLine($"   per-cycle: cyclesToKill≈{cyclesToKill} (={cyclesToKill}×{tp.TurnsPerCycle}={cyclesToKill * tp.TurnsPerCycle} turns)");
+            Console.WriteLine($"   phase={phase} stage={stage}\n");
+        }
+
+        var boss = Enemy(hp: 250, hasAttackIntent: true, intentDamage: 16);
+
+        // 1) Steady aggro: 10 attacks ~8 dmg.
+        var steady = new List<SimCard>();
+        for (int i = 0; i < 10; i++) steady.Add(Attack($"ST{i}", cost: 1, damage: 8));
+        Dump("steady-aggro vs boss", steady, boss);
+
+        // 2) Lumpy burst: one 40-dmg finisher + 9 small/utility (5 dmg).
+        var lumpy = new List<SimCard>();
+        lumpy.Add(Attack("FINISHER", cost: 2, damage: 40));
+        for (int i = 0; i < 9; i++) lumpy.Add(Attack($"SM{i}", cost: 1, damage: 5));
+        Dump("lumpy-burst vs boss", lumpy, boss);
+
+        // 3) Weak deck vs boss (under-powered).
+        var weak = new List<SimCard>();
+        for (int i = 0; i < 10; i++) weak.Add(Attack($"WK{i}", cost: 1, damage: 4));
+        Dump("weak vs boss", weak, boss);
+
+        // 4) Strong vs normal (over-powered).
+        var strong = new List<SimCard>();
+        for (int i = 0; i < 10; i++) strong.Add(Attack($"SG{i}", cost: 1, damage: 12));
+        Dump("strong vs normal", strong, Enemy(hp: 80, hasAttackIntent: true, intentDamage: 10));
+
+        Console.WriteLine("=== END DIAGNOSTIC — compare per-turn RACE vs per-cycle cyclesToKill ===");
     }
 
     private static void Test_AutoPlaystyleFromDeck()
