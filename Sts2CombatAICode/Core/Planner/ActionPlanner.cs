@@ -291,7 +291,7 @@ internal static class ActionPlanner
         int bestFirstScore = int.MinValue;
         LastCandidates.Clear();
 
-        var planWeights = PlanScorerWeights.For(PlaystyleState.Current);
+        var planWeights = PlanScorerWeights.For(PlaystyleResolver.Resolve(state));
         foreach (var (card, targetIdx) in candidates)
         {
             // v0.5 — play-order biases (Retain defer / Ethereal play-now) live here, not

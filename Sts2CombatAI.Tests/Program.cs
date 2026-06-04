@@ -121,6 +121,7 @@ public static class Program
         Run("v0.8.7: Reactive block under cap stays uncapped", Test_ReactiveBlockBelowCap);
         Run("v0.11.4: AdvanceTurn — surviving heal-intent enemy regains HealAmount HP", Test_AdvanceTurnEnemyHealBack);
         Run("v0.11.5: HP-pressure power penalty is MaxHp-relative (char-correct)", Test_HpPressureMaxHpRelative);
+        Run("v0.11.6: Auto playstyle derives Defensive/Aggressive/Balanced from deck", Test_AutoPlaystyleFromDeck);
 
         // v0.8.8 — AdvanceTurn integration tests
         Run("v0.8.8: AdvanceTurn — energy resets to base", Test_AdvanceTurnEnergyReset);
@@ -642,6 +643,48 @@ public static class Program
         // 20 × 30 = 600 reactive credit; baseline attack ~150-300; total reasonable < 2000 in non-lethal.
         Assert(score < 2500,
             $"Capped reactive should keep attack score < 2500 (was {score})");
+    }
+
+    private static void Test_AutoPlaystyleFromDeck()
+    {
+        var prev = PlaystyleState.Current;
+        try
+        {
+            PlaystyleState.Set(Playstyle.Auto);
+
+            // Block-heavy deck (8 cards: block 48 ≫ damage 10) → Defensive.
+            var defHand = new List<SimCard>();
+            for (int i = 0; i < 6; i++) defHand.Add(Skill($"DEF{i}", cost: 1, block: 8));
+            for (int i = 0; i < 2; i++) defHand.Add(Attack($"DATK{i}", cost: 1, damage: 5));
+            var defState = MakeState(playerHp: 50, energy: 3, hand: defHand, enemies: new() { Enemy(hp: 40) });
+            var defStyle = PlaystyleResolver.Resolve(defState);
+            Assert(defStyle == Playstyle.Defensive,
+                $"Block-heavy deck should resolve Defensive (got {defStyle})");
+
+            // Attack-heavy deck (12 cards: damage 80 ≫ block 10; distinct size → no cache hit) → Aggressive.
+            var aggHand = new List<SimCard>();
+            for (int i = 0; i < 10; i++) aggHand.Add(Attack($"AA{i}", cost: 1, damage: 8));
+            for (int i = 0; i < 2; i++) aggHand.Add(Skill($"AS{i}", cost: 1, block: 5));
+            var aggState = MakeState(playerHp: 50, energy: 3, hand: aggHand, enemies: new() { Enemy(hp: 40) });
+            var aggStyle = PlaystyleResolver.Resolve(aggState);
+            Assert(aggStyle == Playstyle.Aggressive,
+                $"Attack-heavy deck should resolve Aggressive (got {aggStyle})");
+
+            // Even deck (6 cards: damage 18 ≈ block 18) → Balanced.
+            var balHand = new List<SimCard>();
+            for (int i = 0; i < 3; i++) balHand.Add(Attack($"BA{i}", cost: 1, damage: 6));
+            for (int i = 0; i < 3; i++) balHand.Add(Skill($"BS{i}", cost: 1, block: 6));
+            var balState = MakeState(playerHp: 50, energy: 3, hand: balHand, enemies: new() { Enemy(hp: 40) });
+            var balStyle = PlaystyleResolver.Resolve(balState);
+            Assert(balStyle == Playstyle.Balanced,
+                $"Even deck should resolve Balanced (got {balStyle})");
+
+            // Non-Auto selection is returned verbatim, deck ignored.
+            PlaystyleState.Set(Playstyle.Killer);
+            Assert(PlaystyleResolver.Resolve(aggState) == Playstyle.Killer,
+                "Non-Auto selection should be returned as-is");
+        }
+        finally { PlaystyleState.Set(prev); }
     }
 
     private static void Test_HpPressureMaxHpRelative()

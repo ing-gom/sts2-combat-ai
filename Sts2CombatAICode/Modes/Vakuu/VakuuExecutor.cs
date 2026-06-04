@@ -283,7 +283,7 @@ internal static class VakuuExecutor
 
                 Creature? target = ResolveTarget(plan.Value, snapshot, combatState, player);
 
-                var pickWeights = PlanScorerWeights.For(PlaystyleState.Current);
+                var pickWeights = PlanScorerWeights.For(PlaystyleResolver.Resolve(snapshot));
                 var breakdown = PlanScorer.Breakdown(plan.Value.Card, plan.Value.TargetIdx,
                     snapshot, pickWeights);
                 int playOrderBias = PlanScorer.PlayOrderBias(plan.Value.Card, snapshot, pickWeights);

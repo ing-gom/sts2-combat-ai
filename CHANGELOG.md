@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.11.6 (2026-06-04)
+
+**Deck-aware "Auto" playstyle (opt-in).** The planner's playstyle (Defensive/
+Balanced/Aggressive/Killer) was a fixed global toggle set only via
+`{userdata}/Sts2CombatAI/playstyle.json` — it never adapted to the deck. But the
+right signal is the DECK, not the character or a manual switch: a poison Silent
+wants patience, a shiv Silent wants aggression; a Barricade Ironclad turtles, a
+Strength Ironclad races.
+
+New `Auto` playstyle (enum value kept last so existing int/config values are
+stable). When the user sets `playstyle.json` → `{"playstyle":"Auto"}`,
+`PlaystyleResolver` derives the effective style each combat from the deck's
+offense/defense profile (`DeckThroughput`) + archetype (`ArchetypeDetector`):
+
+- block archetype, or block/turn ≥ 1.5× damage/turn → **Defensive**
+- burst archetype (Strength/ShivStorm/ForgeBlade/ExhaustBurst), or damage/turn ≥
+  2× block/turn → **Aggressive**
+- scaling/poison/orb/soul and everything else → **Balanced** (patient default)
+- Killer is intentionally never auto-selected (ignores block — too risky without
+  an explicit opt-in)
+
+Default behavior is unchanged: only users who explicitly set "Auto" get the
+adaptive mode, and the derivation is logged each combat for transparency. Perf:
+non-Auto resolves in one enum compare; Auto caches its result on a combat-stable
+deck signature so the pile scans run only when the deck size changes, not per card.
+
+Validation note: the deck→style thresholds are heuristic and not yet win-rate A/B'd
+— Auto is opt-in precisely so it can be measured before any default promotion.
+
 ## v0.11.5 (2026-06-04)
 
 **Per-character weight audit + one correctness fix: HP-pressure threshold is now

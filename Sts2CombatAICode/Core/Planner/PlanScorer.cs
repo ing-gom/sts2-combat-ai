@@ -66,13 +66,13 @@ internal static class PlanScorer
 
 
     public static int Score(SimCard card, int targetIdx, SimState state)
-        => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current)).Total;
+        => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleResolver.Resolve(state))).Total;
 
     public static int Score(SimCard card, int targetIdx, SimState state, PlanScorerWeights w)
         => Breakdown(card, targetIdx, state, w).Total;
 
     public static ScoreBreakdown Breakdown(SimCard card, int targetIdx, SimState state)
-        => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleState.Current));
+        => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleResolver.Resolve(state)));
 
     public static ScoreBreakdown Breakdown(SimCard card, int targetIdx, SimState state, PlanScorerWeights w)
         => AdjustBreakdownForEnchant(BreakdownInternal(card, targetIdx, state, w), card);
@@ -194,7 +194,7 @@ internal static class PlanScorer
     /// </summary>
     internal static int PotionValue(Sim.SimPotion potion, int targetIdx, SimState state)
     {
-        var w = PlanScorerWeights.For(PlaystyleState.Current);
+        var w = PlanScorerWeights.For(PlaystyleResolver.Resolve(state));
         switch (potion.Kind)
         {
             case Sim.PotionKind.Block:
