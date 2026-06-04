@@ -163,16 +163,31 @@ internal static class EnemyTurnSimulator
     private static bool HasTungstenRod(SimState s) =>
         s.PlayerRelics != null && s.PlayerRelics.ContainsKey("TungstenRod");
 
-    // 2026-06-04 — ORICHALCUM (decompile: BeforeTurnEnd, BlockVar 6): at end of the player's
-    // turn, IF the player has no block, gain 6 block. It absorbs the enemy attack just like
-    // Metallicize/PlatedArmor's PlayerEndOfTurnBlockBonus, but CONDITIONALLY — only when
-    // PlayerBlock is 0. Folded into every effective-block site so the survival projection (and
-    // thus the planner) sees that a small block play which leaves block > 0 FORFEITS the free 6
-    // (the "RAGE 5 vs free 6 = net −1" trap). Block amount is the constant 6 (Unpowered).
+    // 2026-06-04 — Turn-end relic BLOCK, folded into every effective-block site so the survival
+    // projection (and thus the planner) values keeping the trigger condition intact. These all
+    // fire at BeforeTurnEnd in-game (decompile) and the block only exists for the enemy turn —
+    // exactly what EnemyTurnSimulator models. The end-of-turn SimState `s` carries the projected
+    // remaining hand and this-turn attack count, so the conditions evaluate on the post-plan state.
+    //
+    //   • ORICHALCUM (BlockVar 6): +6 IF PlayerBlock == 0. A small block play that leaves block > 0
+    //     FORFEITS the free 6 (the "RAGE 5 vs free 6 = net −1" trap).
+    //   • CLOAK_CLASP (BlockVar 1): +1 × cards-in-hand at turn end (rewards holding cards / Retain).
+    //   • RIPPLE_BASIN (BlockVar 4): +4 IF no Attack was played this turn (skill/defensive turns).
     private const int OrichalcumBlock = 6;
-    private static int OrichalcumBonus(SimState s) =>
-        (s.PlayerBlock == 0 && s.PlayerRelics != null && s.PlayerRelics.ContainsKey("Orichalcum"))
-            ? OrichalcumBlock : 0;
+    private const int CloakClaspPerCard = 1;
+    private const int RippleBasinBlock = 4;
+    private static int OrichalcumBonus(SimState s)
+    {
+        if (s.PlayerRelics == null || s.PlayerRelics.Count == 0) return 0;
+        int bonus = 0;
+        if (s.PlayerBlock == 0 && s.PlayerRelics.ContainsKey("Orichalcum"))
+            bonus += OrichalcumBlock;
+        if (s.PlayerRelics.ContainsKey("CloakClasp") && s.Hand != null && s.Hand.Count > 0)
+            bonus += CloakClaspPerCard * s.Hand.Count;
+        if (s.PlayerRelics.ContainsKey("RippleBasin") && s.TurnAttacksPlayed == 0)
+            bonus += RippleBasinBlock;
+        return bonus;
+    }
 
     /// <summary>
     /// v0.10 — Number of damage instances that contribute non-zero HP loss

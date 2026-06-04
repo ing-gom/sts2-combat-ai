@@ -3118,6 +3118,14 @@ internal static class AnalyticalSimulator
                 newPlayerEnergy = System.Math.Max(0, newPlayerEnergy - bt * nextHand.Count);
         }
 
+        // 2026-06-04 — ArtOfWar (decompile AfterEnergyReset, EnergyVar 1): at next turn start,
+        // IF no Attack was played THIS turn, gain +1 energy. Folds the no-attack reward into the
+        // next-turn budget so the planner sees the upside of a purely defensive turn while holding
+        // ArtOfWar. state.TurnAttacksPlayed is the count for the turn AdvanceTurn is closing out.
+        if (state.TurnAttacksPlayed == 0 && state.PlayerRelics != null
+            && state.PlayerRelics.ContainsKey("ArtOfWar"))
+            newPlayerEnergy += 1;
+
         // (g) New hand from deck pool — provided by caller. Caller picks
         // synthetic-avg (BuildSyntheticHand, default AdvanceTurn) or Monte
         // Carlo sampling (BuildSampledHand, AdvanceTurnSampled).
