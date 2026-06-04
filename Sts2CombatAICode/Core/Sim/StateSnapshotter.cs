@@ -1223,6 +1223,13 @@ internal static class StateSnapshotter
             hasHeal, hasSummon, hasDebuff, hasDefend, hasStatus,
             isInert, isHidden, isUnknown, playerHp);
 
+        // 2026-06-04 — Self-heal amount for known healers. The heal value is hardcoded in the
+        // monster move (e.g. WaterfallGiant.SiphonHeal => 15, scaled ×players) and NOT exposed on
+        // the HealIntent, so it cannot be read generically — behavioral carve-out keyed on the
+        // monster class name, gated on actually having a heal intent this turn. Default 0 = no
+        // projection (graceful for unknown healers). See SimEnemy.HealAmount.
+        int healAmount = hasHeal ? KnownHealAmount(enemy.Monster?.GetType().Name) : 0;
+
         return new SimEnemy
         {
             Hp = hp,
@@ -1277,10 +1284,24 @@ internal static class StateSnapshotter
             TurnStartStrengthGain = turnStartStrGain,
             PaperCutsAmount = paperCuts,
             PainfulStabsAmount = painfulStabs,
+            HealAmount = healAmount,
             SandpitAmount = sandpit,
             OnDeathSpawnsCount = onDeathSpawns,
         };
     }
+
+    /// <summary>
+    /// 2026-06-04 — Decompiled per-turn self-heal for monsters whose heal amount is hardcoded in
+    /// their move (not on the HealIntent). Single-player values; STS2 scales some by player count
+    /// but the headless planner is single-player. Returns 0 for unknown monsters so the heal
+    /// projection is a no-op unless we've verified the value. Add new healers here as found.
+    ///   • WaterfallGiant.SiphonMove → CreatureCmd.Heal(SiphonHeal=15 × players)  [Act 1 boss]
+    /// </summary>
+    private static int KnownHealAmount(string? monsterClassName) => monsterClassName switch
+    {
+        "WaterfallGiant" => 15,
+        _ => 0,
+    };
 
     private static void AccumulateAttackDmg(object intent, ref int totalDmg)
     {

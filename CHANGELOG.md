@@ -1,6 +1,33 @@
 # Changelog
 
-## v0.11.3 (2026-06-04)
+## v0.11.4 (2026-06-04)
+
+**Heal-intent enemy: replace the v0.11.3 scorer heuristic with a sim-side heal model.**
+The v0.11.3 `-250` futile-chip penalty was reverted — it was an unvalidated scoring
+nudge that ran against the documented "under-aggression was the real win-con problem"
+finding, used an arbitrary magnitude, and was blind to the actual heal rate (it couldn't
+tell a winning chip from a futile one). `ScoreAttackTarget` is back to its original
+unconditional heal bonus.
+
+In its place, a grounded **sim-side** model: `AnalyticalSimulator.AdvanceTurn` now heals a
+heal-intent enemy that SURVIVED the player turn by `SimEnemy.HealAmount` (capped at MaxHp).
+The amount is the decompiled fact (WaterfallGiant Siphon = +15), captured via a behavioral
+carve-out in `StateSnapshotter.KnownHealAmount` keyed on the monster class (default 0 = no
+projection for unknown healers, since the heal value isn't exposed on the HealIntent and
+can't be read generically).
+
+Why this is better than the reverted scorer penalty:
+- It's a **physics correction** (the enemy genuinely heals in-game), not an aggression-
+  direction nudge — the planner still makes its own EV call with correct information.
+- The amount is a **decompiled fact**, not an arbitrary constant.
+- A lethal burst kills before the heal fires (`ne.Hp == 0 → skip`), so it only affects the
+  non-lethal case — making "chip below the heal rate = no net progress, so out-damage the
+  heal to kill it" emerge naturally in the depth-2 lookahead (user's intended plan).
+
+## v0.11.3 (2026-06-04) — superseded by v0.11.4
+
+Gated the heal-intent attack bonus on kill progress via a `-250` futile-chip scorer
+penalty. **Reverted in v0.11.4** (unvalidated, aggression-direction, blind to heal rate).
 
 **Heal-intent enemy — gate the attack bonus on kill progress.** Decompile showed the
 heal amount (e.g. WaterfallGiant Siphon = +15 self-heal) is hardcoded in the monster

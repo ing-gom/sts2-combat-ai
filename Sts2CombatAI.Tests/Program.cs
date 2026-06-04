@@ -119,8 +119,7 @@ public static class Program
         Run("v0.8.4: Unmovable+Burst+Echo composes canonically (5x not 8x)", Test_UnmovableBurstEchoCanonical);
         Run("v0.8.7: Reactive block cap clamps 4-source stack at 20", Test_ReactiveBlockCap);
         Run("v0.8.7: Reactive block under cap stays uncapped", Test_ReactiveBlockBelowCap);
-        Run("v0.11.3: Heal-intent enemy — race-to-kill beats futile chip", Test_HealIntentChipVsRace);
-        Run("v0.11.3: Heal-intent enemy — futile chip scores below non-healer", Test_HealIntentFutilePenalty);
+        Run("v0.11.4: AdvanceTurn — surviving heal-intent enemy regains HealAmount HP", Test_AdvanceTurnEnemyHealBack);
 
         // v0.8.8 — AdvanceTurn integration tests
         Run("v0.8.8: AdvanceTurn — energy resets to base", Test_AdvanceTurnEnergyReset);
@@ -644,34 +643,33 @@ public static class Program
             $"Capped reactive should keep attack score < 2500 (was {score})");
     }
 
-    private static void Test_HealIntentChipVsRace()
+    private static void Test_AdvanceTurnEnemyHealBack()
     {
-        // Heal-intent enemy: a 6-dmg attack that KILLS it (near) should far outscore the same
-        // attack that only chips a high-HP healer (far), which heals the chip back.
-        var attack = Attack("STRIKE", cost: 1, damage: 6);
-        var farState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
-            enemies: new() { Enemy(hp: 60, hasHealIntent: true) });
-        var nearState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
-            enemies: new() { Enemy(hp: 5, hasHealIntent: true) });
-        int farScore = PlanScorer.Score(attack, 0, farState);
-        int nearScore = PlanScorer.Score(attack, 0, nearState);
-        Assert(nearScore > farScore + 800,
-            $"Securing a healer kill should far outscore futile chipping (near={nearScore}, far={farScore})");
-    }
+        // A heal-intent enemy that SURVIVES the player turn regains HealAmount HP in the depth-2
+        // projection (capped at MaxHp), so the lookahead reflects "chip below the heal = no net
+        // progress" → you must out-damage the heal to kill it. WaterfallGiant Siphon = +15.
+        var healer = Enemy(hp: 40, hasHealIntent: true) with { MaxHp = 100, HealAmount = 15 };
+        var state = MakeState(playerHp: 50, energy: 0, hand: new(),
+            enemies: new() { healer });
+        var next = AnalyticalSimulator.AdvanceTurn(state);
+        Assert(next.Enemies[0].Hp == 55,
+            $"Surviving healer should regain 15 HP (40→55, was {next.Enemies[0].Hp})");
 
-    private static void Test_HealIntentFutilePenalty()
-    {
-        // Same far-from-kill attack vs a healer should score LOWER than vs an identical non-healer
-        // (the futile-chip penalty discourages feeding a healer we can't finish).
-        var attack = Attack("STRIKE", cost: 1, damage: 6);
-        var healerState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
-            enemies: new() { Enemy(hp: 60, hasHealIntent: true) });
-        var plainState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
-            enemies: new() { Enemy(hp: 60) });
-        int healerScore = PlanScorer.Score(attack, 0, healerState);
-        int plainScore = PlanScorer.Score(attack, 0, plainState);
-        Assert(healerScore < plainScore,
-            $"Futile chip on a healer should score below the same chip on a non-healer (healer={healerScore}, plain={plainScore})");
+        // Cap at MaxHp: a near-full healer doesn't overheal.
+        var nearFull = Enemy(hp: 95, hasHealIntent: true) with { MaxHp = 100, HealAmount = 15 };
+        var capState = MakeState(playerHp: 50, energy: 0, hand: new(),
+            enemies: new() { nearFull });
+        var ncap = AnalyticalSimulator.AdvanceTurn(capState);
+        Assert(ncap.Enemies[0].Hp == 100,
+            $"Heal should cap at MaxHp (95+15→100, was {ncap.Enemies[0].Hp})");
+
+        // No heal intent → no regen (control).
+        var plain = Enemy(hp: 40) with { MaxHp = 100, HealAmount = 15 };
+        var plainState = MakeState(playerHp: 50, energy: 0, hand: new(),
+            enemies: new() { plain });
+        var nplain = AnalyticalSimulator.AdvanceTurn(plainState);
+        Assert(nplain.Enemies[0].Hp == 40,
+            $"Enemy without heal intent should not regen (was {nplain.Enemies[0].Hp})");
     }
 
     private static void Test_ReactiveBlockBelowCap()

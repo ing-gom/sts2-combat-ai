@@ -3035,6 +3035,16 @@ internal static class AnalyticalSimulator
                 // amount too — separate Skulking Colony fix (see below).
                 SandpitAmount    = System.Math.Max(0, ne.SandpitAmount - 1),
             };
+            // 2026-06-04 — Self-heal: a heal-intent enemy that SURVIVED the player turn restores
+            // HealAmount HP on its turn (e.g. WaterfallGiant Siphon +15), capped at MaxHp. A lethal
+            // burst already killed it above (ne.Hp == 0 → skip), so the heal only fires when the
+            // chip was non-lethal — making "chip below the heal rate = no net progress" emerge in
+            // the depth-2 projection (you must out-damage the heal to actually kill it).
+            if (ne.Hp > 0 && ne.HasHealIntent && ne.HealAmount > 0)
+            {
+                int cap = ne.MaxHp > 0 ? ne.MaxHp : ne.Hp + ne.HealAmount;
+                ne = ne with { Hp = System.Math.Min(cap, ne.Hp + ne.HealAmount) };
+            }
             newEnemies.Add(ne);
         }
 

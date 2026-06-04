@@ -185,6 +185,17 @@ internal sealed record SimEnemy
     public int PainfulStabsAmount { get; init; }
 
     /// <summary>
+    /// 2026-06-04 — Per-turn self-heal an enemy with a heal intent restores if it SURVIVES the
+    /// player's turn (e.g. WaterfallGiant Siphon = +15). The heal amount is hardcoded in the
+    /// monster move and NOT exposed on the intent, so it can't be read generically — captured via
+    /// a behavioral carve-out for known healers (default 0 = unknown / no projection). AdvanceTurn
+    /// adds it back (capped at MaxHp) so the depth-2 lookahead reflects "chip below the heal rate
+    /// makes no net progress → you must out-damage the heal to kill it." Only applies when the
+    /// enemy is still alive after the turn (a lethal burst kills before the heal fires).
+    /// </summary>
+    public int HealAmount { get; init; }
+
+    /// <summary>
     /// SandpitPower stack (The Insatiable). Decrements -1 at each enemy turn
     /// start. When this transitions from &gt;0 to 0 the power's AfterRemoved
     /// hook force-kills the player + pets + Osty, ignoring all revive

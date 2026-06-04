@@ -3426,34 +3426,7 @@ internal static class PlanScorer
         int s = 0;
         var parts = new List<string>();
         if (target.HasBuffIntent) { s += w.BuffEnemyKillBonus; parts.Add($"buff+{w.BuffEnemyKillBonus}"); }
-        // 2026-06-04 — Heal-intent enemy (e.g. WaterfallGiant Siphon = +15 self-heal). The exact
-        // heal amount is hardcoded in the monster move and NOT exposed on the intent, so we can't
-        // project the number — instead we gate the "attack the healer" bonus on KILL PROGRESS:
-        // chipping a healer we can't finish is wasted (it heals back), so the planner should build
-        // power / hit a killable target instead (user intent). Race-to-kill stays rewarded; futile
-        // chip is mildly discouraged. Re-snapshot between plays means a multi-card kill still trips
-        // securesKill on its finishing card.
-        if (target.HasHealIntent)
-        {
-            bool securesKill = effectiveDamage >= target.EffectiveHp;
-            int hpAfterPlay = System.Math.Max(0, target.EffectiveHp - effectiveDamage);
-            // "Approaching kill" — leaves the target low enough that next turn finishes it before
-            // the heal matters (heuristic: ≤ 25% MaxHp, floor 8 for low-HP enemies).
-            bool approachingKill = hpAfterPlay <= System.Math.Max(8, target.MaxHp / 4);
-            if (securesKill || approachingKill)
-            {
-                s += w.HealEnemyKillBonus;
-                parts.Add($"healRace+{w.HealEnemyKillBonus}");
-            }
-            else
-            {
-                // Futile chip — healed back next turn. Nudge away from feeding the healer; mild so
-                // it never hard-blocks a genuinely needed hit (e.g. only target, lethal setup).
-                const int FutileHealChipPenalty = -250;
-                s += FutileHealChipPenalty;
-                parts.Add($"futileHealChip{FutileHealChipPenalty}");
-            }
-        }
+        if (target.HasHealIntent) { s += w.HealEnemyKillBonus; parts.Add($"heal+{w.HealEnemyKillBonus}"); }
         if (target.HasSummonIntent) { s += w.SummonEnemyKillBonus; parts.Add($"summon+{w.SummonEnemyKillBonus}"); }
         if (target.HasDeathBlowIntent) { s += w.DeathBlowEnemyKillBonus; parts.Add($"deathblow+{w.DeathBlowEnemyKillBonus}"); }
         if (target.HasDefendIntent) { s += w.DefendEnemyAttackPenalty; parts.Add($"defend{w.DefendEnemyAttackPenalty}"); }
