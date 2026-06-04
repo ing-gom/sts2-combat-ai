@@ -786,6 +786,9 @@ internal static class AnalyticalSimulator
                 // the default state are byte-identical.
                 if (card.IsAttack && next.PlayerNextAttackMult > 1)
                     totalDmg *= next.PlayerNextAttackMult;
+                // 2026-06-04 — DUPLICATOR: the next card is played twice → double its damage too.
+                if (next.PlayerNextCardMult > 1)
+                    totalDmg *= next.PlayerNextCardMult;
                 // 2026-06-01 — flying enemies (SoarPower / FlutterPower) take HALF damage
                 // from card attacks: ModifyDamageMultiplicative returns DamageDecrease/100
                 // = 50/100 = 0.5 on any powered attack. The sim dealt full damage → ~2x
@@ -1175,7 +1178,8 @@ internal static class AnalyticalSimulator
                     totalBlock += perPlayBlock;
                     newUnmovableUsedThisTurn = true;
                 }
-                newPlayerBlock += totalBlock;
+                // 2026-06-04 — DUPLICATOR doubles this card's block too (played twice).
+                newPlayerBlock += next.PlayerNextCardMult > 1 ? totalBlock * next.PlayerNextCardMult : totalBlock;
             }
 
             // v0.5 — Self-targeted skills that apply self-buffs (Strength/Dex from
@@ -2680,6 +2684,8 @@ internal static class AnalyticalSimulator
                 || newExhaustPileCount > next.ExhaustPileCount,
             // 2026-06-04 — a played Attack consumes the next-attack multiplier (Gigantification).
             PlayerNextAttackMult = card.IsAttack ? 1 : next.PlayerNextAttackMult,
+            // 2026-06-04 — any played card consumes the DUPLICATOR next-card multiplier.
+            PlayerNextCardMult = 1,
             // v0.9 — propagate per-target attack counter for depth-N forge math.
             TurnAttacksByTargetIdx = newTurnAttacksByTgt,
             // v0.9 — propagate updated SB count so a second Forge in the
@@ -2775,6 +2781,10 @@ internal static class AnalyticalSimulator
             case PotionKind.Block:
                 next = next with { PlayerBlock = next.PlayerBlock + potion.Amount };
                 break;
+            case PotionKind.BlockMult:
+                // FORTIFIER: gain block = current block × Amount (added on top of current).
+                next = next with { PlayerBlock = next.PlayerBlock + next.PlayerBlock * potion.Amount };
+                break;
             case PotionKind.Heal:
             {
                 int cap = next.PlayerMaxHp > 0 ? next.PlayerMaxHp : next.PlayerHp + potion.Amount;
@@ -2800,10 +2810,177 @@ internal static class AnalyticalSimulator
                 // GIGANTIFICATION: next Attack card deals ×3. Consumed by ApplyCardPlay.
                 next = next with { PlayerNextAttackMult = System.Math.Max(next.PlayerNextAttackMult, 3) };
                 break;
+            case PotionKind.EnemyVuln:
+                next = ApplyPotionDebuff(next, potion, targetIdx, vuln: potion.Amount);
+                break;
+            case PotionKind.EnemyWeak:
+                next = ApplyPotionDebuff(next, potion, targetIdx, weak: potion.Amount);
+                break;
+            case PotionKind.EnemyPoison:
+                next = ApplyPotionDebuff(next, potion, targetIdx, poison: potion.Amount);
+                break;
+            case PotionKind.HealPercent:
+            {
+                // BLOOD_POTION: heal Amount% of max HP.
+                int heal = next.PlayerMaxHp > 0 ? next.PlayerMaxHp * potion.Amount / 100 : potion.Amount;
+                int cap = next.PlayerMaxHp > 0 ? next.PlayerMaxHp : next.PlayerHp + heal;
+                next = next with { PlayerHp = System.Math.Min(cap, next.PlayerHp + heal) };
+                break;
+            }
+            case PotionKind.SelfIntangible:
+                next = next with { PlayerIntangible = next.PlayerIntangible + potion.Amount };
+                break;
+            case PotionKind.SelfBuffer:
+                next = next with { PlayerBuffer = next.PlayerBuffer + potion.Amount };
+                break;
+            case PotionKind.SelfPlating:
+                // PlatingPower gives block at end of each turn → AdvanceTurn re-arms it.
+                next = next with { PlayerEndOfTurnBlockBonus = next.PlayerEndOfTurnBlockBonus + potion.Amount };
+                break;
+            case PotionKind.SelfThorns:
+                next = next with { PlayerThorns = next.PlayerThorns + potion.Amount };
+                break;
+            case PotionKind.SelfRegen:
+                // Approximate the first regen tick as immediate healing (AdvanceTurn has no Regen
+                // field); the rest of the heal-over-time is reflected in PotionValue.
+            {
+                int cap = next.PlayerMaxHp > 0 ? next.PlayerMaxHp : next.PlayerHp + potion.Amount;
+                next = next with { PlayerHp = System.Math.Min(cap, next.PlayerHp + potion.Amount) };
+                break;
+            }
+            case PotionKind.EnemyDoom:
+                next = ApplyPotionDebuff(next, potion, targetIdx, doom: potion.Amount);
+                break;
+            case PotionKind.EnemyStrengthDown:
+                next = ApplyPotionDebuff(next, potion, targetIdx, strDown: potion.Amount);
+                break;
+            case PotionKind.Draw:
+            {
+                // Inject Amount deck-average cards into hand (capped at the 10-card hand limit) so
+                // the depth-2 continuation can actually play them; drain the draw pile to match.
+                var newHand = new System.Collections.Generic.List<SimCard>(next.Hand ?? new System.Collections.Generic.List<SimCard>());
+                int drawable = System.Math.Min(potion.Amount, System.Math.Max(0, next.DrawPileSize + next.DiscardPileSize));
+                int added = 0;
+                for (int i = 0; i < drawable && newHand.Count < 10; i++) { newHand.Add(MakeAverageDrawCard(next)); added++; }
+                next = next with { Hand = newHand, DrawPileSize = System.Math.Max(0, next.DrawPileSize - added) };
+                break;
+            }
+            case PotionKind.DrawExhaustHand:
+            {
+                // GLOWWATER: exhaust the current hand, then draw Amount fresh cards.
+                var newHand = new System.Collections.Generic.List<SimCard>();
+                int drawable = System.Math.Min(potion.Amount, System.Math.Max(0, next.DrawPileSize + next.DiscardPileSize));
+                for (int i = 0; i < drawable && newHand.Count < 10; i++) newHand.Add(MakeAverageDrawCard(next));
+                next = next with { Hand = newHand, DrawPileSize = System.Math.Max(0, next.DrawPileSize - newHand.Count) };
+                break;
+            }
+            case PotionKind.GenerateCards:
+            {
+                // Inject Amount NEW deck-average cards (no pile drain — these are created, not drawn).
+                // 2026-06-04 — Power/Attack/SkillPotion: each generated card is FREE THIS TURN
+                // (decompile: chosen.SetToFreeThisTurn() before AddGeneratedCardToCombat). The
+                // injected MakeAverageDrawCard carries normal cost, so without granting free plays
+                // the continuation treated them as cash-only → hoarded the potion when energy was
+                // low (Defect boss near-win autopsy). Grant `added` free card-plays via the
+                // FreeCardBudget the continuation already honors (voidFormFree path) so the cards
+                // are cashed in regardless of remaining energy. Opportunity cost ≈ 0, matching the
+                // game. (GenerateShivs already injects cost-0 shivs, so it needs no budget bump.)
+                var newHand = new System.Collections.Generic.List<SimCard>(next.Hand ?? new System.Collections.Generic.List<SimCard>());
+                int added = 0;
+                for (int i = 0; i < potion.Amount && newHand.Count < 10; i++) { newHand.Add(MakeAverageDrawCard(next)); added++; }
+                next = next with
+                {
+                    Hand = newHand,
+                    PlayerFreeCardBudget = next.PlayerFreeCardBudget + added,
+                };
+                break;
+            }
+            case PotionKind.GenerateShivs:
+            {
+                // CUNNING (upgraded shivs) / POT_OF_GHOULS (souls) — 0-cost small attacks. Modeled
+                // as shiv placeholders (4 dmg, free); conservative for upgraded shivs (6).
+                var newHand = new System.Collections.Generic.List<SimCard>(next.Hand ?? new System.Collections.Generic.List<SimCard>());
+                for (int i = 0; i < potion.Amount && newHand.Count < 10; i++) newHand.Add(MakeShivPlaceholderCard());
+                next = next with { Hand = newHand };
+                break;
+            }
+            case PotionKind.MaxHpGain:
+            {
+                // FRUIT_JUICE: +Amount max HP and heal Amount.
+                next = next with { PlayerMaxHp = next.PlayerMaxHp + potion.Amount,
+                                   PlayerHp = next.PlayerHp + potion.Amount };
+                break;
+            }
+            case PotionKind.GainStars:
+                // STAR_POTION: +Amount stars → continuation can afford star-cost cards.
+                next = next with { PlayerStars = next.PlayerStars + potion.Amount };
+                break;
+            case PotionKind.OrbCapacity:
+                next = next with { PlayerOrbCapacity = next.PlayerOrbCapacity + potion.Amount };
+                break;
+            case PotionKind.ChannelDark:
+                // ESSENCE_OF_DARKNESS fills every open slot with a Dark orb. The orb queue's full
+                // structure isn't rebuilt here; PlayerOrbCount is bumped to capacity and the value
+                // is credited in PotionValue via OrbValueCatalog (passive Dark over remaining turns).
+                next = next with { PlayerOrbCount = System.Math.Max(next.PlayerOrbCount, next.PlayerOrbCapacity) };
+                break;
+            case PotionKind.NextCardDouble:
+                // DUPLICATOR: next card played twice — set the ×2 multiplier the continuation's first
+                // card consumes (doubling its damage & block, same lookahead as the amplifier potion).
+                next = next with { PlayerNextCardMult = System.Math.Max(next.PlayerNextCardMult, 2) };
+                break;
+            case PotionKind.UpgradeHand:
+            {
+                // BLESSING_OF_THE_FORGE (amount 1 = all) / SOLDIERS_STEW (amount 2 = Strikes only).
+                // Approximate an upgrade as +3 damage / +3 block on the affected hand cards so the
+                // continuation values the stronger hand. Per-card upgrade effects beyond numbers are
+                // not modeled (conservative).
+                bool strikesOnly = potion.Amount == 2;
+                var newHand = new System.Collections.Generic.List<SimCard>(next.Hand?.Count ?? 0);
+                foreach (var c in next.Hand ?? System.Linq.Enumerable.Empty<SimCard>())
+                {
+                    bool affected = !strikesOnly || (c.Id != null && c.Id.Contains("STRIKE"));
+                    if (affected && (c.Damage > 0 || c.Block > 0))
+                        newHand.Add(c with { Effect = c.Effect with
+                        {
+                            Damage = c.Damage > 0 ? c.Damage + 3 : 0,
+                            Block  = c.Block  > 0 ? c.Block  + 3 : 0,
+                        } });
+                    else
+                        newHand.Add(c);
+                }
+                next = next with { Hand = newHand };
+                break;
+            }
             default:
                 break; // Other — no-op
         }
         return next;
+    }
+
+    // Apply an enemy debuff potion to the picked target, or to every alive enemy for an
+    // AllEnemies potion (e.g. POTION_OF_BINDING). Amounts ADD onto existing stacks; strDown
+    // SUBTRACTS from the enemy's Strength (softer attacks).
+    private static SimState ApplyPotionDebuff(SimState state, SimPotion potion, int targetIdx,
+                                              int vuln = 0, int weak = 0, int poison = 0, int doom = 0, int strDown = 0)
+    {
+        if (state.Enemies.Count == 0) return state;
+        var newEnemies = new System.Collections.Generic.List<SimEnemy>(state.Enemies.Count);
+        for (int i = 0; i < state.Enemies.Count; i++)
+        {
+            var e = state.Enemies[i];
+            bool hit = e.IsAlive && (potion.TargetsAllEnemies || i == targetIdx);
+            if (!hit) { newEnemies.Add(e); continue; }
+            newEnemies.Add(e with
+            {
+                VulnerableAmount = e.VulnerableAmount + vuln,
+                WeakAmount       = e.WeakAmount + weak,
+                PoisonAmount     = e.PoisonAmount + poison,
+                DoomAmount       = e.DoomAmount + doom,
+                StrengthAmount   = e.StrengthAmount - strDown,
+            });
+        }
+        return state with { Enemies = newEnemies };
     }
 
     private static SimState ApplyPotionDamage(SimState state, SimPotion potion, int targetIdx)

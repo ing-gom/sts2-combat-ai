@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.11.7 (2026-06-04)
+
+**Free-card potions (Power/Attack/Skill) modeled as free in the sim (cross-session
+feedback #4).** Decompile: PowerPotion/AttackPotion/SkillPotion.OnUse generate a
+chosen card and call `SetToFreeThisTurn()` before adding it to hand — opportunity
+cost ≈ 0. The sim's `GenerateCards` potion case injected normal-cost average cards,
+so the depth-2 continuation only "cashed them in with spare energy" and the planner
+HOARDED these potions when energy was low (a direct cause of Defect boss near-win
+losses — boss chipped to ≤60 HP with an unused Power/Focus potion in hand).
+
+Fix (Gap A): `AnalyticalSimulator.GenerateCards` now grants `added` free card-plays
+via `PlayerFreeCardBudget` (the continuation already honors this voidForm-free path),
+so the generated cards are played regardless of remaining energy. AdvanceTurn resets
+the budget next turn (this-turn effect, no leak). GenerateShivs already injected
+cost-0 shivs, so it needs no change.
+
+Deferred (Gap B, A/B-gated): type-aware injection (PowerPotion→Power card) and the
+Power-compounding × remaining-turns valuation. No principled remaining-turns power
+mechanism exists today, so the compounding term would be a new arbitrary magnitude —
+measure Gap A first (feedback's Defect n=100 near-win→win method) before adding it.
+
 ## v0.11.6 (2026-06-04)
 
 **Deck-aware "Auto" playstyle (opt-in).** The planner's playstyle (Defensive/
