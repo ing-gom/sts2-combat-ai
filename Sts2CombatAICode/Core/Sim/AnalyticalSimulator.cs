@@ -926,16 +926,11 @@ internal static class AnalyticalSimulator
                 // halves the fully-amped total. Was unmodeled → 2× over-damage vs guarded enemies.
                 if (enemy.Powers != null && enemy.Powers.ContainsKey("GuardedPower"))
                     totalDmg /= 2;
-                // 2026-06-04 — DISMANTLE hits twice vs a Vulnerable target (decompile hitCount
-                // 2:1). Plain DamageVar so not in CalculatedDamage; double here so depth-2 (and
-                // post-play HP) match the scorer's ×2.
-                if (card.Id == "DISMANTLE" && enemy.VulnerableAmount > 0)
-                    totalDmg *= 2;
-                // 2026-06-04 — BULLY/REND per-target damage scaling lost in capture (base-only);
-                // re-add ExtraDamage × target-stat so depth-2 / post-play HP match the scorer.
-                if (card.Id == "BULLY")
-                    totalDmg += 2 * enemy.VulnerableAmount;
-                else if (card.Id == "REND")
+                // 2026-06-04 — REND/MURDER/SOUL_STORM per-target/self damage scaling lost in
+                // capture (base-only); re-add it. NOTE: BULLY is already handled in adjustedBase
+                // above (+2×Vuln) and DISMANTLE's ×2 is via hitsForDmg above — do NOT re-apply
+                // them here (earlier double-count regression, removed).
+                if (card.Id == "REND")
                     totalDmg += 5 * ((enemy.VulnerableAmount > 0 ? 1 : 0) + (enemy.WeakAmount > 0 ? 1 : 0)
                         + (enemy.FrailAmount > 0 ? 1 : 0) + (enemy.PoisonAmount > 0 ? 1 : 0)
                         + (enemy.ConstrictAmount > 0 ? 1 : 0));
