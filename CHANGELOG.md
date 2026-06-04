@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.11.1 (2026-06-04)
+
+**Scorer/sim fidelity fast-follow + turn-boundary relic lookahead.** Closes the
+remaining capture-lost-multiplier gaps and extends forward-sim relic modeling
+beyond Orichalcum.
+
+### Scorer ↔ sim consistency
+
+- **Shared `ApplyScalingBaseDamage`** — one helper now drives BOTH the scorer and
+  the sim for all self/target-state damage scaling (BODY_SLAM, BULLY, REND,
+  PRECISE_CUT, CRESCENT_SPEAR, ASHEN_STRIKE, SUPERMASSIVE, UNLEASH, MURDER,
+  SOUL_STORM, PERFECTED_STRIKE, SQUEEZE, TESLA_COIL). Fixes a long-standing gap
+  where the scorer used base-only damage, plus a BULLY/DISMANTLE double-count
+  regression.
+- **TESLA_COIL** orb passive (lightning × (3+Focus)) now valued by the scorer.
+
+### Card-power fidelity
+
+- **FERAL**: 0-cost attacks valued higher while active (free hand-return replay);
+  −350 penalty for playing the power with no 0-cost attacks to benefit.
+- **VoidForm**: free-card budget re-arms each turn so the discount survives the
+  depth-2 boundary.
+- **Fasten**: precise CardTag.Defend match (was a pure-block-skill approximation).
+- **PaperCuts / PainfulStabs**: kill-priority bonus — both inflict permanent cost
+  (MaxHP shave / Wound pollution) invisible to intent threat.
+
+### Turn-boundary relic lookahead (beyond Orichalcum)
+
+- **CloakClasp** (+1 block × hand at turn end), **RippleBasin** (+4 block if no
+  attack played), folded into the survival projection.
+- **ArtOfWar** (+1 energy next turn if no attack played), added to the next-turn
+  energy budget.
+
 ## v0.11.0 (2026-06-04)
 
 **Potions as first-class lookahead actions + a broad decompile-verified audit of
