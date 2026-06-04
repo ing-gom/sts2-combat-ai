@@ -857,6 +857,46 @@ internal static class PlanScorer
             // v0.7.86 — Card-id-specific damage adder (AccuracyPower on Shiv).
             // Applied to base damage before the Strength/Vigor/multiplier chain.
             int adjustedBaseDamage = StatusMath.ApplyCardSpecificDamageBonus(card.Damage, card.Id, state);
+            // 2026-06-04 — CalculatedDamageVar.WithMultiplier base-scaling overrides. These mirror
+            // AnalyticalSimulator's adjustedBase block (the multiplier is dropped on capture, so
+            // card.Damage is base-only — e.g. BODY_SLAM captures 1). The SIM had them but the
+            // SCORER did not, so these common scaling attacks were under-scored at depth-1 and
+            // the recommendation never surfaced them. Applied here (pre-multiplier) so they get
+            // Strength/Vulnerable correctly. (BULLY/REND/MURDER/SOUL_STORM are added separately
+            // below; DISMANTLE is hit-based.)
+            if (targetIdx >= 0 && targetIdx < state.Enemies.Count)
+            {
+                switch (card.Id)
+                {
+                    case "BODY_SLAM": adjustedBaseDamage = state.PlayerBlock; break;             // = current block
+                    case "ASHEN_STRIKE": adjustedBaseDamage += 3 * state.ExhaustPileSize; break; // +3×exhaust pile
+                    case "CRESCENT_SPEAR": adjustedBaseDamage += 2 * state.StarCardsInDeck; break;// +2×star cards
+                    case "SUPERMASSIVE": adjustedBaseDamage += 3 * state.CombatCardsGenerated; break; // +3×cards generated
+                    case "UNLEASH": adjustedBaseDamage += state.PlayerOstyHp; break;             // +Osty HP
+                    case "PRECISE_CUT":                                                          // −2×(other cards in hand)
+                        adjustedBaseDamage = System.Math.Max(0, adjustedBaseDamage - 2 * System.Math.Max(0, state.Hand.Count - 1));
+                        break;
+                    case "PERFECTED_STRIKE":                                                     // +2×Strike-tag cards in deck
+                    {
+                        int strikes = 0;
+                        foreach (var c in state.Hand) if (Sim.AnalyticalSimulator.IsStrikeCard(c.Id)) strikes++;
+                        foreach (var c in state.DrawPile) if (Sim.AnalyticalSimulator.IsStrikeCard(c.Id)) strikes++;
+                        foreach (var c in state.DiscardPile) if (Sim.AnalyticalSimulator.IsStrikeCard(c.Id)) strikes++;
+                        adjustedBaseDamage += 2 * strikes;
+                        break;
+                    }
+                    case "SQUEEZE":                                                              // +5×Osty-axis cards (−self)
+                    {
+                        int osty = 0;
+                        foreach (var c in state.Hand) if (c.Axes != null && c.Axes.Contains("OSTY")) osty++;
+                        foreach (var c in state.DrawPile) if (c.Axes != null && c.Axes.Contains("OSTY")) osty++;
+                        foreach (var c in state.DiscardPile) if (c.Axes != null && c.Axes.Contains("OSTY")) osty++;
+                        if (card.Axes != null && card.Axes.Contains("OSTY")) osty = System.Math.Max(0, osty - 1);
+                        adjustedBaseDamage += 5 * osty;
+                        break;
+                    }
+                }
+            }
             // v0.7.98 — EchoFormPower remaining echoes: each card resolves twice
             // while charges remain. Double the base damage so per-hit calc
             // reflects the echoed total.

@@ -3489,7 +3489,7 @@ internal static class AnalyticalSimulator
     /// to count Strike-tag cards across all piles for PERFECTED_STRIKE's
     /// damage scaling (base 6 + extra 2 × count).
     /// </summary>
-    private static bool IsStrikeCard(string? id) => id switch
+    internal static bool IsStrikeCard(string? id) => id switch
     {
         "STRIKE_IRONCLAD" or "STRIKE_SILENT" or "STRIKE_DEFECT"
         or "STRIKE_NECROBINDER" or "STRIKE_REGENT"
