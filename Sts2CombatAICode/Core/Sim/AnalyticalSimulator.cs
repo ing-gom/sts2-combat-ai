@@ -666,99 +666,13 @@ internal static class AnalyticalSimulator
                 // for BULLY, 6 for PERFECTED_STRIKE), but loses the extra ×
                 // multiplier component which is a runtime closure. Re-add the
                 // multiplier here for known cards.
-                if (card.Id == "BULLY"
-                    && targetIdx >= 0 && targetIdx < next.Enemies.Count)
-                {
-                    // ExtraDamage 2 × target.VulnerablePower
-                    adjustedBase += 2 * next.Enemies[targetIdx].VulnerableAmount;
-                }
-                else if (card.Id == "BODY_SLAM")
-                {
-                    // damage = current player block ONLY (CalcBase 0 + Extra 1 × block).
-                    // card.Damage from PreviewValue fallback is 1 (the ExtraDamage
-                    // var amount); override to 0 + player.Block so modifier can add Str.
-                    adjustedBase = next.PlayerBlock;
-                }
-                else if (card.Id == "PERFECTED_STRIKE")
-                {
-                    // ExtraDamage 2 (3 upgraded) × # of Strike-tag cards in deck.
-                    // Strike-tag cards: STRIKE_IRONCLAD, TWIN_STRIKE, POMMEL_STRIKE,
-                    // PERFECTED_STRIKE itself, WILD_STRIKE, SETUP_STRIKE, ASHEN_STRIKE,
-                    // FLASH_OF_STEEL, FLAK_CANNON, etc. (any with CardTag.Strike).
-                    // Counted across hand + draw + discard + exhaust. Approximation:
-                    // walk Hand + DrawPile + DiscardPile + ExhaustPile lists.
-                    int strikeCount = 0;
-                    foreach (var c in next.Hand) if (IsStrikeCard(c.Id)) strikeCount++;
-                    foreach (var c in next.DrawPile) if (IsStrikeCard(c.Id)) strikeCount++;
-                    foreach (var c in next.DiscardPile) if (IsStrikeCard(c.Id)) strikeCount++;
-                    // ExhaustPile is a count, not a list — Strike cards rarely
-                    // exhaust, undercount acceptable
-                    adjustedBase += 2 * strikeCount;
-                }
-                else if (card.Id == "PRECISE_CUT")
-                {
-                    // 2026-05-29 — CalculatedDamage = CalculationBase(13) +
-                    // ExtraDamage(2) × (-(handCount-1)). Decompile: the multiplier
-                    // delegate returns -(Hand.Cards.Count - 1) (excludes the card
-                    // itself while in hand), so PRECISE_CUT deals MORE with fewer
-                    // other cards in hand (empty-hand reward). CardReflection reads
-                    // CalculationBase (13) as the base; re-add the lost multiplier.
-                    // next.Hand still contains PRECISE_CUT (pre-play), matching the
-                    // delegate's -1 self-exclusion. Floor at 0.
-                    int otherInHand = System.Math.Max(0, next.Hand.Count - 1);
-                    adjustedBase = System.Math.Max(0, adjustedBase - 2 * otherInHand);
-                }
-                else if (card.Id == "CRESCENT_SPEAR")
-                {
-                    // 2026-05-30 — CalculatedDamage = CalculationBase(6) +
-                    // ExtraDamage(2) × (# star-cost cards in deck). CardReflection
-                    // reads CalculationBase (6); re-add the multiplier from the
-                    // deck-wide star-card count captured in StateSnapshotter.
-                    adjustedBase += 2 * next.StarCardsInDeck;
-                }
-                else if (card.Id == "ASHEN_STRIKE")
-                {
-                    // 2026-05-31 — CalculatedDamage = CalculationBase(6) +
-                    // ExtraDamage(3) × Exhaust-pile card count. CardReflection reads
-                    // CalculationBase (6); re-add the multiplier from the snapshot
-                    // exhaust count (ASHEN_STRIKE is a plain attack — it doesn't
-                    // exhaust anything itself, so the pre-play count is exact).
-                    // Verified: real base 9 = 6+3×1, 15 = 6+3×3 (2 rows).
-                    adjustedBase += 3 * next.ExhaustPileSize;
-                }
-                else if (card.Id == "SQUEEZE")
-                {
-                    // 2026-05-31 — CalculatedDamage = CalculationBase(25) +
-                    // ExtraDamage(5) × (# OstyAttack-tag cards in deck EXCEPT itself).
-                    // CardReflection reads CalculationBase (25); re-add the multiplier
-                    // by counting OSTY-axis cards across hand+draw+discard (pile
-                    // SimCards carry Axes via BuildSimCard), minus 1 for SQUEEZE itself
-                    // (still in next.Hand pre-play). Verified real 35 = 25+5×2.
-                    int ostyCount = 0;
-                    foreach (var c in next.Hand) if (c.Axes != null && c.Axes.Contains("OSTY")) ostyCount++;
-                    foreach (var c in next.DrawPile) if (c.Axes != null && c.Axes.Contains("OSTY")) ostyCount++;
-                    foreach (var c in next.DiscardPile) if (c.Axes != null && c.Axes.Contains("OSTY")) ostyCount++;
-                    if (card.Axes != null && card.Axes.Contains("OSTY"))
-                        ostyCount = System.Math.Max(0, ostyCount - 1);
-                    adjustedBase += 5 * ostyCount;
-                }
-                else if (card.Id == "SUPERMASSIVE")
-                {
-                    // 2026-05-30 — CalculatedDamage = CalculationBase(5) +
-                    // ExtraDamage(3) × (cards GENERATED by the player this combat).
-                    // CardReflection reads base 5; re-add the multiplier from the
-                    // combat-wide generated-card count captured in StateSnapshotter.
-                    adjustedBase += 3 * next.CombatCardsGenerated;
-                }
-                else if (card.Id == "UNLEASH")
-                {
-                    // 2026-05-30 — CalculatedDamage = CalculationBase(6) +
-                    // ExtraDamage(1) × osty.CurrentHp. The attack is Osty-gated
-                    // (ostyAttackWhiff) so it only reaches here when an Osty is alive;
-                    // add the captured Osty HP multiplier. CardReflection read base 6.
-                    adjustedBase += 1 * next.PlayerOstyHp;
-                }
-                else if (card.Id == "TESLA_COIL")
+                // 2026-06-04 — re-add the dropped CalculatedDamageVar.WithMultiplier base-scaling
+                // (BODY_SLAM/BULLY/REND/PERFECTED_STRIKE/ASHEN_STRIKE/CRESCENT_SPEAR/SQUEEZE/
+                // SUPERMASSIVE/UNLEASH/PRECISE_CUT/MURDER/SOUL_STORM) via the SHARED helper so this
+                // and PlanScorer.Score can't diverge (the per-card duplication produced an earlier
+                // double-count). TESLA_COIL stays inline (it also sets teslaPassiveDmg).
+                adjustedBase = ApplyScalingBaseDamage(adjustedBase, card, next, targetIdx);
+                if (card.Id == "TESLA_COIL")
                 {
                     // 2026-05-30 — TESLA_COIL: Attack(3) then triggers each Lightning
                     // orb's Passive (OrbCmd.Passive) at the same target.
@@ -926,18 +840,9 @@ internal static class AnalyticalSimulator
                 // halves the fully-amped total. Was unmodeled → 2× over-damage vs guarded enemies.
                 if (enemy.Powers != null && enemy.Powers.ContainsKey("GuardedPower"))
                     totalDmg /= 2;
-                // 2026-06-04 — REND/MURDER/SOUL_STORM per-target/self damage scaling lost in
-                // capture (base-only); re-add it. NOTE: BULLY is already handled in adjustedBase
-                // above (+2×Vuln) and DISMANTLE's ×2 is via hitsForDmg above — do NOT re-apply
-                // them here (earlier double-count regression, removed).
-                if (card.Id == "REND")
-                    totalDmg += 5 * ((enemy.VulnerableAmount > 0 ? 1 : 0) + (enemy.WeakAmount > 0 ? 1 : 0)
-                        + (enemy.FrailAmount > 0 ? 1 : 0) + (enemy.PoisonAmount > 0 ? 1 : 0)
-                        + (enemy.ConstrictAmount > 0 ? 1 : 0));
-                else if (card.Id == "MURDER")
-                    totalDmg += next.CombatCardsDrawn;                    // 1 + draws this combat
-                else if (card.Id == "SOUL_STORM")
-                    totalDmg += 2 * next.PlayerSoulsInExhaust;            // 9 + 2×Souls in exhaust
+                // (REND/MURDER/SOUL_STORM scaling moved into adjustedBase via ApplyScalingBaseDamage,
+                // so it flows through the Strength/Vuln multiplier chain like the other scalers —
+                // no post-multiplier addition here. BULLY=adjustedBase, DISMANTLE=hitsForDmg.)
                 // §120 — totalDmg is now the UNCAPPED post-multiplier damage. FISTICUFFS gains
                 // block == the shell-CAPPED pre-block damage (its prior semantics; preserved so
                 // non-shell cases are byte-identical). Compute that capped value separately.
@@ -3489,6 +3394,54 @@ internal static class AnalyticalSimulator
     /// to count Strike-tag cards across all piles for PERFECTED_STRIKE's
     /// damage scaling (base 6 + extra 2 × count).
     /// </summary>
+    /// <summary>
+    /// 2026-06-04 — Re-add the per-card CalculatedDamageVar multiplier that CardReflection drops
+    /// on capture (it keeps only the static base, so card.Damage is base-only — e.g. BODY_SLAM
+    /// captures 1). SHARED by ApplyCardPlay (applied damage) and PlanScorer.Score (recommendation)
+    /// so the two can't diverge (the earlier per-card duplication is what produced the BULLY/
+    /// DISMANTLE double-count). Returns the adjusted BASE damage (pre Strength/Vuln/multiplier).
+    /// NOT here: DISMANTLE (hit-count, via hitsForDmg) and TESLA_COIL (orb passive — caller-local).
+    /// </summary>
+    internal static int ApplyScalingBaseDamage(int baseDamage, SimCard card, SimState state, int targetIdx)
+    {
+        var t = (targetIdx >= 0 && targetIdx < state.Enemies.Count) ? state.Enemies[targetIdx] : null;
+        switch (card.Id)
+        {
+            case "BODY_SLAM":      return state.PlayerBlock;                                   // = current block
+            case "BULLY":          return baseDamage + (t != null ? 2 * t.VulnerableAmount : 0);
+            case "REND":           return baseDamage + (t != null ? 5 * RendDebuffCount(t) : 0);
+            case "PRECISE_CUT":    return System.Math.Max(0, baseDamage - 2 * System.Math.Max(0, state.Hand.Count - 1));
+            case "CRESCENT_SPEAR": return baseDamage + 2 * state.StarCardsInDeck;
+            case "ASHEN_STRIKE":   return baseDamage + 3 * state.ExhaustPileSize;
+            case "SUPERMASSIVE":   return baseDamage + 3 * state.CombatCardsGenerated;
+            case "UNLEASH":        return baseDamage + state.PlayerOstyHp;
+            case "MURDER":         return baseDamage + state.CombatCardsDrawn;
+            case "SOUL_STORM":     return baseDamage + 2 * state.PlayerSoulsInExhaust;
+            case "PERFECTED_STRIKE":
+            {
+                int s = 0;
+                foreach (var c in state.Hand) if (IsStrikeCard(c.Id)) s++;
+                foreach (var c in state.DrawPile) if (IsStrikeCard(c.Id)) s++;
+                foreach (var c in state.DiscardPile) if (IsStrikeCard(c.Id)) s++;
+                return baseDamage + 2 * s;
+            }
+            case "SQUEEZE":
+            {
+                int o = 0;
+                foreach (var c in state.Hand) if (c.Axes != null && c.Axes.Contains("OSTY")) o++;
+                foreach (var c in state.DrawPile) if (c.Axes != null && c.Axes.Contains("OSTY")) o++;
+                foreach (var c in state.DiscardPile) if (c.Axes != null && c.Axes.Contains("OSTY")) o++;
+                if (card.Axes != null && card.Axes.Contains("OSTY")) o = System.Math.Max(0, o - 1);
+                return baseDamage + 5 * o;
+            }
+            default: return baseDamage;
+        }
+    }
+
+    private static int RendDebuffCount(SimEnemy e) =>
+        (e.VulnerableAmount > 0 ? 1 : 0) + (e.WeakAmount > 0 ? 1 : 0) + (e.FrailAmount > 0 ? 1 : 0)
+        + (e.PoisonAmount > 0 ? 1 : 0) + (e.ConstrictAmount > 0 ? 1 : 0);
+
     internal static bool IsStrikeCard(string? id) => id switch
     {
         "STRIKE_IRONCLAD" or "STRIKE_SILENT" or "STRIKE_DEFECT"
