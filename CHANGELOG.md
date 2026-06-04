@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.11.3 (2026-06-04)
+
+**Heal-intent enemy — gate the attack bonus on kill progress.** Decompile showed the
+heal amount (e.g. WaterfallGiant Siphon = +15 self-heal) is hardcoded in the monster
+move and NOT exposed on the intent, so it can't be projected numerically. Instead the
+"attack the healer" target bonus is now conditioned on whether the play actually makes
+killing progress:
+
+- **Secures / approaches the kill** (lethal, or leaves ≤25% MaxHp) → keep the
+  race-to-kill bonus (finish the healer before it heals back).
+- **Futile chip** (non-lethal, far from kill) → mild −250 penalty instead of a bonus.
+  The chip would just be healed back, so the planner prefers building power / blocking /
+  switching to a killable target — matching the intended "can't kill it → don't feed it"
+  behavior. Penalty is small enough never to block a genuinely needed hit.
+
+Audit note: Lagavulin SoulSiphon was re-verified and needs no change — it's a siphon
+(player −2 Str/−2 Dex, self +2 Str), all captured (player Str/Dex unclamped, enemy Str
+raises threat) plus the standard buff-intent preempt bias.
+
 ## v0.11.2 (2026-06-04)
 
 **Enemy PlatingPower multi-turn block projection.** After a decompile audit of all

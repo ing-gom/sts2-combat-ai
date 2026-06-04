@@ -119,6 +119,8 @@ public static class Program
         Run("v0.8.4: Unmovable+Burst+Echo composes canonically (5x not 8x)", Test_UnmovableBurstEchoCanonical);
         Run("v0.8.7: Reactive block cap clamps 4-source stack at 20", Test_ReactiveBlockCap);
         Run("v0.8.7: Reactive block under cap stays uncapped", Test_ReactiveBlockBelowCap);
+        Run("v0.11.3: Heal-intent enemy — race-to-kill beats futile chip", Test_HealIntentChipVsRace);
+        Run("v0.11.3: Heal-intent enemy — futile chip scores below non-healer", Test_HealIntentFutilePenalty);
 
         // v0.8.8 — AdvanceTurn integration tests
         Run("v0.8.8: AdvanceTurn — energy resets to base", Test_AdvanceTurnEnergyReset);
@@ -640,6 +642,36 @@ public static class Program
         // 20 × 30 = 600 reactive credit; baseline attack ~150-300; total reasonable < 2000 in non-lethal.
         Assert(score < 2500,
             $"Capped reactive should keep attack score < 2500 (was {score})");
+    }
+
+    private static void Test_HealIntentChipVsRace()
+    {
+        // Heal-intent enemy: a 6-dmg attack that KILLS it (near) should far outscore the same
+        // attack that only chips a high-HP healer (far), which heals the chip back.
+        var attack = Attack("STRIKE", cost: 1, damage: 6);
+        var farState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
+            enemies: new() { Enemy(hp: 60, hasHealIntent: true) });
+        var nearState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
+            enemies: new() { Enemy(hp: 5, hasHealIntent: true) });
+        int farScore = PlanScorer.Score(attack, 0, farState);
+        int nearScore = PlanScorer.Score(attack, 0, nearState);
+        Assert(nearScore > farScore + 800,
+            $"Securing a healer kill should far outscore futile chipping (near={nearScore}, far={farScore})");
+    }
+
+    private static void Test_HealIntentFutilePenalty()
+    {
+        // Same far-from-kill attack vs a healer should score LOWER than vs an identical non-healer
+        // (the futile-chip penalty discourages feeding a healer we can't finish).
+        var attack = Attack("STRIKE", cost: 1, damage: 6);
+        var healerState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
+            enemies: new() { Enemy(hp: 60, hasHealIntent: true) });
+        var plainState = MakeState(playerHp: 50, energy: 3, hand: new() { attack },
+            enemies: new() { Enemy(hp: 60) });
+        int healerScore = PlanScorer.Score(attack, 0, healerState);
+        int plainScore = PlanScorer.Score(attack, 0, plainState);
+        Assert(healerScore < plainScore,
+            $"Futile chip on a healer should score below the same chip on a non-healer (healer={healerScore}, plain={plainScore})");
     }
 
     private static void Test_ReactiveBlockBelowCap()
