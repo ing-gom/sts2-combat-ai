@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.11.2 (2026-06-04)
+
+**Enemy PlatingPower multi-turn block projection.** After a decompile audit of all
+boss/elite powers (most high-impact ones — Intangible/Slippery/Skittish/HardToKill —
+were already modeled via `DamageCapPerHit` and reactive block), the one real
+forward-sim gap was the enemy's recurring turn-end block.
+
+- **PlatingPower** (Lagavulin Matriarch boss + FrogKnight / MysteriousKnight elites):
+  the enemy gains `Amount` block at the end of each of its turns, which persists
+  through the player's next turn. `AdvanceTurn` now re-arms the carrier's block to
+  its Plating `Amount` for the next-turn projection (mirroring the existing Rampart
+  re-arm), so multi-turn kill-timing no longer assumes a clean 0-block target.
+
+Audit conclusion: per-boss-identity scoring rejected — boss patterns are expressed
+as powers (one Intangible handler covers SoulFysh + TestSubject + any future
+intangible enemy), so modeling stays mechanism-keyed and transfers to elites/normals.
+
 ## v0.11.1 (2026-06-04)
 
 **Scorer/sim fidelity fast-follow + turn-boundary relic lookahead.** Closes the

@@ -128,6 +128,7 @@ public static class Program
         Run("v0.8.8: AdvanceTurn — RegenPower heals player", Test_AdvanceTurnRegen);
         Run("v0.8.8: AdvanceTurn — enemy Poison ticks + decrements", Test_AdvanceTurnEnemyPoison);
         Run("v0.8.8: AdvanceTurn — enemy Vulnerable / Weak decrements", Test_AdvanceTurnEnemyDebuffDecrement);
+        Run("v0.11.1: AdvanceTurn — enemy PlatingPower re-arms block (Lagavulin/elites)", Test_AdvanceTurnEnemyPlating);
         Run("v0.8.8: AdvanceTurn — player Vulnerable / Weak / Frail decrements", Test_AdvanceTurnPlayerDebuffDecrement);
         Run("v0.8.8: AdvanceTurn — enemy Ritual adds Strength", Test_AdvanceTurnEnemyRitual);
         Run("v0.8.8: AdvanceTurn — PlayerDoom self-damages player", Test_AdvanceTurnPlayerDoom);
@@ -738,6 +739,27 @@ public static class Program
             $"Vulnerable should decrement 3→2 (was {next.Enemies[0].VulnerableAmount})");
         Assert(next.Enemies[0].WeakAmount == 1,
             $"Weak should decrement 2→1 (was {next.Enemies[0].WeakAmount})");
+    }
+
+    private static void Test_AdvanceTurnEnemyPlating()
+    {
+        // PlatingPower enemy: block re-arms to its Amount for the next player turn
+        // (the block granted at the upcoming enemy turn end persists through our turn).
+        var plating = Enemy(hp: 40, block: 0) with {
+            Powers = new Dictionary<string, int> { ["PlatingPower"] = 5 },
+        };
+        var state = MakeState(playerHp: 50, energy: 0,
+            hand: new(), enemies: new() { plating });
+        var next = AnalyticalSimulator.AdvanceTurn(state);
+        Assert(next.Enemies[0].Block == 5,
+            $"PlatingPower 5 enemy should re-arm to 5 block (was {next.Enemies[0].Block})");
+
+        // Control: a plain enemy resets to 0 (no spurious re-arm).
+        var plain = MakeState(playerHp: 50, energy: 0,
+            hand: new(), enemies: new() { Enemy(hp: 40, block: 12) });
+        var nplain = AnalyticalSimulator.AdvanceTurn(plain);
+        Assert(nplain.Enemies[0].Block == 0,
+            $"Non-plating enemy block should reset to 0 (was {nplain.Enemies[0].Block})");
     }
 
     private static void Test_AdvanceTurnPlayerDebuffDecrement()

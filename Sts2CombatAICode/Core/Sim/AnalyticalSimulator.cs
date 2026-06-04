@@ -3009,13 +3009,24 @@ internal static class AnalyticalSimulator
             // turret instead of a clean 0-block target.
             int rampart = (ne.Powers != null && ne.Powers.TryGetValue("RampartPower", out var rp))
                 ? rp : 0;
+            // 2026-06-04 — PlatingPower (decompile BeforeTurnEndEarly: GainBlock Amount): the enemy
+            // gains Amount block at the END of each of ITS turns, which then persists through the
+            // player's NEXT turn (cleared only at the enemy's following turn start). So for the
+            // next-player-turn projection the carrier re-arms to its Plating Amount, exactly like
+            // Rampart (which re-arms at player-turn-start). Lagavulin Matriarch boss + FrogKnight /
+            // MysteriousKnight elites. The Amount decays −1/enemy-turn in-game; omitted here since
+            // depth-2 takes a single AdvanceTurn (the immediate next turn uses the un-decayed Amount,
+            // which is exactly the block granted at the upcoming enemy turn end).
+            int plating = (ne.Powers != null && ne.Powers.TryGetValue("PlatingPower", out var pl))
+                ? pl : 0;
+            int rearmBlock = rampart + plating;   // both re-arm the enemy for the next player turn
             ne = ne with
             {
                 VulnerableAmount = System.Math.Max(0, ne.VulnerableAmount - 1),
                 WeakAmount       = System.Math.Max(0, ne.WeakAmount - 1),
                 FrailAmount      = System.Math.Max(0, ne.FrailAmount - 1),
                 PoisonAmount     = System.Math.Max(0, ne.PoisonAmount - 1),
-                Block            = rampart > 0 ? rampart : (burrowed ? ne.Block : 0), // rampart re-arms; burrowed retains; others reset
+                Block            = rearmBlock > 0 ? rearmBlock : (burrowed ? ne.Block : 0), // rampart/plating re-arm; burrowed retains; others reset
                 // SandpitPower decrements at AfterSideTurnStartLate(Enemy)
                 // — for our turn-boundary model that's "end of player turn /
                 // start of next enemy phase". Transitioning to 0 here means
