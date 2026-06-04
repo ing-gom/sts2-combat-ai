@@ -820,6 +820,7 @@ internal static class StateSnapshotter
                 PlayerFreePowers = playerFreePowers,
                 PlayerBlockMult = playerBlockMult,
                 PlayerFreeCardBudget = System.Math.Max(0, voidFormAmt - turnCardsPlayed),
+                PlayerVoidFormAmount = voidFormAmt,
                 PlayerVeilpiercer = playerVeilpiercer,
                 PlayerFasten = playerFasten,
                 PlayerPowers = playerPowerDict,
@@ -957,6 +958,8 @@ internal static class StateSnapshotter
             // fall back to the static catalog when reflection is unavailable.
             IsExhaust = CardReflection.HasExhaustKeyword(card) ?? catalogInfo?.Exhaust ?? false,
             IsFetchTrigger = catalogInfo?.FetchTrigger ?? false,
+            // 2026-06-04 — live CardTag.Defend for precise FastenPower block bonus.
+            IsDefendTagged = card.Tags != null && card.Tags.Contains(CardTag.Defend),
             IsSly = isSly,
             // v0.9 — Bound affliction (ChainsOfBindingPower restriction).
             IsBound = CardReflection.HasBoundAffliction(card),

@@ -67,6 +67,14 @@ internal sealed record SimCard
     public bool IsInnate { get; init; }
 
     /// <summary>
+    /// 2026-06-04 — True when the live CardModel carries CardTag.Defend. FastenPower's
+    /// ModifyBlockAdditive (decompile) applies its +Amount block ONLY to Defend-tagged
+    /// cards, so this replaces the earlier `IsSkill && Damage==0 && Block>0` heuristic
+    /// for Fasten scoring/sim. Defaults false so fixtures without a CardModel are inert.
+    /// </summary>
+    public bool IsDefendTagged { get; init; }
+
+    /// <summary>
     /// True when this card is exhausted on play (Exhaust keyword in catalog).
     /// Used by the simulator to decide whether the played card joins the
     /// discard pile (non-exhaust) or leaves the deck entirely (exhaust) —

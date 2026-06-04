@@ -63,10 +63,13 @@ internal sealed record SimState
     // Captured as the remaining free-card budget (Amount − cards played this turn); a card is
     // free while this is > 0. 0 = none.
     public int PlayerFreeCardBudget { get; init; }
+    // 2026-06-04 — VoidFormPower's full Amount (free cards PER turn), so AdvanceTurn can refresh
+    // the budget for the next turn instead of carrying the depleted remainder. 0 = no VoidForm.
+    public int PlayerVoidFormAmount { get; init; }
     // 2026-06-04 — VeilpiercerPower stacks: each makes the next ETHEREAL card cost 0.
     public int PlayerVeilpiercer { get; init; }
-    // 2026-06-04 — FastenPower amount: +N block to Defend-tagged cards' block (approximated as
-    // pure block skills — SimCard lacks the game's CardTag.Defend). 0 = none.
+    // 2026-06-04 — FastenPower amount: +N block to CardTag.Defend cards (matched precisely via
+    // SimCard.IsDefendTagged, captured from the live CardModel). 0 = none.
     public int PlayerFasten { get; init; }
     // v0.7.83 — BufferPower stack. Each stack negates ONE incoming damage
     // instance (entire hit, regardless of size). Decremented per instance

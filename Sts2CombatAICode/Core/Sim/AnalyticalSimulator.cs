@@ -674,22 +674,14 @@ internal static class AnalyticalSimulator
                 adjustedBase = ApplyScalingBaseDamage(adjustedBase, card, next, targetIdx);
                 if (card.Id == "TESLA_COIL")
                 {
-                    // 2026-05-30 — TESLA_COIL: Attack(3) then triggers each Lightning
-                    // orb's Passive (OrbCmd.Passive) at the same target.
-                    // LightningOrb.PassiveVal = ModifyOrbValue(3) = 3 + Focus. Add
-                    // (lightning-orb count) × (3 + Focus) to the single-target damage.
-                    // (The phantom evoke is suppressed in OrbCardCatalog.)
+                    // 2026-05-30 — TESLA_COIL passive damage (lightning × (3+Focus)) is now added
+                    // to adjustedBase by ApplyScalingBaseDamage above. Here we only RE-DERIVE the
+                    // passive portion for the Skittish-soak path: §125 — the passive hits land
+                    // AFTER the attack hit (which triggers a fresh Skittish reactive block), so
+                    // that block SOAKS the passives. teslaPassiveDmg feeds the Skittish code below.
                     int lightning = 0;
                     foreach (var k in next.OrbQueue) if (k == OrbKind.Lightning) lightning++;
-                    if (lightning > 0)
-                    {
-                        // 2026-06-01 §125 — the passive hits come AFTER the attack hit (which
-                        // triggers a Skittish enemy's reactive block), so a fresh Skittish block
-                        // SOAKS the passives. Track the passive portion so the Skittish code can
-                        // absorb it (real: passive 6 soaked by Skittish 6 → block 0, hp restored).
-                        teslaPassiveDmg = lightning * System.Math.Max(0, 3 + next.PlayerFocus);
-                        adjustedBase += teslaPassiveDmg;
-                    }
+                    teslaPassiveDmg = lightning * System.Math.Max(0, 3 + next.PlayerFocus);
                 }
                 // 2026-05-28 MCTS-P0 A — X-cost cards (WHIRLWIND, etc.) use
                 // pre-spend energy as their hit count, not the catalog
@@ -1156,8 +1148,8 @@ internal static class AnalyticalSimulator
                 || enemyTargetSkillGainsBlock) && escapePlanBlocks)
             {
                 int perPlayBlock = StatusMath.EffectiveBlock(effCardBlock, newPlayerDex, playerFrail);
-                // FastenPower: +N block on Defend cards (approx pure block skill), before Shadowmeld.
-                if (next.PlayerFasten > 0 && card.IsSkill && card.Damage == 0 && card.Block > 0)
+                // FastenPower: +N block on CardTag.Defend cards only (decompile), before Shadowmeld.
+                if (next.PlayerFasten > 0 && card.IsDefendTagged && card.Block > 0)
                     perPlayBlock += next.PlayerFasten;
                 if (next.PlayerBlockMult > 1) perPlayBlock *= next.PlayerBlockMult;   // ShadowmeldPower ×2^stacks
                 // v0.7.95 / v0.7.98 — Burst + Echo cause the card to RESOLVE
@@ -3276,6 +3268,11 @@ internal static class AnalyticalSimulator
             // 2026-06-04 — ShadowmeldPower is removed at end of turn (AfterTurnEnd), so the
             // next-turn projection drops the block multiplier.
             PlayerBlockMult = 1,
+            // 2026-06-04 — VoidForm grants "first N cards are free" every turn. The free-card
+            // budget is consumed during the turn but re-arms to the full VoidForm stack at the
+            // start of the next turn (BeforeSideTurnStart). Refresh so depth-2 projection keeps
+            // the discount alive across the boundary.
+            PlayerFreeCardBudget = state.PlayerVoidFormAmount,
             // v0.9 — Use newPlayerEnergy which folds in EnergyNextTurnPower
             // (+N) and BorrowedTimePower (debuff cost adder).
             PlayerEnergy = newPlayerEnergy,
@@ -3433,6 +3430,13 @@ internal static class AnalyticalSimulator
                 foreach (var c in state.DiscardPile) if (c.Axes != null && c.Axes.Contains("OSTY")) o++;
                 if (card.Axes != null && card.Axes.Contains("OSTY")) o = System.Math.Max(0, o - 1);
                 return baseDamage + 5 * o;
+            }
+            case "TESLA_COIL":
+            {
+                // + each Lightning orb's passive (LightningOrb.PassiveVal = 3 + Focus) at target.
+                int lightning = 0;
+                foreach (var k in state.OrbQueue) if (k == OrbKind.Lightning) lightning++;
+                return baseDamage + lightning * System.Math.Max(0, 3 + state.PlayerFocus);
             }
             default: return baseDamage;
         }

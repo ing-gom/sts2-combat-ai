@@ -1775,9 +1775,9 @@ internal static class PlanScorer
             int perPlayBlock = StatusMath.EffectiveBlock(rawBlock,
                 state.PlayerDexterity, state.PlayerFrail > 0);
             // 2026-06-04 — FastenPower (decompile ModifyBlockAdditive, CardTag.Defend only): +N
-            // block to Defend cards. SimCard lacks the game tag, so approximate Defend as a pure
-            // block skill (block>0, no damage). Additive, applied before the Shadowmeld multiply.
-            if (state.PlayerFasten > 0 && card.IsSkill && card.Damage == 0 && card.Block > 0)
+            // block to Defend-tagged cards. IsDefendTagged is captured from the live CardModel's
+            // CardTag.Defend. Additive, applied before the Shadowmeld multiply.
+            if (state.PlayerFasten > 0 && card.IsDefendTagged && card.Block > 0)
                 perPlayBlock += state.PlayerFasten;
             // 2026-06-04 — ShadowmeldPower (decompile ModifyBlockMultiplicative → 2^Amount):
             // this turn the player's card block is multiplied (×2 at 1 stack, ×4 at 2…). Captured
@@ -2500,6 +2500,37 @@ internal static class PlanScorer
             int hatchBonus = w.BlockUnderThreatBonus / 4;
             bonus += hatchBonus;
             details.Add($"hatchSoon(counter{hatch})=+{hatchBonus}");
+        }
+
+        // 2026-06-04 — PaperCuts / PainfulStabs kill-priority. Both inflict PERMANENT
+        // cost when the enemy lands an unblocked attack: PaperCuts shaves player MaxHP,
+        // PainfulStabs shuffles Wound cards into the discard (deck pollution). Neither is
+        // visible to intent-based threat estimation, and both scale with how long the
+        // enemy lives. A conservative priority push toward damaging/killing the carrier
+        // (bonus only — never blocks a play, so it cannot mis-suppress a needed defend):
+        //   • kill it this hit → flat removal credit
+        //   • chip it (hpAfter>0) → small per-damage push, amortized by its HP so a
+        //     near-dead carrier is prioritized harder than a full-HP one.
+        int permaCostAmt = target.PaperCutsAmount + target.PainfulStabsAmount;
+        if (permaCostAmt > 0 && incomingDmg > 0)
+        {
+            if (hpAfter <= 0 && currentHp > 0)
+            {
+                int killCredit = 200 * permaCostAmt;
+                const int PermaCostKillCap = 800;
+                if (killCredit > PermaCostKillCap) killCredit = PermaCostKillCap;
+                bonus += killCredit;
+                details.Add($"permaCostKill(papercut/stab×{permaCostAmt})=+{killCredit}");
+            }
+            else if (hpAfter > 0)
+            {
+                // Closer to dead = more worth finishing. Push grows as remaining HP shrinks.
+                int push = (incomingDmg * permaCostAmt * 20) / System.Math.Max(1, hpAfter);
+                const int PermaCostPushCap = 300;
+                if (push > PermaCostPushCap) push = PermaCostPushCap;
+                bonus += push;
+                details.Add($"permaCostChip(×{permaCostAmt},hp→{hpAfter})=+{push}");
+            }
         }
 
         // Stun threshold: ShriekPower (TerrorEel), PlowPower (CeremonialBeast).
@@ -4247,6 +4278,18 @@ internal static class PlanScorer
         {
             if (state.PlayerBlock == 0 && !HasBlockSourceInHand(state.Hand, card))
                 penalty -= 200;
+        }
+
+        // 2026-06-04 — FeralPower (FERAL): the first N 0-cost attacks each turn return to hand
+        // (free replay). Dead in a deck with no 0-cost attacks, but PowerCatalog credits it a
+        // flat value regardless. Penalize when the deck has none to replay (context-blind value).
+        if (apps.ContainsKey("FeralPower") || idDerived == "FeralPower")
+        {
+            int zeroCostAttacks = 0;
+            foreach (var c in state.Hand) if (c.IsAttack && c.Cost == 0) zeroCostAttacks++;
+            foreach (var c in state.DrawPile) if (c.IsAttack && c.Cost == 0) zeroCostAttacks++;
+            foreach (var c in state.DiscardPile) if (c.IsAttack && c.Cost == 0) zeroCostAttacks++;
+            if (zeroCostAttacks == 0) penalty -= 350;
         }
 
         // MachineLearningPower: +1 card draw per turn. Hand-cap (10) waste.
