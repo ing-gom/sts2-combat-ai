@@ -281,11 +281,20 @@ internal sealed class PlanScorerWeights
     public int HpPressurePowerPenalty = -1500;
 
     /// <summary>Absolute HP threshold below which HpPressurePowerPenalty fires.
-    /// SimState doesn't carry MaxHp so we use a flat HP value — chosen at 32
-    /// to approximate "below 40% of an 80-MaxHp Ironclad" while still firing
-    /// on the Silent/Necrobinder 70 MaxHp class. Mid-fight pressure threshold,
-    /// not first-turn (which would fire too eagerly).</summary>
+    /// FALLBACK only — used when PlayerMaxHp is unavailable (== 0). When MaxHp is
+    /// known the relative <see cref="HpPressurePowerThresholdFrac"/> is used instead,
+    /// so the pressure point lands at the SAME % across characters with different
+    /// MaxHp (Ironclad 80, Defect/Regent 75, Silent 70, Necrobinder 66). 32 = 40%
+    /// of the 80-MaxHp Ironclad it was originally tuned on.</summary>
     public int HpPressurePowerThreshold = 32;
+
+    /// <summary>2026-06-04 — MaxHp fraction at which HpPressurePowerPenalty fires.
+    /// Replaces the flat HP threshold now that SimState carries PlayerMaxHp, so the
+    /// "one bad turn from dying" pressure point is character-correct instead of a
+    /// flat value that fired at 40% on Ironclad but ~48% on Necrobinder. 0.40 keeps
+    /// Ironclad (80 × 0.40 = 32) identical to the prior flat value; other characters
+    /// move to the intended 40% relative point. JSON-tunable.</summary>
+    public double HpPressurePowerThresholdFrac = 0.40;
 
     /// <summary>v0.23 (Phase 8) — Per-wasted-damage penalty for cost ≥ 2 attacks
     /// hitting a target with DamageCapPerHit. The existing scoring already

@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.11.5 (2026-06-04)
+
+**Per-character weight audit + one correctness fix: HP-pressure threshold is now
+MaxHp-relative.** Reviewed whether the playstyle weights (Defensive/Balanced/
+Aggressive/Killer — there is no per-character branch) are mismatched for specific
+characters. Finding: almost every weight is either character-invariant (damage/
+block/lethal math, enemy-intent bonuses) or mechanic-gated (orb/star/osty/shiv
+knobs fire only for the character that has the resource), so per-character presets
+aren't warranted broadly.
+
+The one genuine character-sensitivity bug: `HpPressurePowerThreshold` was a flat
+`32` HP, explicitly documented as a compromise approximating "40% of an 80-MaxHp
+Ironclad." On other characters the flat value fired at the wrong %: 40% (Ironclad
+80) … 48.5% (Necrobinder 66). Now that `SimState` carries `PlayerMaxHp`, the
+threshold is `PlayerMaxHp × HpPressurePowerThresholdFrac` (0.40), so the
+"one-bad-turn-from-death" pressure point lands at the same 40% for every character.
+Ironclad is unchanged (80 × 0.40 = 32); Defect/Regent → 30, Silent → 28,
+Necrobinder → 26. Falls back to the flat value when MaxHp is unknown. JSON-tunable.
+
+Speculative per-character power/defense weight tuning (e.g. Ironclad block-lean vs
+Silent poison-patience) was NOT shipped — it needs proper A/B (the JSON overlay
+infra could extend to per-character presets), not a blind tweak.
+
 ## v0.11.4 (2026-06-04)
 
 **Heal-intent enemy: replace the v0.11.3 scorer heuristic with a sim-side heal model.**

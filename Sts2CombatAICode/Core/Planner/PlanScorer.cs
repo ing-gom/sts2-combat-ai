@@ -741,9 +741,16 @@ internal static class PlanScorer
             // carryover. Fires independently of burst-window — caps the
             // common "no kill this turn but HP critical" gap. Suppressed
             // in lethal mode (already attack-only via LethalModeNonAttackPenalty).
+            // 2026-06-04 — MaxHp-relative pressure point (character-correct). Falls back to the
+            // flat threshold when MaxHp is unknown. Ironclad 80 × 0.40 = 32 (unchanged); other
+            // characters now fire at the SAME 40% relative pressure instead of the flat value's
+            // 40%(IC)…48.5%(Necro) spread.
+            int hpPressureThreshold = state.PlayerMaxHp > 0
+                ? (int)(state.PlayerMaxHp * w.HpPressurePowerThresholdFrac)
+                : w.HpPressurePowerThreshold;
             int hpPressurePenalty = 0;
             if (!lethalThisTurn && cost >= 2
-                && state.PlayerHp <= w.HpPressurePowerThreshold)
+                && state.PlayerHp <= hpPressureThreshold)
             {
                 hpPressurePenalty = w.HpPressurePowerPenalty;
                 details.Add($"hpPressurePower(hp{state.PlayerHp})={hpPressurePenalty}");

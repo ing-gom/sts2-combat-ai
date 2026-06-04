@@ -120,6 +120,7 @@ public static class Program
         Run("v0.8.7: Reactive block cap clamps 4-source stack at 20", Test_ReactiveBlockCap);
         Run("v0.8.7: Reactive block under cap stays uncapped", Test_ReactiveBlockBelowCap);
         Run("v0.11.4: AdvanceTurn — surviving heal-intent enemy regains HealAmount HP", Test_AdvanceTurnEnemyHealBack);
+        Run("v0.11.5: HP-pressure power penalty is MaxHp-relative (char-correct)", Test_HpPressureMaxHpRelative);
 
         // v0.8.8 — AdvanceTurn integration tests
         Run("v0.8.8: AdvanceTurn — energy resets to base", Test_AdvanceTurnEnergyReset);
@@ -641,6 +642,24 @@ public static class Program
         // 20 × 30 = 600 reactive credit; baseline attack ~150-300; total reasonable < 2000 in non-lethal.
         Assert(score < 2500,
             $"Capped reactive should keep attack score < 2500 (was {score})");
+    }
+
+    private static void Test_HpPressureMaxHpRelative()
+    {
+        // The cost-2 Power HP-pressure penalty must fire at the SAME relative HP across characters.
+        // At PlayerHp 30: an 80-MaxHp char (threshold 32) is penalized; a 66-MaxHp char (threshold
+        // 26) is NOT — so the 80-MaxHp score is lower. Only PlayerMaxHp differs (isolates the fix).
+        var power = Power("INFLAME", cost: 2, "StrengthPower", 2);
+        var enemy = Enemy(hp: 60, hasAttackIntent: true, intentDamage: 10); // not killable, real threat
+        var hp80 = MakeState(playerHp: 30, energy: 3, hand: new() { power },
+            enemies: new() { enemy }) with { PlayerMaxHp = 80 };
+        var hp66 = MakeState(playerHp: 30, energy: 3, hand: new() { power },
+            enemies: new() { enemy }) with { PlayerMaxHp = 66 };
+        int score80 = PlanScorer.Score(power, 0, hp80);
+        int score66 = PlanScorer.Score(power, 0, hp66);
+        Assert(score80 < score66,
+            $"At HP30 the 80-MaxHp char should be HP-pressure-penalized but the 66-MaxHp char not " +
+            $"(80-MaxHp={score80}, 66-MaxHp={score66})");
     }
 
     private static void Test_AdvanceTurnEnemyHealBack()
