@@ -82,12 +82,17 @@ internal static class AnalyticalSimulator
             && newFreeCardBudget > 0 && !cardIsXCost;
         bool veilpiercerFree = !typedFree && !corruptionFreeSkill && !freeHandActive
             && !voidFormFree && card.IsEthereal && newVeilpiercer > 0;
+        // 2026-06-04 — BrilliantScarf: the 5th card each turn is free. Captured as a one-shot
+        // ready flag (TurnCardsPlayed == 4 at snapshot), applied to the first continuation card.
+        bool brilliantScarfFree = !typedFree && !corruptionFreeSkill && !freeHandActive
+            && !voidFormFree && !veilpiercerFree && next.PlayerBrilliantScarfReady && !cardIsXCost;
         bool freeApplied =
             typedFree ||
             corruptionFreeSkill ||
             freeHandActive ||
             voidFormFree ||
-            veilpiercerFree;
+            veilpiercerFree ||
+            brilliantScarfFree;
         // 2026-05-31 — X-cost cards (HEAVENLY_DRILL, TEMPEST, …) spend ALL energy
         // (HasEnergyCostX); base Cost is 0 so the plain subtraction left energy
         // untouched → consistent player_energy +preSpend (HEAVENLY_DRILL +4, 3 rows).
@@ -269,6 +274,11 @@ internal static class AnalyticalSimulator
         int newPlayerAfterimage = next.PlayerAfterimage;
         int newPlayerUnmovable = next.PlayerUnmovable;
         bool newUnmovableUsedThisTurn = next.UnmovableUsedThisTurn;
+        // 2026-06-04 — Vambrace: tracks whether the first-block-of-combat double fired this play
+        // (consumes PlayerVambraceReady in the reconstructed state below).
+        bool vambraceFired = false;
+        // 2026-06-04 — UnsettlingLamp: tracks whether the first-power-card-of-turn double fired.
+        bool unsettlingLampFired = false;
         // v0.7.86 — Shiv damage bonus (Silent passive).
         int newPlayerAccuracy = next.PlayerAccuracy;
         // v0.7.94 — Reactive Strength on Skill play + Skill cost-0 enabler.
@@ -441,12 +451,16 @@ internal static class AnalyticalSimulator
         // 3a. Power card: self-apply powers (Strength, Dex, etc.)
         if (card.IsPower)
         {
+            // 2026-06-04 — UnsettlingLamp: the first power-granting card each turn has its power
+            // amounts doubled. Applied to this Power card's PowerApps (the dominant power source).
+            int lampMult = next.PlayerUnsettlingLampReady ? 2 : 1;
             foreach (var (powerName, rawAmount) in card.PowerApps)
             {
                 // v0.7.98 — EchoForm doubles ALL powers granted by this play.
                 // EchoFormPower itself is excluded so a self-cast Echo Form
                 // doesn't recursively double its own stack.
                 int amount = powerName == "EchoFormPower" ? rawAmount : rawAmount * echoMul;
+                if (lampMult > 1) { amount *= lampMult; unsettlingLampFired = true; }
                 // 2026-05-28 S6-4: RUPTURE card's PowerVar<StrengthPower> is
                 // a misnomer — Rupture.OnPlay applies RupturePower (using the
                 // Strength var's BaseValue). Redirect StrengthPower → RupturePower
@@ -789,6 +803,9 @@ internal static class AnalyticalSimulator
                 // 2026-06-04 — DUPLICATOR: the next card is played twice → double its damage too.
                 if (next.PlayerNextCardMult > 1)
                     totalDmg *= next.PlayerNextCardMult;
+                // 2026-06-04 — ThrowingAxe: the first card each combat is played twice → double damage.
+                if (next.PlayerThrowingAxeReady)
+                    totalDmg *= 2;
                 // 2026-06-01 — flying enemies (SoarPower / FlutterPower) take HALF damage
                 // from card attacks: ModifyDamageMultiplicative returns DamageDecrease/100
                 // = 50/100 = 0.5 on any powered attack. The sim dealt full damage → ~2x
@@ -1179,7 +1196,12 @@ internal static class AnalyticalSimulator
                     newUnmovableUsedThisTurn = true;
                 }
                 // 2026-06-04 — DUPLICATOR doubles this card's block too (played twice).
-                newPlayerBlock += next.PlayerNextCardMult > 1 ? totalBlock * next.PlayerNextCardMult : totalBlock;
+                // ThrowingAxe (first card each combat) likewise doubles this card's block.
+                int blkMult = next.PlayerNextCardMult > 1 ? next.PlayerNextCardMult : 1;
+                if (next.PlayerThrowingAxeReady) blkMult *= 2;
+                // Vambrace: the first block gained from a card each combat is doubled.
+                if (next.PlayerVambraceReady && totalBlock > 0) { blkMult *= 2; vambraceFired = true; }
+                newPlayerBlock += totalBlock * blkMult;
             }
 
             // v0.5 — Self-targeted skills that apply self-buffs (Strength/Dex from
@@ -2686,6 +2708,14 @@ internal static class AnalyticalSimulator
             PlayerNextAttackMult = card.IsAttack ? 1 : next.PlayerNextAttackMult,
             // 2026-06-04 — any played card consumes the DUPLICATOR next-card multiplier.
             PlayerNextCardMult = 1,
+            // 2026-06-04 — the first card played consumes ThrowingAxe (once per combat).
+            PlayerThrowingAxeReady = false,
+            // 2026-06-04 — Vambrace stays ready until the first block-granting card fires it.
+            PlayerVambraceReady = next.PlayerVambraceReady && !vambraceFired,
+            // 2026-06-04 — BrilliantScarf's free card is consumed by the first card that uses it.
+            PlayerBrilliantScarfReady = next.PlayerBrilliantScarfReady && !brilliantScarfFree,
+            // 2026-06-04 — UnsettlingLamp is consumed by the first power card this turn.
+            PlayerUnsettlingLampReady = next.PlayerUnsettlingLampReady && !unsettlingLampFired,
             // v0.9 — propagate per-target attack counter for depth-N forge math.
             TurnAttacksByTargetIdx = newTurnAttacksByTgt,
             // v0.9 — propagate updated SB count so a second Forge in the
@@ -2710,6 +2740,7 @@ internal static class AnalyticalSimulator
             // these fields; leaving them frozen at snapshot value makes every
             // simulated reorder score the payoff card with stale hits.
             TurnAttacksPlayed = next.TurnAttacksPlayed + (card.IsAttack ? 1 : 0),
+            TurnPowersPlayed = next.TurnPowersPlayed + (card.IsPower ? 1 : 0),
             TurnSkillsPlayed  = next.TurnSkillsPlayed  + (card.IsSkill  ? 1 : 0),
             // MAKE_IT_SO pile-reactive return: decrement when a copy left draw/
             // discard for hand this play; a played MAKE_IT_SO (Attack) lands in
@@ -3320,9 +3351,21 @@ internal static class AnalyticalSimulator
         // IF no Attack was played THIS turn, gain +1 energy. Folds the no-attack reward into the
         // next-turn budget so the planner sees the upside of a purely defensive turn while holding
         // ArtOfWar. state.TurnAttacksPlayed is the count for the turn AdvanceTurn is closing out.
-        if (state.TurnAttacksPlayed == 0 && state.PlayerRelics != null
+        if (!StateSnapshotter.RelicModelingOff && state.TurnAttacksPlayed == 0 && state.PlayerRelics != null
             && state.PlayerRelics.ContainsKey("ArtOfWar"))
             newPlayerEnergy += 1;
+
+        // 2026-06-04 — RainbowRing (decompile PowerVar<Strength>1 + <Dexterity>1, once/turn after
+        // an Attack, a Skill AND a Power are played): gain +1 Strength and +1 Dexterity. Applied at
+        // turn close so the next turn's plays see the buff (Str/Dex persist). The Turn*Played counts
+        // are for the turn AdvanceTurn is closing out.
+        int rainbowDexBonus = 0;
+        if (!StateSnapshotter.RelicModelingOff && state.PlayerRelics != null && state.PlayerRelics.ContainsKey("RainbowRing")
+            && state.TurnAttacksPlayed > 0 && state.TurnSkillsPlayed > 0 && state.TurnPowersPlayed > 0)
+        {
+            newPlayerStr += 1;
+            rainbowDexBonus = 1;
+        }
 
         // (g) New hand from deck pool — provided by caller. Caller picks
         // synthetic-avg (BuildSyntheticHand, default AdvanceTurn) or Monte
@@ -3330,6 +3373,13 @@ internal static class AnalyticalSimulator
         // Existing hand is conceptually discarded — we don't track which
         // cards survive via Ethereal exhaust / Retain (Phase 2a simplification).
         var newHand = nextHand;
+
+        // 2026-06-04 — Pocketwatch (decompile CardThreshold 3 + CardsVar 3): if 3 or fewer cards were
+        // played this turn, draw 3 extra cards next turn. The closing turn's count gates the next
+        // hand; inject 3 deck-average cards (conservative, the Draw-potion pattern).
+        if (!StateSnapshotter.RelicModelingOff && state.PlayerRelics != null && state.PlayerRelics.ContainsKey("Pocketwatch")
+            && state.TurnCardsPlayed <= 3)
+            for (int i = 0; i < 3 && newHand.Count < 10; i++) newHand.Add(MakeAverageDrawCard(state));
 
         // v0.7.16 — AGGRESSION turn-start hand addition. The Power recalls a
         // random Attack from the discard pile (upgraded for one turn) per
@@ -3479,10 +3529,16 @@ internal static class AnalyticalSimulator
             // start of the next turn (BeforeSideTurnStart). Refresh so depth-2 projection keeps
             // the discount alive across the boundary.
             PlayerFreeCardBudget = state.PlayerVoidFormAmount,
+            // 2026-06-04 — UnsettlingLamp re-arms each turn (doubles the first power card of the
+            // turn); BrilliantScarf's 5th-card-free re-evaluates from the new turn's card count.
+            PlayerUnsettlingLampReady = !StateSnapshotter.RelicModelingOff && state.PlayerRelics.ContainsKey("UnsettlingLamp"),
+            PlayerBrilliantScarfReady = false,
             // v0.9 — Use newPlayerEnergy which folds in EnergyNextTurnPower
             // (+N) and BorrowedTimePower (debuff cost adder).
             PlayerEnergy = newPlayerEnergy,
             PlayerStrength = newPlayerStr,
+            // 2026-06-04 — RainbowRing's +1 Dexterity (Strength folded into newPlayerStr above).
+            PlayerDexterity = state.PlayerDexterity + rainbowDexBonus,
             // v0.7.83 — Carry Buffer minus instances consumed this turn.
             PlayerBuffer = newPlayerBufferEot,
             // v0.7.84 — Lethality re-arms each turn (it's "first attack/turn"

@@ -55,6 +55,28 @@ internal sealed record SimState
     // when an Attack is played. Default 1 = no multiplier. Lets the potion lookahead value
     // "drink amplifier potion → play big attack".
     public int PlayerNextAttackMult { get; init; } = 1;
+    // 2026-06-04 — DUPLICATOR (DuplicationPower): the NEXT card is played twice. Modeled as a ×N
+    // multiplier on that one card's damage AND block (any card type), consumed after the next play.
+    // Default 1 = no multiplier; guarded by >1 so unused state stays byte-identical.
+    public int PlayerNextCardMult { get; init; } = 1;
+    // 2026-06-04 — ThrowingAxe relic: the FIRST card played each COMBAT is played twice
+    // (ModifyCardPlayCount +1, once/combat). Modeled as a ×2 on that one card's damage AND block,
+    // consumed after the first card play. Captured from the live relic's Status (Active = not yet
+    // used) so it isn't applied after it has already fired. Default false (no relic / already used).
+    public bool PlayerThrowingAxeReady { get; init; }
+    // 2026-06-04 — Vambrace relic: the FIRST block GAINED from a card each COMBAT is doubled
+    // (ModifyBlockMultiplicative ×2, once/combat, self target). Captured from the live relic's
+    // Status (Active = not yet triggered); consumed by the first block-granting card. Default false.
+    public bool PlayerVambraceReady { get; init; }
+    // 2026-06-04 — BrilliantScarf relic: the 5th card played each TURN costs 0 (TryModifyEnergyCost
+    // when CardsPlayedThisTurn == 5-1 == 4). Captured as a one-shot "next card is free" flag when
+    // the snapshot's TurnCardsPlayed == 4, consumed by the first continuation card. Default false.
+    public bool PlayerBrilliantScarfReady { get; init; }
+    // 2026-06-04 — UnsettlingLamp relic: the FIRST power-granting card each TURN has its power
+    // amounts doubled (ModifyPowerAmountGiven ×2 for that card's powers). Captured from the live
+    // relic's Status (Active = not yet triggered this turn); consumed by the first power card,
+    // reset at turn start. Default false.
+    public bool PlayerUnsettlingLampReady { get; init; }
     // 2026-06-04 — multiplicative buff on card block THIS turn (ShadowmeldPower = ×2^Amount,
     // removed at turn end). Captured by StateSnapshotter (2^stacks), applied to card block in
     // ApplyCardPlay + valued in PlanScorer, reset to 1 in AdvanceTurn. Default 1 = no multiplier.
@@ -379,6 +401,9 @@ internal sealed record SimState
     /// by PINPOINT-equivalent gates and any "play after N skills" payoff.
     /// </summary>
     public int TurnSkillsPlayed { get; init; }
+    /// <summary>2026-06-04 — Power cards played this turn. Added for RainbowRing (gain 1 Str + 1 Dex
+    /// once per turn after playing an Attack, a Skill, AND a Power).</summary>
+    public int TurnPowersPlayed { get; init; }
 
     /// <summary>
     /// 2026-05-31 — copies of MAKE_IT_SO (Regent) currently sitting in the draw /

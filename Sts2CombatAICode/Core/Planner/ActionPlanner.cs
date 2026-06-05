@@ -110,6 +110,35 @@ internal static class ActionPlanner
     }
 
     /// <summary>
+    /// 2026-06-04 (Bug A) — when the first card is a 0-cost, 0-damage setup (RAGE 격노, most
+    /// Powers), advance the NEXT-TURN projection base past its best follow-up so a 0-damage opener
+    /// isn't penalised by a projection that assumes the turn ended with the enemies untouched.
+    /// Default on; STS2_SETUP_PROJECT=0 disables for headless A/B.
+    /// </summary>
+    public static bool SetupProjectFix = ResolveSetupProjectFix();
+    private static bool ResolveSetupProjectFix()
+        => System.Environment.GetEnvironmentVariable("STS2_SETUP_PROJECT") != "0";
+
+    /// <summary>
+    /// 2026-06-04 (user request) — penalise the player HP a candidate concedes in the next-turn
+    /// projection. The projection rewards advancing the kill (enemy HP drops) but was BLIND to the
+    /// HP the player gives up by not covering incoming damage — so a chip attack out-raced a defend
+    /// even when both ultimately played the same cards (STRIKE/DEFEND order with Frail). AdvanceTurn
+    /// already subtracts unblocked incoming from PlayerHp, so the conceded HP is real and measured.
+    /// Per-HP weight; 0 disables. When blocking is impossible every candidate eats the same penalty
+    /// (no behaviour change); it only bites when a coverable hit is left open. STS2_PROJECT_HPLOSS.
+    /// NOTE: also nudges toward blocking in a Losing race (where racing may be correct) — headless
+    /// A/B (STS2_PROJECT_HPLOSS=0 vs on) before treating any win-rate delta as settled.
+    /// </summary>
+    public static int ProjectHpLossPerPoint = ResolveProjectHpLoss();
+    private static int ResolveProjectHpLoss()
+    {
+        var s = System.Environment.GetEnvironmentVariable("STS2_PROJECT_HPLOSS");
+        if (int.TryParse(s, out var v) && v >= 0) return v;
+        return 20;
+    }
+
+    /// <summary>
     /// Per-candidate trace from the most recent PlanNextStep call. <c>bestNextId</c>
     /// reveals which follow-up card the depth-2 lookahead picked as the "best second
     /// play" after this candidate — invaluable for explaining why a setup card won
@@ -121,6 +150,22 @@ internal static class ActionPlanner
     /// <summary>v0.7.75 — When candidates empty but hand non-empty, diagnostic
     /// string describing why each card was filtered. Read by VakuuExecutor.</summary>
     public static string? LastEmptyReason { get; private set; }
+
+    /// <summary>2026-06-04 — potion evaluation trace from the last considerPotions:true call.
+    /// Per potion: its kind, chosen target, immediate value (firstScore), and lookahead total.
+    /// Compared against <see cref="LastBestCardTotal"/> + <see cref="PotionWinMargin"/> to decide
+    /// whether a potion is recommended over the best card play. Drives the F9 overlay dump so the
+    /// reason a defensive/utility potion was or wasn't suggested is inspectable in-game.</summary>
+    public static System.Collections.Generic.List<(string id, string kind, int targetIdx, int firstScore, int total)>
+        LastPotionCandidates { get; } = new();
+
+    /// <summary>Best card-play lookahead total from the last PlanNextStep — the bar a potion must
+    /// clear by <see cref="PotionWinMargin"/> to be recommended. int.MinValue = no card eval yet.</summary>
+    public static int LastBestCardTotal { get; private set; } = int.MinValue;
+
+    /// <summary>Margin (score units) a potion's lookahead total must beat the best card by before
+    /// it is recommended — "potions are precious, don't burn one for a trivial additive gain".</summary>
+    public const int PotionWinMargin = 250;
 
     // ─── v0.10 JSON-loadable planner config ────────────────────────────────
     private sealed class _PlannerCfg
@@ -228,13 +273,17 @@ internal static class ActionPlanner
         bool voidFormFree = state.PlayerFreeCardBudget > 0
             && !(c.Axes != null && c.Axes.Contains("X_COST"));
         bool veilpiercerFree = c.IsEthereal && state.PlayerVeilpiercer > 0;
+        // 2026-06-04 — BrilliantScarf: the 5th card each turn is free (affordable regardless of cost).
+        bool brilliantScarfFree = state.PlayerBrilliantScarfReady
+            && !(c.Axes != null && c.Axes.Contains("X_COST"));
         bool freeCovers = (c.IsAttack && state.PlayerFreeAttacks > 0)
                        || (c.IsSkill && state.PlayerFreeSkills > 0)
                        || (c.IsPower && state.PlayerFreePowers > 0)
                        || corruptionFreeSkill
                        || freeHandCovers
                        || voidFormFree
-                       || veilpiercerFree;
+                       || veilpiercerFree
+                       || brilliantScarfFree;
         if (!freeCovers && c.Cost > state.PlayerEnergy)
             return $"cost{c.Cost}>energy{state.PlayerEnergy}";
         if (c.IsCurseOrStatus) return "curse/status";
@@ -289,6 +338,7 @@ internal static class ActionPlanner
         PlanStep? bestPlan = null;
         int bestTotal = int.MinValue;
         int bestFirstScore = int.MinValue;
+        string? bestPlanNextId = null;   // the current best plan's depth-2 continuation card id
         LastCandidates.Clear();
 
         var planWeights = PlanScorerWeights.For(PlaystyleResolver.Resolve(state));
@@ -312,6 +362,7 @@ internal static class ActionPlanner
             // not just this one.
             int secondScore = 0;
             int nextTurnBonus = 0;
+            int hpLossPenalty = 0;   // 2026-06-04 — HP the line concedes in the next-turn projection
             string? bestNextId = null;
             try
             {
@@ -330,9 +381,34 @@ internal static class ActionPlanner
                 secondScore = BestContinuation(nextState, depth: ContinuationDepth, planWeights, beamK: BeamK, out bestNextId);
                 if (secondScore < 0) secondScore = 0; // never pessimize via bad fallback
 
-                // Next-turn projection — discounted because the projection
-                // assumes the rest of this turn is forfeit (we only advance
-                // from after the first card, not after the full 3-card seq).
+                // 2026-06-04 (Bug A) — setup-first next-turn deflation fix. A 0-cost, 0-damage
+                // setup card (RAGE 격노, most Powers) played first deals no damage, so projecting
+                // the next turn from the state right after it pretends the turn ended with the
+                // enemies untouched. That deflates the setup-first next-turn term and lets a big
+                // attack wrongly claim the first slot — even when the within-turn score correctly
+                // prefers the setup first (so its block/buff rides the later attacks). When the
+                // first card is such a setup, advance the projection base past its best follow-up
+                // so the projected board reflects the damage we'd actually deal this turn. Only the
+                // next-turn projection base changes; the first/second within-turn scores stay put.
+                var projBase = nextState;
+                if (SetupProjectFix && card.Cost == 0 && card.Damage <= 0)
+                {
+                    int fbBest = int.MinValue; SimCard? fbCard = null; int fbTarget = -1;
+                    foreach (var (fc, ft) in EnumerateCandidates(nextState))
+                    {
+                        int fs = PlanScorer.Score(fc, ft, nextState)
+                               + PlanScorer.PlayOrderBias(fc, nextState, planWeights);
+                        if (fs > fbBest) { fbBest = fs; fbCard = fc; fbTarget = ft; }
+                    }
+                    if (fbCard != null)
+                        try { projBase = Sim.AnalyticalSimulator.ApplyCardPlay(nextState, fbCard, fbTarget); }
+                        catch { projBase = nextState; }
+                }
+
+                // Next-turn projection — discounted because the projection assumes
+                // the rest of this turn is forfeit (we advance from projBase: after
+                // the first card, or — for a 0-cost setup — after its best follow-up
+                // too, so a 0-damage opener isn't penalised; see Bug A note above).
                 //
                 // v0.7.14 — Monte Carlo over N=3 sampled next-turn hands.
                 // Replaces the single synthetic-avg AdvanceTurn call with an
@@ -356,19 +432,26 @@ internal static class ActionPlanner
                     var rng = new System.Random(seed);
                     int sampleTotal = 0;
                     int sampleCount = 0;
+                    int hpLossTotal = 0;
                     for (int s = 0; s < MonteCarloSamples; s++)
                     {
                         try
                         {
-                            var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurnSampled(nextState, rng);
+                            var nextTurnState = Sim.AnalyticalSimulator.AdvanceTurnSampled(projBase, rng);
                             int singleStep = BestContinuation(nextTurnState, depth: 1, planWeights, beamK: BeamK, out _);
                             if (singleStep < 0) singleStep = 0;
                             sampleTotal += singleStep;
+                            // 2026-06-04 (user) — HP the player loses during this projected enemy turn.
+                            // AdvanceTurn already subtracts the unblocked incoming from PlayerHp, so a
+                            // line that left a coverable hit open surfaces here as real HP given away.
+                            hpLossTotal += System.Math.Max(0, projBase.PlayerHp - nextTurnState.PlayerHp);
                             sampleCount++;
                         }
                         catch { /* skip sample on sim failure */ }
                     }
                     int nextTurnAvg = sampleCount > 0 ? sampleTotal / sampleCount : 0;
+                    if (ProjectHpLossPerPoint > 0 && sampleCount > 0)
+                        hpLossPenalty = (hpLossTotal / sampleCount) * ProjectHpLossPerPoint;
 
                     // v0.7.15 — EchoFormPower next-turn first-card 2x play.
                     // We only evaluate depth=1 next turn (single first card),
@@ -395,7 +478,7 @@ internal static class ActionPlanner
                 bestNextId = null;
             }
 
-            int total = firstScore + secondScore + nextTurnBonus;
+            int total = firstScore + secondScore + nextTurnBonus - hpLossPenalty;
             LastCandidates.Add((card.Id, targetIdx, firstScore, secondScore, total, bestNextId));
             // v0.5 — tie-break on first-card score so identical totals (e.g., A first=1000
             // second=200 vs B first=600 second=600) prefer the candidate with higher
@@ -443,13 +526,29 @@ internal static class ActionPlanner
                     && bestFirstScore > 0
                     && firstScore >= bestFirstScore * 2;
 
-                if (wins && bestIsDominantSingle
+                // 2026-06-04 — a 0-cost setup whose best continuation IS the dominant single defers
+                // nothing: both cards play THIS turn, the free one first. So it must be exempt from
+                // the dominant-single guard, which exists only to stop a real tempo-losing deferral.
+                // Motivating case (F9 log): RAGE 격노 (0c, +block per attack) → HOWL_FROM_BEYOND.
+                // RAGE total 12887 beat HOWL 12582 by 2.4% (within 10%), so the guard wrongly kept
+                // HOWL first, forfeiting RAGE's block on the very attack it boosts.
+                // A 0-cost first play defers NOTHING — you play it free, then still play the dominant
+                // single (and the rest) this turn. So a free, non-harmful candidate that wins on total
+                // must never be suppressed by the dominant-single guard, whatever its specific
+                // follow-up is. (Earlier this matched only when bestNext WAS the dominant single, but
+                // once potions entered the lookahead RAGE's bestNext became a potion, not HOWL, and
+                // the guard wrongly kept HOWL first again — F9: RAGE total 13707 > HOWL 12602.)
+                bool candIsFreeSetupIntoBest = card.Cost == 0 && firstScore >= 0;
+                bool bestIsFreeSetupIntoCand = bestPlan != null && bestPlan.Value.Card.Cost == 0
+                    && bestFirstScore >= 0;
+
+                if (wins && bestIsDominantSingle && !candIsFreeSetupIntoBest
                     && total <= bestTotal + bestTotal / 10)
                 {
                     // Incoming chain win is narrow — keep the dominant single.
                     wins = false;
                 }
-                else if (!wins && candIsDominantSingle
+                else if (!wins && candIsDominantSingle && !bestIsFreeSetupIntoCand
                     && bestTotal <= total + total / 10)
                 {
                     // Incoming dominant single overrides slightly-higher chain.
@@ -504,6 +603,7 @@ internal static class ActionPlanner
             {
                 bestTotal = total;
                 bestFirstScore = firstScore;
+                bestPlanNextId = bestNextId;
                 // PlanStep.Score is the first-card score, not lookahead total (kept for log clarity).
                 bestPlan = new PlanStep(card, targetIdx, firstScore, Reason(card));
             }
@@ -515,9 +615,10 @@ internal static class ActionPlanner
         // the post-potion state (which is where an amplifier like GIGANTIFICATION cashes out via
         // the ×3 attack). Recommend it only when it beats the best card play by a real margin —
         // potions are precious, so trivial additive gains shouldn't burn one.
+        LastPotionCandidates.Clear();
+        LastBestCardTotal = bestTotal;
         if (considerPotions && state.PlayerPotions.Count > 0)
         {
-            const int PotionWinMargin = 250;
             int bestPotionTotal = int.MinValue, bestPotionFirst = 0, bestPotionIdx = -1, bestPotionTarget = -1;
             Sim.SimPotion? bestPotion = null;
             for (int pi = 0; pi < state.PlayerPotions.Count; pi++)
@@ -533,6 +634,7 @@ internal static class ActionPlanner
                     ptotal += BestContinuation(ns, ContinuationDepth, planWeights, BeamK, out _);
                 }
                 catch { /* sim failure: immediate value only */ }
+                LastPotionCandidates.Add((potion.Id, potion.Kind.ToString(), ptarget, pfirst, ptotal));
                 if (ptotal > bestPotionTotal)
                 {
                     bestPotionTotal = ptotal; bestPotionFirst = pfirst;

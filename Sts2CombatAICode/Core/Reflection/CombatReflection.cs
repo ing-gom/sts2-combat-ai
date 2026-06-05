@@ -217,14 +217,67 @@ internal static class CombatReflection
                     int amount = 0;
                     int V(string key) => vars.TryGetValue(key, out var dv) ? (int)dv.BaseValue : 0;
 
+                    // Player-buff potions are Self/AnyPlayer-targeted. Gate the stat kinds on that so
+                    // an ENEMY-targeted potion that reuses a player-power var (e.g. SHACKLING_POTION =
+                    // PowerVar<StrengthPower> applied to AllEnemies as a strength-DOWN debuff) is NOT
+                    // misread as "+Strength to me". Such cases fall through to Other (safe no-op).
+                    bool selfBuff = target == "Self" || target == "AnyPlayer";
+
                     if (id == "GIGANTIFICATION_POTION")          { kind = PotionKind.AttackTriple; amount = 3; }
-                    else if (vars.ContainsKey("Block"))          { kind = PotionKind.Block;     amount = V("Block"); }
-                    else if (vars.ContainsKey("Heal"))           { kind = PotionKind.Heal;      amount = V("Heal"); }
-                    else if (vars.ContainsKey("Damage"))         { kind = PotionKind.Damage;    amount = V("Damage"); }
-                    else if (vars.ContainsKey("StrengthPower"))  { kind = PotionKind.Strength;  amount = V("StrengthPower"); }
-                    else if (vars.ContainsKey("DexterityPower")) { kind = PotionKind.Dexterity; amount = V("DexterityPower"); }
-                    else if (vars.ContainsKey("FocusPower"))     { kind = PotionKind.Focus;     amount = V("FocusPower"); }
-                    else if (vars.ContainsKey("Energy"))         { kind = PotionKind.Energy;    amount = V("Energy"); }
+                    // FORTIFIER gains block = current block × 2 (computed in OnUse, no Block var) →
+                    // must be matched by Id, not by a flat var. Amount = the multiplier added.
+                    else if (id == "FORTIFIER")                  { kind = PotionKind.BlockMult; amount = 2; }
+                    else if (selfBuff && vars.ContainsKey("Block"))          { kind = PotionKind.Block;     amount = V("Block"); }
+                    else if (selfBuff && vars.ContainsKey("Heal"))           { kind = PotionKind.Heal;      amount = V("Heal"); }
+                    else if (vars.ContainsKey("Damage"))                     { kind = PotionKind.Damage;    amount = V("Damage"); }
+                    else if (selfBuff && vars.ContainsKey("StrengthPower"))  { kind = PotionKind.Strength;  amount = V("StrengthPower"); }
+                    else if (selfBuff && vars.ContainsKey("DexterityPower")) { kind = PotionKind.Dexterity; amount = V("DexterityPower"); }
+                    else if (selfBuff && vars.ContainsKey("FocusPower"))     { kind = PotionKind.Focus;     amount = V("FocusPower"); }
+                    else if (selfBuff && vars.ContainsKey("Energy"))         { kind = PotionKind.Energy;    amount = V("Energy"); }
+                    // Enemy debuffs — PowerVar<T> keys on typeof(T).Name. AllEnemies vs single is
+                    // carried by `target` (TargetType) and handled in ApplyPotionUse.
+                    else if (vars.ContainsKey("VulnerablePower")) { kind = PotionKind.EnemyVuln;   amount = V("VulnerablePower"); }
+                    else if (vars.ContainsKey("WeakPower"))       { kind = PotionKind.EnemyWeak;   amount = V("WeakPower"); }
+                    else if (vars.ContainsKey("PoisonPower"))     { kind = PotionKind.EnemyPoison; amount = V("PoisonPower"); }
+                    else if (vars.ContainsKey("DoomPower"))       { kind = PotionKind.EnemyDoom;   amount = V("DoomPower"); }
+                    // POWDERED_DEMISE: DemisePower deals Amount unblockable dmg to the enemy each turn
+                    // end — mechanically the same DoT the sim already applies for Doom, so reuse it.
+                    else if (vars.ContainsKey("Demise"))          { kind = PotionKind.EnemyDoom;   amount = V("Demise"); }
+                    else if (vars.ContainsKey("HealPercent"))     { kind = PotionKind.HealPercent; amount = V("HealPercent"); }
+                    else if (selfBuff && vars.ContainsKey("MaxHp")) { kind = PotionKind.MaxHpGain;  amount = V("MaxHp"); }
+                    // Self-defence powers (Self/AnyPlayer-targeted so a same-named enemy debuff
+                    // can't be mistaken for a self-buff — same guard as the stat potions).
+                    else if (selfBuff && vars.ContainsKey("IntangiblePower")) { kind = PotionKind.SelfIntangible; amount = V("IntangiblePower"); }
+                    else if (selfBuff && vars.ContainsKey("BufferPower"))     { kind = PotionKind.SelfBuffer;     amount = V("BufferPower"); }
+                    else if (selfBuff && vars.ContainsKey("PlatingPower"))    { kind = PotionKind.SelfPlating;    amount = V("PlatingPower"); }
+                    else if (selfBuff && vars.ContainsKey("ThornsPower"))     { kind = PotionKind.SelfThorns;     amount = V("ThornsPower"); }
+                    else if (selfBuff && vars.ContainsKey("RegenPower"))      { kind = PotionKind.SelfRegen;      amount = V("RegenPower"); }
+                    // SHACKLING_POTION reuses PowerVar<StrengthPower> (key "StrengthPower") but applies
+                    // it to ALL enemies as a strength-DOWN debuff; BEETLE_JUICE shrinks via Repeat var.
+                    else if (id == "SHACKLING_POTION")           { kind = PotionKind.EnemyStrengthDown; amount = V("StrengthPower"); }
+                    else if (id == "BEETLE_JUICE")               { kind = PotionKind.EnemyStrengthDown; amount = V("Repeat"); }
+                    // Card draw / generation — Id-gated because the "Cards" var is shared across
+                    // draw AND generation potions, and several have hand-altering side effects.
+                    // Draw N (cost-randomise on SNECKO and the ClarityPower buff are conservatively
+                    // omitted — we model only the draw, never overstating).
+                    else if (id == "SWIFT_POTION" || id == "BOTTLED_POTENTIAL"
+                          || id == "SNECKO_OIL" || id == "CLARITY")             { kind = PotionKind.Draw; amount = vars.ContainsKey("Cards") ? V("Cards") : 1; }
+                    else if (id == "LIQUID_MEMORIES" || id == "DROPLET_OF_PRECOGNITION") { kind = PotionKind.Draw; amount = 1; }
+                    else if (id == "GLOWWATER_POTION")           { kind = PotionKind.DrawExhaustHand; amount = vars.ContainsKey("Cards") ? V("Cards") : 10; }
+                    // Card generation (inject new cards into hand). Choose-1-of-3 potions → 1 card.
+                    else if (id == "ATTACK_POTION" || id == "SKILL_POTION" || id == "POWER_POTION"
+                          || id == "COLORLESS_POTION")           { kind = PotionKind.GenerateCards; amount = 1; }
+                    else if (id == "COSMIC_CONCOCTION")          { kind = PotionKind.GenerateCards; amount = vars.ContainsKey("Cards") ? V("Cards") : 3; }
+                    else if (id == "CUNNING_POTION" || id == "POT_OF_GHOULS") { kind = PotionKind.GenerateShivs; amount = vars.ContainsKey("Cards") ? V("Cards") : 2; }
+                    // Character resources (Self-targeted).
+                    else if (selfBuff && vars.ContainsKey("Stars")) { kind = PotionKind.GainStars; amount = V("Stars"); }
+                    else if (id == "POTION_OF_CAPACITY")         { kind = PotionKind.OrbCapacity; amount = vars.ContainsKey("Repeat") ? V("Repeat") : 2; }
+                    else if (id == "ESSENCE_OF_DARKNESS")        { kind = PotionKind.ChannelDark; amount = 0; }
+                    else if (id == "DUPLICATOR")                 { kind = PotionKind.NextCardDouble; amount = 2; }
+                    // BLESSING_OF_THE_FORGE upgrades every hand card; SOLDIERS_STEW only Strikes.
+                    // Amount carries the scope: 1 = all cards, 2 = Strikes-only (read in ApplyPotionUse).
+                    else if (id == "BLESSING_OF_THE_FORGE")      { kind = PotionKind.UpgradeHand; amount = 1; }
+                    else if (id == "SOLDIERS_STEW")              { kind = PotionKind.UpgradeHand; amount = 2; }
 
                     list.Add(new SimPotion { Id = id, Kind = kind, Amount = amount, Target = target });
                 }

@@ -23,10 +23,35 @@ internal static class StateSnapshotter
     // STS2 patches break a field name while still surfacing the problem once
     // per session so the user can see the issue in godot.log.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _loggedFailures = new();
+
+    // 2026-06-04 — A/B kill switch for the relic-modeling work (ThrowingAxe/Vambrace/
+    // BrilliantScarf/UnsettlingLamp/RainbowRing/Pocketwatch/ArtOfWar). Set STS2_RELICS_OFF=1 to
+    // disable all of it so a seed-paired run measures the modeling's net effect. Read once.
+    internal static readonly bool RelicModelingOff =
+        System.Environment.GetEnvironmentVariable("STS2_RELICS_OFF") == "1";
     private static void LogReflectionFailureOnce(string site, System.Exception ex)
     {
         if (_loggedFailures.TryAdd(site, 0))
             MainFile.Logger.Warn($"[CombatAI] snapshot/{site} reflection failed: {ex.Message}");
+    }
+
+    // 2026-06-04 — true if the named once-per-combat relic is held AND its live RelicStatus is
+    // Active (i.e. has not fired yet this combat). Reflection-read to avoid a hard dependency on
+    // the RelicStatus enum type. Fail-open: if held but Status is unreadable, assume Active.
+    private static bool RelicActive(Player player, System.Collections.Generic.IReadOnlyDictionary<string, int> relics, string relicName)
+    {
+        if (!relics.ContainsKey(relicName)) return false;
+        try
+        {
+            foreach (var r in player.Relics)
+            {
+                if (r == null || r.GetType().Name != relicName) continue;
+                var st = r.GetType().GetProperty("Status")?.GetValue(r)?.ToString();
+                return st == null || st == "Active";
+            }
+        }
+        catch { }
+        return true;
     }
 
     public static SimState? Capture(Player player)
@@ -424,10 +449,20 @@ internal static class StateSnapshotter
             // CardsPlayed%4, VelvetChoker cards-played-this-turn) reflect live
             // state. Falls back to empty dict on reflection failure.
             var playerRelics = CombatReflection.GetPlayerRelics(player);
+            // 2026-06-04 — ThrowingAxe ready = held AND not yet used this combat. The live relic's
+            // Status is Active until its one play-count modification fires (then Normal), so the sim
+            // only doubles the first card when the relic genuinely hasn't fired. Reflection-read to
+            // avoid a hard dependency on the RelicStatus enum type; fail-open (assume ready).
+            // Both ThrowingAxe (first card ×2) and Vambrace (first block ×2) are once-per-combat
+            // relics whose live Status is Active until they fire; read it so the sim only applies
+            // the bonus while genuinely unfired. Fail-open (assume ready if Status unreadable).
+            bool throwingAxeReady = !RelicModelingOff && RelicActive(player, playerRelics, "ThrowingAxe");
+            bool vambraceReady = !RelicModelingOff && RelicActive(player, playerRelics, "Vambrace");
+            bool unsettlingLampReady = !RelicModelingOff && RelicActive(player, playerRelics, "UnsettlingLamp");
             // 2026-06-04 — held potions as first-class lookahead actions.
             var playerPotions = CombatReflection.GetPlayerPotions(player);
 
-            int turnAttacksPlayed = 0, turnSkillsPlayed = 0, combatHpLossEvents = 0;
+            int turnAttacksPlayed = 0, turnSkillsPlayed = 0, turnPowersPlayed = 0, combatHpLossEvents = 0;
             int turnCardsPlayed = 0;  // total this-turn plays (any type) — FTL PlayMax gate
             // 2026-05-30 — shivs played this turn (PhantomBlades adds its bonus only
             // to the FIRST shiv each turn, i.e. when this count is 0). Shivs are
@@ -571,6 +606,10 @@ internal static class StateSnapshotter
                                 // when SmoggyPower isn't on the player.
                                 if (!smoggySkillPlayedThisTurn && playerSmoggy > 0)
                                     smoggySkillPlayedThisTurn = true;
+                            }
+                            else if (type == CardType.Power)
+                            {
+                                turnPowersPlayed++;   // RainbowRing: attack+skill+power this turn
                             }
                         }
                         else if (entry is DamageReceivedEntry dre)
@@ -832,6 +871,7 @@ internal static class StateSnapshotter
                 ExhaustPileSize = exhaustPileSize,
                 SovereignBladeCount = sovereignBladeCount,
                 TurnAttacksPlayed = turnAttacksPlayed,
+                TurnPowersPlayed = turnPowersPlayed,
                 TurnCardsPlayed = turnCardsPlayed,
                 TurnSkillsPlayed = turnSkillsPlayed,
                 MakeItSoInDraw = makeItSoInDraw,
@@ -872,6 +912,11 @@ internal static class StateSnapshotter
                 SmoggySkillPlayedThisTurn = smoggySkillPlayedThisTurn,
                 PlayerRelics = playerRelics,
                 PlayerPotions = playerPotions,
+                PlayerThrowingAxeReady = throwingAxeReady,
+                PlayerVambraceReady = vambraceReady,
+                // BrilliantScarf makes the 5th card each turn free → ready when exactly 4 played.
+                PlayerBrilliantScarfReady = !RelicModelingOff && playerRelics.ContainsKey("BrilliantScarf") && turnCardsPlayed == 4,
+                PlayerUnsettlingLampReady = unsettlingLampReady,
             };
         }
         catch (System.Exception ex)

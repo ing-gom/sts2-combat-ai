@@ -61,7 +61,11 @@ internal static class PlanScorer
     {
         var s = System.Environment.GetEnvironmentVariable("STS2_HP_PRESERVE");
         if (int.TryParse(s, out var v) && v >= 0) return v;
-        return 0;
+        // 2026-06-04 — default raised 0 → 15 (user request: value preserving HP via block when the
+        // fight is already Winning). Still gated to Winning + usefulBlock>0 (leak-capped, never
+        // over-blocks). NOTE: shifts the headless win-rate baseline too — set STS2_HP_PRESERVE=0 to
+        // restore the old behaviour for A/B.
+        return 15;
     }
 
 
@@ -163,28 +167,55 @@ internal static class PlanScorer
             // earlier; the bonus on them is irrelevant.
             delta += card.IsPower ? w.EtherealPowerPlayNowBonus : w.EtherealPlayNowBonus;
         }
-        // 2026-06-03 — "play before your attacks" setup. RagePower (RAGE 격노) grants block
-        // for each Attack played for the REST of this turn, so it must precede the attacks to
-        // pay off. The depth-2 lookahead credits the synergy value but doesn't bias the play
-        // ORDER, so the planner could fire an attack first and forfeit that attack's block.
-        // Add a play-now nudge proportional to the block the remaining affordable attacks would
-        // generate (half weight — the relic/other interactions stay the scorer's job, this only
-        // settles ORDER). With 0 remaining attacks RAGE earns nothing → no nudge.
+        // 2026-06-03 — "play before your attacks" setup. RagePower (RAGE 격노) grants block per
+        // Attack played for the REST of this turn, so it must precede the attacks to pay off.
+        // 2026-06-04 — RAGE is 0-cost and NON-exhausting, so whenever ANY attack will be played this
+        // turn you should play RAGE FIRST (free block, even one attack = rageAmt block — taking it
+        // beats holding). Only nudge to the front; never hold/penalize for "too few attacks". The
+        // count uses attacks ACTUALLY PLAYABLE within current energy (greedy cheapest-first) so the
+        // block magnitude is accurate (3 energy → HOWL 3 OR BASH 2 = one attack, not both). With 0
+        // playable attacks RAGE earns nothing this turn → no nudge (it's free to hold for later).
+        // The ONLY "don't play RAGE" case is when gaining block is actively bad (a blockless-synergy
+        // relic/card) — that exception belongs in the relic/scoring layer, not here.
         if (card.PowerApps.TryGetValue("RagePower", out int rageAmt) && rageAmt > 0)
         {
-            int remainingAttacks = 0;
-            foreach (var c in state.Hand)
+            int feasibleAttacks = 0, budget = state.PlayerEnergy;
+            foreach (var c in state.Hand
+                         .Where(c => !ReferenceEquals(c, card) && c.IsAttack && !c.IsCurseOrStatus && c.Cost >= 0)
+                         .OrderBy(c => c.Cost))
             {
-                if (ReferenceEquals(c, card)) continue;
-                if (c.IsCurseOrStatus || !c.IsAttack) continue;
-                if (c.Cost < 0 || c.Cost > state.PlayerEnergy) continue;   // affordable now
-                remainingAttacks++;
+                if (c.Cost > budget) break;     // can't fit any more attacks this turn
+                budget -= c.Cost;
+                feasibleAttacks++;
             }
-            if (remainingAttacks > 0)
-                delta += remainingAttacks * rageAmt * w.BlockPerPointBonus / 2;
+            int rageBlock = feasibleAttacks * rageAmt;
+            // ORICHALCUM interaction (relic): "end your turn with NO block → gain 6 block". RAGE's
+            // block and Orichalcum's bonus are MUTUALLY EXCLUSIVE — if RAGE leaves you holding block
+            // at turn end, Orichalcum won't fire, so RAGE's real gain is (rageBlock − 6). With one
+            // attack (5 block < 6) playing RAGE is NET-NEGATIVE → hold it (it doesn't exhaust); with
+            // two (10 > 6) it's worth it. Without Orichalcum, every point of RAGE block is free → play.
+            bool orichalcum = state.PlayerRelics != null && state.PlayerRelics.ContainsKey("Orichalcum");
+            // A held block-MULTIPLIER potion (FORTIFIER = current block ×2) turns even one attack's
+            // RAGE block into a big number (5 → 15), which dwarfs Orichalcum's flat 6 — so the
+            // mutual-exclusion "hold" reasoning does NOT apply. (The RAGE→block→Fortifier sequence
+            // itself is surfaced by the overlay's live per-play re-eval, not this single lookahead.)
+            bool canAmplifyBlock = state.PlayerPotions != null
+                && state.PlayerPotions.Any(p => p.Kind == Sim.PotionKind.BlockMult);
+            int marginalBlock = (orichalcum && !canAmplifyBlock) ? rageBlock - OrichalcumBlockBonus : rageBlock;
+            if (marginalBlock > 0)
+                delta += marginalBlock * w.BlockPerPointBonus / 2;        // worth deploying now
+            else if (orichalcum && !canAmplifyBlock && feasibleAttacks > 0)
+                delta -= RageHoldBias;   // RAGE block ≤ Orichalcum's 6 (no amplifier) → forfeits the relic
         }
         return delta;
     }
+
+    // Mirror of EnemyTurnSimulator.OrichalcumBlock (end-of-turn block if blockless). Used to detect
+    // when a small RAGE block would displace the larger relic bonus.
+    private const int OrichalcumBlockBonus = 6;
+    /// <summary>Play-order penalty that holds a 0-cost, non-exhausting setup (RAGE) when playing it
+    /// would be net-negative (its block ≤ the Orichalcum blockless bonus it would forfeit).</summary>
+    private const int RageHoldBias = 3000;
 
     /// <summary>
     /// 2026-06-04 — Heuristic value of USING a potion now, for the planner lookahead

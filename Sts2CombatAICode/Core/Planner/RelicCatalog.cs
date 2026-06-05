@@ -53,7 +53,141 @@ internal static class RelicCatalog
         total += LetterOpenerBonus(card, state, w, details);
         total += OrnamentalFanBonus(card, state, w, details);
         total += NunchakuBonus(card, state, w, details);
+        // 2026-06-04 — Power-card-trigger relics (previously uncovered) + per-attack DaughterOfTheWind.
+        total += LostWispBonus(card, state, w, details);
+        total += GamePieceBonus(card, state, w, details);
+        total += PermafrostBonus(card, state, w, details);
+        total += MummifiedHandBonus(card, state, w, details);
+        total += DaughterOfTheWindBonus(card, state, w, details);
+        total += TuningForkBonus(card, state, w, details);
+        total += HelicalDartBonus(card, state, w, details);
+        total += IvoryTileBonus(card, state, w, details);
+        total += KusarigamaBonus(card, state, w, details);
+        total += MusicBoxBonus(card, state, w, details);
+        total += RazorToothBonus(card, state, w, details);
         return total;
+    }
+
+    /// <summary>HelicalDart (STS2): every Shiv played → gain +1 Dexterity. Per-stack Dex ~ +400.</summary>
+    private static int HelicalDartBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("HelicalDart")) return 0;
+        if (card.Kind != CardType.Attack || string.IsNullOrEmpty(card.Id) || !card.Id.ToUpperInvariant().Contains("SHIV")) return 0;
+        const int Bonus = 400;
+        details?.Add($"HelicalDart+Dex({Bonus})");
+        return Bonus;
+    }
+
+    /// <summary>IvoryTile (STS2): playing a card costing ≥ 3 energy → gain 1 energy. Fires on every
+    /// such play (no counter). Energy-on-trigger valued like Nunchaku (~+500).</summary>
+    private static int IvoryTileBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("IvoryTile")) return 0;
+        if (card.Cost < 3) return 0;
+        const int Bonus = 500;
+        details?.Add($"IvoryTile+E({Bonus})");
+        return Bonus;
+    }
+
+    /// <summary>Kusarigama (STS2): every 3rd Attack played in a turn → deal 6 damage to an enemy.
+    /// Counter == AttacksPlayedThisTurn%3 (DisplayAmount); when 2 the next Attack triggers.</summary>
+    private static int KusarigamaBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.TryGetValue("Kusarigama", out int counter)) return 0;
+        if (card.Kind != CardType.Attack) return 0;
+        if (counter != 2) return 0;
+        int bonus = 6 * w.DamagePerPointBonus;
+        details?.Add($"Kusarigama+{bonus}");
+        return bonus;
+    }
+
+    /// <summary>MusicBox (STS2): the FIRST card played each turn → add an Ethereal clone to hand
+    /// (card advantage). Detected via TurnCardsPlayed == 0; flat draw-equivalent (~+200).</summary>
+    private static int MusicBoxBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("MusicBox")) return 0;
+        if (state.TurnCardsPlayed != 0) return 0;
+        const int Bonus = 200;
+        details?.Add($"MusicBox+clone({Bonus})");
+        return Bonus;
+    }
+
+    /// <summary>RazorTooth (STS2): playing an upgradable Attack/Skill upgrades it (permanent). The
+    /// in-combat payoff is small (only helps a re-drawn copy), so a light nudge (~+40).</summary>
+    private static int RazorToothBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("RazorTooth")) return 0;
+        if (card.Kind != CardType.Attack && card.Kind != CardType.Skill) return 0;
+        const int Bonus = 40;
+        details?.Add($"RazorTooth+upg({Bonus})");
+        return Bonus;
+    }
+
+    /// <summary>TuningFork (STS2): every 10th Skill played → gain 7 block. Counter == SkillsPlayed
+    /// (DisplayAmount); when 9, the next Skill triggers. 7 × BlockPerPointBonus.</summary>
+    private static int TuningForkBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.TryGetValue("TuningFork", out int counter)) return 0;
+        if (card.Kind != CardType.Skill) return 0;
+        if (counter != 9) return 0;
+        int bonus = 7 * w.BlockPerPointBonus;
+        details?.Add($"TuningFork+blk{bonus}");
+        return bonus;
+    }
+
+    /// <summary>LostWisp (STS2): every Power card played → deal 8 damage to ALL enemies.
+    /// Fires on EVERY power play (no counter). Value = 8 × DamagePerPointBonus × alive (cap 3).</summary>
+    private static int LostWispBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("LostWisp")) return 0;
+        if (card.Kind != CardType.Power) return 0;
+        int alive = 0; foreach (var e in state.Enemies) if (e.IsAlive) alive++;
+        int bonus = 8 * w.DamagePerPointBonus * System.Math.Min(3, System.Math.Max(1, alive));
+        details?.Add($"LostWisp+{bonus}");
+        return bonus;
+    }
+
+    /// <summary>GamePiece (STS2): every Power card played → draw 1. Flat draw-equivalent (~+200).</summary>
+    private static int GamePieceBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("GamePiece")) return 0;
+        if (card.Kind != CardType.Power) return 0;
+        const int Bonus = 200;
+        details?.Add($"GamePiece+draw{Bonus}");
+        return Bonus;
+    }
+
+    /// <summary>Permafrost (STS2): the FIRST Power played each combat → gain 7 block. The snapshot
+    /// doesn't expose the once-per-combat flag, so this slightly over-credits a 2nd+ power play (rare);
+    /// 7 × BlockPerPointBonus.</summary>
+    private static int PermafrostBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("Permafrost")) return 0;
+        if (card.Kind != CardType.Power) return 0;
+        int bonus = 7 * w.BlockPerPointBonus;
+        details?.Add($"Permafrost+blk{bonus}");
+        return bonus;
+    }
+
+    /// <summary>MummifiedHand (STS2): every Power played → a random card in hand costs 0 this turn.
+    /// Worth roughly one card's energy; flat ~+250 (no card-identity modeling).</summary>
+    private static int MummifiedHandBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("MummifiedHand")) return 0;
+        if (card.Kind != CardType.Power) return 0;
+        const int Bonus = 250;
+        details?.Add($"MummifiedHand+0cost({Bonus})");
+        return Bonus;
+    }
+
+    /// <summary>DaughterOfTheWind (STS2): every Attack played → gain 1 block. Small per-attack block.</summary>
+    private static int DaughterOfTheWindBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!state.PlayerRelics.ContainsKey("DaughterOfTheWind")) return 0;
+        if (card.Kind != CardType.Attack) return 0;
+        int bonus = 1 * w.BlockPerPointBonus;
+        details?.Add($"DaughterOfTheWind+blk{bonus}");
+        return bonus;
     }
 
     /// <summary>
