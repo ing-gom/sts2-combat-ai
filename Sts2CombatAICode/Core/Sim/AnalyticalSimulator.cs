@@ -1040,6 +1040,20 @@ internal static class AnalyticalSimulator
                         reactiveEnemyBlock += skittish;
                 }
 
+                // 2026-06-05 — consumable Slippery: each hit that deals damage strips one
+                // stack; the per-hit cap above (DamageModifiers, hitIndex<SlipperyStacks) already
+                // let any hits beyond the stack count land full this card. Decrement for the NEXT
+                // card/turn and clear the per-hit cap once the buffer is empty so depth-2 (and the
+                // heuristic DamageCapPerHit readers) see an uncapped enemy. No-op when stacks=0
+                // (flag off or non-Slippery), so legacy behavior is byte-identical.
+                int newSlipStacks = enemy.SlipperyStacks;
+                int newCapPerHit = enemy.DamageCapPerHit;
+                if (enemy.SlipperyStacks > 0 && totalDmg > 0)
+                {
+                    int consumed = System.Math.Min(enemy.SlipperyStacks, System.Math.Max(1, hitsForDmg));
+                    newSlipStacks = enemy.SlipperyStacks - consumed;
+                    newCapPerHit = newSlipStacks > 0 ? enemy.DamageCapPerHit : 0;
+                }
                 newEnemies.Add(enemy with
                 {
                     Hp = hpAfter,
@@ -1053,6 +1067,8 @@ internal static class AnalyticalSimulator
                     DoomAmount = newDoom,
                     ArtifactAmount = artifactLeft,
                     HardenedShellRemaining = shellLeft,
+                    SlipperyStacks = newSlipStacks,
+                    DamageCapPerHit = newCapPerHit,
                     Powers = newEnemyPowers ?? enemy.Powers,
                 });
             }
@@ -3740,7 +3756,14 @@ internal static class AnalyticalSimulator
     private static SimEnemy ApplyCappedHit(SimEnemy e, int dmg)
     {
         int effective = dmg;
-        if (e.DamageCapPerHit > 0 && effective > e.DamageCapPerHit)
+        // 2026-06-05 — consumable Slippery (single AOE/BlackHole hit): cap to 1 while a stack
+        // remains, then decrement + clear so the next hit/card lands full. Falls through to the
+        // permanent Intangible/HardToKill cap when SlipperyStacks=0 (flag off or non-Slippery).
+        if (e.SlipperyStacks > 0)
+        {
+            if (effective > 1) effective = 1;
+        }
+        else if (e.DamageCapPerHit > 0 && effective > e.DamageCapPerHit)
             effective = e.DamageCapPerHit;
         int shellLeft = e.HardenedShellRemaining;
         if (shellLeft > 0 && effective > shellLeft)
@@ -3750,11 +3773,22 @@ internal static class AnalyticalSimulator
         int blockAfter = System.Math.Max(0, e.Block - effective);
         int leak = System.Math.Max(0, effective - e.Block);
         int newShell = shellLeft > 0 ? System.Math.Max(0, shellLeft - effective) : shellLeft;
+        // Consume a Slippery stack only when the hit actually costs the enemy HP (leak>0);
+        // clear the per-hit cap once the buffer is empty. No-op when SlipperyStacks=0.
+        int newSlip = e.SlipperyStacks;
+        int newCap = e.DamageCapPerHit;
+        if (e.SlipperyStacks > 0 && leak > 0)
+        {
+            newSlip = e.SlipperyStacks - 1;
+            newCap = newSlip > 0 ? e.DamageCapPerHit : 0;
+        }
         return e with
         {
             Block = blockAfter,
             Hp = System.Math.Max(0, e.Hp - leak),
             HardenedShellRemaining = newShell,
+            SlipperyStacks = newSlip,
+            DamageCapPerHit = newCap,
         };
     }
 

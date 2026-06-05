@@ -68,6 +68,25 @@ internal static class PlanScorer
         return 15;
     }
 
+    /// <summary>
+    /// 2026-06-05 — Slippery STRIP-investment value (damage-equivalent per stack stripped).
+    /// Consumable SlipperyPower (Vantom's 9-hit buffer) caps each hit to 1, so the planner's
+    /// damage score for attacking is ~1/hit → it AVOIDS attacking the boss as "wasted" and never
+    /// strips the buffer (the real loss mechanism: Vantom blown out, 97% HP remaining). This credits
+    /// each stripped stack a flat damage-equivalent (independent of THIS card's size, so it prefers
+    /// MANY small hits over one big wasteful hit) — making the planner invest hits to strip, after
+    /// which the live engine's depleted Slippery lets full damage land. Only fires when the target
+    /// carries SlipperyStacks, which is set ONLY under STS2_SLIPPERY_CONSUME=1 → fully dormant by
+    /// default. Tune/disable via STS2_SLIPPERY_STRIP (0 = off, default 5).
+    /// </summary>
+    public static int SlipperyStripValue = ResolveSlipperyStrip();
+    private static int ResolveSlipperyStrip()
+    {
+        var s = System.Environment.GetEnvironmentVariable("STS2_SLIPPERY_STRIP");
+        if (int.TryParse(s, out var v) && v >= 0) return v;
+        return 5;
+    }
+
 
     public static int Score(SimCard card, int targetIdx, SimState state)
         => Breakdown(card, targetIdx, state, PlanScorerWeights.For(PlaystyleResolver.Resolve(state))).Total;
@@ -945,9 +964,22 @@ internal static class PlanScorer
             // Clamp single-target effective per-hit; multi-hit cards still get value because they
             // chip away cap times Hits times instead of one huge hit being wasted.
             int capWastePenalty = 0;
+            int slipperyStripCredit = 0;
             if (!isAoe && targetIdx >= 0 && targetIdx < state.Enemies.Count)
             {
                 var capTarget = state.Enemies[targetIdx];
+                // 2026-06-05 — consumable Slippery: attacking STRIPS the buffer (each hit removes a
+                // stack). Credit each stripped stack a flat damage-equivalent so the planner invests
+                // hits to strip instead of fleeing the "capped → wasteful" target. Flat per-stack
+                // (not card-size-scaled) naturally prefers many small hits over one big wasteful hit.
+                // Dormant unless STS2_SLIPPERY_CONSUME sets SlipperyStacks. (Independent of the
+                // DamageCapPerHit clamp below, which still folds the cap into the landed-damage score.)
+                if (capTarget.SlipperyStacks > 0 && SlipperyStripValue > 0 && effHits > 0)
+                {
+                    int stripHits = System.Math.Min(effHits, capTarget.SlipperyStacks);
+                    slipperyStripCredit = stripHits * SlipperyStripValue * w.DamagePerPointBonus;
+                    details.Add($"slipStrip(×{stripHits})={slipperyStripCredit}");
+                }
                 if (capTarget.DamageCapPerHit > 0 && effectivePerHit > capTarget.DamageCapPerHit)
                 {
                     int rawPerHit = effectivePerHit;
@@ -1782,7 +1814,7 @@ internal static class PlanScorer
                 details.Add($"feralReplay(0cost,dmg{card.TotalDamage})=+{feralReplayBonus}");
             }
 
-            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus + capWastePenalty + feralReplayBonus;
+            int total = baseBonus + effect + attached + targetBonus + wastedPenalty + thornsPenalty + burstBonus + atkOrbBonus + buildBonus + atkEnergyBonus + atkDrawBonus + atkAmpBonus + atkEffBonus + survivalAtkPenalty + selfDmgAtkPenalty + fetchPollutionPenalty + comboBonus + monopolyPenalty + lethalSetupPenalty + reactiveBlockBonus + thresholdTriggerBonus + relicBonusAtk + burstChainBonus + capWastePenalty + slipperyStripCredit + feralReplayBonus;
             // v0.9 — Per-energy efficiency diagnostic. Shows BOTH raw dmg/E
             // (Strength/Vigor/Enchant from PreviewValue) AND effective dmg/E
             // (with Vuln/Weak/Echo/X-cost folded in). When they differ

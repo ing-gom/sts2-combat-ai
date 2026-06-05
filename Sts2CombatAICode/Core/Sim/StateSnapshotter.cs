@@ -29,6 +29,10 @@ internal static class StateSnapshotter
     // disable all of it so a seed-paired run measures the modeling's net effect. Read once.
     internal static readonly bool RelicModelingOff =
         System.Environment.GetEnvironmentVariable("STS2_RELICS_OFF") == "1";
+    // 2026-06-05 — model SlipperyPower as a consumable N-hit buffer instead of a permanent
+    // per-hit cap. Default off = byte-identical legacy behavior. See SimEnemy.SlipperyStacks.
+    internal static readonly bool _slipperyConsume =
+        System.Environment.GetEnvironmentVariable("STS2_SLIPPERY_CONSUME") == "1";
     private static void LogReflectionFailureOnce(string site, System.Exception ex)
     {
         if (_loggedFailures.TryAdd(site, 0))
@@ -1115,7 +1119,18 @@ internal static class StateSnapshotter
         // (FlutterPower+EscapeArtist) whiffed to 0 in the sim while real dealt
         // card×0.5 (PINPOINT/SHIV/GIANT_ROCK/COLLISION_COURSE/MAKE_IT_SO/NEUTRALIZE).
         // Removed — the halving is the sole correct Flutter model.
-        if (powerDict.TryGetValue("SlipperyPower", out var slip) && slip > 0) damageCap = 1;
+        int slipperyStacks = 0;
+        if (powerDict.TryGetValue("SlipperyPower", out var slip) && slip > 0)
+        {
+            damageCap = 1;
+            // 2026-06-05 — consumable Slippery (env STS2_SLIPPERY_CONSUME). Vantom's Slippery 9
+            // is a ONE-TIME 9-hit buffer (decompile: applied once at combat start, never re-applied),
+            // but the sim folds it into the PERMANENT DamageCapPerHit=1 → the planner sees Vantom as
+            // forever-1/hit (unkillable) and never finds the "strip stacks → burst" line. Capturing
+            // the stack count lets the precise cap + state transition model it as consumable. Flag
+            // off → stacks stay 0 = legacy permanent-cap behavior (byte-identical).
+            if (_slipperyConsume) slipperyStacks = slip;
+        }
         if (powerDict.TryGetValue("HardToKillPower", out var hard) && hard > 0)
             damageCap = damageCap == 0 ? hard : System.Math.Min(damageCap, hard);
         int thorns = powerDict.TryGetValue("ThornsPower", out var t) ? t : 0;
@@ -1318,6 +1333,7 @@ internal static class StateSnapshotter
             ConstrictAmount = eConstrict,
             BurnAmount = eBurn,
             DamageCapPerHit = damageCap,
+            SlipperyStacks = slipperyStacks,
             ThornsAmount = thorns,
             Powers = powerDict,
             HardenedShellRemaining = hardenedShellRemaining,

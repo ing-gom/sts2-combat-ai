@@ -358,8 +358,15 @@ internal sealed class IntangibleCapModifier : DamageModifierBase
         // to the field value. ResolveStack returns 1 if the cap is active so
         // we read the actual cap directly from Target here.
         int cap = ctx.Target.DamageCapPerHit;
-        if (cap > 0 && damage > cap) return cap;
-        return damage;
+        if (cap <= 0 || damage <= cap) return damage;
+        // 2026-06-05 — consumable Slippery: when the cap comes from SlipperyPower
+        // (SlipperyStacks>0), it's a one-time N-hit buffer, so only the first N hits
+        // of an attack are capped; once HitIndex reaches the stack count, the buffer is
+        // stripped and this hit lands full. (SlipperyStacks is only set when the env flag
+        // is on; otherwise this is dead and the permanent Intangible/HardToKill cap stands.)
+        if (ctx.Target.SlipperyStacks > 0 && ctx.HitIndex >= ctx.Target.SlipperyStacks)
+            return damage;
+        return cap;
     }
 }
 

@@ -74,6 +74,17 @@ internal sealed record SimEnemy
     public int DamageCapPerHit { get; init; }
 
     /// <summary>
+    /// 2026-06-05 — SlipperyPower stack count, when modeled as a CONSUMABLE buffer
+    /// (env STS2_SLIPPERY_CONSUME). Slippery caps the next N times the enemy loses HP
+    /// to 1 each, then it's gone — unlike Intangible's permanent cap. When &gt;0, only the
+    /// first SlipperyStacks hits are capped (DamageCapPerHit is also 1 so heuristic readers
+    /// stay conservative); the state transition decrements this per hit and clears the cap
+    /// once stripped, so the planner can value "many small hits → strip → burst". 0 = the
+    /// legacy permanent-cap model (flag off) or a non-Slippery enemy.
+    /// </summary>
+    public int SlipperyStacks { get; init; }
+
+    /// <summary>
     /// ThornsPower amount — every time we attack this enemy, we take this much
     /// HP loss in return. Multi-hit cards trigger once per hit.
     /// </summary>
