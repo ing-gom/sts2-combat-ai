@@ -90,10 +90,18 @@ internal static class ActionPlanner
     /// per depth=1 lookahead, 3 samples cost +150 calls per first-card
     /// candidate (~3x legacy when including the depth=2 main beam).
     /// </summary>
-    public static int MonteCarloSamples = 3;
+    public static int MonteCarloSamples = EnvInt("STS2_PLANNER_MC", 3);
 
     /// <summary>v0.10 — Beam width for depth-N continuation search. JSON-tunable.</summary>
-    public static int BeamK = 5;
+    public static int BeamK = EnvInt("STS2_PLANNER_BEAM", 5);
+
+    /// <summary>Env override helper for the perf knobs (MC samples / beam width). Lets a measurement
+    /// batch trade lookahead fidelity for speed; per-run noise averages out across the batch mean.</summary>
+    private static int EnvInt(string name, int def)
+    {
+        var s = System.Environment.GetEnvironmentVariable(name);
+        return (int.TryParse(s, out var v) && v > 0) ? v : def;
+    }
 
     /// <summary>
     /// Continuation depth passed to BestContinuation after the first card. 2 =
