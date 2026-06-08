@@ -3889,6 +3889,10 @@ internal static class AnalyticalSimulator
         ["GUNK_UP"] = 1,        // Slimed/Gunk → discard
         ["OVERCLOCK"] = 1,      // Burn → discard
         ["BOOST_AWAY"] = 1,     // Dazed → discard
+        // 2026-06-08 — TURBO: "버린 카드 더미에 공허를 1장 추가" (gain energy + add 1 Void to
+        // discard). Sim modeled only the energy gain → discard_pile_count −1 on every play
+        // (15/15 in the Defect parity probe). Void = a status-like card in discard.
+        ["TURBO"] = 1,          // Void → discard
         ["FIGHT_THROUGH"] = 2,  // 2× Wound → discard (OnPlay loop i<2)
         ["SEVERANCE"] = 1,      // Soul → discard (1 of 3 Souls; +draw +hand below)
         // 2026-05-31 — ADAPTIVE_STRIKE: after the attack, creates a cost-0 CLONE
