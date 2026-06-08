@@ -38,8 +38,17 @@ internal static class SurvivalProjection
         Winning,    // TurnsToKill < TurnsToDeath − 1 (comfortable margin)
         Tight,      // within 1 turn
         Losing,     // TurnsToDeath ≤ TurnsToKill (we die first)
+        Grind,      // Losing by raw race, BUT high-HP + block can extend TTD → turtle + chip
         Decided,    // already lethal this turn or already inert
     }
+
+    // STS2_RACE_BLOCK — see _neow/PLANSCORER_RACE_FIX.md. Default OFF = legacy behavior
+    // (clean A/B). High-HP grind override for the act3-boss over-attack trap: when the
+    // raw race says Losing but blocking can extend survival on a high-HP fight, all-in
+    // attack is a trap (block buys turns; each extra turn lands more chip).
+    private static readonly bool RaceBlockEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_RACE_BLOCK") == "1";
+    private const int GrindHpThreshold = 150;   // TUNABLE — boss/elite scale; normal monsters below
 
     public readonly struct Projection
     {
@@ -143,6 +152,28 @@ internal static class SurvivalProjection
         else if (turnsToDeath <= turnsToKill) race = RaceOutcome.Losing;
         else race = RaceOutcome.Tight;
 
+        // High-HP grind override (STS2_RACE_BLOCK). Raw race says Losing, but if
+        // (a) the fight is high-HP (boss/elite we can't out-burst) and (b) our deck
+        // has real block capacity to offset the bleed, all-in attack is a trap:
+        // blocking buys turns and each extra turn lands more chip. Turtle + chip.
+        // Loosened gate (2026-06-07): the original deck-AVERAGE block condition
+        // (AvgBlockPerTurn*2 >= incoming) almost never fired — measured elite-death decks block
+        // only 4% of incoming yet hold 1.9 block CARDS/turn, i.e. block is available IN HAND but the
+        // deck-average is low. Fire Grind on any high-HP losing fight; RaceBonus rewards whatever
+        // block is actually in hand, and does nothing when there's none.
+        if (RaceBlockEnabled && race == RaceOutcome.Losing
+            && totalEnemyHp >= GrindHpThreshold
+            && incoming > 0)
+        {
+            race = RaceOutcome.Grind;
+        }
+
+        // Scaling-commit override (STS2_SCALE_COMMIT) — boss-tier HP where neither attacks nor
+        // block alone can win; the only path is building the scaling engine. Takes precedence
+        // over Grind (a pure turtle still loses to a 379-HP boss; turtle + scale can out-pace).
+        // Fire on ANY non-comfortable race at boss-tier HP (incl. early turns where the raw race
+        // hasn't flipped to Losing yet) — the engine must be built from turn 1 to pay off in time.
+
         return new Projection(turnsToDeath, turnsToKill, race, netHpLoss, netDpt, sandpitDeadline);
     }
 
@@ -163,6 +194,19 @@ internal static class SurvivalProjection
                 if (card.IsAttack) return 80;
                 if (card.Block > 0 && !card.IsAttack) return -60;
                 if (card.IsPower) return -100;  // scaling won't pay off
+                return 0;
+
+            case RaceOutcome.Grind:
+                // High-HP fight we can't out-burst in time, but block extends survival and every
+                // extra turn lands more chip. Turtle + chip. The block bonus must be LARGE relative
+                // to the ~2-10k play-score scale or it's a no-op nudge (the original +70 never
+                // changed a choice). At +800 the planner still leads with its big attacks (chip) but
+                // banks a block card over marginal attacks / scaling instead of all-in attacking and
+                // bleeding out — the measured failure (act2 elite deaths: 4% of incoming blocked
+                // while holding 1.9 block cards/turn). TUNABLE via the A/B.
+                if (card.Block > 0 && !card.IsAttack) return 800;
+                if (card.IsAttack) return 0;
+                if (card.IsPower) return -40;
                 return 0;
 
             case RaceOutcome.Tight:

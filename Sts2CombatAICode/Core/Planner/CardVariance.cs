@@ -110,6 +110,7 @@ internal static class CardVariance
         // Winning race), variance is fine.
         bool critical = race.Race == SurvivalProjection.RaceOutcome.Tight
                       || race.Race == SurvivalProjection.RaceOutcome.Losing
+                      || race.Race == SurvivalProjection.RaceOutcome.Grind
                       || stage == CombatPlan.Stage.Cleanup;
 
         if (!critical) return 0;  // variance OK in non-critical

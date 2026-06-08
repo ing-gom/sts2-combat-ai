@@ -73,6 +73,12 @@ internal static class CombatPlan
         if (race.NetDamagePerTurn > 0 && aliveHp <= race.NetDamagePerTurn * 2)
             return Stage.Cleanup;
 
+        // Grind (STS2_RACE_BLOCK): high-HP race we can't out-burst, but block
+        // extends survival. Route to sustained-defense Lockdown (turtle + chip),
+        // never Burst — all-in attack is the trap this fix targets.
+        if (race.Race == SurvivalProjection.RaceOutcome.Grind)
+            return Stage.Lockdown;
+
         // Burst: race is Tight or Losing AND we have attack output
         if ((race.Race == SurvivalProjection.RaceOutcome.Tight
              || race.Race == SurvivalProjection.RaceOutcome.Losing)
