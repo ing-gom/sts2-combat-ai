@@ -1568,6 +1568,18 @@ internal static class AnalyticalSimulator
                 if (newDrawPile.Count > 0) newDrawPile.RemoveAt(newDrawPile.Count - 1);
             }
         }
+        // 2026-06-08 — SHADOW_STEP (Silent): "Discard your hand" + ShadowStepPower.
+        // No redraw (unlike CALCULATED_GAMBLE). The sim never modeled the hand
+        // discard → parity probe flagged 100% hand_count divergence (pred +7.7,
+        // sim kept the hand full). Move the whole hand to discard; the power
+        // application is credited on the normal power path.
+        else if (card.Id == "SHADOW_STEP")
+        {
+            int n = newHand.Count;
+            newDiscardPile.AddRange(newHand);
+            discardAfter += n;
+            newHand.Clear();
+        }
         else if (card.DrawCount > 0 && ShivGenCards.Contains(card.Id)
                  // 2026-05-31 — same combat-end gate as the generic draw: LEADING_STRIKE
                  // attacks THEN creates Shivs; if the attack killed the last enemy the
@@ -2672,6 +2684,14 @@ internal static class AnalyticalSimulator
             exposed[targetIdx] = exposed[targetIdx] with { Block = 0 };
             next = next with { Enemies = exposed };
         }
+
+        // NOTE — AutoPlay class (HAVOC top→exhaust, UPROAR random-attack→discard) is
+        // NOT modeled here. A pile-only model (card leaves draw, no damage) makes the
+        // sim's counts more faithful but biases the PLANNER against these cards (it
+        // sees the card-consumption COST without the auto-played BENEFIT). A correct
+        // fix needs a recursive ApplyCardPlay on the pulled card to credit its damage;
+        // deferred (medium-risk: free-play energy, exhaust-vs-discard placement,
+        // recursion guard). Parity residual for HAVOC/UPROAR (~24 steps) left as-is.
 
         return next with
         {
