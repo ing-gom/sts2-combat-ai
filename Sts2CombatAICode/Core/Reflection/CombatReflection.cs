@@ -89,6 +89,32 @@ internal static class CombatReflection
     }
 
     /// <summary>
+    /// 2026-06-08 — KaiserCrab BackAttack. The player carries SurroundedPower whose public
+    /// Facing (Direction enum: Right=0, Left=1) tracks the arm last targeted. The arm NOT faced
+    /// back-attacks for ×1.5 (SurroundedPower.ModifyDamageMultiplicative). Returns:
+    /// 0 = no SurroundedPower (not a crab fight), 1 = facing Left (Crusher/BackAttackLeft faced
+    /// → Rocket back-attacks), 2 = facing Right (Rocket/BackAttackRight faced → Crusher back-attacks).
+    /// </summary>
+    public static int GetSurroundedFacing(Creature creature)
+    {
+        try
+        {
+            foreach (var power in creature.Powers)
+            {
+                if (power == null || !string.Equals(power.GetType().Name, "SurroundedPower", System.StringComparison.Ordinal))
+                    continue;
+                var prop = power.GetType().GetProperty("Facing");
+                if (prop == null) return 0;
+                var v = prop.GetValue(power);
+                int d = System.Convert.ToInt32(v);   // Direction: Right=0, Left=1
+                return d == 1 ? 1 : 2;                // Left→1, Right→2
+            }
+        }
+        catch (System.Exception ex) { LogReflectionFailureOnce("surrounded-facing", ex); }
+        return 0;
+    }
+
+    /// <summary>
     /// 2026-05-31 — read a named int field from a power's private _internalData object
     /// (PowerModel._internalData holds the per-power Data instance). Some powers keep
     /// their real trigger counter ONLY there, with no Amount / DisplayAmount accessor —

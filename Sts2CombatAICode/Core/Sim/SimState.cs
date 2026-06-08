@@ -265,6 +265,11 @@ internal sealed record SimState
     /// branch so depth-2 sees the boosted orb output.
     /// </summary>
     public int PlayerFocus { get; init; }
+    // 2026-06-08 — KaiserCrab BackAttack. SurroundedPower facing: 0 = none (not a crab fight),
+    // 1 = facing Left (Crusher faced → Rocket back-attacks ×1.5), 2 = facing Right (Rocket faced →
+    // Crusher back-attacks ×1.5). The arm NOT faced (= not last-targeted) deals ×1.5. Updated in
+    // AnalyticalSimulator when the player targets a BackAttack arm; PredictPlayerDmg applies the ×1.5.
+    public int PlayerFacing { get; init; }
     // 2026-05-29 — ThunderPower (Defect): +Amount damage (Unpowered/flat) each
     // time a Lightning orb is evoked (ThunderPower.AfterOrbEvoked). Boosts every
     // lightning evoke this combat; the THUNDER card applies it.

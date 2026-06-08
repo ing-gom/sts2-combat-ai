@@ -44,6 +44,21 @@ internal static class AnalyticalSimulator
     {
         var next = state.DeepClone();
 
+        // 2026-06-08 — KaiserCrab BackAttack facing. Targeting an arm turns the player to face it
+        // (game's SurroundedPower.UpdateDirection). Only the LAST-targeted arm is faced; the other
+        // back-attacks ×1.5 (modeled in EnemyTurnSimulator.PredictPlayerDmg). Tracking it through the
+        // lookahead lets the depth-N planner discover it should last-target the high-burst arm
+        // (face Rocket so its Laser isn't amplified). Only active when SurroundedPower is present.
+        if (next.PlayerFacing != 0 && targetIdx >= 0 && targetIdx < next.Enemies.Count)
+        {
+            var tgtPow = next.Enemies[targetIdx].Powers;
+            if (tgtPow != null)
+            {
+                if (tgtPow.ContainsKey("BackAttackLeftPower")) next = next with { PlayerFacing = 1 };
+                else if (tgtPow.ContainsKey("BackAttackRightPower")) next = next with { PlayerFacing = 2 };
+            }
+        }
+
         // 1. Spend energy unless a Free*Power counter covers this card's type.
         // v0.5 — Free counters decrement here so subsequent depth-2 cards see the
         // updated count and don't double-consume the same free play.

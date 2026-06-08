@@ -82,6 +82,13 @@ internal static class EnemyTurnSimulator
                 bool eDebil = e.Powers != null && e.Powers.TryGetValue("DebilitatePower", out var ed) && ed > 0;
                 perHit = (int)(perHit * (eDebil ? 0.50 : 0.75));
             }
+            // 2026-06-08 — KaiserCrab BackAttack ×1.5. The arm NOT faced (= not last-targeted) hits
+            // for 1.5× (SurroundedPower). PlayerFacing 2=Right(faced Rocket)→Crusher (BackAttackLeft)
+            // amplified; 1=Left(faced Crusher)→Rocket (BackAttackRight) amplified.
+            if (s.PlayerFacing != 0 && e.Powers != null
+                && ((s.PlayerFacing == 2 && e.Powers.ContainsKey("BackAttackLeftPower"))
+                    || (s.PlayerFacing == 1 && e.Powers.ContainsKey("BackAttackRightPower"))))
+                perHit = (int)(perHit * 1.5);
             int repeats = Math.Max(1, e.IntentRepeats);
             // v0.7.96 — Cap hits at enemy survival under player Thorns reflect.
             // Enemy HP after DoT pre-tick = e.Hp - preTurnDot (already filtered

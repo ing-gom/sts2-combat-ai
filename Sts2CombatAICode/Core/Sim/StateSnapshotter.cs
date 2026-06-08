@@ -87,6 +87,8 @@ internal static class StateSnapshotter
 
             int playerStr = CombatReflection.GetPowerAmount(creature, "StrengthPower");
             int playerDex = CombatReflection.GetPowerAmount(creature, "DexterityPower");
+            // 2026-06-08 — KaiserCrab BackAttack facing (0=none, 1=Left, 2=Right).
+            int playerFacing = CombatReflection.GetSurroundedFacing(creature);
             // v0.7.82 — VigorPower: next attack +N damage, then consumed.
             int playerVigor = CombatReflection.GetPowerAmount(creature, "VigorPower");
             // v0.7.83 — BufferPower: negates next damage instance.
@@ -786,6 +788,7 @@ internal static class StateSnapshotter
                 ExhaustPileCount = exhaustPileSize,
                 CharacterId = characterId,
                 PlayerStrength = playerStr,
+                PlayerFacing = playerFacing,
                 PlayerDexterity = playerDex,
                 PlayerVigor = playerVigor,
                 PlayerBuffer = playerBuffer,
@@ -984,9 +987,16 @@ internal static class StateSnapshotter
         // OnTurnEndInHand rather than OnPlay. Reflection-only flag — no
         // catalog dependency, so new game-version status cards are picked
         // up automatically as long as they override HasTurnEndInHandEffect.
+        // INFECTION-class self-damage rides a Damage var; BECKON-class
+        // (SoulFysh-injected status, sts2.decompiled.cs:395745 — HpLossVar 6
+        // Unblockable / turn while the card sits in hand) rides an HpLoss var,
+        // so effect.Damage stays 0 for it. Fall back to HpLossAmount. The
+        // HasTurnEndInHandEffect guard keeps voluntary on-play HP-loss cards
+        // (BLOODLETTING / OFFERING / HEMOKINESIS) out — their loss fires OnPlay,
+        // not while held — so reusing HpLossAmount here is safe.
         int turnEndInHandDmg = 0;
-        if (CardReflection.HasTurnEndInHandEffect(card) && effect.Damage > 0)
-            turnEndInHandDmg = effect.Damage;
+        if (CardReflection.HasTurnEndInHandEffect(card))
+            turnEndInHandDmg = effect.Damage > 0 ? effect.Damage : effect.HpLossAmount;
 
         return new SimCard
         {
