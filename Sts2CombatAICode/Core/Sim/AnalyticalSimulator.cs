@@ -2685,13 +2685,41 @@ internal static class AnalyticalSimulator
             next = next with { Enemies = exposed };
         }
 
-        // NOTE — AutoPlay class (HAVOC top→exhaust, UPROAR random-attack→discard) is
-        // NOT modeled here. A pile-only model (card leaves draw, no damage) makes the
-        // sim's counts more faithful but biases the PLANNER against these cards (it
-        // sees the card-consumption COST without the auto-played BENEFIT). A correct
-        // fix needs a recursive ApplyCardPlay on the pulled card to credit its damage;
-        // deferred (medium-risk: free-play energy, exhaust-vs-discard placement,
-        // recursion guard). Parity residual for HAVOC/UPROAR (~24 steps) left as-is.
+        // 2026-06-09 — UPROAR auto-play model (non-recursive). UPROAR deals its base
+        // 5×2 (modeled above via the normal attack path) AND auto-plays one random
+        // Attack from the draw pile (discarded after). The auto-played attack was
+        // unmodeled → sim under-deals by the pile's mean attack damage (parity probe:
+        // enemy_hp_sum +6/+7 across 9 Defect steps, the #1 k0 damage-drift card).
+        // Estimate it as the mean TotalDamage of attack cards in the draw pile (a
+        // random pull ≈ pile mean — exactly what EffectSynergy's UPROAR valuation
+        // uses) and apply it to the target through block via ApplyCappedHit. Avoids
+        // the recursion guard a full ApplyCardPlay-on-pulled-card would need.
+        if (card.Id == "UPROAR")
+        {
+            int upSum = 0, upCnt = 0;
+            foreach (var c in next.DrawPile)
+            {
+                if (!c.IsAttack || c.IsCurseOrStatus) continue;
+                upSum += c.TotalDamage; upCnt++;
+            }
+            if (upCnt > 0)
+            {
+                int upMean = upSum / upCnt;
+                int ti = (targetIdx >= 0 && targetIdx < next.Enemies.Count
+                          && next.Enemies[targetIdx].IsAlive) ? targetIdx : -1;
+                if (ti >= 0)
+                {
+                    var es = new List<SimEnemy>(next.Enemies);
+                    es[ti] = ApplyCappedHit(es[ti], upMean);
+                    next = next with { Enemies = es };
+                }
+                else next = DamageWeakest(next, upMean);
+            }
+        }
+
+        // NOTE — HAVOC (top→auto-play→exhaust) is still NOT modeled (the pulled card
+        // is unknown without drawing; a pile-only model biases the planner against it).
+        // Parity residual for HAVOC (~15 steps) left as-is.
 
         return next with
         {

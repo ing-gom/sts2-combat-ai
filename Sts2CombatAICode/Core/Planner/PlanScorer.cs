@@ -2100,6 +2100,17 @@ internal static class PlanScorer
                 details.Add($"hpPreserve(useful{usefulBlock})=+{preserve}");
             }
 
+            // 2026-06-09 — REJECTED: a high-HP-boss survival-block boost (STS2_BOSS_BLOCK, reward
+            // leak-capped usefulBlock regardless of race on bosses ≥200 HP). Hypothesis: the planner
+            // skips block on bosses (measured 71% of act2-boss turns hold a playable block card
+            // unplayed, run dies at ~50% boss HP); forcing block to survive longer should let it
+            // deal more total damage. A/B (boss range, W up to 300): NULL — Elite 35%=35%, Boss 6%=6%,
+            // enemy-HP-at-death 129→132 (blocked slightly more, dealt slightly LESS, net neutral).
+            // Defect's block cards (~5) are too small vs ~20/round boss damage to extend survival
+            // meaningfully, and each block forgoes an attack — the ~2x damage deficit can't be closed
+            // by blocking. Confirms Grind-null / over-block(5%→1%)-reject: block is not the act2-boss
+            // lever; the wall is the raw damage deficit (deck-power / acquisition).
+
             // Wasted-block penalty: only for blocks that genuinely accomplish nothing.
             // If neutralize fires (block fully absorbs an incoming hit), it's by definition
             // NOT wasted — these two rules used to fight each other.
