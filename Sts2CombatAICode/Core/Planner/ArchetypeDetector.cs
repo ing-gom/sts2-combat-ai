@@ -97,6 +97,11 @@ internal static class ArchetypeDetector
     /// </summary>
     private const int PerSupporterBonus = 30;
     private const int MaxAlignmentBonus = 250;
+    // 2026-06-09 — global multiplier on the deck-archetype alignment bonus, for the calibration A/B.
+    // Read once at load (per-process). 1.0 = current (+250 cap); test 0 (off) / 0.6 (~150) / 1.4 (~350)
+    // to check whether the deck-conditional play steer is over- or under-committed. STS2_ARCH_ALIGN_W.
+    private static readonly double AlignWeight =
+        double.TryParse(System.Environment.GetEnvironmentVariable("STS2_ARCH_ALIGN_W"), out var w) && w >= 0 ? w : 1.0;
 
     /// <summary>
     /// Detect the dominant archetype + optional secondary. Returns
@@ -170,6 +175,7 @@ internal static class ArchetypeDetector
         int bonus = supportersOverThreshold * PerSupporterBonus;
         if (bonus > MaxAlignmentBonus) bonus = MaxAlignmentBonus;
         if (!primaryAligned) bonus /= 2;  // secondary alignment gets half
+        if (AlignWeight != 1.0) bonus = (int)(bonus * AlignWeight);  // calibration A/B knob
         return bonus;
     }
 
