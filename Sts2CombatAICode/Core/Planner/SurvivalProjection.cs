@@ -39,6 +39,7 @@ internal static class SurvivalProjection
         Tight,      // within 1 turn
         Losing,     // TurnsToDeath ≤ TurnsToKill (we die first)
         Grind,      // Losing by raw race, BUT high-HP + block can extend TTD → turtle + chip
+        ScaleCommit,// boss-tier HP: neither attacks nor turtling wins — build the engine
         Decided,    // already lethal this turn or already inert
     }
 
@@ -49,6 +50,15 @@ internal static class SurvivalProjection
     private static readonly bool RaceBlockEnabled =
         System.Environment.GetEnvironmentVariable("STS2_RACE_BLOCK") == "1";
     private const int GrindHpThreshold = 150;   // TUNABLE — boss/elite scale; normal monsters below
+
+    // STS2_SCALE_RACE — combat-side scaling-commit (default OFF, A/B). At boss-tier HP
+    // (TestSubject 600 effective / Queen 599 / KnowledgeDemon 379) neither raw attacks nor
+    // turtling wins; the Losing race's IsPower=-100 was exactly why planners NEVER channeled
+    // or played Focus at high-HP bosses (measured: channel/evoke 0 plays). When the strategic
+    // HP pool is boss-tier and the race isn't comfortably Winning, commit to the engine.
+    private static readonly bool ScaleRaceEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_SCALE_RACE") == "1";
+    private const int ScaleHpThreshold = 300;
 
     public readonly struct Projection
     {
@@ -168,11 +178,22 @@ internal static class SurvivalProjection
             race = RaceOutcome.Grind;
         }
 
-        // Scaling-commit override (STS2_SCALE_COMMIT) — boss-tier HP where neither attacks nor
+        // Scaling-commit override (STS2_SCALE_RACE) — boss-tier HP where neither attacks nor
         // block alone can win; the only path is building the scaling engine. Takes precedence
         // over Grind (a pure turtle still loses to a 379-HP boss; turtle + scale can out-pace).
         // Fire on ANY non-comfortable race at boss-tier HP (incl. early turns where the raw race
         // hasn't flipped to Losing yet) — the engine must be built from turn 1 to pay off in time.
+        // Revive bosses (TestSubject, AdaptablePower) hide their later forms from the current HP
+        // pool: count +500 strategic HP so form 1 (100 visible of 600 total) still commits.
+        if (ScaleRaceEnabled && race != RaceOutcome.Winning)
+        {
+            int strategicHp = totalEnemyHp;
+            foreach (var e in state.Enemies)
+                if (e.IsAlive && e.Powers != null && e.Powers.ContainsKey("AdaptablePower"))
+                    strategicHp += 500;
+            if (strategicHp >= ScaleHpThreshold)
+                race = RaceOutcome.ScaleCommit;
+        }
 
         return new Projection(turnsToDeath, turnsToKill, race, netHpLoss, netDpt, sandpitDeadline);
     }
@@ -207,6 +228,18 @@ internal static class SurvivalProjection
                 if (card.Block > 0 && !card.IsAttack) return 800;
                 if (card.IsAttack) return 0;
                 if (card.IsPower) return -40;
+                return 0;
+
+            case RaceOutcome.ScaleCommit:
+                // Boss-tier HP: only the engine wins. The Losing-case IsPower=-100 was why
+                // planners never channeled/Focused at 379-600 HP bosses. Reward engine pieces
+                // at choice-changing magnitude (Grind's +70 was a measured no-op; +800 worked),
+                // keep block worth playing during the build-up, leave attacks neutral (chip
+                // continues with leftover energy).
+                if (card.IsPower) return 700;
+                if (card.Axes != null && (card.Axes.Contains("FOCUS") || card.Axes.Contains("ORB_PRODUCER")
+                    || card.Axes.Contains("ORB_AMPLIFIER") || card.Axes.Contains("SCALING"))) return 500;
+                if (card.Block > 0 && !card.IsAttack) return 300;
                 return 0;
 
             case RaceOutcome.Tight:
