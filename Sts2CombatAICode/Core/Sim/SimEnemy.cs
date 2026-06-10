@@ -241,6 +241,13 @@ internal sealed record SimEnemy
     public bool IsElite { get; init; }     // any creature in an elite encounter
     public bool IsMinion { get; init; }    // spawned this turn OR significantly weaker than max HP in fight
 
+    /// <summary>
+    /// Monster model type name (e.g. "Queen", "TestSubject") for the few carve-outs that need
+    /// identity beyond powers — kill-order rules tied to a specific boss's state machine.
+    /// Empty when the snapshotter can't resolve it.
+    /// </summary>
+    public string MonsterKey { get; init; } = "";
+
     public bool IsAlive => Hp > 0;
     public int TotalIntentDamage => IntentDamage * IntentRepeats;
     public int EffectiveHp => Hp + Block; // damage required to kill outright

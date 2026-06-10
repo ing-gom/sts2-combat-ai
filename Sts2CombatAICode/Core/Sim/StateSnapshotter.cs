@@ -1333,6 +1333,7 @@ internal static class StateSnapshotter
             IsBoss = isBoss,
             IsElite = isElite,
             IsMinion = isMinion,
+            MonsterKey = enemy.Monster?.GetType().Name ?? "",
             VulnerableAmount = vuln,
             WeakAmount = weak,
             StrengthAmount = eStr,

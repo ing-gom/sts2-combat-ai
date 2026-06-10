@@ -45,6 +45,18 @@ internal static class PlanScorer
     }
 
     /// <summary>
+    /// 2026-06-10 — Queen guard-mode kill-order rule. DEFAULT OFF: the hypothesis (hold the
+    /// TorchHeadAmalgam kill so Queen stays in her non-attacking BurnBright loop) was REFUTED
+    /// by the victory data — 83/84 actual Queen wins killed the Amalgam FIRST at near-full
+    /// Queen HP (median 335/400) and out-raced the unleashed Queen; the stall line loses to
+    /// the minion's +1 Str/turn ramp. Mechanism check also showed the penalty can't control
+    /// kill order anyway (orb end-turn chip damage isn't a scored card play). Kept env-gated
+    /// (STS2_QUEEN_GUARD=1) only for future re-tests.
+    /// </summary>
+    public static readonly bool QueenGuardEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_QUEEN_GUARD") == "1";
+
+    /// <summary>
     /// 2026-06-03 — HP-preservation block bonus (per useful-block point), applied
     /// ONLY when the fight is already won (race == Winning). HP is a cross-combat
     /// resource: when victory is secure, blocking real incoming is "free" survived
@@ -2570,6 +2582,29 @@ internal static class PlanScorer
                 const int CrabRageFeedPenalty = -600;
                 bonus += CrabRageFeedPenalty;
                 details.Add($"crabRageFeed(buffsCrab)={CrabRageFeedPenalty}");
+            }
+        }
+
+        // 2026-06-10 — Queen (act3 boss, 400 HP) guard-mode kill-order (decompile): while her
+        // TorchHeadAmalgam minion lives, Queen LOOPS BurnBrightForMe (buff/defend — she never
+        // attacks); her OffWithYourHead(3x5)/Execution(15)/Enrage(+2 Str) cycle only starts once
+        // the minion dies (HasAmalgamDied branch). Killing the minion therefore UNLEASHES the
+        // boss — 58% of Queen deaths in the log autopsy happen vs the unleashed Queen alone.
+        // Penalize the minion kill while Queen still has real HP: burn the Queen down first and
+        // clean the minion up last. Skipped when Queen is nearly dead (kill order stops mattering).
+        if (QueenGuardEnabled && killsTarget && target.Powers.ContainsKey("MinionPower"))
+        {
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                var e = state.Enemies[i];
+                if (e.IsAlive && !ReferenceEquals(e, target)
+                    && e.MonsterKey == "Queen" && e.Hp > 120)
+                {
+                    const int QueenUnleashPenalty = -1500;
+                    bonus += QueenUnleashPenalty;
+                    details.Add($"queenUnleash(minionKillWakesQueen)={QueenUnleashPenalty}");
+                    break;
+                }
             }
         }
 
