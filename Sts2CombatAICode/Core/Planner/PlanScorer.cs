@@ -3373,9 +3373,23 @@ internal static class PlanScorer
 
     private static bool IsLethalThisTurn(SimState state)
     {
-        int totalEnemyHp = 0;
+        // 2026-06-11 — minion-aware lethal (decompile: when the last PRIMARY enemy dies,
+        // all MinionPower secondaries are killed with it). Lethal = enough reach for the
+        // PRIMARIES, not the whole board: vs a summoner (Ovicopter + eggs) the old total
+        // sum said "can't kill" on exactly the turns the fight was actually closable, so
+        // finisher pushes and kill-potions never fired. Targeted damage can be aimed at
+        // primaries at will, so comparing reach to primary HP is fair (orb spill is bonus).
+        // Gated by SurvivalProjection.MinionRaceEnabled (STS2_MINION_RACE=0 disables).
+        int totalEnemyHp = 0, primaryHp = 0, secondaryHp = 0;
         foreach (var e in state.Enemies)
-            if (e.IsAlive) totalEnemyHp += e.Hp;
+        {
+            if (!e.IsAlive) continue;
+            totalEnemyHp += e.Hp;
+            if (e.Powers != null && e.Powers.ContainsKey("MinionPower")) secondaryHp += e.Hp;
+            else primaryHp += e.Hp;
+        }
+        bool primariesOnly = SurvivalProjection.MinionRaceEnabled && primaryHp > 0 && secondaryHp > 0;
+        if (primariesOnly) totalEnemyHp = primaryHp;
         if (totalEnemyHp <= 0) return true;
 
         int energy = state.PlayerEnergy;
@@ -3494,7 +3508,11 @@ internal static class PlanScorer
                     if (e.HardenedShellRemaining > 0
                         && eachTotal > e.HardenedShellRemaining)
                         eachTotal = e.HardenedShellRemaining;
-                    totalReachable += eachTotal;
+                    // Minion-aware lethal compares reach to PRIMARY HP only — AOE damage
+                    // landing on secondaries must not count toward that reach (thorns
+                    // reflect below still applies from every enemy hit).
+                    if (!primariesOnly || e.Powers == null || !e.Powers.ContainsKey("MinionPower"))
+                        totalReachable += eachTotal;
                     // v0.10 — Thorns reflect: AOE attack reflects per hit
                     // from every alive thorny enemy. STS2 thorns is absorbed
                     // by block (decompile + empirical verified); simulate
@@ -3516,6 +3534,10 @@ internal static class PlanScorer
                 foreach (var e in state.Enemies)
                 {
                     if (!e.IsAlive) continue;
+                    // Minion-aware lethal: aim single-target reach at PRIMARIES (the kill
+                    // that ends the fight); secondaries die for free when primaries fall.
+                    if (primariesOnly && e.Powers != null && e.Powers.ContainsKey("MinionPower"))
+                        continue;
                     if (bestEnemy == null
                         || (e.VulnerableAmount > 0 && bestEnemy.VulnerableAmount == 0))
                         bestEnemy = e;

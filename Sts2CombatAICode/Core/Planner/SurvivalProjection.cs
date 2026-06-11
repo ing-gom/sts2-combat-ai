@@ -60,6 +60,16 @@ internal static class SurvivalProjection
         System.Environment.GetEnvironmentVariable("STS2_SCALE_RACE") == "1";
     private const int ScaleHpThreshold = 300;
 
+    // STS2_MINION_RACE — minion-aware kill target (default ON; =0 disables for A/B).
+    // Decompile (KillWithoutCheckingWinCondition): when the last PRIMARY enemy dies and
+    // every living teammate is a MinionPower secondary, the game kills them ALL — the
+    // fight ends at primary-HP zero, not total-HP zero. Summing minion HP into the kill
+    // runway misreads summoner fights (Ovicopter re-lays inflate the pool by ~2.3 cycles
+    // per fight), skewing the race toward Losing. Secondaries still soak the unsteerable
+    // damage share (orbs/AOE), so they count at HALF weight rather than zero.
+    internal static readonly bool MinionRaceEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_MINION_RACE") != "0";
+
     public readonly struct Projection
     {
         public readonly int TurnsToDeath;
@@ -112,13 +122,20 @@ internal static class SurvivalProjection
         int totalEnemyHp = 0;
         int totalAutoBlock = 0;
         int totalRegen = 0;
+        int primaryHp = 0, secondaryHp = 0;
         foreach (var e in state.Enemies)
         {
             if (!e.IsAlive) continue;
-            totalEnemyHp += e.Hp + e.Block;
+            int ehp = e.Hp + e.Block;
+            totalEnemyHp += ehp;
+            if (e.Powers != null && e.Powers.ContainsKey("MinionPower")) secondaryHp += ehp;
+            else primaryHp += ehp;
             totalAutoBlock += RemainingTurnsEstimator.EnemyAutoBlock(e);
             totalRegen += RemainingTurnsEstimator.EnemyRegen(e);
         }
+        // Minion-aware kill target (see MinionRaceEnabled): fight ends at primary-HP zero.
+        if (MinionRaceEnabled && primaryHp > 0 && secondaryHp > 0)
+            totalEnemyHp = primaryHp + secondaryHp / 2;
         if (totalEnemyHp <= 0)
             return new Projection(99, 0, RaceOutcome.Decided, netHpLoss, throughput.AvgDamagePerTurn, 0);
 
