@@ -29,6 +29,13 @@ internal sealed record SimState
     public int PlayerMaxEnergy { get; init; }
     public int ExhaustPileCount { get; init; }
 
+    // 2026-06-11 — run position for the empirical HP value curve (PlanScorer
+    // HpCurveMult): the marginal run-value of an HP point varies by act and
+    // floor (mined from 35K fights), so HP-preservation blocking is weighted
+    // by where the run currently is. 0 / -1 = unknown (flat-constant fallback).
+    public int ActNumber { get; init; }   // 1-based act (0 = unknown)
+    public int ActFloor { get; init; } = -1;
+
     /// <summary>
     /// v0.7.2 — Player character entry id. STS2 has 5 characters:
     /// IRONCLAD / SILENT / DEFECT / NECROBINDER / REGENT (no Watcher in STS2;

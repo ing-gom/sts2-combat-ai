@@ -71,6 +71,28 @@ internal static class PlanScorer
         System.Environment.GetEnvironmentVariable("STS2_SUMMONER_FOCUS") == "1";
 
     /// <summary>
+    /// 2026-06-11 — empirical HP value curve. DEFAULT OFF (STS2_HP_CURVE=1 re-enables).
+    /// The flat HpPreservePerPoint constant assumes an HP point is worth the same
+    /// everywhere; mining 34,974 fights (2,368 current-stack runs, _neow/mine_hp_value.py)
+    /// shows the marginal act-clear probability per HP-fraction point varies ~4× by run
+    /// position (act1 low-HP ~1.0-1.2 P/frac vs ~0.3 above 80%; act2-late mid-HP 0.54).
+    /// A/B verdicts: full curve (cuts included) mildly NEGATIVE (depth A90/B76, 300 pairs);
+    /// boost-only variant +3pp act2-clear on the first 300 pairs (McNemar p=0.15) but
+    /// regressed to NULL on the 600-pair confirmation (66 vs 67) — adopted-default bar not
+    /// met. The flat constant sits on a measured plateau; the curve stays as an opt-in
+    /// probe. Bands: &lt;30% / 30-45 / 45-60 / 60-80 / 80%+ of MaxHp; within-act normalized.
+    /// </summary>
+    private static readonly bool HpCurveEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_HP_CURVE") == "1";
+    private static readonly int[,] HpCurveMult =
+    {
+        { 159,  40, 175,  52,  52 },   // act1 floors 0-7
+        { 147, 169,  91,  42,  42 },   // act1 floors 8+
+        {  86,  52,  47,  85,  85 },   // act2 floors 0-7
+        {  91, 135, 175, 131, 131 },   // act2 floors 8+
+    };
+
+    /// <summary>
     /// 2026-06-03 — HP-preservation block bonus (per useful-block point), applied
     /// ONLY when the fight is already won (race == Winning). HP is a cross-combat
     /// resource: when victory is secure, blocking real incoming is "free" survived
@@ -2122,6 +2144,22 @@ internal static class PlanScorer
                 && raceProj.Race == SurvivalProjection.RaceOutcome.Winning)
             {
                 int preserve = usefulBlock * HpPreservePerPoint;
+                // Empirical HP value curve (see HpCurveMult): scale the flat constant by
+                // the measured marginal run-value of HP at this act/floor/HP level.
+                if (HpCurveEnabled && (state.ActNumber == 1 || state.ActNumber == 2)
+                    && state.PlayerMaxHp > 0)
+                {
+                    int row = (state.ActNumber - 1) * 2 + (state.ActFloor >= 8 ? 1 : 0);
+                    int frac100 = state.PlayerHp * 100 / state.PlayerMaxHp;
+                    int hpBand = frac100 < 30 ? 0 : frac100 < 45 ? 1 : frac100 < 60 ? 2
+                               : frac100 < 80 ? 3 : 4;
+                    int mult = HpCurveMult[row, hpBand];
+                    // Boost-only: the full curve (cuts included) measured mildly NEGATIVE
+                    // (depth A90/B76); keep only the causally-supported half — preserve
+                    // HARDER where HP is scarce — and never go below the adopted constant.
+                    if (mult < 100) mult = 100;
+                    preserve = preserve * mult / 100;
+                }
                 threatBonus += preserve;
                 details.Add($"hpPreserve(useful{usefulBlock})=+{preserve}");
             }

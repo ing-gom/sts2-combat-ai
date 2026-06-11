@@ -768,6 +768,22 @@ internal static class StateSnapshotter
                     galvanicAmount += egAmt;
             }
 
+            // 2026-06-11 — run position for the empirical HP value curve. Reflection-safe:
+            // Player.RunState may be inaccessible in some hosts; 0/-1 = flat-constant fallback.
+            int actNumber = 0, actFloor = -1;
+            try
+            {
+                var runState = player.GetType().GetProperty("RunState")?.GetValue(player);
+                if (runState != null)
+                {
+                    var ai = runState.GetType().GetProperty("CurrentActIndex")?.GetValue(runState);
+                    if (ai is int aiv) actNumber = aiv + 1;
+                    var af = runState.GetType().GetProperty("ActFloor")?.GetValue(runState);
+                    if (af is int afv) actFloor = afv;
+                }
+            }
+            catch { /* curve falls back to flat constant */ }
+
             return new SimState
             {
                 PlayerHp = hp,
@@ -775,6 +791,8 @@ internal static class StateSnapshotter
                 PlayerEnergy = energy,
                 Enemies = enemies,
                 Hand = hand,
+                ActNumber = actNumber,
+                ActFloor = actFloor,
                 // Encoder-parity fields (snapshot here so SimStateAdapter
                 // can emit the same numbers Sts2CombatEnv._encode does).
                 // 2026-05-27 — Turn pulled from cs.RoundNumber so the obs
