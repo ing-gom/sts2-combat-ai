@@ -57,6 +57,20 @@ internal static class PlanScorer
         System.Environment.GetEnvironmentVariable("STS2_QUEEN_GUARD") == "1";
 
     /// <summary>
+    /// 2026-06-11 — Ovicopter egg-treadmill summoner focus. DEFAULT OFF: the diagnosis was
+    /// real (decompile CanLay: the Ovicopter RE-LAYS 3 ToughEggs whenever its living minions
+    /// drop to ≤3, so egg damage is a renewable sink — 42-44% of fight damage went into
+    /// minions, ~2.3 re-lay cycles/fight, &gt;50% minion-share fights died at 2.2× the rate),
+    /// but the 300-pair A/B mechanism check showed the penalty CANNOT move the allocation
+    /// (minion share 0.415 off vs 0.422 on, fatality 18/98 vs 18/99): Defect damage is
+    /// dominated by orb auto-chip (random target) and AOE, neither of which is a scored
+    /// targeted play — same unsteerability that refuted the Queen guard carve-out.
+    /// Kept env-gated (STS2_SUMMONER_FOCUS=1) for re-tests on steerable archetypes.
+    /// </summary>
+    public static readonly bool SummonerFocusEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_SUMMONER_FOCUS") == "1";
+
+    /// <summary>
     /// 2026-06-03 — HP-preservation block bonus (per useful-block point), applied
     /// ONLY when the fight is already won (race == Winning). HP is a cross-combat
     /// resource: when victory is secure, blocking real incoming is "free" survived
@@ -2608,10 +2622,35 @@ internal static class PlanScorer
             }
         }
 
+        // 2026-06-11 — Ovicopter egg-treadmill (see SummonerFocusEnabled). While the
+        // Ovicopter lives, hitting its ToughEgg/Hatchling minions is renewable-sink damage:
+        // the KILL is what re-arms CanLay (living minions ≤3 → re-lay 3), and chip is wasted
+        // on a 14-22 HP body that will be replaced. Steer targeted plays into the summoner.
+        // Nudge-sized (kill −700 / chip −300 vs leaderKill +800): a genuinely needed egg
+        // kill (lethal save) still wins the comparison.
+        bool ovicopterAlive = false;
+        if (SummonerFocusEnabled)
+        {
+            for (int i = 0; i < state.Enemies.Count; i++)
+            {
+                var e = state.Enemies[i];
+                if (e.IsAlive && !ReferenceEquals(e, target) && e.MonsterKey == "Ovicopter")
+                { ovicopterAlive = true; break; }
+            }
+            if (ovicopterAlive && target.MonsterKey == "ToughEgg" && incomingDmg > 0)
+            {
+                int eggPenalty = killsTarget ? -700 : -300;
+                bonus += eggPenalty;
+                details.Add($"eggTreadmill(oviRelays)={eggPenalty}");
+            }
+        }
+
         // HatchPower: counter ticks down each enemy turn; on expiry the egg hatches into a
         // (typically worse) creature. A low counter = about to hatch → modest priority to remove
-        // it first while it's still a weak egg.
-        if (target.Powers.TryGetValue("HatchPower", out var hatch) && hatch > 0 && hatch <= 2
+        // it first while it's still a weak egg. Suppressed while an Ovicopter re-summoner is
+        // alive — there the egg is a treadmill and this bonus would push chip INTO it.
+        if (!ovicopterAlive
+            && target.Powers.TryGetValue("HatchPower", out var hatch) && hatch > 0 && hatch <= 2
             && incomingDmg > 0 && hpAfter > 0)
         {
             int hatchBonus = w.BlockUnderThreatBonus / 4;
