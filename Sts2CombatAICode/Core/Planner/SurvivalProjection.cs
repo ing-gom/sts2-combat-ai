@@ -58,6 +58,11 @@ internal static class SurvivalProjection
     // HP pool is boss-tier and the race isn't comfortably Winning, commit to the engine.
     private static readonly bool ScaleRaceEnabled =
         System.Environment.GetEnvironmentVariable("STS2_SCALE_RACE") == "1";
+
+    // STS2_TTD_FIX — realistic TurnsToDeath (see the fix block in Compute). Default OFF
+    // (clean A/B; the in-game mod never sets it).
+    private static readonly bool TtdFixEnabled =
+        System.Environment.GetEnvironmentVariable("STS2_TTD_FIX") == "1";
     private const int ScaleHpThreshold = 300;
 
     // STS2_MINION_RACE — minion-aware kill target (default ON; =0 disables for A/B).
@@ -117,6 +122,41 @@ internal static class SurvivalProjection
         int turnsToDeath = Math.Max(1, state.PlayerHp / netHpLoss);
         if (incoming == 0 && dotPlayer == 0 && doomTick == 0)
             turnsToDeath = 99;  // safe — we don't die
+
+        // 2026-06-11 — STS2_TTD_FIX: realistic TurnsToDeath (env-gated, default OFF).
+        // Death-foresight measurement (293 deaths): 54% of deaths got ZERO advance
+        // warning, 77% ≤1 turn — the legacy formula is over-optimistic two ways:
+        //   (a) DOUBLE block subtraction: `incoming` is already the post-CURRENT-block
+        //       leak, then 0.6×avgBPT is subtracted again — and future turns don't
+        //       have this turn's block anyway;
+        //   (b) current-intent extrapolation: an enemy on a buff/wait intent makes
+        //       incoming 0 → ttd 99 ("can't die") right before a periodic spike
+        //       (Ovicopter T2/T5/T8) — several captured deaths carried ttd 75-99.
+        // Fix: future per-turn loss = RAW attack intents (damage×repeats+strength,
+        // ignoring current block) − 0.6×avgBPT, +DoT. Current block still protects
+        // THIS turn — credited once as extra runway.
+        if (TtdFixEnabled)
+        {
+            int rawIntent = 0;
+            foreach (var e in state.Enemies)
+            {
+                if (!e.IsAlive) continue;
+                if (!(e.HasAttackIntent || e.HasDeathBlowIntent)) continue;
+                int perHit = e.IntentDamage + Math.Max(0, e.StrengthAmount);
+                rawIntent += perHit * Math.Max(1, e.IntentRepeats);
+            }
+            int perTurnLoss = Math.Max(0, rawIntent - realizedBpt) + dotPlayer + doomTick;
+            if ((rawIntent == 0 && dotPlayer == 0 && doomTick == 0) || perTurnLoss <= 0)
+            {
+                turnsToDeath = 99;   // no visible threat / block outpaces the hits
+            }
+            else
+            {
+                // Current block absorbs once (this turn only).
+                int hpRunway = state.PlayerHp + Math.Min(state.PlayerBlock, rawIntent);
+                turnsToDeath = Math.Max(1, (hpRunway + perTurnLoss - 1) / perTurnLoss);
+            }
+        }
 
         // === Damage runway ===
         int totalEnemyHp = 0;
