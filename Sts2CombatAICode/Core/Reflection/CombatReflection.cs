@@ -40,22 +40,56 @@ internal static class CombatReflection
     public static readonly FieldInfo? MonsterSpawnedThisTurnField =
         AccessTools.Field(typeof(MonsterModel), "_spawnedThisTurn");
 
+    // 2026-06-14 perf — StateSnapshotter.Capture calls GetPowerAmount ~75× per
+    // snapshot, each a full scan of creature.Powers (GetType().Name compares). On the
+    // hot planner/search path (Capture per decision × candidates × rollout depth) that
+    // is the dominant cost. Inside a Begin/EndPowerCapture() scope we scan each
+    // creature's Powers ONCE into a name→amount map and serve the 75 reads O(1).
+    // Outside the scope (other callers) the original direct scan is used unchanged.
+    [System.ThreadStatic] private static bool _capActive;
+    [System.ThreadStatic] private static System.Collections.Generic.Dictionary<Creature, System.Collections.Generic.Dictionary<string, int>>? _capMaps;
+
+    public static void BeginPowerCapture()
+    {
+        _capActive = true;
+        (_capMaps ??= new System.Collections.Generic.Dictionary<Creature, System.Collections.Generic.Dictionary<string, int>>()).Clear();
+    }
+    public static void EndPowerCapture()
+    {
+        _capActive = false;
+        _capMaps?.Clear();
+    }
+
+    private static int PowVal(PowerModel power)
+    {
+        var v = PowerAmountField?.GetValue(power);
+        if (v is int i) return i;
+        if (v is decimal d) return (int)d;
+        return System.Convert.ToInt32(v);
+    }
+
     // v0.2.4 — extract status power amount by class-name match.
     // Creature.Powers is a public IReadOnlyList<PowerModel>; walk it and match class names.
     public static int GetPowerAmount(Creature creature, string powerTypeName)
     {
         try
         {
+            if (_capActive && _capMaps != null)
+            {
+                if (!_capMaps.TryGetValue(creature, out var map))
+                {
+                    map = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.Ordinal);
+                    foreach (var power in creature.Powers)
+                        if (power != null) map[power.GetType().Name] = PowVal(power);
+                    _capMaps[creature] = map;
+                }
+                return map.TryGetValue(powerTypeName, out var amt) ? amt : 0;
+            }
             foreach (var power in creature.Powers)
             {
                 if (power == null) continue;
                 if (string.Equals(power.GetType().Name, powerTypeName, System.StringComparison.Ordinal))
-                {
-                    var v = PowerAmountField?.GetValue(power);
-                    if (v is int i) return i;
-                    if (v is decimal d) return (int)d;
-                    return System.Convert.ToInt32(v);
-                }
+                    return PowVal(power);
             }
         }
         catch (System.Exception ex) { LogReflectionFailureOnce($"power/{powerTypeName}", ex); }

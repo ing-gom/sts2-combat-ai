@@ -60,6 +60,7 @@ internal static class StateSnapshotter
 
     public static SimState? Capture(Player player)
     {
+        CombatReflection.BeginPowerCapture();   // scan each creature's Powers once; serve the ~75 reads O(1)
         try
         {
             var creature = player.Creature;
@@ -949,6 +950,7 @@ internal static class StateSnapshotter
             MainFile.Logger.Warn($"[CombatAI] snapshot failed: {ex.Message}");
             return null;
         }
+        finally { CombatReflection.EndPowerCapture(); }
     }
 
     /// <summary>
