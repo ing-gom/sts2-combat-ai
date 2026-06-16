@@ -665,7 +665,10 @@ internal static class StateSnapshotter
                         {
                             try
                             {
-                                if (cge.GeneratedByPlayer && cge.Actor?.Player == player)
+                                // beta (build 23575630): CardGeneratedEntry.GeneratedByPlayer (bool)
+                                // was replaced by Creator (Player?). Creator == player already means
+                                // "this player generated it", subsuming the old owner check.
+                                if (cge.Creator == player)
                                     combatCardsGenerated++;
                             }
                             catch { }
