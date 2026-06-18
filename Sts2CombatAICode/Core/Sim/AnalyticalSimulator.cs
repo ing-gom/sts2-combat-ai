@@ -49,7 +49,10 @@ internal static class AnalyticalSimulator
     /// (rare outside cycling decks) → general one-step parity is unaffected. Skips after a reshuffle
     /// (post-reshuffle order is RNG the sim can't know). Gated STS2_SIM_DRAW_ENGINE, default OFF.
     /// </summary>
-    public static readonly bool UseDrawEngine =
+    // Default from the env gate (full-run A/B), but SETTABLE so the live overlay mod can turn it on
+    // at init — in-game there's no env var to set, and the feature is a no-op for any deck without
+    // an empty-hand engine relic, so the overlay enables it unconditionally.
+    public static bool UseDrawEngine { get; set; } =
         System.Environment.GetEnvironmentVariable("STS2_SIM_DRAW_ENGINE") == "1";
 
     /// <summary>Apply empty-hand draw-engine relics (UnceasingTop) to a post-play state. No-op
