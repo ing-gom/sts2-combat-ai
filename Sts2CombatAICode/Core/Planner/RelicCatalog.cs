@@ -65,6 +65,7 @@ internal static class RelicCatalog
         total += KusarigamaBonus(card, state, w, details);
         total += MusicBoxBonus(card, state, w, details);
         total += RazorToothBonus(card, state, w, details);
+        total += ScreamingFlagonBonus(card, state, w, details);
         return total;
     }
 
@@ -121,6 +122,30 @@ internal static class RelicCatalog
         const int Bonus = 40;
         details?.Add($"RazorTooth+upg({Bonus})");
         return Bonus;
+    }
+
+    /// <summary>2026-06-18 — ScreamingFlagon (STS2, BeforeTurnEnd): if you END your turn with an
+    /// EMPTY hand, deal 20 (Unpowered) to ALL enemies. The play that empties the hand arms this AOE
+    /// payoff, so the compression / cycle-to-empty plan should value reaching an empty hand. Fires
+    /// only on the play that leaves the hand empty (last card, not a draw card). Skips while
+    /// UnceasingTop will refill (draw pile still has cards) — there the hand won't actually be empty
+    /// at turn end (the payoff lands only once the deck is exhausted). Part of the empty-hand engine
+    /// feature → gated with STS2_SIM_DRAW_ENGINE so it ships/measures alongside the draw-engine.</summary>
+    private static int ScreamingFlagonBonus(SimCard card, SimState state, PlanScorerWeights w, List<string>? details)
+    {
+        if (!Sim.AnalyticalSimulator.UseDrawEngine) return 0;
+        if (!state.PlayerRelics.ContainsKey("ScreamingFlagon")) return 0;
+        // Must be the play that empties the hand: the last card, and it doesn't draw a replacement.
+        if (state.Hand == null || state.Hand.Count != 1 || card.IsDrawCard) return 0;
+        // UnceasingTop refills while the draw pile is non-empty → the hand won't be empty at turn end.
+        if (state.PlayerRelics.ContainsKey("UnceasingTop") && state.DrawPileSize > 0) return 0;
+        int aliveEnemies = 0;
+        if (state.Enemies != null) foreach (var e in state.Enemies) if (e.Hp > 0) aliveEnemies++;
+        if (aliveEnemies == 0) return 0;
+        const int FlagonDamage = 20;                    // DamageVar(20, Unpowered)
+        int bonus = FlagonDamage * aliveEnemies * w.DamagePerPointBonus;
+        details?.Add($"ScreamingFlagon+empty({bonus})");
+        return bonus;
     }
 
     /// <summary>TuningFork (STS2): every 10th Skill played → gain 7 block. Counter == SkillsPlayed

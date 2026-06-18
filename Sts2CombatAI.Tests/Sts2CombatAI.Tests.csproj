@@ -46,10 +46,12 @@
         <Compile Include="..\Sts2CombatAICode\Core\Sim\StatusMath.cs" Link="Sim\StatusMath.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\DamageModifiers.cs" Link="Sim\DamageModifiers.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\AnalyticalSimulator.cs" Link="Sim\AnalyticalSimulator.cs" />
+        <Compile Include="..\Sts2CombatAICode\Core\Sim\StateSnapshotter.cs" Link="Sim\StateSnapshotter.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\OrbKind.cs" Link="Sim\OrbKind.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Sim\TokenProducerAxes.cs" Link="Sim\TokenProducerAxes.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Planner\ActionPlanner.cs" Link="Planner\ActionPlanner.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Reflection\CardReflection.cs" Link="Reflection\CardReflection.cs" />
+        <Compile Include="..\Sts2CombatAICode\Core\Reflection\CombatReflection.cs" Link="Reflection\CombatReflection.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Reflection\EnchantmentBonusCatalog.cs" Link="Reflection\EnchantmentBonusCatalog.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Reflection\OrbCardCatalog.cs" Link="Reflection\OrbCardCatalog.cs" />
         <Compile Include="..\Sts2CombatAICode\Core\Planner\OrbValueCatalog.cs" Link="Planner\OrbValueCatalog.cs" />

@@ -38,6 +38,41 @@ internal static class AnalyticalSimulator
         System.Environment.GetEnvironmentVariable("STS2_SIM_REAL_DRAW") == "1";
 
     /// <summary>
+    /// 2026-06-18 — DRAW-ENGINE modeling for the planner's lookahead. STS2 has "draw whenever
+    /// your hand is empty during your turn" relics (UnceasingTop — 팽이). Combined with a thin,
+    /// cheap-cycler deck this is an unbounded draw→play engine, but the depth search couldn't see
+    /// it: playing your last card emptied the hand and the line dead-ended. This models the passive
+    /// by drawing the REAL next draw-pile card (true identity — so a 0-cost cycler reads as another
+    /// playable card, not an average placeholder) whenever the hand goes empty and the relic is held.
+    /// The planner applies it AFTER ApplyCardPlay (ApplyCardPlay itself is untouched), so the loop
+    /// unrolls across depth steps and the engine line accrues value. Only fires on an EMPTY hand
+    /// (rare outside cycling decks) → general one-step parity is unaffected. Skips after a reshuffle
+    /// (post-reshuffle order is RNG the sim can't know). Gated STS2_SIM_DRAW_ENGINE, default OFF.
+    /// </summary>
+    public static readonly bool UseDrawEngine =
+        System.Environment.GetEnvironmentVariable("STS2_SIM_DRAW_ENGINE") == "1";
+
+    /// <summary>Apply empty-hand draw-engine relics (UnceasingTop) to a post-play state. No-op
+    /// unless the gate is on, the relic is held, the hand is empty, and the real draw order is
+    /// known (draw pile non-empty). Returns the input state unchanged otherwise.</summary>
+    public static SimState ApplyEmptyHandDrawPassive(SimState state)
+    {
+        if (!UseDrawEngine) return state;
+        if (state.Hand == null || state.Hand.Count != 0) return state;
+        if (state.PlayerRelics == null || !state.PlayerRelics.ContainsKey("UnceasingTop")) return state;
+        if (state.DrawPile == null || state.DrawPile.Count == 0) return state;  // reshuffle order unknown
+        var newDrawPile = new System.Collections.Generic.List<SimCard>(state.DrawPile);
+        var drawn = newDrawPile[0];          // STS2 draws from the front (index 0)
+        newDrawPile.RemoveAt(0);
+        return state with
+        {
+            Hand = new System.Collections.Generic.List<SimCard> { drawn },
+            DrawPile = newDrawPile,
+            DrawPileSize = System.Math.Max(0, state.DrawPileSize - 1),
+        };
+    }
+
+    /// <summary>
     /// Apply a card play to a state, returning a new state. Original is untouched.
     /// </summary>
     public static SimState ApplyCardPlay(SimState state, SimCard card, int targetIdx)

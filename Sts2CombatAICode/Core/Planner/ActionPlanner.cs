@@ -375,6 +375,7 @@ internal static class ActionPlanner
             try
             {
                 var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
+                nextState = Sim.AnalyticalSimulator.ApplyEmptyHandDrawPassive(nextState);  // draw-engine (UnceasingTop)
                 // v0.9 — beamK 3 → 5. K=3 was pruning setup cards (FALLING_STAR
                 // with d=8 base, VENERATE with 0 dmg, GLOW with 0 dmg) from the
                 // depth-2 beam because their immediate single-step score lost
@@ -409,7 +410,7 @@ internal static class ActionPlanner
                         if (fs > fbBest) { fbBest = fs; fbCard = fc; fbTarget = ft; }
                     }
                     if (fbCard != null)
-                        try { projBase = Sim.AnalyticalSimulator.ApplyCardPlay(nextState, fbCard, fbTarget); }
+                        try { projBase = Sim.AnalyticalSimulator.ApplyEmptyHandDrawPassive(Sim.AnalyticalSimulator.ApplyCardPlay(nextState, fbCard, fbTarget)); }
                         catch { projBase = nextState; }
                 }
 
@@ -778,6 +779,7 @@ internal static class ActionPlanner
                 try
                 {
                     var nextState = Sim.AnalyticalSimulator.ApplyCardPlay(state, card, targetIdx);
+                    nextState = Sim.AnalyticalSimulator.ApplyEmptyHandDrawPassive(nextState);  // draw-engine (UnceasingTop)
                     total += BestContinuation(nextState, depth - 1, w, beamK, out _);
                 }
                 catch { /* sim failure: use single-step score only */ }

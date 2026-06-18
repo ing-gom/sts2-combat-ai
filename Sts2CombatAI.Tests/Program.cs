@@ -151,6 +151,9 @@ public static class Program
         Run("Sim: ApplyCardPlay leaves TurnEnergySpent unchanged when freeApplied", Test_SimTurnEnergySpentFree);
         Run("Sim: ApplyCardPlay increments TurnOstyAttacks on OSTY-tagged play", Test_SimTurnOstyAttacks);
         Run("Sim: ApplyCardPlay increments CombatEtherealPlayed on Ethereal play", Test_SimCombatEtherealPlayed);
+        Run("DrawEngine: UnceasingTop cycles a compressed deck in the lookahead", Test_DrawEngine_UnceasingTop);
+        Run("DrawEngine: ScreamingFlagon rewards ending the turn with an empty hand", Test_DrawEngine_ScreamingFlagon);
+        Run("DrawEngine: PlanNextStep values the cycle line higher with the engine on", Test_DrawEngine_PlannerValuesCycle);
 
         // v0.23 Phase 8 / 8b — DamageCapPerHit-aware planner penalties. Tests
         // assert the breakdown details surface the named penalties under the
@@ -397,6 +400,86 @@ public static class Program
         var next = AnalyticalSimulator.ApplyCardPlay(state, state.Hand[0], 0);
         Assert(next.CombatEtherealPlayed == 3,
             $"Ethereal play should bump CombatEtherealPlayed 2→3 (got {next.CombatEtherealPlayed})");
+    }
+
+    // 2026-06-18 — draw-engine recognition (Direction A). With UnceasingTop ("draw when your
+    // hand is empty") + a thin deck of 0-cost cyclers, a single-turn rollout should keep playing
+    // as the empty-hand passive refills the hand. Gate-aware: with STS2_SIM_DRAW_ENGINE on the
+    // engine unrolls (all 4 cyclers played); off, the line dead-ends after the one hand card —
+    // exactly the drawn-card-identity ceiling this targets.
+    private static void Test_DrawEngine_UnceasingTop()
+    {
+        SimCard Cycler() => Attack("STRIKE", cost: 0, damage: 6);
+        var state = MakeState(playerHp: 60, energy: 3,
+            hand: new() { Cycler() },
+            enemies: new() { Enemy(hp: 200) }) with
+        {
+            DrawPile = new List<SimCard> { Cycler(), Cycler(), Cycler() },
+            DrawPileSize = 3,
+            PlayerRelics = new Dictionary<string, int> { ["UnceasingTop"] = 1 },
+        };
+
+        int plays = 0, startHp = state.Enemies[0].Hp;
+        var s = state;
+        for (int i = 0; i < 20 && s.Hand.Count > 0; i++)
+        {
+            s = AnalyticalSimulator.ApplyCardPlay(s, s.Hand[0], 0);
+            s = AnalyticalSimulator.ApplyEmptyHandDrawPassive(s);
+            plays++;
+        }
+        int dmg = startHp - s.Enemies[0].Hp;
+        Console.WriteLine($"    [draw-engine] gate={(AnalyticalSimulator.UseDrawEngine ? "ON " : "off")} plays={plays} damage={dmg}");
+
+        if (AnalyticalSimulator.UseDrawEngine)
+            Assert(plays == 4 && dmg == 24,
+                $"draw-engine ON: should cycle all 4 cyclers for 24 dmg (got plays={plays} dmg={dmg})");
+        else
+            Assert(plays == 1 && dmg == 6,
+                $"draw-engine off: line dead-ends after the hand card (got plays={plays} dmg={dmg})");
+    }
+
+    // 2026-06-18 — ScreamingFlagon payoff (compression engine, Direction A). Ending the turn with
+    // an empty hand deals 20 to ALL enemies; the play that empties the hand should be scored with
+    // that AOE payoff so the cycle-to-empty plan is valued. Gate-aware (STS2_SIM_DRAW_ENGINE).
+    private static void Test_DrawEngine_ScreamingFlagon()
+    {
+        var last = Attack("STRIKE", cost: 0, damage: 6);
+        var state = MakeState(playerHp: 60, energy: 3,
+            hand: new() { last },                       // exactly 1 card → playing it empties the hand
+            enemies: new() { Enemy(hp: 100), Enemy(hp: 100) }) with
+        {
+            DrawPileSize = 0,
+            PlayerRelics = new Dictionary<string, int> { ["ScreamingFlagon"] = 1 },
+        };
+        var w = new PlanScorerWeights();
+        int bonus = RelicCatalog.ComputeCardBonus(last, 0, state, w, null);
+        Console.WriteLine($"    [screaming-flagon] gate={(AnalyticalSimulator.UseDrawEngine ? "ON " : "off")} bonus={bonus}");
+        if (AnalyticalSimulator.UseDrawEngine)
+            Assert(bonus == 20 * 2 * w.DamagePerPointBonus,
+                $"ScreamingFlagon ON: empty-hand play worth 20×2enemies×{w.DamagePerPointBonus} (got {bonus})");
+        else
+            Assert(bonus == 0, $"ScreamingFlagon off: no empty-hand bonus (got {bonus})");
+    }
+
+    // 2026-06-18 — PLANNER-LEVEL validation of Direction A: drive the real ActionPlanner.PlanNextStep
+    // on a compression hand (UnceasingTop + 0-cost cyclers). With the engine ON the lookahead sees
+    // the cycle continue past an empty hand, so the best line's total is HIGHER than with it off
+    // (where the line dead-ends). Gate-aware sanity + prints LastBestCardTotal so the off/on runs
+    // can be compared (the planner actually values the deck's engine, not just the sim mechanic).
+    private static void Test_DrawEngine_PlannerValuesCycle()
+    {
+        SimCard Cycler() => Attack("STRIKE", cost: 0, damage: 6);
+        var state = MakeState(playerHp: 60, energy: 3,
+            hand: new() { Cycler() },
+            enemies: new() { Enemy(hp: 200, hasAttackIntent: true, intentDamage: 10) }) with
+        {
+            DrawPile = new List<SimCard> { Cycler(), Cycler(), Cycler() },
+            DrawPileSize = 3,
+            PlayerRelics = new Dictionary<string, int> { ["UnceasingTop"] = 1 },
+        };
+        var plan = ActionPlanner.PlanNextStep(state);
+        Console.WriteLine($"    [planner-compression] gate={(AnalyticalSimulator.UseDrawEngine ? "ON " : "off")} chosen={plan?.Card?.Id} lookaheadTotal={ActionPlanner.LastBestCardTotal}");
+        Assert(plan != null, "planner should return a card on a compression hand");
     }
 
     private static void Test_SimTurnSkillsPlayed()
