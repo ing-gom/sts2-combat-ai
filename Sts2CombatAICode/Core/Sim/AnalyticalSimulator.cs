@@ -38,6 +38,19 @@ internal static class AnalyticalSimulator
         System.Environment.GetEnvironmentVariable("STS2_SIM_REAL_DRAW") == "1";
 
     /// <summary>
+    /// 2026-06-19 — proactive enemy StatusIntent (Dazed flood) modeling. The sim models
+    /// player-generated status and the reactive PersonalHive enemy status, but MISSED a
+    /// monster's own StatusIntent move (e.g. Fogmog's summoned EyeWithTeeth DISTRACTs 3 Dazed
+    /// into the deck each turn). So the planner over-estimated next-turn throughput vs
+    /// status/summoner enemies → Silent blowouts (die with enemy at ~76 HP). AdvanceTurn now
+    /// replaces one next-turn-hand card per alive StatusIntent enemy with a dead status
+    /// placeholder (keeps ≥1 live card), reflecting the throughput hit. SETTABLE so the live
+    /// overlay can enable it; default OFF (clean full-run A/B baseline). STS2_SIM_STATUS_INTENT=1.
+    /// </summary>
+    public static bool UseStatusIntentClog { get; set; } =
+        System.Environment.GetEnvironmentVariable("STS2_SIM_STATUS_INTENT") == "1";
+
+    /// <summary>
     /// 2026-06-18 — DRAW-ENGINE modeling for the planner's lookahead. STS2 has "draw whenever
     /// your hand is empty during your turn" relics (UnceasingTop — 팽이). Combined with a thin,
     /// cheap-cycler deck this is an unbounded draw→play engine, but the depth search couldn't see
@@ -3238,6 +3251,17 @@ internal static class AnalyticalSimulator
 
     private static SimState AdvanceTurnInternal(SimState state, System.Collections.Generic.List<SimCard> nextHand)
     {
+        // 2026-06-19 — proactive enemy StatusIntent (Dazed flood) clogs the next hand. One
+        // dead status placeholder per alive StatusIntent enemy, keeping ≥1 live card. Mutates
+        // nextHand in place (a fresh per-call list) before it becomes the new hand (line ~3492).
+        if (UseStatusIntentClog && nextHand.Count > 1)
+        {
+            int statusEnemies = 0;
+            foreach (var e in state.Enemies) if (e.IsAlive && e.HasStatusIntent) statusEnemies++;
+            int clog = System.Math.Min(statusEnemies, nextHand.Count - 1);
+            for (int i = 0; i < clog; i++) nextHand[nextHand.Count - 1 - i] = MakeStatusPlaceholderCard();
+        }
+
         // (a)+(b) Resolve enemy intents — PredictPlayerDmg already factors
         // block (incl. EOT bonus), Vulnerable on player, Weak on enemies, and
         // Intangible cap.
