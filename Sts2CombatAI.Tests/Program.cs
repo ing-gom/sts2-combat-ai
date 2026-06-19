@@ -71,6 +71,7 @@ public static class Program
         Run("Lookahead: depth-2 picks first card that enables second-card combo", Test_LookaheadCombo);
         Run("Lookahead: Inflame chosen first when Strike in hand benefits", Test_LookaheadInflameFirst);
         Run("Lookahead: PlanNextStep returns sane card with multiple combos", Test_LookaheadReturnsCard);
+        Run("MCTS: PlanScorer-leaf planner picks the lethal attack over a weak skill", Test_MctsPicksLethal);
         Run("Wasted attack: damage ??block scores negative", Test_WastedAttackPenalty);
         Run("Wasted block: block when no threat scores lower", Test_WastedBlockPenalty);
         Run("Energy card urgent: low energy + expensive hand ??high bonus", Test_EnergyCardUrgent);
@@ -480,6 +481,22 @@ public static class Program
         var plan = ActionPlanner.PlanNextStep(state);
         Console.WriteLine($"    [planner-compression] gate={(AnalyticalSimulator.UseDrawEngine ? "ON " : "off")} chosen={plan?.Card?.Id} lookaheadTotal={ActionPlanner.LastBestCardTotal}");
         Assert(plan != null, "planner should return a card on a compression hand");
+    }
+
+    // 2026-06-19 (MCTS path A) — smoke-test the re-leafed MCTSPlanner. With the PlanScorer-unit
+    // leaf (ActionPlanner.LeafValue: +1,000,000 when all enemies dead) + the shared legal-move
+    // enumeration + min-max normalized UCB, MCTS should drive the search to the lethal STRIKE
+    // (which yields the terminal-win leaf) rather than a value-less DEFEND. This validates the
+    // new leaf/enumeration/normalization plumbing end-to-end on a deterministic single-turn board.
+    private static void Test_MctsPicksLethal()
+    {
+        var state = MakeState(playerHp: 50, energy: 3,
+            hand: new() { Attack("STRIKE", cost: 1, damage: 6), Skill("DEFEND", cost: 1, block: 5, selfTarget: true) },
+            enemies: new() { Enemy(hp: 6, hasAttackIntent: true, intentDamage: 10) });
+        var pick = MCTSPlanner.PlanNextStep(state, simulations: 50);
+        Assert(pick != null, "MCTS should return a play when a lethal attack is available");
+        Console.WriteLine($"    [mcts-lethal] chosen={pick?.card?.Id} tgt={pick?.targetIdx}");
+        Assert(pick?.card?.Id == "STRIKE", $"MCTS should pick the lethal STRIKE, got {pick?.card?.Id}");
     }
 
     private static void Test_SimTurnSkillsPlayed()
