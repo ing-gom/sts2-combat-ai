@@ -4,8 +4,10 @@ using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Runs;
 using Sts2CombatAI.Sim;
 
 namespace Sts2CombatAI.Reflection;
@@ -18,6 +20,20 @@ namespace Sts2CombatAI.Reflection;
 /// </summary>
 internal static class CombatReflection
 {
+    /// <summary>
+    /// 107 (build 23811903): CombatManager.IsPlayPhase was removed. Play-phase state now
+    /// lives on RunManager.Instance.ActionQueueSynchronizer.CombatState (enum).
+    /// </summary>
+    public static bool IsPlayPhase()
+    {
+        try
+        {
+            return RunManager.Instance?.ActionQueueSynchronizer?.CombatState
+                == ActionSynchronizerCombatState.PlayPhase;
+        }
+        catch { return false; }
+    }
+
     public static readonly FieldInfo? CombatManagerStateField =
         AccessTools.Field(typeof(CombatManager), "_state");
 

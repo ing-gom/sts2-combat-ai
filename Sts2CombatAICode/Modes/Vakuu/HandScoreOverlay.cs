@@ -107,7 +107,7 @@ internal sealed partial class HandScoreOverlay : Node
             _lastStateHash = int.MinValue;
             return;
         }
-        if (!cm.IsPlayPhase || cm.EndingPlayerTurnPhaseOne || cm.EndingPlayerTurnPhaseTwo)
+        if (!CombatReflection.IsPlayPhase() || cm.EndingPlayerTurnPhaseOne || cm.EndingPlayerTurnPhaseTwo)
         {
             // Hide during enemy phase / transitions; don't clear the cache so we redraw
             // instantly when player phase returns with the same hand.

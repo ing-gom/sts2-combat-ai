@@ -15,7 +15,9 @@ namespace Sts2CombatAI.Modes.Vakuu;
 /// On any unexpected exception the prefix falls through (returns true), letting vanilla
 /// Vakuu handle the turn so the mod never breaks the relic.
 /// </summary>
-[HarmonyPatch(typeof(WhisperingEarring), nameof(WhisperingEarring.BeforePlayPhaseStartLate))]
+// 107 (build 23811903): WhisperingEarring.BeforePlayPhaseStartLate was renamed to
+// AfterAutoPrePlayPhaseEnteredLate (same (PlayerChoiceContext, Player) signature).
+[HarmonyPatch(typeof(WhisperingEarring), nameof(WhisperingEarring.AfterAutoPrePlayPhaseEnteredLate))]
 internal static class WhisperingEarringPlannerPatch
 {
     [HarmonyPrefix]

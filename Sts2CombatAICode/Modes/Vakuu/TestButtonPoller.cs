@@ -2,6 +2,7 @@ using System;
 using Godot;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using Sts2CombatAI.Reflection;
 
 namespace Sts2CombatAI.Modes.Vakuu;
 
@@ -62,7 +63,7 @@ internal sealed partial class TestButtonPoller : Node
             var cm = CombatManager.Instance;
             int round = cm.IsInProgress ? (cm.DebugOnlyGetState()?.RoundNumber ?? -1) : -1;
             bool combatActive = cm.IsInProgress && !cm.IsOverOrEnding;
-            bool playerPhase = cm.IsPlayPhase && !cm.EndingPlayerTurnPhaseOne && !cm.EndingPlayerTurnPhaseTwo;
+            bool playerPhase = CombatReflection.IsPlayPhase() && !cm.EndingPlayerTurnPhaseOne && !cm.EndingPlayerTurnPhaseTwo;
 
             // Play button: combat+phase gate plus once-per-turn lock.
             if (endTurn.GetNodeOrNull("VakuuTestButton") is Button vakuuBtn)

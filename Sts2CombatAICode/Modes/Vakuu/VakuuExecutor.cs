@@ -614,7 +614,7 @@ internal static class VakuuExecutor
     }
 
     private static Creature? ResolveTarget(
-        ActionPlanner.PlanStep plan, SimState snapshot, CombatState combatState, Player player)
+        ActionPlanner.PlanStep plan, SimState snapshot, ICombatState combatState, Player player)
     {
         if (plan.TargetIdx >= 0 && plan.TargetIdx < snapshot.Enemies.Count)
         {
