@@ -1,0 +1,19 @@
+NOTICE — game content
+
+The MIT license in LICENSE covers only the source code in this repository.
+
+This mod contains no Slay the Spire 2 game files, and must not be distributed
+with any. It references the game's own assemblies from the user's legally
+obtained installation at build and run time.
+
+Slay the Spire 2, its assemblies, assets, names and content are the property of
+Mega Crit and are not licensed here. This project is an unofficial, fan-made
+mod and is not affiliated with or endorsed by Mega Crit.
+
+## Reuse note
+
+`Sts2CombatAICode/Core/` (the `PlanScorer` planner and the analytical simulator)
+is source-included by the standalone engine driver at
+https://github.com/ing-gom/sts2-combat-core — that project expects this
+repository checked out as a sibling directory. Keep the two in sync when
+changing planner or simulator interfaces.
