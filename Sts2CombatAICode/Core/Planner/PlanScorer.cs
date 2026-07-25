@@ -105,6 +105,10 @@ internal static class PlanScorer
     /// Default 0 (OFF) — A/B via STS2_HP_PRESERVE.
     /// </summary>
     public static int HpPreservePerPoint = ResolveHpPreserve();
+    // 2026-06-19 — act2+ pre-boss attrition block (see the block-effect site). Default 0 (OFF, clean
+    // A/B); the act2-clear A/B sets it. SETTABLE so the live overlay can enable it.
+    public static int AttritionBlockPerPoint =
+        int.TryParse(System.Environment.GetEnvironmentVariable("STS2_ATTRITION_BLOCK"), out var ab) && ab >= 0 ? ab : 0;
     private static int ResolveHpPreserve()
     {
         var s = System.Environment.GetEnvironmentVariable("STS2_HP_PRESERVE");
@@ -2162,6 +2166,25 @@ internal static class PlanScorer
                 }
                 threatBonus += preserve;
                 details.Add($"hpPreserve(useful{usefulBlock})=+{preserve}");
+            }
+
+            // 2026-06-19 — ACT2+ ATTRITION block (STS2_ATTRITION_BLOCK, default OFF). Distinct from
+            // the rejected act2-BOSS block (lethal-race; "wall is deck-power") and the Tight over-
+            // block: this targets the act2 PRE-BOSS grind. W600 corpus diagnosis (Necro): act2 entry
+            // HP ~90%, yet 77% die pre-boss at floors 4-8; on 48% of act2 combat turns a DEFEND is in
+            // hand but block=0, and 81% of those are NON-LETHAL turns (incoming<HP, energy free) —
+            // the policy races and bleeds out over several fights. This rewards leak-capped useful
+            // block ONLY when: act2+, comfortably non-lethal (TTD>=3 so we never trade a kill turn or
+            // a survival block), and NOT already Winning (that path is handled above). Leak-capped, so
+            // it never over-blocks. STS2_ATTRITION_BLOCK = per-useful-point bonus (0 = off).
+            else if (AttritionBlockPerPoint > 0 && usefulBlock > 0
+                     && state.ActNumber >= 2
+                     && raceProj.Race != SurvivalProjection.RaceOutcome.Winning
+                     && raceProj.TurnsToDeath >= 3)
+            {
+                int preserve = usefulBlock * AttritionBlockPerPoint;
+                threatBonus += preserve;
+                details.Add($"attritionBlock(useful{usefulBlock},ttd{raceProj.TurnsToDeath})=+{preserve}");
             }
 
             // 2026-06-09 — REJECTED: a high-HP-boss survival-block boost (STS2_BOSS_BLOCK, reward

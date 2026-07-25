@@ -2276,6 +2276,23 @@
       "label": "파워 증폭"
     }
   ],
+  "REPLAY": [
+    {
+      "role": "POWER_TYPE",
+      "w": 1.5,
+      "label": "복제할 파워 (지속 효과 강화)"
+    },
+    {
+      "role": "SCALING",
+      "w": 1.0,
+      "label": "복제할 스케일링 카드"
+    },
+    {
+      "role": "DAMAGE",
+      "w": 0.8,
+      "label": "복제할 공격 카드"
+    }
+  ],
   "SELF_RETURN": [
     {
       "role": "STRENGTH_PRODUCER",
@@ -2320,9 +2337,7 @@
       "label": "스킬 재사용"
     }
   ],
-
   "_comment_combatai_port": "v0.7.x — 5 axes ported from Sts2CombatAI EffectSynergy handlers. Source: scripts/combatai_handled_axes.json. Each axis has an explicit game-aware handler in CombatAI's planner.",
-
   "HEAL": [
     {
       "role": "HP_LOSS",
@@ -2340,7 +2355,6 @@
       "label": "지속 생존"
     }
   ],
-
   "STRENGTH_DOWN": [
     {
       "role": "WEAK_PRODUCER",
@@ -2358,7 +2372,6 @@
       "label": "방어 빌드"
     }
   ],
-
   "CARD_RETURN": [
     {
       "role": "DRAW",
@@ -2376,7 +2389,6 @@
       "label": "버리기 회수"
     }
   ],
-
   "EXHAUST_TARGET_RANDOM": [
     {
       "role": "EXHAUST_CONSUMER",
@@ -2394,7 +2406,6 @@
       "label": "데미지 시너지"
     }
   ],
-
   "OSTY": [
     {
       "role": "SKELETON_PRODUCER",
