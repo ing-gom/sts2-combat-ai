@@ -162,7 +162,7 @@ if (card.Id?.Entry is "CONFLAGRATION" or "SQUEEZE" or "DEATH_MARCH" or "CRESCENT
 
 ## 주의
 - 이 작업은 게임 클라이언트 직접 플레이가 필요 → 헤드리스 실행 불가. 콤뱃 로그 capture 단계까지는 사용자가 진행해야 함. 리모트 에이전트는 디버그 코드 작성 + 로그 분석 + fallback 핸들러 코드 작성까지.
-- 로그 파일 경로는 사용자 윈도우 PC: `C:\Users\dev\AppData\Roaming\SlayTheSpire2\Sts2CombatAI\decision_log\` — 리모트 에이전트는 이 경로 접근 불가. 사용자가 로그 발췌해 PR 코멘트로 첨부할 것을 요청.
+- 로그 파일 경로는 사용자 윈도우 PC: `%APPDATA%\SlayTheSpire2\Sts2CombatAI\decision_log\` — 리모트 에이전트는 이 경로 접근 불가. 사용자가 로그 발췌해 PR 코멘트로 첨부할 것을 요청.
 ```
 
 ---

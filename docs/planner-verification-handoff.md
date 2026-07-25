@@ -14,8 +14,8 @@ follow-ups are.
 
 | Repo | Remote | Local path (primary machine) | Purpose |
 |---|---|---|---|
-| Sts2CombatAI | `ing-gom/sts2-combat-ai` (public) | `C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI\` | Combat-decision mod. Contains the PlanScorer / ActionPlanner code that we verify. |
-| Sts2CombatCore | `ing-gom/sts2-combat-core` (private) | `C:\Users\dev\sts2-combat-core\` | Headless harness wrapping sts2.dll via Harmony. Includes the ScenarioVerifier and the planner-benchmark script. |
+| Sts2CombatAI | `ing-gom/sts2-combat-ai` (public) | `<workspace>\Sts2CombatAI\` | Combat-decision mod. Contains the PlanScorer / ActionPlanner code that we verify. |
+| Sts2CombatCore | `ing-gom/sts2-combat-core` (public) | `<workspace>\sts2-combat-core\` | Headless harness wrapping sts2.dll via Harmony. Includes the ScenarioVerifier and the planner-benchmark script. |
 
 Both repos are on `master`. Sts2CombatCore source-includes selected files from
 Sts2CombatAI/Sts2CombatAICode/Core/ via conditional `<Compile Include>` in
@@ -111,8 +111,7 @@ PlanScorer changes safely measurable.
 
 ## 4. Phase history (highlights)
 
-Full per-phase detail lives in the project memory at
-`C:\Users\dev\.claude\projects\C--Users-dev-sts2-card-advisor-dev\memory\project_planner_verification.md`.
+Full per-phase detail lives in the author's local project notes (not in this repo).
 Below are the commits and net effect on the strong-deck 80-encounter benchmark.
 
 | Phase | Commits | Net effect |
@@ -264,7 +263,7 @@ In rough priority order:
 The `auto memory` system has the full Phase log + cross-referenced decisions at:
 
 ```
-C:\Users\<you>\.claude\projects\C--Users-dev-sts2-card-advisor-dev\memory\MEMORY.md
+C:\Users\<you>\.claude\projects\<project-slug>\memory\MEMORY.md
 ```
 
 The most relevant entries for this work:

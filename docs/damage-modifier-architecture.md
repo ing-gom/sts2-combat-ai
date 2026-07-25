@@ -365,8 +365,8 @@ additional 5-10pp on top of architecture lift.
 - `Sts2CombatAICode/Core/Sim/StatusMath.cs` — current damage chain (V1, untouched)
 - `Sts2CombatAICode/Core/Sim/AnalyticalSimulator.cs` — call site that switches V1/V2 (feature flag)
 - `Sts2CombatAI.Tests/Program.cs` — 119 baseline tests
-- `C:\Users\dev\sts2-combat-core\src\Sts2CombatCore\Harness\SimulatorParityCheck.cs` — probe
-- `C:\Users\dev\sts2-combat-core\python\sim_parity_analyzer.py` — analysis
+- `src/Sts2CombatCore/Harness/SimulatorParityCheck.cs` (in `ing-gom/sts2-combat-core`) — probe
+- `python/sim_parity_analyzer.py` (in `ing-gom/sts2-combat-core`) — analysis
 - `runs/sim_parity_fresh.jsonl` (Sts2CombatCore side) — current baseline 42.8%
 - Memory: [[project_b_damage_modifier_architecture]] — running notes
 - Memory: [[reference_sim_parity_probe]] — probe command reference

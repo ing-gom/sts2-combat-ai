@@ -887,7 +887,7 @@ CrackedCore Lightning orb → OrbQueue 등). **카드 플레이의 결과**에 �
 ### 실행
 
 ```bash
-cd C:\Users\dev\sts2-card-advisor-dev\Sts2CombatAI.Tests
+cd Sts2CombatAI.Tests
 dotnet run -c Release
 ```
 
